@@ -1,0 +1,63 @@
+name: CIs
+on:
+#  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  pytest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu, windows, macos ]
+        python: [ '3.11' ]
+        # Test PyQt5 for backwards compatibility, PySide2 is left out to save runners
+        qt : [ 'PySide6' , 'PyQt6', 'PyQt5']
+        include:
+          - os: ubuntu
+            python: '3.9'
+            qt : 'PySide6'
+          - os: ubuntu
+            python: '3.10'
+            qt : 'PySide6'
+    name: Run tests on ${{ matrix.os }} - ${{matrix.python}} - ${{ matrix.qt }}
+    runs-on: ${{ matrix.os }}-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # Set up headless display for windows and linux
+      - name: Setup headless display
+        uses: pyvista/setup-headless-display-action@main
+        with:
+          qt: true
+          pyvista: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Installation with dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ${{ matrix.qt }}
+          python -m pip install -ve ".[dev]"
+      - name: Get testing version
+        run: |
+          mkdir -p mne/datasets
+          curl --output-dir mne/datasets/ --remote-name https://raw.githubusercontent.com/mne-tools/mne-python/main/mne/datasets/config.py
+          curl --remote-name https://raw.githubusercontent.com/mne-tools/mne-python/main/tools/get_testing_version.sh
+          bash ./get_testing_version.sh
+      - uses: actions/cache@v3
+        with:
+          key: ${{ env.TESTING_VERSION }}
+          path: ~/mne_data
+        name: 'Cache testing data'
+      - name: 'Download testing, sample and fsaverage data'
+        run: |
+          python -c 'import mne; mne.datasets.testing.data_path(); mne.datasets.sample.data_path(); mne.datasets.fetch_fsaverage()'
+      - name: Show system information
+        run: mne sys_info
+      - run: pytest
+        name: Run Tests

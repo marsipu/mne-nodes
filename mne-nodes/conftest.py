@@ -1,0 +1,96 @@
+# -*- coding: utf-8 -*-
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+Github: https://github.com/marsipu/mne-nodes
+"""
+from os import mkdir
+
+import pytest
+
+from mne_nodes.gui.main_window import MainWindow
+from mne_nodes.gui.node.node_viewer import NodeViewer
+from mne_nodes.gui.node.nodes import FunctionNode
+from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.pipeline_utils import _set_test_run
+
+
+@pytest.fixture
+def controller(tmpdir):
+    # Initialize testing-environment
+    _set_test_run()
+    # Create meeg_root and fsmri_root
+    meeg_root = tmpdir.join("MEEG")
+    mkdir(meeg_root)
+    fsmri_root = tmpdir.join("FSMRI")
+    mkdir(fsmri_root)
+    # Create Controller
+    ct = Controller(None, meeg_root, fsmri_root)
+    # TodoNext: Update pytest fixture for Controller tests (and test Parameter serialization)
+
+    return ct
+
+
+@pytest.fixture
+def main_window(controller, qtbot):
+    mw = MainWindow(controller)
+    qtbot.addWidget(mw)
+
+    return mw
+
+
+@pytest.fixture
+def nodeviewer(qtbot, controller):
+    viewer = NodeViewer(controller, debug_mode=True)
+    viewer.resize(1000, 1000)
+    qtbot.addWidget(viewer)
+    viewer.show()
+
+    func_kwargs = {
+        "ports": [
+            {
+                "name": "In1",
+                "port_type": "in",
+                "accepted_ports": ["Out1"],
+            },
+            {
+                "name": "In2",
+                "port_type": "in",
+                "accepted_ports": ["Out1, Out2"],
+            },
+            {
+                "name": "Out1",
+                "port_type": "out",
+                "accepted_ports": ["In1"],
+                "multi_connection": True,
+            },
+            {
+                "name": "Out2",
+                "port_type": "out",
+                "accepted_ports": ["In1", "In2"],
+                "multi_connection": True,
+            },
+        ],
+        "name": "test_func",
+        "parameters": {
+            "low_cutoff": {
+                "alias": "Low-Cutoff",
+                "gui": "FloatGui",
+                "default": 0.1,
+            },
+            "high_cutoff": {
+                "alias": "High-Cutoff",
+                "gui": "FloatGui",
+                "default": 0.2,
+            },
+        },
+    }
+    func_node1 = FunctionNode(controller, **func_kwargs)
+    viewer.add_node(func_node1)
+    func_node2 = FunctionNode(controller, **func_kwargs)
+    viewer.add_node(func_node2)
+    func_node1.output(port_idx=0).connect_to(func_node2.input(port_idx=0))
+
+    func_node2.setPos(400, 100)
+
+    return viewer

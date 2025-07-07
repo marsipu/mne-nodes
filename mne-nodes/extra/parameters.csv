@@ -1,0 +1,104 @@
+;alias;group;default;unit;description;gui_type;gui_args
+ch_types;Channel-Types;Preprocessing;['mag', 'grad', 'eeg', 'stim', 'eog', 'ecg'];;Specify Channel-Types used in data;CheckListGui;{'options': ['mag', 'grad', 'eeg', 'stim', 'eog', 'ecg', 'emg', 'ref_meg', 'misc', 'resp', 'chpi', 'exci', 'ias', 'syst', 'seeg', 'dipole', 'gof', 'bio', 'ecog', 'fnirs', 'csd']}
+ch_names;Channel-Names;Preprocessing;'all';;Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types);MultiTypeGui;{'type_selection': True, 'types': ['str', 'list']}
+ref_channels;;Preprocessing;'average';;Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference();MultiTypeGui;{'type_selection': True, 'types': ['str', 'list']}
+highpass;Highpass-Cutoff;Filtering;1;Hz;Highpass-Filter;SliderGui;{'min_val': 0, 'max_val': 100, 'step': 0.1, 'none_select': True}
+lowpass;Lowpass-Cutoff;Filtering;100;Hz;Lowpass-Filter;SliderGui;{'min_val': 0, 'max_val': 100, 'step': 0.1, 'none_select': True}
+filter_target;;Filtering;'raw';;The target for Filtering (experimental when other than raw);ComboGui;{'options': ['raw', 'epochs', 'evoked']}
+filter_length;;Filtering;auto;;;MultiTypeGui;{'type_selection': True, 'types': ['str', 'int']}
+l_trans_bandwidth;;Filtering;auto;;;MultiTypeGui;{'type_selection': True, 'types': ['str', 'float']}
+h_trans_bandwidth;;Filtering;auto;;;MultiTypeGui;{'type_selection': True, 'types': ['str', 'float']}
+filter_method;;Filtering;fir;;;StringGui;
+iir_params;;Filtering;None;;;DictGui;{'none_select': True}
+fir_phase;;Filtering;zero;;;StringGui;
+fir_window;;Filtering;hamming;;;StringGui;
+fir_design;;Filtering;firwin;;;StringGui;
+skip_by_annotation;;Filtering;['edge', 'bad_acq_skip'];;;ListGui;
+fir_pad;;Filtering;reflect_limited;;;StringGui;
+erm_t_limit;;Preprocessing;300;s;Limits Empty-Room-Measurement-Length[s];IntGui;{'none_select': True, 'min_val':0, 'max_val': 10000}
+stim_channels;Stimulation-Channels;events;['STI 001'];;Stimulation Channel(s);ListGui;
+min_duration;Minimum Duration;events;0.002;s;Minimum-Duration for events;FloatGui;{'min_val': 0, 'step': 0.001, 'decimals': 3}
+shortest_event;Shortest Event;events;2;sample;Shortest possible Event;IntGui;{'min_val': 0}
+adjust_timeline_by_msec;Adjust Time;events;0;ms;custom delay to stimulus in ms;IntGui;{'min_val':-10000, 'max_val': 10000}
+t_epoch;Epoch-Timeframe;epochs;(-0.5,1.5);s;start and end of epoch;TupleGui;
+baseline;Baseline-Timeframe;epochs;(-0.5,0);s;start and end of baseline;TupleGui;{'max_val': 0, 'none_select': True}
+detrend_order;;epochs;None;;The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.;ComboGui;{'none_select': True, 'options': ['DC', 'Linear']}
+apply_proj;Apply Projections;epochs;True;;If to apply the projections (if present);BoolGui;
+bad_interpolation;Bad-Channel-Interpolation;Preprocessing;None;;Choose where to apply bad-channels-interpolation;ComboGui;{'none_select': True, 'options': ['raw_filtered', 'epochs', 'evoked']}
+reject_by_annotation;;epochs;True;;If to reject by Annotations;BoolGui;
+use_autoreject;Autoreject;epochs;None;;If to use autoreject and if to use it for getting the reject-threshold or for interpolating the epochs;ComboGui;{'none_select': True, 'options': ['Threshold', 'Interpolation']}
+n_interpolates;;epochs;np.array([1, 4, 32]);;p-values for autoreject;FuncGui;
+consensus_percs;;epochs;np.linspace(0, 1.0, 11);;k-values for autoreject;FuncGui;
+overwrite_ar;Overwrite Autoreject(Threshold);epochs;False;;if to calculate new threshold or use the previously calculated;BoolGui;
+reject;;epochs;{'mag':3000e-15, 'grad':3000e-13, 'eeg':100e-6, 'eog':200e-6};;Chose reject-thresholds if not reject with autoreject_threshold;DictGui;{'none_select': True}
+flat;;epochs;{'mag': 1e-15, 'grad':1e-13, 'eeg': 1e-6};;Chose flat-thresholds;DictGui;{'none_select': True}
+decim;;epochs;1;;Downsampling-Factor for epochs;IntGui;
+ica_method;ICA-Method;ICA;fastica;;The method for calculating ICA;ComboGui;{'options': ['fastica', 'infomax', 'picard']}
+ica_fitto;Fit ICA to:;ICA;'raw_filtered';;The data to fit the ICA to;ComboGui;{'options': {'raw': 'Raw (unfiltered)', 'raw_filtered': 'Raw (filtered)', 'epochs': 'Epochs'}}
+ica_apply_target;Apply ICA to:;ICA;raw_filtered;;The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from;ComboGui;{'options': {'raw_filtered': 'Raw (filtered)', 'epochs': 'Epochs', 'evoked': 'Evoked'}}
+n_components;;ICA;25;;The number of components for ICA;IntGui;
+max_pca_components;;ICA;None;;;IntGui;{'none_select': True}
+n_pca_components;;ICA;None;;;IntGui;{'none_select': True}
+ica_noise_cov;Use Noise-Covariance;ICA;False;;If to use a noise-covariance for pre-whitening;BoolGui;
+ica_remove_proj;Remove projections;ICA;False;;If to remove projections from the data before fitting;BoolGui;
+ica_reject;Reject-Parameters;ICA;{'mag':3000e-15, 'grad':3000e-13, 'eeg':100e-6, 'eog':200e-6};;Reject-Parameters for ICA;DictGui;{'none_select': True}
+ica_autoreject;Autoreject;ICA;False;;If to use Autoreject for ICA;BoolGui;
+ica_eog;Use EOG;ICA;False;;If to use EOG-Channels for automatic selection of components;BoolGui;
+eog_channel;;ICA;None;;Set Vertical EOG-Channel;StringGui;
+ica_ecg;Use ECG;ICA;False;;If to use automatic ECG-detection either by ECG-Channel (if provided) or by an artificial ECG-Channel;BoolGui;
+ecg_channel;;ICA;None;;Set ECG-Channel;StringGui;{'none_select': True}
+tfr_freqs;;Time-Frequency;np.arange(7,40,3);Hz;Select the frequencies of interest (Array/List);FuncGui;
+tfr_method;;Time-Frequency;morlet;;Choose the method to calculate Time-Frequency-Data;ComboGui;{'options': ['morlet', 'multitaper', 'stockwell']}
+tfr_n_cycles;n_cycles;Time-Frequency;np.arange(7,40,3) / 2;;Select the number of cycles for each frequency;FuncGui;
+tfr_average;;Time-Frequency;True;;If to take the average of the Time-Frequency across observations;BoolGui;
+tfr_use_fft;use_fft;Time-Frequency;False;;If to use fft based convolution;BoolGui;
+tfr_baseline;;Time-Frequency;None;;Check to apply the entered baseline;TupleGui;{'none_select': True}
+tfr_baseline_mode;;Time-Frequency;mean;;Select the mode for baseline-application (if enabled);ComboGui;{'options':['mean', 'ratio', 'logratio', 'percent', 'zscore', 'zlogratio']}
+multitaper_bandwidth;;Time-Frequency;4.0;;;FloatGui;
+stockwell_width;;Time-Frequency;1.0;;;FloatGui;
+bem_spacing;;Forward;4;;See the MNE-Documentation for further details;IntGui;
+bem_conductivity;BEM Conductivity;Forward;[0.3, 0.006, 0.3];;The conductivities for each shell of the bem-model, contain only one element for a one-layer model and three elements for a three-layer model;ListGui;
+src_spacing;;Forward;ico5;;See the MNE-Documentation for further details;StringGui;
+vol_src_spacing;;Forward;5.0;;Spacing between sources in 3D-Grid;FloatGui;
+surface;;Forward;white;;Surface for computing the Source-Space;ComboGui;{'options': ['white', 'pial']}
+noise_cov_mode;Noise-Covariance Mode;Preprocessing;'Empty-Room';;Select the origin of the Noise-Covariance;ComboGui;{'options': ['Empty-Room', 'epochs']}
+noise_cov_method;Noise-Covariance Method;Preprocessing;auto;;Select the method for computing the Noise-Covariance;MultiTypeGui;{'type_selection': True, 'types': ['str', 'list', 'combo'], 'type_kwargs':{'ComboGui': {'options': ['auto', 'empirical', 'diagonal_fixed', 'shrunk', 'oas', 'ledoit_wolf', 'factor_analysis', 'shrinkage', 'pca']}}}
+inverse_method;Inverse-Method;Inverse;MNE;;Choose the Inverse-Method for Source-Estimate;ComboGui;{'options': ['MNE', 'dSPM', 'sLORETA', 'eLORETA']}
+pick_ori;Dipole-Orientation;Inverse;None;;Choose the Dipole-Orientation for Source-Estimate;ComboGui;{'options': [None, 'normal', 'vector']}
+lambda2;;Inverse;1.0 / 3.0 ** 2;;lambda2 for Source-Estimate;FuncGui;
+stc_surface;;Inverse;inflated;;Select the surface type for Source Estimate Plots;ComboGui;{'options':['inflated', 'white', 'pial']}
+stc_hemi;;Inverse;'split';;Select the hemispheres for Source Estimate Plots;ComboGui;{'options':['lh', 'rh', 'both', 'split']}
+stc_views;;Inverse;['med', 'lat'];;Select the views for Source Estimate Plots;MultiTypeGui;{'type_selection': True, 'types': ['str', 'list']}
+stc_time;;Inverse;0;;Initial time for Source Estimate Plots;FloatGui;
+stc_clim;;Inverse;'auto';;Colorbar Limits for Source Estimate Plots;MultiTypeGui;{'type_selection': True, 'types': ['str', 'dict']}
+stc_background;;Inverse;'black';;Background for Source Estimate Plots;MultiTypeGui;{'type_selection': False}
+stc_roll;;Inverse;0;;Roll for view in for Source Estimate Plots;IntGui;{'max_val': 360}
+stc_azimuth;;Inverse;70;;Azimuth for view for Source Estimate Plots;IntGui;{'max_val': 360}
+stc_elevation;;Inverse;60;;Elevation for view for Source Estimate Plots;IntGui;{'max_val': 360}
+stc_animation_span;;Inverse;(0,0.5);s;time-span for stc-animation[s];TupleGui;
+stc_animation_dilat;;Inverse;20;;time-dilation for stc-animation;IntGui;
+target_labels;Target Labels;Inverse;[];;;LabelGui;
+label_colors;;Inverse;{};;Set custom colors for labels.;ColorGui;{'keys': 'target_labels', 'none_select':True}
+extract_mode;Label-Extraction-Mode;Inverse;mean;;mode for extracting label-time-course from Source-Estimate;ComboGui;{'options': ['auto', 'max', 'mean', 'mean_flip', 'pca_flip']}
+con_methods;;Connectivity;['coh'];;methods for connectivity;CheckListGui;{'options': ['coh', 'cohy', 'imcoh', 'plv', 'ciplv', 'ppc', 'pli', 'pli2_unbiased', 'wpli', 'wpli2_debiased']}
+con_fmin;;Connectivity;30;;lower frequency/frequencies for connectivity;MultiTypeGui;{'type_selection': True, 'types': ['float', 'list']}
+con_fmax;;Connectivity;80;;upper frequency/frequencies for connectivity;MultiTypeGui;{'type_selection': True, 'types': ['float', 'list']}
+con_time_window;;Connectivity;(0, 0.5);;time-window for connectivity;TupleGui;{'none_select': True, 'step': 0.001}
+ecd_times;;Inverse;{};;;DictGui;
+ecd_positions;;Inverse;{};;;DictGui;
+ecd_orientations;;Inverse;{};;;DictGui;
+morph_to;;Grand-Average;fsaverage;;name of the freesurfer subject to be morphed to;StringGui;
+ica_source_data;;ICA;raw_filtered;;Which data to plot in sources-plot from ICA;ComboGui;{'options': {'raw': 'Raw (unfiltered)', 'raw_filtered': 'Raw (filtered)', 'epochs': 'Epochs', 'epochs_eog': 'Epochs (EOG)', 'epochs_ecg': 'Epochs (ECG)', 'evoked': 'Evoked', 'evoked_eog': 'Evoked (EOG)', 'evoked_ecg': 'Evoked (ECG)'}}
+ica_overlay_data;;ICA;evoked;;Which data to plot in overlay-plot from ICA;ComboGui;{'options': {'raw': 'Raw (unfiltered)', 'raw_filtered': 'Raw (filtered)', 'evoked': 'Evoked', 'evoked_eog': 'Evoked (EOG)', 'evoked_ecg': 'Evoked (ECG)'}}
+plot_sensors_kind;;Plot;'topomap';;The kind of plot for plot_sensors;ComboGui;{'options': ['topomap', '3d', 'select']}
+erm_ssp_duration;;Preprocessing;1;s;The time-chunk to use for ssp;IntGui;
+erm_n_grad;;Preprocessing;2;;The number of projections for Gradiometer;IntGui;
+erm_n_mag;;Preprocessing;2;;The number of projections for Magnetometer;IntGui;
+erm_n_eeg;;Preprocessing;0;;The number of projections for EEG;IntGui;
+ga_interpolate_bads;;Grand-Average;True;;If to interpolate bad channels for the Grand-Average;BoolGui;
+ga_drop_bads;;Grand-Average;True;;If to drop bad channels for the Grand-Average;BoolGui;
+psd_method;;Time-Frequency;welch;;The method for spectral estimation;ComboGui;{'options': ['welch', 'multitaper']}
+psd_topomap_bands;;Time-Frequency;None;;The frequency bands for the topomap-plot;DictGui;{'none_select': True}
+backend_3d;3D-Backend;Plot;pyvistaqt;;Choose the 3D-Backend for Brain-plots.;ComboGui;{'options': ['pyvistaqt', 'notebook']}
+con_group_boundaries;;Connectivity;None;;Set group-boundaries for circular plot.;FuncGui;{'none_select': True}
+notch_frequencies;;Preprocessing;50;;Set frequencies for Notch filtering;FuncGui;
