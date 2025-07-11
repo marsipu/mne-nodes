@@ -24,7 +24,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes import _object_refs, extra
 from mne_nodes.gui.base_widgets import SimpleList
-from mne_nodes.gui.gui_utils import center, WorkerDialog, get_user_input_string
+from mne_nodes.gui.gui_utils import center, WorkerDialog, get_user_input
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.pipeline_utils import QS
@@ -164,8 +164,8 @@ class WelcomeWindow(QWidget):
 
     def add_project(self):
         if self.ct is not None:
-            new_project = get_user_input_string(
-                "Please enter the name of a project!", "Add Project"
+            new_project = get_user_input(
+                "Please enter the name of a project!", "string"
             )
             if new_project is not None:
                 self.ct.change_project(new_project)

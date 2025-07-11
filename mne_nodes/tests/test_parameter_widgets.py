@@ -14,38 +14,22 @@ from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.parameter_widgets import Param, _eval_param, LabelGui
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
-parameters = {
-    "IntGui": 1,
-    "FloatGui": 5.3,
-    "StringGui": "postcentral-lh",
-    "MultiTypeGui": 42,
-    "FuncGui": "np.arange(10) * np.pi",
-    "BoolGui": True,
-    "TupleGui": (45, 6),
-    "ComboGui": "b",
-    "ListGui": [1, 454.33, "postcentral-lh", 5],
-    "CheckListGui": ["postcentral-lh"],
-    "DictGui": {"A": "B", "C": 58.144, 3: [1, 2, 3, 4], "D": {"A": 1, "B": 2}},
-    "SliderGui": 5,
-    "ColorGui": {"C": "#98765432", "3": "#97867564"},
-    "PathGui": "C:/test",
-}
 
-alternative_parameters = {
-    "IntGui": 5,
-    "FloatGui": 8.45,
-    "StringGui": "precentral-lh",
-    "MultiTypeGui": 32,
-    "FuncGui": "np.ones((2,3))",
-    "BoolGui": False,
-    "TupleGui": (2, 23),
-    "ComboGui": "c",
-    "ListGui": [33, 2234.33, "precentral-lh", 3],
-    "CheckListGui": ["precentral-lh"],
-    "DictGui": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
-    "SliderGui": 2,
-    "ColorGui": {"A": "#12345678", "B": "#13243546"},
-    "PathGui": "D:/test",
+gui_mapping = {
+    "IntGui": "int",
+    "FloatGui": "float",
+    "StringGui": "string",
+    "MultiTypeGui": "multi_type",
+    "FuncGui": "func",
+    "BoolGui": "bool",
+    "TupleGui": "tuple",
+    "ComboGui": "combo",
+    "ListGui": "list",
+    "CheckListGui": "check_list",
+    "DictGui": "dict",
+    "SliderGui": "slider",
+    "ColorGui": "color",
+    "PathGui": "path",
 }
 
 gui_kwargs = {
@@ -60,12 +44,7 @@ gui_kwargs = {
 }
 
 
-def _check_param(gui, gui_name, alternative=False):
-    if alternative:
-        value = alternative_parameters[gui_name]
-    else:
-        value = parameters[gui_name]
-
+def _check_param(gui, gui_name, value):
     if gui_name == "FuncGui":
         value = _eval_param(value)
         assert_allclose(gui.get_value(), value)
@@ -73,23 +52,24 @@ def _check_param(gui, gui_name, alternative=False):
         assert gui.get_value() == value
 
 
-@pytest.mark.parametrize("gui_name", list(parameters.keys()))
-def test_basic_param_guis(qtbot, gui_name):
+@pytest.mark.parametrize("gui_name", list(gui_mapping.keys()))
+def test_basic_param_guis(qtbot, gui_name, parameter_values, parameter_values_alt):
     gui_class = getattr(parameter_widgets, gui_name)
     gui_parameters = list(inspect.signature(gui_class).parameters) + list(
         inspect.signature(Param).parameters
     )
     kwargs = {key: value for key, value in gui_kwargs.items() if key in gui_parameters}
+    parameters = {key: parameter_values[value] for key, value in gui_mapping.items()}
     gui = gui_class(data=parameters, name=gui_name, **kwargs)
     qtbot.addWidget(gui)
 
     # Check if value is correct
-    _check_param(gui, gui_name)
+    _check_param(gui, gui_name, parameters[gui_name])
 
     # Check if value changes correctly
-    new_param = alternative_parameters[gui_name]
+    new_param = parameter_values_alt[gui_mapping[gui_name]]
     gui.set_param(new_param)
-    _check_param(gui, gui_name, alternative=True)
+    _check_param(gui, gui_name, new_param)
 
     # Set value to None
     gui.set_param(None)
@@ -99,7 +79,7 @@ def test_basic_param_guis(qtbot, gui_name):
     # Uncheck groupbox
     gui.group_box.setChecked(True)
     parameters[gui_name] = new_param
-    _check_param(gui, gui_name, alternative=True)
+    _check_param(gui, gui_name, new_param)
 
     if "max_val" in gui_parameters:
         if gui_name == "TupleGui":

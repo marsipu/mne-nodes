@@ -54,10 +54,10 @@ from mne_nodes.gui.gui_utils import (
     get_std_icon,
     WorkerDialog,
     get_exception_tuple,
-    get_user_input_string,
     center,
     set_app_theme,
     set_app_font,
+    get_user_input,
 )
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.loading import FSMRI
@@ -2144,8 +2144,8 @@ class ParametersDock(QDockWidget):
         self.update_all_param_guis()
 
     def add_p_preset(self):
-        preset_name = get_user_input_string(
-            "Enter a name for a new Parameter-Preset:", "Add Parameter-Preset"
+        preset_name = get_user_input(
+            "Enter a name for a new Parameter-Preset:", "string"
         )
         if preset_name is not None:
             self.ct.pr.p_preset = preset_name

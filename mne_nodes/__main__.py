@@ -19,14 +19,18 @@ from mne_nodes.gui.gui_utils import (
     set_app_theme,
 )
 from mne_nodes.gui.welcome_window import WelcomeWindow
+from mne_nodes.pipeline import pipeline_utils
 from mne_nodes.pipeline.legacy import legacy_import_check
 from mne_nodes.pipeline.pipeline_utils import (
     ismac,
     islin,
     init_logging,
     logger,
-    gui_mode,
 )
+
+app_name = "mne-nodes"
+organization_name = "marsipu"
+domain_name = "https://github.com/marsipu/mne-nodes"
 
 
 def init_streams():
@@ -36,16 +40,12 @@ def init_streams():
 
 
 def main():
-    app_name = "mne-nodes"
-    organization_name = "marsipu"
-    domain_name = "https://github.com/marsipu/mne-nodes"
-
     debug_mode = os.environ.get("MNEPHD_DEBUG", False) == "true"
     init_logging(debug_mode)
 
     logger().info("Starting MNE-Pipeline HD")
 
-    if gui_mode:
+    if pipeline_utils.gui_mode:
         # Enable High-DPI
         if hasattr(Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps"):
             QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
@@ -82,20 +82,18 @@ def main():
         init_streams()
 
         # Show Qt-binding
-        if gui_mode:
-            if any([qtpy.PYQT5, qtpy.PYQT6]):
-                qt_version = qtpy.PYQT_VERSION
-            else:
-                qt_version = qtpy.PYSIDE_VERSION
-            logger().info(f"Using {qtpy.API_NAME} {qt_version}")
+        if any([qtpy.PYQT5, qtpy.PYQT6]):
+            qt_version = qtpy.PYQT_VERSION
+        else:
+            qt_version = qtpy.PYSIDE_VERSION
+        logger().info(f"Using {qtpy.API_NAME} {qt_version}")
 
         # Initialize Exception-Hook
         if debug_mode:
             logger().info("Debug-Mode is activated")
         else:
-            if gui_mode:
-                qt_exception_hook = UncaughtHook()
-                sys.excepthook = qt_exception_hook.exception_hook
+            qt_exception_hook = UncaughtHook()
+            sys.excepthook = qt_exception_hook.exception_hook
 
         # Set style and font
         set_app_theme()
@@ -117,8 +115,6 @@ def main():
 
 
 if __name__ == "__main__":
-    global gui_mode
-
     # Check for changes in required packages
     legacy_import_check()
 
@@ -132,6 +128,6 @@ if __name__ == "__main__":
     cli_args = parser.parse_args(sys.argv[1:])
 
     if cli_args.nogui:
-        gui_mode = False
+        pipeline_utils.gui_mode = False
 
     main()

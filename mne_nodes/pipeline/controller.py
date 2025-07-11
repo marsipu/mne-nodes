@@ -22,7 +22,7 @@ import mne
 import pandas as pd
 
 from mne_nodes import basic_functions, extra
-from mne_nodes.gui.gui_utils import get_user_input_string
+from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.pipeline.legacy import transfer_file_params_to_single_subject
 from mne_nodes.pipeline.pipeline_utils import (
     QS,
@@ -216,8 +216,8 @@ class OldController:
             if len(self.projects) > 0:
                 new_project = self.projects[0]
             else:
-                new_project = get_user_input_string(
-                    "Please enter the name of a new project!", "Add Project", force=True
+                new_project = get_user_input(
+                    "Please enter the name of a new project!", "string", force=True
                 )
             self.change_project(new_project)
 
@@ -234,9 +234,9 @@ class OldController:
     def rename_project(self):
         check_writable = os.access(self.pr.project_path, os.W_OK)
         if check_writable:
-            new_project_name = get_user_input_string(
+            new_project_name = get_user_input(
                 f'Change the name of project "{self.pr.name}" to:',
-                "Rename Project",
+                "string",
                 force=False,
             )
             if new_project_name is not None:
@@ -469,6 +469,20 @@ class Controller:
         self.meeg_root = meeg_root or self.meeg_root
         self.fsmri_root = fsmri_root or self.fsmri_root
 
+        self.default_settings = {
+            "selected_project": None,
+            "selected_modules": ["operations", "plot"],
+            "parameter_preset": "Default",
+            "checked_funcs": [],
+            "show_plots": True,
+            "save_plots": True,
+            "shutdown": False,
+            "img_format": ".png",
+            "dpi": 150,
+            "overwrite": False,
+            "use_plot_manager": False,
+        }
+
     ####################################################################################
     # Attributes
     ####################################################################################
@@ -612,6 +626,7 @@ class Controller:
     def save_config(self):
         if self.config_path is None:
             logging.error("No config-file set!")
+            self.config_path = get_user_input("Set the folder-path to store the config-file", "string", force=True)
         with open(self.config_path, "w") as file:
             json.dump(self.config, file, indent=4, cls=TypedJSONEncoder)
 

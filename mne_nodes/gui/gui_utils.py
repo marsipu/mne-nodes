@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import multiprocessing
+import os
 import sys
 import traceback
 from contextlib import contextmanager
@@ -29,8 +30,8 @@ from qtpy.QtCore import (
     QTimer,
     QEvent,
 )
-from qtpy.QtTest import QTest
 from qtpy.QtGui import QFont, QTextCursor, QMouseEvent, QPalette, QColor, QIcon
+from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
     QApplication,
     QDialog,
@@ -48,11 +49,13 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QComboBox,
     QWidget,
+    QFileDialog,
 )
 
 from mne_nodes import _object_refs
 from mne_nodes import extra
-from mne_nodes.pipeline.pipeline_utils import QS, logger, gui_mode
+from mne_nodes.pipeline import pipeline_utils
+from mne_nodes.pipeline.pipeline_utils import QS, logger
 
 # Load theme colors
 theme_color_path = join(str(resources.files(extra)), "color_themes.json")
@@ -721,25 +724,67 @@ class QProcessDialog(QDialog):
             )
 
 
-def get_user_input_string(prompt, title="Input required!", force=False):
-    # Determine GUI or non-GUI-mode
-    if gui_mode and any([obj is not None for obj in _object_refs.values()]):
-        parent = _object_refs["main_window"] or _object_refs["welcome_window"]
-        user_input, ok = QInputDialog.getText(parent, title, prompt)
+def get_user_input(prompt, input_type="string", force=False):
+    """
+    Get user input either via GUI or terminal, supporting string and path input.
+
+    Parameters
+    ----------
+    prompt : str
+        The prompt message to display to the user.
+    input_type : str, optional
+        The type of input to request: "string" or "path".
+    force : bool, optional
+        If True, repeatedly prompt until valid input is provided.
+
+    Returns
+    -------
+    user_input : str or None
+        The user input as a string, or None if cancelled or unavailable.
+
+    Raises
+    ------
+    RuntimeError
+        If input is not available in the current environment.
+    ValueError
+        If `input_type` is not "string" or "path".
+    """
+    type_error_message = f"input_type must be 'string' or 'path', not '{input_type}'"
+    if pipeline_utils.gui_mode:
+        parent = QApplication.activeWindow()
+        if input_type == "string":
+            user_input, ok = QInputDialog.getText(parent, f"Input String!", prompt)
+        elif input_type == "path":
+            user_input, ok = QFileDialog.getExistingDirectory(
+                parent, f"Input Path!", prompt
+            )
+        else:
+            raise ValueError(type_error_message)
+    # Checks for interactive terminal
     elif sys.stdin.isatty():
-        # Check for interactive terminal
-        user_input = input(f"{title}: {prompt}")
-        ok = True
+        if input_type == "path":
+            ans = input("Do you want to use the current directory? (y/n): ")
+            if ans.lower() in ["y", "yes"]:
+                user_input = os.getcwd()
+                ok = True
+            else:
+                user_input = input(f"{prompt}: ")
+                ok = True
+        elif input_type == "string":
+            user_input = input(f"{prompt}: ")
+            ok = True
+        else:
+            raise ValueError(type_error_message)
     else:
         raise RuntimeError(
             "Input is not available in this environment. "
-            "Please run the script in a terminal or command prompt or start the GUI."
+            "Please run the script in a terminal/command prompt or start the GUI."
         )
 
     # Check user input
     if not user_input or not ok:
         if force:
-            if parent:
+            if pipeline_utils.gui_mode:
                 QMessageBox().warning(
                     parent,
                     "Input required!",
@@ -750,7 +795,7 @@ def get_user_input_string(prompt, title="Input required!", force=False):
                     "Input required! You need to provide "
                     "an appropriate input to proceed!"
                 )
-            user_input = get_user_input_string(prompt, title, force)
+            user_input = get_user_input(prompt, input_type, force)
         else:
             user_input = None
 

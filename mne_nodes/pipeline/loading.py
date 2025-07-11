@@ -29,7 +29,7 @@ from mne_nodes.pipeline.pipeline_utils import (
     TypedJSONEncoder,
     type_json_hook,
     QS,
-    _test_run,
+    check_test_run,
     logger,
 )
 
@@ -1516,12 +1516,13 @@ class FSMRI(BaseLoading):
 
     def init_fsaverage(self):
         # Set SUBJECTS_DIR in config to None for test case,
-        # so fsaverage will be downloaded to "~/mne_data/MNE-fsaverage-data"
-        if _test_run():
+        # so fsaverage will be downloaded to "~/mne_data/MNE-fsaverage-data,
+        # which often is already cached"
+        if check_test_run():
             mne.set_config("SUBJECTS_DIR", None)
         logger().info("Downloading fsaverage...")
         fsaverage_dir = mne.datasets.fetch_fsaverage(subjects_dir=None)
-        if _test_run():
+        if check_test_run():
             mne.set_config("SUBJECTS_DIR", self.ct.subjects_dir)
             new_dir = join(self.ct.subjects_dir, "fsaverage")
             if not isdir(new_dir):

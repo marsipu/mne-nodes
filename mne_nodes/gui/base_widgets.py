@@ -34,7 +34,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import _object_refs
-from mne_nodes.gui.gui_utils import get_user_input_string
+from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.models import (
     BaseDictModel,
     BaseListModel,
@@ -1197,8 +1197,8 @@ class EditPandasTable(BasePandasTable):
     def edit_row_header(self):
         row = self.view.selectionModel().currentIndex().row()
         old_value = self.model._data.index[row]
-        text = get_user_input_string(
-            f"Change {old_value} in row {row} to:", "Change Row-Header"
+        text = get_user_input(
+            f"Change Header '{old_value}' in row {row} to:", "string"
         )
         if text is not None:
             self.model.setHeaderData(row, Qt.Vertical, text)
@@ -1206,8 +1206,8 @@ class EditPandasTable(BasePandasTable):
     def edit_col_header(self):
         column = self.view.selectionModel().currentIndex().column()
         old_value = self.model._data.columns[column]
-        text = get_user_input_string(
-            f"Change {old_value} in column {column} to:", "Change Column-Header"
+        text = get_user_input(
+            f"Change Header '{old_value}' in column {column} to:", "string"
         )
         if text is not None:
             self.model.setHeaderData(column, Qt.Horizontal, text)

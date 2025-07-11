@@ -26,28 +26,16 @@ ismac = sys.platform.startswith("darwin")
 iswin = sys.platform.startswith("win32")
 islin = not ismac and not iswin
 
-# Global variable to store gui/headless mode
+# Variable to store gui/headless mode, should not be imported directly
+# to change it across modules
 gui_mode = True
 
 # Global logger variable
 _logger = None
 
 # Default Settings/QSettings
-default_settings = {
-    "selected_project": None,
-    "selected_modules": ["operations", "plot"],
-    "parameter_preset": "Default",
-    "checked_funcs": [],
-    "show_plots": True,
-    "save_plots": True,
-    "shutdown": False,
-    "img_format": ".png",
-    "dpi": 150,
-    "overwrite": False,
-    "use_plot_manager": False,
-}
 
-default_qsettings = {
+default_device_settings = {
     "gui": 1,
     "home_path": "",
     "n_jobs": -1,
@@ -304,37 +292,93 @@ def _get_func_param_kwargs(func, params):
     return kwargs
 
 
-class BaseSettings:
+class QS:
+    """
+    Unified settings handler that uses Qt's QSettings if available,
+    otherwise falls back to a JSON file in the user's home directory.
+    On initialization, checks for a Qt installation and sets the backend accordingly.
+    Since QSettings does not preserve types, the type is stored with the setting
+    in QSettings. QS can't handle None-values at this point.
+
+    Methods
+    -------
+    value(setting, defaultValue=None)
+        Returns the value for a given setting, with type conversion
+        and fallback to default values.
+    setValue(setting, value)
+        Sets the value for a given setting.
+    sync()
+        Synchronizes the settings with the backend.
+    childKeys()
+        Returns all existing setting keys.
+    remove(setting)
+        Removes a setting.
+
+    Attributes
+    ----------
+    qsettings : QSettings or None
+        Reference to QSettings if available.
+    settings_path : str
+        Path to the JSON file if Qt is not available.
+    settings : dict
+        Dictionary with current settings (only for JSON backend).
+
+    The class is independent of PyQt/PySide.
+    """
+
     def __init__(self):
-        self.default_qsettings = default_qsettings.copy()
+        super().__init__()
+        self._use_qt = False
+        self.default_qsettings = default_device_settings.copy()
+
+        # Check if Qt is available
+        try:
+            from qtpy.QtCore import QSettings  # noqa: F401
+
+            self._use_qt = True
+            self.qsettings = QSettings()
+        except ImportError:
+            self._use_qt = False
+
+        if not self._use_qt:
+            self.settings_path = join(Path.home(), ".mnephd_settings.json")
+
+    def load_settings(self):
+        """Load settings from the JSON file if Qt is not available."""
+        if not hasattr(self, "settings"):
+            self.settings = deepcopy(self.default_qsettings)
+        if isfile(self.settings_path):
+            with open(self.settings_path, "r") as file:
+                self.settings = json.load(file)
+        else:
+            self.settings = deepcopy(self.default_qsettings)
+
+    def write_settings(self):
+        """Write settings to the JSON file if Qt is not available."""
+        with open(self.settings_path, "w") as file:
+            json.dump(self.settings, file)
 
     def get_default(self, name):
         if name in self.default_qsettings:
             return self.default_qsettings[name]
-        else:
-            raise RuntimeError(
-                f"{name} not in default_settings.json! "
-                f"Please add it or fix the bug."
-            )
+        logging.warning(f"Setting '{name}' not found in default settings.")
+        return None
 
+    def value(self, setting, defaultValue=None):
+        if self._use_qt:
+            loaded_value = self.qsettings.value(setting, defaultValue=defaultValue)
+            # Check if the type is stored in QSettings
+            type_key = f"type_{setting}_type"
+            type_str = self.qsettings.value(type_key, None)
 
-# Import QSettings or provide Dummy-Class to be independent from PyQt/PySide
-try:
-    from qtpy.QtCore import QSettings
-
-    class QS(BaseSettings):
-        def __init__(self):
-            super().__init__()
-
-        def value(self, setting, defaultValue=None):
-            loaded_value = QSettings().value(setting, defaultValue=defaultValue)
-            # Type-Conversion for UNIX-Systems
-            # (ini-File does not preserve type, converts to strings)
-            if not isinstance(loaded_value, type(self.get_default(setting))):
+            if type_str is not None and type(loaded_value).__name__ != type_str:
                 try:
                     loaded_value = literal_eval(loaded_value)
                 except (SyntaxError, ValueError):
-                    return self.get_default(setting)
+                    if loaded_value in ["true", "false"]:
+                        loaded_value = loaded_value == "true"
+                    else:
+                        return self.get_default(setting)
             if loaded_value is None:
                 if defaultValue is None:
                     return self.get_default(setting)
@@ -342,74 +386,53 @@ try:
                     return defaultValue
             else:
                 return loaded_value
-
-        def setValue(self, setting, value):
-            QSettings().setValue(setting, value)
-
-        def sync(self):
-            QSettings().sync()
-
-        def childKeys(self):
-            return QSettings().childKeys()
-
-        def remove(self, setting):
-            QSettings().remove(setting)
-
-except ImportError:
-
-    class QS(BaseSettings):
-        def __init__(self):
-            super().__init__()
-
-            self.settings_path = join(Path.home(), ".mnephd_settings.json")
-
-        def _load_settings(self):
-            if isfile(self.settings_path):
-                with open(self.settings_path, "r") as file:
-                    self.settings = json.load(file)
-            else:
-                self.settings = deepcopy(self.default_qsettings)
-
-        def _write_settings(self):
-            with open(self.settings_path, "w") as file:
-                json.dump(self.settings, file)
-
-        def value(self, setting, defaultValue=None):
-            self._load_settings()
+        else:
+            self.load_settings()
             if setting in self.settings:
                 return self.settings[setting]
-
             if defaultValue is None:
                 return self.get_default(setting)
             else:
                 return defaultValue
 
-        def setValue(self, setting, value):
-            self._load_settings()
+    def setValue(self, setting, value):
+        if self._use_qt:
+            value_type = type(value)
+            self.qsettings.setValue(setting, value)
+            # Store the type of the value in the QSettings too
+            self.qsettings.setValue(f"type_{setting}_type", value_type.__name__)
+        else:
+            self.load_settings()
             self.settings[setting] = value
-            self._write_settings()
+            self.write_settings()
 
-        def sync(self):
-            self._write_settings()
-            self._load_settings()
+    def sync(self):
+        if self._use_qt:
+            self.qsettings.sync()
+        else:
+            self.write_settings()
+            self.load_settings()
 
-        def childKeys(self):
-            self._load_settings()
+    def childKeys(self):
+        if self._use_qt:
+            return self.qsettings.childKeys()
+        else:
+            self.load_settings()
             return self.settings.keys()
 
-        def remove(self, setting):
-            self._load_settings()
-            self._settings.pop(setting)
-            self._write_settings()
+    def remove(self, setting):
+        if self._use_qt:
+            self.qsettings.remove(setting)
+        else:
+            self.load_settings()
+            self.settings.pop(setting, None)
+            self.write_settings()
 
 
-def _set_test_run():
-    os.environ["TEST_RUN"] = "True"
-
-
-def _test_run():
-    if "TEST_RUN" in os.environ:
+def check_test_run():
+    if "PYTEST_CURRENT_TEST" in os.environ:
         return True
+    return False
 
 
 def _run_from_script():

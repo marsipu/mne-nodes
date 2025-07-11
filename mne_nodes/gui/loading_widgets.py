@@ -73,8 +73,8 @@ from mne_nodes.gui.gui_utils import (
     WorkerDialog,
     center,
     set_ratio_geometry,
-    get_user_input_string,
     gui_error,
+    get_user_input,
 )
 from mne_nodes.gui.models import AddFilesModel
 from mne_nodes.gui.parameter_widgets import ComboGui
@@ -351,7 +351,7 @@ class FileDock(QDockWidget):
         current_meeg = self.meeg_list.get_current()
         if current_meeg is not None:
             meeg = MEEG(current_meeg, self.mw.ct)
-            new_name = get_user_input_string("Enter new name:", "Rename")
+            new_name = get_user_input("Enter new name:", "string")
             if new_name is not None:
                 meeg.rename(new_name)
                 self.update_dock()
@@ -431,7 +431,7 @@ class GrandAvgWidget(QWidget):
         self.mw.ct.pr.all_groups = new_dict
 
     def add_group(self):
-        text = get_user_input_string("Enter the name for a new group:", "New Group")
+        text = get_user_input("Enter the name for a new group:", "string")
         if text is not None:
             top_item = QTreeWidgetItem()
             top_item.setText(0, text)

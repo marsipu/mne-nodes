@@ -52,9 +52,9 @@ from mne_nodes.gui.gui_utils import (
     center,
     set_ratio_geometry,
     get_std_icon,
-    get_user_input_string,
     ColorTester,
     set_app_theme,
+    get_user_input,
 )
 from mne_nodes.gui.loading_widgets import (
     AddFilesDialog,
@@ -162,10 +162,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error with selected Home-Path", str(err))
             else:
                 if new_controller.pr is None:
-                    new_project = get_user_input_string(
+                    new_project = get_user_input(
                         "There is no project in this Home-Path,"
                         " please enter a name for a new project:",
-                        "Add Project!",
+                        "string",
                         force=True,
                     )
                     self.pr = new_controller.change_project(new_project)
@@ -183,8 +183,8 @@ class MainWindow(QMainWindow):
         # First save the former projects-data
         WorkerDialog(self, self.pr.save, blocking=True)
 
-        new_project = get_user_input_string(
-            "Enter a name for a new project", "Add Project"
+        new_project = get_user_input(
+            "Enter a name for a new project", "string"
         )
         if new_project is not None:
             self.pr = self.ct.change_project(new_project)

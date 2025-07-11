@@ -12,13 +12,10 @@ from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.node.nodes import FunctionNode
 from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.pipeline_utils import _set_test_run
 
 
 @pytest.fixture
 def controller(tmpdir):
-    # Initialize testing-environment
-    _set_test_run()
     # Create meeg_root and fsmri_root
     meeg_root = tmpdir.join("MEEG")
     mkdir(meeg_root)
@@ -38,6 +35,45 @@ def main_window(controller, qtbot):
 
     return mw
 
+@pytest.fixture
+def parameter_values():
+    """Fixture to provide a dictionary of parameter values."""
+    return {
+        "int": 1,
+        "float": 5.3,
+        "string": "postcentral-lh",
+        "multi_type": 42,
+        "func": "np.arange(10) * np.pi",
+        "bool": True,
+        "tuple": (45, 6),
+        "combo": "b",
+        "list": [1, 454.33, "postcentral-lh", 5],
+        "check_list": ["postcentral-lh"],
+        "dict": {"A": "B", "C": 58.144, 3: [1, 2, 3, 4], "D": {"A": 1, "B": 2}},
+        "slider": 5,
+        "color": {"C": "#98765432", "3": "#97867564"},
+        "path": "C:/test",
+    }
+
+@pytest.fixture
+def parameter_values_alt():
+    """Fixture to provide alternative parameter values."""
+    return {
+        "int": 5,
+        "float": 8.45,
+        "string": "precentral-lh",
+        "multi_type": 32,
+        "func": "np.ones((2,3))",
+        "bool": False,
+        "tuple": (2, 23),
+        "combo": "c",
+        "list": [33, 2234.33, "precentral-lh", 3],
+        "check_list": ["precentral-lh"],
+        "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
+        "slider": 2,
+        "color": {"A": "#12345678", "B": "#13243546"},
+        "path": "D:/test",
+    }
 
 @pytest.fixture
 def nodeviewer(qtbot, controller):
