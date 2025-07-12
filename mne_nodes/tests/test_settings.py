@@ -4,8 +4,8 @@ Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+import pytest
 from qtpy.QtWidgets import QApplication
-from qtpy.QtCore import QSettings
 
 from mne_nodes.pipeline import pipeline_utils
 from mne_nodes.pipeline.pipeline_utils import QS
@@ -24,8 +24,8 @@ def test_settings(qtbot, parameter_values):
 
         qs = QS()
         for k, v in parameter_values.items():
-            if k in ["tupl", "list", "check_list", "dict", "color", "combo", "slider", "path"]:
-                # These types are not supported by QSettings
+            if k not in ["int", "float", "string", "bool"]:
+                # Only theese types are supported by (Q)Settings
                 continue
             qs.setValue(k, v)
             value = qs.value(k)
@@ -35,3 +35,6 @@ def test_settings(qtbot, parameter_values):
             # Check if the type is preserved
             assert isinstance(value, type(parameter_values[k])), \
                 f"Type mismatch for key {k} with {mode}-mode"
+            # Check if unsupported types raise an error (e.g. for dicts)
+            with pytest.raises(TypeError):
+                qs.setValue("unsupported_type", {"key": "value"})

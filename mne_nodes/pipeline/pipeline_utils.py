@@ -298,7 +298,7 @@ class QS:
     otherwise falls back to a JSON file in the user's home directory.
     On initialization, checks for a Qt installation and sets the backend accordingly.
     Since QSettings does not preserve types, the type is stored with the setting
-    in QSettings. QS can't handle None-values at this point.
+    in QSettings. Supported types are: int, float, str, bool
 
     Methods
     -------
@@ -328,19 +328,16 @@ class QS:
 
     def __init__(self):
         super().__init__()
-        self._use_qt = False
-        self.default_qsettings = default_device_settings.copy()
 
-        # Check if Qt is available
-        try:
+        self.default_qsettings = default_device_settings.copy()
+        self.supported_types = [int, float, str, bool]
+        if gui_mode:
             from qtpy.QtCore import QSettings  # noqa: F401
 
-            self._use_qt = True
             self.qsettings = QSettings()
-        except ImportError:
-            self._use_qt = False
-
-        if not self._use_qt:
+            self.settings_path = None
+        else:
+            self.qsettings = None
             self.settings_path = join(Path.home(), ".mnephd_settings.json")
 
     def load_settings(self):
@@ -365,7 +362,7 @@ class QS:
         return None
 
     def value(self, setting, defaultValue=None):
-        if self._use_qt:
+        if gui_mode:
             loaded_value = self.qsettings.value(setting, defaultValue=defaultValue)
             # Check if the type is stored in QSettings
             type_key = f"type_{setting}_type"
@@ -396,7 +393,12 @@ class QS:
                 return defaultValue
 
     def setValue(self, setting, value):
-        if self._use_qt:
+        if type(value) not in self.supported_types:
+            raise TypeError(
+                f"Unsupported type {type(value)} for setting '{setting}'. "
+                f"Supported types are: {self.supported_types}"
+            )
+        if gui_mode:
             value_type = type(value)
             self.qsettings.setValue(setting, value)
             # Store the type of the value in the QSettings too
@@ -407,21 +409,21 @@ class QS:
             self.write_settings()
 
     def sync(self):
-        if self._use_qt:
+        if gui_mode:
             self.qsettings.sync()
         else:
             self.write_settings()
             self.load_settings()
 
     def childKeys(self):
-        if self._use_qt:
+        if gui_mode:
             return self.qsettings.childKeys()
         else:
             self.load_settings()
             return self.settings.keys()
 
     def remove(self, setting):
-        if self._use_qt:
+        if gui_mode:
             self.qsettings.remove(setting)
         else:
             self.load_settings()
