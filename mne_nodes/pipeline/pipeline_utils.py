@@ -431,7 +431,7 @@ class QS:
             self.write_settings()
 
 
-def check_test_run():
+def is_test():
     if "PYTEST_CURRENT_TEST" in os.environ:
         return True
     return False

@@ -55,7 +55,7 @@ from qtpy.QtWidgets import (
 from mne_nodes import _object_refs
 from mne_nodes import extra
 from mne_nodes.pipeline import pipeline_utils
-from mne_nodes.pipeline.pipeline_utils import QS, logger
+from mne_nodes.pipeline.pipeline_utils import QS, logger, is_test
 
 # Load theme colors
 theme_color_path = join(str(resources.files(extra)), "color_themes.json")
@@ -724,7 +724,42 @@ class QProcessDialog(QDialog):
             )
 
 
-def get_user_input(prompt, input_type="string", force=False):
+def ask_user(prompt):
+    """
+    Ask the user a question and return the answer (yes or no).
+    """
+    if pipeline_utils.gui_mode:
+        parent = QApplication.activeWindow()
+        ans = QMessageBox.question(
+            parent, "Question", prompt,
+        )
+        ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
+        ans = ans == QMessageBox.StandardButton.Yes
+    elif is_test() or sys.stdin.isatty():
+        ans = input(f"{prompt} (yes/no): ")
+        ok = ans in ["yes", "y", "no", "n"]
+        ans = ans.strip().lower() in ["yes", "y"]
+    else:
+        raise RuntimeError(
+            "Input is not available in this environment. "
+            "Please run the script in a terminal/command prompt or start the GUI."
+        )
+    if not ok or ans is None:
+        warning_message = "You need to provide an appropriate input to proceed (yes/n or no/n)!"
+    else:
+        warning_message = None
+    if warning_message is not None:
+        if pipeline_utils.gui_mode:
+            parent = QApplication.activeWindow()
+            QMessageBox().warning(parent, "Warning", warning_message)
+        else:
+            logger().warning(warning_message)
+        return ask_user(prompt)
+
+    return ans
+
+
+def get_user_input(prompt, input_type="string", file_filter=None):
     """
     Get user input either via GUI or terminal, supporting string and path input.
 
@@ -733,9 +768,9 @@ def get_user_input(prompt, input_type="string", force=False):
     prompt : str
         The prompt message to display to the user.
     input_type : str, optional
-        The type of input to request: "string" or "path".
-    force : bool, optional
-        If True, repeatedly prompt until valid input is provided.
+        The type of input to request: "string", "folder" or "file".
+    file_filter : str, optional
+        Set a filter for the file dialog, e.g. "JSON files (*.json)".
 
     Returns
     -------
@@ -754,9 +789,14 @@ def get_user_input(prompt, input_type="string", force=False):
         parent = QApplication.activeWindow()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, f"Input String!", prompt)
-        elif input_type == "path":
-            user_input, ok = QFileDialog.getExistingDirectory(
-                parent, f"Input Path!", prompt
+        elif input_type == "folder":
+            user_input = QFileDialog.getExistingDirectory(
+                parent, prompt,
+            )
+            ok = user_input != ""
+        elif input_type == "file":
+            user_input, ok = QFileDialog.getOpenFileName(
+                parent, prompt, filter=file_filter,
             )
         else:
             raise ValueError(type_error_message)
@@ -782,22 +822,23 @@ def get_user_input(prompt, input_type="string", force=False):
         )
 
     # Check user input
-    if not user_input or not ok:
-        if force:
-            if pipeline_utils.gui_mode:
-                QMessageBox().warning(
-                    parent,
-                    "Input required!",
-                    "You need to provide an appropriate input to proceed!",
-                )
-            else:
-                logger().warning(
-                    "Input required! You need to provide "
-                    "an appropriate input to proceed!"
-                )
-            user_input = get_user_input(prompt, input_type, force)
+    if not ok or user_input is None:
+        warning_message = "You need to provide an appropriate input to proceed!"
+    elif input_type == "folder" and not os.path.isdir(user_input):
+        warning_message = "The provided path is not a valid directory!"
+    elif input_type == "file" and not os.path.isfile(user_input):
+        warning_message = "The provided path is not a valid file!"
+    elif input_type == "string" and not isinstance(user_input, str):
+        warning_message = "The provided input is not a valid string!"
+    else:
+        warning_message = None
+    if warning_message is not None:
+        if pipeline_utils.gui_mode:
+            parent = QApplication.activeWindow()
+            QMessageBox().warning(parent, "Warning", warning_message)
         else:
-            user_input = None
+            logger().warning(warning_message)
+        return get_user_input(prompt, input_type)
 
     return user_input
 

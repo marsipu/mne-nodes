@@ -15,21 +15,17 @@ import traceback
 from datetime import datetime
 from importlib import reload, resources, import_module
 from os import listdir
-from os.path import isdir, join
+from os.path import isdir, join, exists
 from pathlib import Path
 
 import mne
 import pandas as pd
 
 from mne_nodes import basic_functions, extra
-from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.gui.gui_utils import get_user_input, ask_user
 from mne_nodes.pipeline.legacy import transfer_file_params_to_single_subject
-from mne_nodes.pipeline.pipeline_utils import (
-    QS,
-    logger,
-    type_json_hook,
-    TypedJSONEncoder,
-)
+from mne_nodes.pipeline.pipeline_utils import (QS, logger, type_json_hook,
+                                               TypedJSONEncoder, )
 from mne_nodes.pipeline.project import Project
 
 home_dirs = ["custom_packages", "freesurfer", "projects"]
@@ -447,9 +443,7 @@ class Controller:
     Parameters
     ----------
     config_path : str or Path, optional
-        Path to the config-file, by default None. If None, no config-file is loaded.
-        If a path is given, the config-file is loaded and saved in the
-        `config` attribute.
+        Path to the config-file, if
     meeg_root : str or Path, optional
         Path to the MEEG data root directory, by default None.
     fsmri_root : str or Path, optional
@@ -464,8 +458,8 @@ class Controller:
     """
 
     def __init__(self, config_path=None, meeg_root=None, fsmri_root=None):
-        self.config_path = config_path
-        self.config = self.load_config()
+        self._config_path = config_path
+        self._config = dict()
         self.meeg_root = meeg_root or self.meeg_root
         self.fsmri_root = fsmri_root or self.fsmri_root
 
@@ -487,51 +481,90 @@ class Controller:
     # Attributes
     ####################################################################################
     @property
+    def config_path(self):
+        """Path to the config-file."""
+        if self._config_path is None:
+            logging.warning("No config-file path set!")
+            ans = ask_user("Do you want to create a new config-file?")
+            if ans:
+                logging.info("Creating new config-file.")
+                self.name = get_user_input("Please enter a name for the project", "string")
+                config_folder = get_user_input(
+                    "Set the folder-path to store the config-file", "folder")
+                self._config_path = join(config_folder, f"{self.name}_config.json")
+                self.save_config()
+            else:
+                logging.info("Using existing config-file.")
+                self._config_path = get_user_input(
+                    "Please enter the path to an exisiting config-file", "file",
+                    file_filter="JSON files (*.json)")
+
+        return self._config_path
+
+    @config_path.setter
+    def config_path(self, value):
+        if type(value) not in [str, Path]:
+            raise TypeError("Config-Path must be a string or Path object.")
+        elif isdir(value):
+            # If the config_path is a directory, create a default config file path
+            logging.warning("Config-Path is a directory, creating default config file.")
+            self._config_path = join(value, f"{self.name}_config.json")
+        else:
+            # If the config_path is a file, set it directly
+            self._config_path = value
+
+    @property
+    def config(self):
+        """Configuration dictionary loaded from the config-file."""
+        if not self._config:
+            with open(self.config_path, "r") as file:
+                self._config = json.load(file, object_hook=type_json_hook)
+        return self._config
+
+    def save_config(self):
+        with open(self.config_path, "w") as file:
+            json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
+
+    @property
+    def meeg_root(self):
+        return self.config.get("meeg_root", None)
+
+    @meeg_root.setter
+    def meeg_root(self, value):
+        self._config["meeg_root"] = value
+        self.save_config()
+
+    @property
+    def fsmri_root(self):
+        return self.config.get("fsmri_root", None)
+
+    @fsmri_root.setter
+    def fsmri_root(self, value):
+        self._config["fsmri_root"] = value
+        self.save_config()
+
+    @property
     def name(self):
         name_default = f"Project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         return self.config.get("name", name_default)
+
+    @name.setter
+    def name(self, new_name):
+        self._config["name"] = new_name
 
     # ToDo: Rename function (rename all files etc.)
     def rename(self, new_name):
         pass
 
     @property
-    def meeg_root(self):
-        if "meeg_root" not in self.config:
-            raise ValueError("The path to the MEEG data is not set!")
-        return self.config["meeg_root"]
-
-    @meeg_root.setter
-    def meeg_root(self, value):
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-        self.config["meeg_root"] = value
-        self.save_config()
-
-    @property
-    def fsmri_root(self):
-        if "fsmri_root" not in self.config:
-            raise ValueError("The path to the FreeSurfer MRI data is not set!")
-        return self.config["fsmri_root"]
-
-    @fsmri_root.setter
-    def fsmri_root(self, value):
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-        self.config["fsmri_root"] = value
-        self.save_config()
-
-    @property
     def plot_path(self):
-        if "plots_path" not in self.config:
-            raise ValueError("The path for plots is not set!")
-        return self.config["plots_path"]
+        return self.config.get("plots_path", None)
 
     @plot_path.setter
     def plot_path(self, value):
         if not isdir(value):
             raise ValueError(f"Path {value} does not exist!")
-        self.config["plots_path"] = value
+        self._config["plots_path"] = value
         self.save_config()
 
     @property
@@ -613,22 +646,6 @@ class Controller:
         if "p_preset" not in self.config:
             self.config["p_preset"] = None
         return self.config["p_preset"]
-
-    ####################################################################################
-    # Load/Save
-    ####################################################################################
-    # ToDo: Merge old settings into config
-    def load_config(self):
-        if self.config_path is not None:
-            return json.load(self.config_path, object_hook=type_json_hook)
-        return dict()
-
-    def save_config(self):
-        if self.config_path is None:
-            logging.error("No config-file set!")
-            self.config_path = get_user_input("Set the folder-path to store the config-file", "string", force=True)
-        with open(self.config_path, "w") as file:
-            json.dump(self.config, file, indent=4, cls=TypedJSONEncoder)
 
     ####################################################################################
     # Node Management
