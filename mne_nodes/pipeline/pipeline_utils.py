@@ -119,8 +119,10 @@ class TypedJSONEncoder(json.JSONEncoder):
             return {"datetime": o.strftime(datetime_format)}
         elif isinstance(o, set):
             return {"set_type": list(o)}
+        elif isinstance(o, Path):
+            return {"path_type": str(o)}
         else:
-            return super().default(self, o)
+            return super().default(o)
 
     def encode(self, o):
         # Also encode tuples (not captured by default())
@@ -142,6 +144,8 @@ def type_json_hook(obj):
         return tuple(obj["tuple_type"])
     elif "set_type" in obj.keys():
         return set(obj["set_type"])
+    elif "path_type" in obj.keys():
+        return Path(obj["path_type"])
     else:
         return obj
 

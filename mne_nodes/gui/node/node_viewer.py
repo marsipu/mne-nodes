@@ -235,6 +235,7 @@ class NodeViewer(QGraphicsView):
                 if node.old_id == old_id:
                     return node
         logging.warning("No node found with the provided parameters.")
+        return None
 
     def to_dict(self):
         viewer_dict = dict()

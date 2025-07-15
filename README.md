@@ -77,16 +77,6 @@ of [MNE-Python](https://mne.tools/stable/index.html)
 > February 2014, Pages 446-460, ISSN 1053-8119,
 > [DOI](https://doi.org/10.1016/j.neuroimage.2013.10.027)
 
-It was originally inspired by a pipeline
-from [Lau M. Andersen](https://doi.org/10.3389/fnins.2018.00006)
-> Andersen LM. Group Analysis in MNE-Python of Evoked Responses from a Tactile
-> Stimulation Paradigm: A Pipeline for
-> Reproducibility at Every Step of Processing, Going from Individual Sensor
-> Space Representations to an across-Group
-> Source Space Representation. Front Neurosci. 2018 Jan 22;12:6. doi:
-> 10.3389/fnins.2018.00006. PMID: 29403349;
-> PMCID: PMC5786561.
-
 This program also
 integrates [autoreject](https://doi.org/10.1016/j.neuroimage.2017.06.030)
 > Mainak Jas, Denis Engemann, Yousra Bekhti, Federico Raimondo, and Alexandre
@@ -99,11 +89,16 @@ The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](htt
 Many ideas and basics for GUI-Programming where taken
 from [LearnPyQt](https://www.learnpyqt.com/) and numerous
 stackoverflow-questions/solutions.
-For the nodes, code and major influences from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) are used.
 
-The development is financially supported
+Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used and rewritten.
+
+The development was supported by Code Completion and Coding Agents like 
+[JetBrains Junie](https://www.jetbrains.com/junie/) and
+[GitHub Copilot](https://github.com/features/copilot).
+
+The development was financially supported
 by [Heidelberg University](https://www.uni-heidelberg.de/de/forschung/forschungsprofil/fields-of-focus/field-of-focus-i).
 
 Thank you to the members of my laboratory (especially my
 supervisor [Andre Rupp](https://www.klinikum.uni-heidelberg.de/personen/pd-dr-phil-andre-rupp-271))
-for their feedback and testing in the early stages of development.
+for their feedback and testing.

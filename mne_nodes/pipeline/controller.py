@@ -12,10 +12,10 @@ import re
 import shutil
 import sys
 import traceback
-from datetime import datetime
 from importlib import reload, resources, import_module
+from importlib.util import cache_from_source
 from os import listdir
-from os.path import isdir, join, exists
+from os.path import isdir, join, isfile
 from pathlib import Path
 
 import mne
@@ -23,7 +23,8 @@ import pandas as pd
 
 from mne_nodes import basic_functions, extra
 from mne_nodes.gui.gui_utils import get_user_input, ask_user
-from mne_nodes.pipeline.legacy import transfer_file_params_to_single_subject
+from mne_nodes.pipeline.legacy import transfer_file_params_to_single_subject, \
+    convert_pandas_meta
 from mne_nodes.pipeline.pipeline_utils import (QS, logger, type_json_hook,
                                                TypedJSONEncoder, )
 from mne_nodes.pipeline.project import Project
@@ -140,9 +141,7 @@ class OldController:
 
     def load_settings(self):
         try:
-            with open(
-                join(self.home_path, "mne_nodes-settings.json"), "r"
-            ) as file:
+            with open(join(self.home_path, "mne_nodes-settings.json"), "r") as file:
                 self.settings = json.load(file)
             # Account for settings, which were not saved
             # but exist in default_settings
@@ -177,9 +176,7 @@ class OldController:
 
     def save_settings(self):
         try:
-            with open(
-                join(self.home_path, "mne_nodes-settings.json"), "w"
-            ) as file:
+            with open(join(self.home_path, "mne_nodes-settings.json"), "w") as file:
                 json.dump(self.settings, file, indent=4)
         except FileNotFoundError:
             logger().warning("Settings could not be saved!")
@@ -458,10 +455,14 @@ class Controller:
     """
 
     def __init__(self, config_path=None, meeg_root=None, fsmri_root=None):
-        self._config_path = config_path
+        self._config_path = config_path or QS().value("config_path", defaultValue=None)
         self._config = dict()
         self.meeg_root = meeg_root or self.meeg_root
         self.fsmri_root = fsmri_root or self.fsmri_root
+        self._modules = dict()
+        self._basic_module_list = ["basic_operations", "basic_plot"]
+        self._function_metas = dict()
+        self._parameter_metas = dict()
 
         self.default_settings = {
             "selected_project": None,
@@ -477,8 +478,11 @@ class Controller:
             "use_plot_manager": False,
         }
 
+        self.load_basic_modules()
+        self.load_custom_modules()
+
     ####################################################################################
-    # Attributes
+    # Initialization and Properties
     ####################################################################################
     @property
     def config_path(self):
@@ -488,29 +492,28 @@ class Controller:
             ans = ask_user("Do you want to create a new config-file?")
             if ans:
                 logging.info("Creating new config-file.")
-                self.name = get_user_input("Please enter a name for the project", "string")
                 config_folder = get_user_input(
-                    "Set the folder-path to store the config-file", "folder")
-                self._config_path = join(config_folder, f"{self.name}_config.json")
+                    "Set the folder-path to store the config-file", "folder"
+                )
+                self.config_path = config_folder
                 self.save_config()
             else:
                 logging.info("Using existing config-file.")
-                self._config_path = get_user_input(
-                    "Please enter the path to an exisiting config-file", "file",
-                    file_filter="JSON files (*.json)")
+                self.config_path = get_user_input(
+                    "Please enter the path to an exisiting config-file",
+                    "file",
+                    file_filter="JSON files (*.json)",
+                )
 
         return self._config_path
 
     @config_path.setter
     def config_path(self, value):
-        if type(value) not in [str, Path]:
-            raise TypeError("Config-Path must be a string or Path object.")
-        elif isdir(value):
+        if isdir(value):
             # If the config_path is a directory, create a default config file path
-            logging.warning("Config-Path is a directory, creating default config file.")
             self._config_path = join(value, f"{self.name}_config.json")
         else:
-            # If the config_path is a file, set it directly
+            # If the config_path is a filename, set it directly
             self._config_path = value
 
     @property
@@ -522,7 +525,7 @@ class Controller:
         return self._config
 
     def save_config(self):
-        with open(self.config_path, "w") as file:
+        with open(self._config_path, "w") as file:
             json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
@@ -531,7 +534,7 @@ class Controller:
 
     @meeg_root.setter
     def meeg_root(self, value):
-        self._config["meeg_root"] = value
+        self.config["meeg_root"] = value
         self.save_config()
 
     @property
@@ -540,21 +543,27 @@ class Controller:
 
     @fsmri_root.setter
     def fsmri_root(self, value):
-        self._config["fsmri_root"] = value
+        self.config["fsmri_root"] = value
         self.save_config()
 
     @property
     def name(self):
-        name_default = f"Project_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        return self.config.get("name", name_default)
+        if "name" not in self._config:
+            self.name = get_user_input("Please enter a name for this project", "string")
+
+        return self._config["name"]
 
     @name.setter
     def name(self, new_name):
+        old_name = self._config.get("name", None)
+        if old_name is not None and old_name != new_name:
+            # Rename the config file if the name changes
+            old_path = self._config_path
+            new_path = join(os.path.dirname(old_path), f"{new_name}_config.json")
+            if os.path.exists(old_path):
+                os.rename(old_path, new_path)
+            self._config_path = new_path
         self._config["name"] = new_name
-
-    # ToDo: Rename function (rename all files etc.)
-    def rename(self, new_name):
-        pass
 
     @property
     def plot_path(self):
@@ -564,6 +573,7 @@ class Controller:
     def plot_path(self, value):
         if not isdir(value):
             raise ValueError(f"Path {value} does not exist!")
+
         self._config["plots_path"] = value
         self.save_config()
 
@@ -576,10 +586,31 @@ class Controller:
         """
         if "inputs" not in self.config:
             self.config["inputs"] = {
-                "MEEG": [list()],
-                "FSMRI": [list()],
+                "MEEG": {
+                    "All": list(),
+                },
+                "FSMRI": {
+                    "All": list(),
+                },
             }
         return self.config["inputs"]
+
+    def input(self, data_type, group=None):
+        """Get the input nodes for a specific data type and group."""
+        if group is None:
+            group = "All"
+        if data_type not in self.inputs:
+            raise ValueError(f"Data type {data_type} not found in inputs.")
+        if group not in self.inputs[data_type]:
+            raise ValueError(f"Group {group} not found in inputs for {data_type}.")
+        return self.inputs[data_type][group]
+
+    @property
+    def input_nodes(self):
+        """This holds all input nodes for the project (by id)."""
+        if "input_nodes" not in self.config:
+            self.config["input_nodes"] = dict()
+        return self.config["input_nodes"]
 
     @property
     def selected_inputs(self):
@@ -641,18 +672,217 @@ class Controller:
         return self.config["parameters"]
 
     @property
-    def p_preset(self):
+    def parameter_metas(self):
+        """This holds the metadata for the parameters."""
+        return self._parameter_metas
+
+    def get_default_parameter(self, parameter_name):
+        """Get the default parameter for a given parameter name."""
+        # ToDo: Implement a method to retrieve default parameters
+        a = list()
+        a.append(parameter_name)
+        return None
+
+    def parameter(self, parameter_name, parameter_preset="Default", raise_missing=True):
+        """Get a specific parameter from the project parameters."""
+        if parameter_preset not in self.parameters:
+            if raise_missing:
+                raise KeyError(
+                    f"Parameter preset '{parameter_preset}' not found in project."
+                )
+            else:
+                parameter_preset = "Default"
+        if parameter_name not in self.parameters[parameter_preset]:
+            if raise_missing:
+                raise KeyError(f"Parameter '{parameter_name}' not found in project.")
+            else:
+                return self.get_default_parameter(parameter_name)
+
+        return self.parameters[parameter_preset][parameter_name]
+
+    @property
+    def parameter_preset(self):
         """This holds the current parameter preset for the project."""
-        if "p_preset" not in self.config:
-            self.config["p_preset"] = None
-        return self.config["p_preset"]
+        if "parameter_preset" not in self.config:
+            self.config["parameter_preset"] = None
+        return self.config["parameter_preset"]
+
+    @property
+    def function_nodes(self):
+        """This maps the node(s) to each function used in the project (by id)."""
+        if "function_nodes" not in self.config:
+            self.config["function_nodes"] = dict()
+        return self.config["function_nodes"]
+
+    @property
+    def function_metas(self):
+        """This holds the metadata for the functions used in the project.
+        Only unique function names are allowed accross basic and custom packages."""
+        return self._function_metas
+
+    def get_meta(self, name):
+        """Get the metadata for a specific parameter or function."""
+        if name in self.parameter_metas:
+            return self.parameter_metas[name]
+        elif name in self.function_metas:
+            return self.function_metas[name]
+        else:
+            raise KeyError(f"Metadata for '{name}' not found in project.")
+
+    @property
+    def modules(self):
+        """This holds all modules used in the project."""
+        return self._modules
+
+    @property
+    def custom_module_meta(self):
+        """This holds the custom modules used in the project,
+        stored by name and path to the config-file."""
+        if "custom_module_meta" not in self.config:
+            self.config["custom_module_meta"] = dict()
+        return self.config["custom_module_meta"]
+
+    @property
+    def add_kwargs(self):
+        """This holds additional keyword arguments for the project."""
+        if "add_kwargs" not in self.config:
+            self.config["add_kwargs"] = dict()
+        return self.config["add_kwargs"]
+
+    def selected_nodes(self):
+        """This holds the selected nodes for the project (by id)."""
+        if "selected_nodes" not in self.config:
+            self.config["selected_nodes"] = list()
+        return self.config["selected_nodes"]
+
+    @property
+    def plot_files(self):
+        """This holds the plot file-paths for the project."""
+        if "plot_files" not in self.config:
+            self.config["plot_files"] = dict()
+        return self.config["plot_files"]
+
+    ####################################################################################
+    # Modules
+    ####################################################################################
+    def _load_module_config(self, module_name, pkg_path):
+        """Load the configuration file for a module from the package path."""
+        config_file_path = join(pkg_path, f"{module_name}_config.json")
+        if not isfile(config_file_path):
+            raise RuntimeError(
+                f"Config file for {module_name} not found at {config_file_path}."
+            )
+        with open(config_file_path, "r") as file:
+            config_data = json.load(file, object_hook=type_json_hook)
+        self.function_metas.update(config_data["functions"])
+        self.parameter_metas.update(config_data["parameters"])
+
+    def _import_module(self, module_name, pkg_path):
+        """Import a module from the given package path."""
+        # Add the package path to sys.path if not already present
+        if pkg_path not in sys.path:
+            sys.path.insert(0, str(pkg_path))
+        pkg_name = pkg_path.name
+        # Import the module from the package
+        try:
+            module = import_module(module_name, package=pkg_name)
+        except ModuleNotFoundError:
+            logger().error(f"Module {module_name} not found in {pkg_path}].")
+        else:
+            self._modules[module_name] = module
+        # Load the config file for the basic module
+        self._load_module_config(module_name, pkg_path)
+
+    def load_basic_modules(self):
+        """Load the basic modules from the basic_functions package."""
+        # Add functions to sys.path
+        pkg_path = Path(basic_functions.__file__).parent
+
+        for module_name in self._basic_module_list:
+            self._import_module(module_name, pkg_path)
+
+    def load_custom_modules(self):
+        for module_name, config_file_path in self.custom_module_meta.items():
+            pkg_path = Path(config_file_path).parent
+            self._import_module(module_name, pkg_path)
+
+    def reload_modules(self):
+        """Reload all modules in the controller.
+
+        This method reloads all modules in the controller by removing them from sys.modules
+        and importing them again. This ensures that any changes to the module's source code
+        are reflected in the controller.
+
+        Note:
+        -----
+        This method updates the modules in the controller, but it does not update existing
+        references to objects from the modules. If you have a reference to an object from
+        a module (like a function), you need to get a new reference to that object after
+        reloading the module using controller.modules[<module>].
+
+        Example:
+        --------
+        >>> # Get a reference to a function
+        >>> controller = Controller()
+        >>> func = controller.modules["module_name"].some_func
+        >>> # Modify the module's source code
+        >>> controller.reload_modules()
+        >>> # Get a new reference to the function
+        >>> updated_func = controller.modules["module_name"].some_func
+        """
+
+        for module_name, module in self.modules.items():
+            # Remove the module from sys.modules
+            del sys.modules[module_name]
+
+            # Clear bytecode cache if we found the module file
+            bytecode_file = cache_from_source(str(module.__file__))
+            try:
+                os.remove(bytecode_file)
+            except Exception as e:
+                logger().warning(f"Error clearing bytecode cache: {e}")
+
+            # Import the module again
+            new_module = import_module(module_name)
+            # Update the module in the controller
+            self._modules[module_name] = new_module
 
     ####################################################################################
     # Node Management
     ####################################################################################
-    def add_input_nodes(self):
-        """Add input nodes from the Project."""
+    def init_input_nodes(self):
+        """Initialize input nodes from the Project."""
         # ToDo Next: Start and add input nodes for project configuration
+        pass
+
+    def init_function_nodes(self):
+        """Initialize function nodes from the Project."""
+        # ToDo Next: Start and add function nodes for project configuration
+        pass
+
+    def init_connections(self):
+        """Initialize connections between input nodes and function nodes."""
+        # ToDo Next: Start and establish connections between input nodes and
+        #  function nodes
+        pass
+
+    def add_input_node(self, data_type, group=None):
+        """Add a new input node to the project.
+
+        Parameters
+        ----------
+        data_type : str
+            The type of data (e.g., 'MEEG', 'FSMRI').
+        group : str, optional
+            The group name for the input node, by default None.
+        """
+        # ToDo Next: Add an input node to the project
+        pass
+
+    def add_function_node(self, function_name):
+        """Add a new function node to the project."""
+        # ToDo Next: Add a function node to the project
+        pass
 
     ####################################################################################
     # Legacy
@@ -663,6 +893,9 @@ class Controller:
         Changes:
         - Groups are represented by lists of inputs
         (thus each group should have a separate input node)
+        - Input mappings are pooled together (meeg_to_erm, meeg_to_fsmri, etc.)
+        - Pandas DataFrames for parameter- and function-metadata
+        are turned into dictionaries
         """
         if isinstance(old_controller, str):
             ct = OldController(
@@ -672,19 +905,46 @@ class Controller:
             )
         else:
             ct = old_controller
-        pr = Project(self, ct, project_name)
+        pr = Project(ct, project_name)
+        self.name = pr.name
         self.meeg_root = pr.data_path
         self.fsmri_root = ct.subjects_dir
         self.plot_path = pr.figures_path
-        # Add inputs
-        self.inputs["MEEG"][0].extend(pr.all_meeg)
+
+        # Add inputs (and split groups into multiple input nodes)
+        for group_name, names in pr.all_groups.items():
+            self.inputs["MEEG"][group_name] = names
+            self.add_input_node("MEEG", group_name)
+        self.inputs["MEEG"]["All"].extend(pr.all_meeg)
         self.selected_inputs.extend(pr.sel_meeg)
-        self.inputs["FSMRI"][0].extend(pr.all_fsmri)
+
+        # Add Empty-Room data if available
+        if len(pr.all_erm) > 0:
+            self.inputs["MEEG"]["Empty-Room"] = pr.all_erm
+
+        self.inputs["FSMRI"]["All"].extend(pr.all_fsmri)
         self.selected_inputs.extend(pr.sel_fsmri)
 
         self.config["bad_channels"] = pr.meeg_bad_channels
         self.config["event_ids"] = pr.meeg_event_id
         self.config["selected_event_ids"] = pr.sel_event_id
         self.config["ica_exclude"] = pr.meeg_ica_exclude
-        self.event_ids = pr.meeg_event_id
-        self.selected_event_ids = pr.sel_event_id
+
+        self.config["input_mapping"].update(pr.meeg_to_erm)
+        self.config["input_mapping"].update(pr.meeg_to_fsmri)
+
+        self.config["parameters"].update(pr.parameters)
+        self.config["parameter_preset"] = pr.parameter_preset
+
+        # Get function meta
+        func_metas = convert_pandas_meta(ct.pd_funcs, ct.pd_params)
+        for module_name, func_meta in func_metas.items():
+            for func_name, meta in func_meta["functions"].items():
+                self._function_metas[func_name] = meta
+
+        for func in pr.sel_functions:
+            self.add_function_node(func)
+
+    def convert_custom_package(self, package_name):
+        # ToDo: Convert a custom package to the new format
+        pass

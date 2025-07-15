@@ -1,264 +1,604 @@
 {
     "module_name": "basic_operations",
+    "module_alias": "basic_operations",
     "functions": {
         "find_bads": {
             "alias": "Find Bad Channels",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {"Raw": "raw"},
-            "outputs": {"Raw": "raw"}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "filter_data": {
             "alias": "Filter",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {"Data": ["raw", "epochs", "evoked"]},
-            "outputs": {"Filtered": ["raw", "epochs", "evoked"]}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "filter_target",
+                    "highpass",
+                    "lowpass",
+                    "filter_length",
+                    "l_trans_bandwidth",
+                    "h_trans_bandwidth",
+                    "filter_method",
+                    "iir_params",
+                    "fir_phase",
+                    "fir_window",
+                    "fir_design",
+                    "skip_by_annotation",
+                    "fir_pad",
+                    "n_jobs",
+                    "enable_cuda",
+                    "erm_t_limit",
+                    "bad_interpolation"
+                ]
+            ],
+            "outputs": []
         },
         "notch_filter": {
             "alias": "Notch Filter",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {"Raw": "raw"},
-            "outputs": {"Filtered": "raw"}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "notch_frequencies",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "interpolate_bads": {
             "alias": "Interpolate Bads",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {"Data": ["raw", "epochs", "evoked"]},
-            "outputs": {"Filtered": ["raw", "epochs", "evoked"]}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "bad_interpolation"
+                ]
+            ],
+            "outputs": []
         },
         "add_erm_ssp": {
             "alias": "Empty-Room SSP",
             "group": "Preprocessing",
-            "thread-safe": false,
-            "inputs": {},
-            "outputs": {}
+            "module": "basic_operations",
+            "thread-safe": true,
+            "plot": true,
+            "inputs": [
+                [
+                    "meeg",
+                    "erm_ssp_duration",
+                    "erm_n_grad",
+                    "erm_n_mag",
+                    "erm_n_eeg",
+                    "n_jobs",
+                    "show_plots"
+                ]
+            ],
+            "outputs": []
         },
         "eeg_reference_raw": {
             "alias": "Set EEG Reference",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "ref_channels"
+                ]
+            ],
+            "outputs": []
         },
         "find_events": {
             "alias": "Find events",
             "group": "events",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "stim_channels",
+                    "min_duration",
+                    "shortest_event",
+                    "adjust_timeline_by_msec"
+                ]
+            ],
+            "outputs": []
         },
         "find_6ch_binary_events": {
             "alias": "Find events HD",
             "group": "events",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "min_duration",
+                    "shortest_event",
+                    "adjust_timeline_by_msec"
+                ]
+            ],
+            "outputs": []
         },
         "epoch_raw": {
             "alias": "Get Epochs",
             "group": "events",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "ch_types",
+                    "ch_names",
+                    "t_epoch",
+                    "baseline",
+                    "apply_proj",
+                    "reject",
+                    "flat",
+                    "reject_by_annotation",
+                    "bad_interpolation",
+                    "use_autoreject",
+                    "consensus_percs",
+                    "n_interpolates",
+                    "overwrite_ar",
+                    "decim",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "estimate_noise_covariance": {
             "alias": "Noise-Covariance",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "baseline",
+                    "n_jobs",
+                    "noise_cov_mode",
+                    "noise_cov_method"
+                ]
+            ],
+            "outputs": []
         },
         "run_ica": {
             "alias": "Run ICA",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "ica_method",
+                    "ica_fitto",
+                    "n_components",
+                    "ica_noise_cov",
+                    "ica_remove_proj",
+                    "ica_reject",
+                    "ica_autoreject",
+                    "overwrite_ar",
+                    "ch_types",
+                    "ch_names",
+                    "reject_by_annotation",
+                    "ica_eog",
+                    "eog_channel",
+                    "ica_ecg",
+                    "ecg_channel"
+                ]
+            ],
+            "outputs": []
         },
         "apply_ica": {
             "alias": "Apply ICA",
             "group": "Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "ica_apply_target",
+                    "n_pca_components"
+                ]
+            ],
+            "outputs": []
         },
         "get_evokeds": {
             "alias": "Get Evokeds",
             "group": "events",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "detrend_order"
+                ]
+            ],
+            "outputs": []
         },
         "compute_psd_raw": {
             "alias": "Compute PSD (Raw)",
             "group": "Time-Frequency",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "psd_method",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "compute_psd_epochs": {
             "alias": "Compute PSD (Epochs)",
             "group": "Time-Frequency",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "psd_method",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "tfr": {
             "alias": "Time-Frequency",
             "group": "Time-Frequency",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "tfr_freqs",
+                    "tfr_n_cycles",
+                    "tfr_average",
+                    "tfr_use_fft",
+                    "tfr_baseline",
+                    "tfr_baseline_mode",
+                    "tfr_method",
+                    "multitaper_bandwidth",
+                    "stockwell_width",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "apply_watershed": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri"
+                ]
+            ],
+            "outputs": []
         },
         "prepare_bem": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri",
+                    "bem_spacing",
+                    "bem_conductivity"
+                ]
+            ],
+            "outputs": []
         },
         "setup_src": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri",
+                    "src_spacing",
+                    "surface",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "compute_src_distances": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "make_dense_scalp_surfaces": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri"
+                ]
+            ],
+            "outputs": []
         },
         "setup_vol_src": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri",
+                    "vol_src_spacing"
+                ]
+            ],
+            "outputs": []
         },
         "create_forward_solution": {
             "alias": null,
             "group": "Forward",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "n_jobs",
+                    "ch_types"
+                ]
+            ],
+            "outputs": []
         },
         "morph_fsmri": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "morph_to"
+                ]
+            ],
+            "outputs": []
         },
         "morph_labels_from_fsaverage": {
             "alias": null,
             "group": "MRI-Preprocessing",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "fsmri"
+                ]
+            ],
+            "outputs": []
         },
         "create_inverse_operator": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg"
+                ]
+            ],
+            "outputs": []
         },
         "source_estimate": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "inverse_method",
+                    "pick_ori",
+                    "lambda2"
+                ]
+            ],
+            "outputs": []
         },
         "apply_morph": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "morph_to"
+                ]
+            ],
+            "outputs": []
         },
         "label_time_course": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "target_labels",
+                    "extract_mode"
+                ]
+            ],
+            "outputs": []
         },
         "ecd_fit": {
             "alias": null,
             "group": "Inverse",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "ecd_times",
+                    "ecd_positions",
+                    "ecd_orientations",
+                    "t_epoch"
+                ]
+            ],
+            "outputs": []
         },
         "src_connectivity": {
             "alias": null,
             "group": "Time-Frequency",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg",
+                    "target_labels",
+                    "inverse_method",
+                    "lambda2",
+                    "con_methods",
+                    "con_fmin",
+                    "con_fmax",
+                    "con_time_window",
+                    "n_jobs"
+                ]
+            ],
+            "outputs": []
         },
         "grand_avg_evokeds": {
             "alias": null,
             "group": "Grand-Average",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "group",
+                    "ga_interpolate_bads",
+                    "ga_drop_bads"
+                ]
+            ],
+            "outputs": []
         },
         "grand_avg_tfr": {
             "alias": null,
             "group": "Grand-Average",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "group"
+                ]
+            ],
+            "outputs": []
         },
         "grand_avg_morphed": {
             "alias": null,
             "group": "Grand-Average",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "group",
+                    "morph_to"
+                ]
+            ],
+            "outputs": []
         },
         "grand_avg_ltc": {
             "alias": null,
             "group": "Grand-Average",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "group"
+                ]
+            ],
+            "outputs": []
         },
         "grand_avg_connect": {
             "alias": null,
             "group": "Grand-Average",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "group"
+                ]
+            ],
+            "outputs": []
         },
         "print_info": {
             "alias": "Print Info",
             "group": "Raw",
+            "module": "basic_operations",
             "thread-safe": true,
-            "inputs": {},
-            "outputs": {}
+            "plot": false,
+            "inputs": [
+                [
+                    "meeg"
+                ]
+            ],
+            "outputs": []
         }
     },
     "parameters": {
@@ -275,7 +615,7 @@
             ],
             "unit": null,
             "description": "Specify Channel-Types used in data",
-            "gui_type": "CheckListGui",
+            "gui": "CheckListGui",
             "gui_args": {
                 "options": [
                     "mag",
@@ -308,7 +648,7 @@
             "default": "all",
             "unit": null,
             "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -323,7 +663,7 @@
             "default": "average",
             "unit": null,
             "description": "Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference()",
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -338,7 +678,7 @@
             "default": 1,
             "unit": "Hz",
             "description": "Highpass-Filter",
-            "gui_type": "SliderGui",
+            "gui": "SliderGui",
             "gui_args": {
                 "min_val": 0,
                 "max_val": 100,
@@ -352,7 +692,7 @@
             "default": 100,
             "unit": "Hz",
             "description": "Lowpass-Filter",
-            "gui_type": "SliderGui",
+            "gui": "SliderGui",
             "gui_args": {
                 "min_val": 0,
                 "max_val": 100,
@@ -366,7 +706,7 @@
             "default": "raw",
             "unit": null,
             "description": "The target for Filtering (experimental when other than raw)",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "raw",
@@ -381,7 +721,7 @@
             "default": "auto",
             "unit": null,
             "description": null,
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -396,7 +736,7 @@
             "default": "auto",
             "unit": null,
             "description": null,
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -411,7 +751,7 @@
             "default": "auto",
             "unit": null,
             "description": null,
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -426,7 +766,7 @@
             "default": "fir",
             "unit": null,
             "description": null,
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "iir_params": {
@@ -435,7 +775,7 @@
             "default": null,
             "unit": null,
             "description": null,
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": {
                 "none_select": true
             }
@@ -446,7 +786,7 @@
             "default": "zero",
             "unit": null,
             "description": null,
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "fir_window": {
@@ -455,7 +795,7 @@
             "default": "hamming",
             "unit": null,
             "description": null,
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "fir_design": {
@@ -464,7 +804,7 @@
             "default": "firwin",
             "unit": null,
             "description": null,
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "skip_by_annotation": {
@@ -476,7 +816,7 @@
             ],
             "unit": null,
             "description": null,
-            "gui_type": "ListGui",
+            "gui": "ListGui",
             "gui_args": null
         },
         "fir_pad": {
@@ -485,7 +825,7 @@
             "default": "reflect_limited",
             "unit": null,
             "description": null,
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "erm_t_limit": {
@@ -494,7 +834,7 @@
             "default": 300,
             "unit": "s",
             "description": "Limits Empty-Room-Measurement-Length[s]",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": {
                 "none_select": true,
                 "min_val": 0,
@@ -509,7 +849,7 @@
             ],
             "unit": null,
             "description": "Stimulation Channel(s)",
-            "gui_type": "ListGui",
+            "gui": "ListGui",
             "gui_args": null
         },
         "min_duration": {
@@ -518,7 +858,7 @@
             "default": 0.002,
             "unit": "s",
             "description": "Minimum-Duration for events",
-            "gui_type": "FloatGui",
+            "gui": "FloatGui",
             "gui_args": {
                 "min_val": 0,
                 "step": 0.001,
@@ -531,7 +871,7 @@
             "default": 2,
             "unit": "sample",
             "description": "Shortest possible Event",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": {
                 "min_val": 0
             }
@@ -542,7 +882,7 @@
             "default": 0,
             "unit": "ms",
             "description": "custom delay to stimulus in ms",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": {
                 "min_val": -10000,
                 "max_val": 10000
@@ -550,38 +890,38 @@
         },
         "t_epoch": {
             "alias": "Epoch-Timeframe",
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": [
                 -0.5,
                 1.5
             ],
             "unit": "s",
             "description": "start and end of epoch",
-            "gui_type": "TupleGui",
+            "gui": "TupleGui",
             "gui_args": null
         },
         "baseline": {
             "alias": "Baseline-Timeframe",
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": [
                 -0.5,
                 0
             ],
             "unit": "s",
             "description": "start and end of baseline",
-            "gui_type": "TupleGui",
+            "gui": "TupleGui",
             "gui_args": {
                 "max_val": 0,
                 "none_select": true
             }
         },
         "detrend_order": {
-            "alias": "Detrend-Order",
-            "group": "Epochs/Evokeds",
+            "alias": null,
+            "group": "epochs",
             "default": null,
             "unit": null,
-            "description": "Order of detrending, either DC (0) or Linear (1). Defaults to no detrending (None)",
-            "gui_type": "ComboGui",
+            "description": "The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.",
+            "gui": "ComboGui",
             "gui_args": {
                 "none_select": true,
                 "options": [
@@ -592,11 +932,11 @@
         },
         "apply_proj": {
             "alias": "Apply Projections",
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": true,
             "unit": null,
             "description": "If to apply the projections (if present)",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "bad_interpolation": {
@@ -605,7 +945,7 @@
             "default": null,
             "unit": null,
             "description": "Choose where to apply bad-channels-interpolation",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "none_select": true,
                 "options": [
@@ -617,20 +957,20 @@
         },
         "reject_by_annotation": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": true,
             "unit": null,
             "description": "If to reject by Annotations",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "use_autoreject": {
             "alias": "Autoreject",
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": null,
             "unit": null,
             "description": "If to use autoreject and if to use it for getting the reject-threshold or for interpolating the epochs",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "none_select": true,
                 "options": [
@@ -641,34 +981,34 @@
         },
         "n_interpolates": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": "np.array([1, 4, 32])",
             "unit": null,
             "description": "p-values for autoreject",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
             "gui_args": null
         },
         "consensus_percs": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": "np.linspace(0, 1.0, 11)",
             "unit": null,
             "description": "k-values for autoreject",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
             "gui_args": null
         },
         "overwrite_ar": {
             "alias": "Overwrite Autoreject(Threshold)",
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": false,
             "unit": null,
             "description": "if to calculate new threshold or use the previously calculated",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "reject": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": {
                 "mag": 3e-12,
                 "grad": 3e-10,
@@ -677,14 +1017,14 @@
             },
             "unit": null,
             "description": "Chose reject-thresholds if not reject with autoreject_threshold",
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": {
                 "none_select": true
             }
         },
         "flat": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": {
                 "mag": 1e-15,
                 "grad": 1e-13,
@@ -692,18 +1032,18 @@
             },
             "unit": null,
             "description": "Chose flat-thresholds",
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": {
                 "none_select": true
             }
         },
         "decim": {
             "alias": null,
-            "group": "Epochs/Evokeds",
+            "group": "epochs",
             "default": 1,
             "unit": null,
             "description": "Downsampling-Factor for epochs",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "ica_method": {
@@ -712,7 +1052,7 @@
             "default": "fastica",
             "unit": null,
             "description": "The method for calculating ICA",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "fastica",
@@ -727,7 +1067,7 @@
             "default": "raw_filtered",
             "unit": null,
             "description": "The data to fit the ICA to",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": {
                     "raw": "Raw (unfiltered)",
@@ -742,7 +1082,7 @@
             "default": "raw_filtered",
             "unit": null,
             "description": "The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": {
                     "raw_filtered": "Raw (filtered)",
@@ -757,8 +1097,19 @@
             "default": 25,
             "unit": null,
             "description": "The number of components for ICA",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
+        },
+        "max_pca_components": {
+            "alias": null,
+            "group": "ICA",
+            "default": null,
+            "unit": null,
+            "description": null,
+            "gui": "IntGui",
+            "gui_args": {
+                "none_select": true
+            }
         },
         "n_pca_components": {
             "alias": null,
@@ -766,7 +1117,7 @@
             "default": null,
             "unit": null,
             "description": null,
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": {
                 "none_select": true
             }
@@ -777,7 +1128,7 @@
             "default": false,
             "unit": null,
             "description": "If to use a noise-covariance for pre-whitening",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "ica_remove_proj": {
@@ -786,7 +1137,7 @@
             "default": false,
             "unit": null,
             "description": "If to remove projections from the data before fitting",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "ica_reject": {
@@ -800,7 +1151,7 @@
             },
             "unit": null,
             "description": "Reject-Parameters for ICA",
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": {
                 "none_select": true
             }
@@ -811,7 +1162,7 @@
             "default": false,
             "unit": null,
             "description": "If to use Autoreject for ICA",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "ica_eog": {
@@ -820,7 +1171,7 @@
             "default": false,
             "unit": null,
             "description": "If to use EOG-Channels for automatic selection of components",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "eog_channel": {
@@ -829,7 +1180,7 @@
             "default": null,
             "unit": null,
             "description": "Set Vertical EOG-Channel",
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "ica_ecg": {
@@ -838,7 +1189,7 @@
             "default": false,
             "unit": null,
             "description": "If to use automatic ECG-detection either by ECG-Channel (if provided) or by an artificial ECG-Channel",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "ecg_channel": {
@@ -847,7 +1198,7 @@
             "default": null,
             "unit": null,
             "description": "Set ECG-Channel",
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": {
                 "none_select": true
             }
@@ -858,7 +1209,7 @@
             "default": "np.arange(7,40,3)",
             "unit": "Hz",
             "description": "Select the frequencies of interest (Array/List)",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
             "gui_args": null
         },
         "tfr_method": {
@@ -867,7 +1218,7 @@
             "default": "morlet",
             "unit": null,
             "description": "Choose the method to calculate Time-Frequency-Data",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "morlet",
@@ -882,7 +1233,7 @@
             "default": "np.arange(7,40,3) / 2",
             "unit": null,
             "description": "Select the number of cycles for each frequency",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
             "gui_args": null
         },
         "tfr_average": {
@@ -891,7 +1242,7 @@
             "default": true,
             "unit": null,
             "description": "If to take the average of the Time-Frequency across observations",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "tfr_use_fft": {
@@ -900,7 +1251,7 @@
             "default": false,
             "unit": null,
             "description": "If to use fft based convolution",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "tfr_baseline": {
@@ -909,7 +1260,7 @@
             "default": null,
             "unit": null,
             "description": "Check to apply the entered baseline",
-            "gui_type": "TupleGui",
+            "gui": "TupleGui",
             "gui_args": {
                 "none_select": true
             }
@@ -920,7 +1271,7 @@
             "default": "mean",
             "unit": null,
             "description": "Select the mode for baseline-application (if enabled)",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "mean",
@@ -938,7 +1289,7 @@
             "default": 4.0,
             "unit": null,
             "description": null,
-            "gui_type": "FloatGui",
+            "gui": "FloatGui",
             "gui_args": null
         },
         "stockwell_width": {
@@ -947,7 +1298,7 @@
             "default": 1.0,
             "unit": null,
             "description": null,
-            "gui_type": "FloatGui",
+            "gui": "FloatGui",
             "gui_args": null
         },
         "bem_spacing": {
@@ -956,7 +1307,7 @@
             "default": 4,
             "unit": null,
             "description": "See the MNE-Documentation for further details",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "bem_conductivity": {
@@ -969,7 +1320,7 @@
             ],
             "unit": null,
             "description": "The conductivities for each shell of the bem-model, contain only one element for a one-layer model and three elements for a three-layer model",
-            "gui_type": "ListGui",
+            "gui": "ListGui",
             "gui_args": null
         },
         "src_spacing": {
@@ -978,7 +1329,7 @@
             "default": "ico5",
             "unit": null,
             "description": "See the MNE-Documentation for further details",
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
         },
         "vol_src_spacing": {
@@ -987,7 +1338,7 @@
             "default": 5.0,
             "unit": null,
             "description": "Spacing between sources in 3D-Grid",
-            "gui_type": "FloatGui",
+            "gui": "FloatGui",
             "gui_args": null
         },
         "surface": {
@@ -996,7 +1347,7 @@
             "default": "white",
             "unit": null,
             "description": "Surface for computing the Source-Space",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "white",
@@ -1010,7 +1361,7 @@
             "default": "Empty-Room",
             "unit": null,
             "description": "Select the origin of the Noise-Covariance",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "Empty-Room",
@@ -1021,22 +1372,32 @@
         "noise_cov_method": {
             "alias": "Noise-Covariance Method",
             "group": "Preprocessing",
-            "default": "empirical",
+            "default": "auto",
             "unit": null,
             "description": "Select the method for computing the Noise-Covariance",
-            "gui_type": "ComboGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
-                "options": [
-                    "auto",
-                    "empirical",
-                    "diagonal_fixed",
-                    "shrunk",
-                    "oas",
-                    "ledoit_wolf",
-                    "factor_analysis",
-                    "shrinkage",
-                    "pca"
-                ]
+                "type_selection": true,
+                "types": [
+                    "str",
+                    "list",
+                    "combo"
+                ],
+                "type_kwargs": {
+                    "ComboGui": {
+                        "options": [
+                            "auto",
+                            "empirical",
+                            "diagonal_fixed",
+                            "shrunk",
+                            "oas",
+                            "ledoit_wolf",
+                            "factor_analysis",
+                            "shrinkage",
+                            "pca"
+                        ]
+                    }
+                }
             }
         },
         "inverse_method": {
@@ -1045,7 +1406,7 @@
             "default": "MNE",
             "unit": null,
             "description": "Choose the Inverse-Method for Source-Estimate",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "MNE",
@@ -1061,7 +1422,7 @@
             "default": null,
             "unit": null,
             "description": "Choose the Dipole-Orientation for Source-Estimate",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     null,
@@ -1076,7 +1437,145 @@
             "default": "1.0 / 3.0 ** 2",
             "unit": null,
             "description": "lambda2 for Source-Estimate",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
+            "gui_args": null
+        },
+        "stc_surface": {
+            "alias": null,
+            "group": "Inverse",
+            "default": "inflated",
+            "unit": null,
+            "description": "Select the surface type for Source Estimate Plots",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": [
+                    "inflated",
+                    "white",
+                    "pial"
+                ]
+            }
+        },
+        "stc_hemi": {
+            "alias": null,
+            "group": "Inverse",
+            "default": "split",
+            "unit": null,
+            "description": "Select the hemispheres for Source Estimate Plots",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": [
+                    "lh",
+                    "rh",
+                    "both",
+                    "split"
+                ]
+            }
+        },
+        "stc_views": {
+            "alias": null,
+            "group": "Inverse",
+            "default": [
+                "med",
+                "lat"
+            ],
+            "unit": null,
+            "description": "Select the views for Source Estimate Plots",
+            "gui": "MultiTypeGui",
+            "gui_args": {
+                "type_selection": true,
+                "types": [
+                    "str",
+                    "list"
+                ]
+            }
+        },
+        "stc_time": {
+            "alias": null,
+            "group": "Inverse",
+            "default": 0,
+            "unit": null,
+            "description": "Initial time for Source Estimate Plots",
+            "gui": "FloatGui",
+            "gui_args": null
+        },
+        "stc_clim": {
+            "alias": null,
+            "group": "Inverse",
+            "default": "auto",
+            "unit": null,
+            "description": "Colorbar Limits for Source Estimate Plots",
+            "gui": "MultiTypeGui",
+            "gui_args": {
+                "type_selection": true,
+                "types": [
+                    "str",
+                    "dict"
+                ]
+            }
+        },
+        "stc_background": {
+            "alias": null,
+            "group": "Inverse",
+            "default": "black",
+            "unit": null,
+            "description": "Background for Source Estimate Plots",
+            "gui": "MultiTypeGui",
+            "gui_args": {
+                "type_selection": false
+            }
+        },
+        "stc_roll": {
+            "alias": null,
+            "group": "Inverse",
+            "default": 0,
+            "unit": null,
+            "description": "Roll for view in for Source Estimate Plots",
+            "gui": "IntGui",
+            "gui_args": {
+                "max_val": 360
+            }
+        },
+        "stc_azimuth": {
+            "alias": null,
+            "group": "Inverse",
+            "default": 70,
+            "unit": null,
+            "description": "Azimuth for view for Source Estimate Plots",
+            "gui": "IntGui",
+            "gui_args": {
+                "max_val": 360
+            }
+        },
+        "stc_elevation": {
+            "alias": null,
+            "group": "Inverse",
+            "default": 60,
+            "unit": null,
+            "description": "Elevation for view for Source Estimate Plots",
+            "gui": "IntGui",
+            "gui_args": {
+                "max_val": 360
+            }
+        },
+        "stc_animation_span": {
+            "alias": null,
+            "group": "Inverse",
+            "default": [
+                0,
+                0.5
+            ],
+            "unit": "s",
+            "description": "time-span for stc-animation[s]",
+            "gui": "TupleGui",
+            "gui_args": null
+        },
+        "stc_animation_dilat": {
+            "alias": null,
+            "group": "Inverse",
+            "default": 20,
+            "unit": null,
+            "description": "time-dilation for stc-animation",
+            "gui": "IntGui",
             "gui_args": null
         },
         "target_labels": {
@@ -1085,8 +1584,20 @@
             "default": [],
             "unit": null,
             "description": null,
-            "gui_type": "LabelGui",
+            "gui": "LabelGui",
             "gui_args": null
+        },
+        "label_colors": {
+            "alias": null,
+            "group": "Inverse",
+            "default": {},
+            "unit": null,
+            "description": "Set custom colors for labels.",
+            "gui": "ColorGui",
+            "gui_args": {
+                "keys": "target_labels",
+                "none_select": true
+            }
         },
         "extract_mode": {
             "alias": "Label-Extraction-Mode",
@@ -1094,7 +1605,7 @@
             "default": "mean",
             "unit": null,
             "description": "mode for extracting label-time-course from Source-Estimate",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "auto",
@@ -1113,7 +1624,7 @@
             ],
             "unit": null,
             "description": "methods for connectivity",
-            "gui_type": "CheckListGui",
+            "gui": "CheckListGui",
             "gui_args": {
                 "options": [
                     "coh",
@@ -1135,7 +1646,7 @@
             "default": 30,
             "unit": null,
             "description": "lower frequency/frequencies for connectivity",
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -1150,7 +1661,7 @@
             "default": 80,
             "unit": null,
             "description": "upper frequency/frequencies for connectivity",
-            "gui_type": "MultiTypeGui",
+            "gui": "MultiTypeGui",
             "gui_args": {
                 "type_selection": true,
                 "types": [
@@ -1168,7 +1679,7 @@
             ],
             "unit": null,
             "description": "time-window for connectivity",
-            "gui_type": "TupleGui",
+            "gui": "TupleGui",
             "gui_args": {
                 "none_select": true,
                 "step": 0.001
@@ -1180,7 +1691,7 @@
             "default": {},
             "unit": null,
             "description": null,
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": null
         },
         "ecd_positions": {
@@ -1189,7 +1700,7 @@
             "default": {},
             "unit": null,
             "description": null,
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": null
         },
         "ecd_orientations": {
@@ -1198,7 +1709,7 @@
             "default": {},
             "unit": null,
             "description": null,
-            "gui_type": "DictGui",
+            "gui": "DictGui",
             "gui_args": null
         },
         "morph_to": {
@@ -1207,8 +1718,60 @@
             "default": "fsaverage",
             "unit": null,
             "description": "name of the freesurfer subject to be morphed to",
-            "gui_type": "StringGui",
+            "gui": "StringGui",
             "gui_args": null
+        },
+        "ica_source_data": {
+            "alias": null,
+            "group": "ICA",
+            "default": "raw_filtered",
+            "unit": null,
+            "description": "Which data to plot in sources-plot from ICA",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": {
+                    "raw": "Raw (unfiltered)",
+                    "raw_filtered": "Raw (filtered)",
+                    "epochs": "Epochs",
+                    "epochs_eog": "Epochs (EOG)",
+                    "epochs_ecg": "Epochs (ECG)",
+                    "evoked": "Evoked",
+                    "evoked_eog": "Evoked (EOG)",
+                    "evoked_ecg": "Evoked (ECG)"
+                }
+            }
+        },
+        "ica_overlay_data": {
+            "alias": null,
+            "group": "ICA",
+            "default": "evoked",
+            "unit": null,
+            "description": "Which data to plot in overlay-plot from ICA",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": {
+                    "raw": "Raw (unfiltered)",
+                    "raw_filtered": "Raw (filtered)",
+                    "evoked": "Evoked",
+                    "evoked_eog": "Evoked (EOG)",
+                    "evoked_ecg": "Evoked (ECG)"
+                }
+            }
+        },
+        "plot_sensors_kind": {
+            "alias": null,
+            "group": "Plot",
+            "default": "topomap",
+            "unit": null,
+            "description": "The kind of plot for plot_sensors",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": [
+                    "topomap",
+                    "3d",
+                    "select"
+                ]
+            }
         },
         "erm_ssp_duration": {
             "alias": null,
@@ -1216,7 +1779,7 @@
             "default": 1,
             "unit": "s",
             "description": "The time-chunk to use for ssp",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "erm_n_grad": {
@@ -1225,7 +1788,7 @@
             "default": 2,
             "unit": null,
             "description": "The number of projections for Gradiometer",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "erm_n_mag": {
@@ -1234,7 +1797,7 @@
             "default": 2,
             "unit": null,
             "description": "The number of projections for Magnetometer",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "erm_n_eeg": {
@@ -1243,7 +1806,7 @@
             "default": 0,
             "unit": null,
             "description": "The number of projections for EEG",
-            "gui_type": "IntGui",
+            "gui": "IntGui",
             "gui_args": null
         },
         "ga_interpolate_bads": {
@@ -1252,7 +1815,7 @@
             "default": true,
             "unit": null,
             "description": "If to interpolate bad channels for the Grand-Average",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "ga_drop_bads": {
@@ -1261,7 +1824,7 @@
             "default": true,
             "unit": null,
             "description": "If to drop bad channels for the Grand-Average",
-            "gui_type": "BoolGui",
+            "gui": "BoolGui",
             "gui_args": null
         },
         "psd_method": {
@@ -1270,12 +1833,48 @@
             "default": "welch",
             "unit": null,
             "description": "The method for spectral estimation",
-            "gui_type": "ComboGui",
+            "gui": "ComboGui",
             "gui_args": {
                 "options": [
                     "welch",
                     "multitaper"
                 ]
+            }
+        },
+        "psd_topomap_bands": {
+            "alias": null,
+            "group": "Time-Frequency",
+            "default": null,
+            "unit": null,
+            "description": "The frequency bands for the topomap-plot",
+            "gui": "DictGui",
+            "gui_args": {
+                "none_select": true
+            }
+        },
+        "backend_3d": {
+            "alias": "3D-Backend",
+            "group": "Plot",
+            "default": "pyvistaqt",
+            "unit": null,
+            "description": "Choose the 3D-Backend for Brain-plots.",
+            "gui": "ComboGui",
+            "gui_args": {
+                "options": [
+                    "pyvistaqt",
+                    "notebook"
+                ]
+            }
+        },
+        "con_group_boundaries": {
+            "alias": null,
+            "group": "Connectivity",
+            "default": null,
+            "unit": null,
+            "description": "Set group-boundaries for circular plot.",
+            "gui": "FuncGui",
+            "gui_args": {
+                "none_select": true
             }
         },
         "notch_frequencies": {
@@ -1284,7 +1883,7 @@
             "default": 50,
             "unit": null,
             "description": "Set frequencies for Notch filtering",
-            "gui_type": "FuncGui",
+            "gui": "FuncGui",
             "gui_args": null
         }
     }

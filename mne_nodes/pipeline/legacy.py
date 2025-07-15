@@ -5,9 +5,11 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 import json
+import math
 import os
 import subprocess
 import sys
+from ast import literal_eval
 from os.path import isdir, join, isfile
 
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
@@ -118,3 +120,69 @@ def transfer_file_params_to_single_subject(ct):
                     obj.clean_file_parameters()
         os.remove(old_fp_path)
         print("Done!")
+
+
+def convert_pandas_meta(func_pd, param_pd):
+    """Convert pandas DataFrames to a dictionary structure for function and parameter
+    configuration.
+    """
+    modules = func_pd["module"].unique()
+    configs = dict()
+    for module in modules:
+        module_dict = {"module_name": module, "module_alias": module, "functions": {}, "parameters": {}}
+        param_set = set()
+
+        for func_name, row in func_pd[func_pd["module"] == module].iterrows():
+            row_dict = row.to_dict()
+            if row_dict["mayavi"]:
+                row_dict["thread-safe"] = False
+            else:
+                row_dict["thread-safe"] = True
+            if row_dict["matplotlib"] or row_dict["mayavi"]:
+                row_dict["plot"] = True
+            else:
+                row_dict["plot"] = False
+
+            for pop_key in [
+                "matplotlib",
+                "mayavi",
+                "target",
+                "tab",
+                "dependencies",
+                "pkg_name",
+            ]:
+                row_dict.pop(pop_key)
+
+            params = row_dict.pop("func_args").split(",")
+
+            row_dict["inputs"] = [params]
+            row_dict["outputs"] = list()
+
+            for key, value in row_dict.items():
+                if isinstance(value, float) and math.isnan(value):
+                    row_dict[key] = None
+
+            module_dict["functions"][func_name] = row_dict
+            param_set.update(params)
+
+        for param_name, row in param_pd.iterrows():
+            row_dict = row.to_dict()
+            eval_dict = dict()
+            for key, value in row_dict.items():
+                if key in ["default", "gui_args"]:
+                    try:
+                        value = literal_eval(value)
+                    except (ValueError, SyntaxError):
+                        pass
+                # Rename gui_type to gui
+                if key == "gui_type":
+                    key = "gui"
+                # Convert None values from NaN
+                if isinstance(value, float) and math.isnan(value):
+                    value = None
+                eval_dict[key] = value
+
+            module_dict["parameters"][param_name] = eval_dict
+        configs[module] = module_dict
+
+    return configs

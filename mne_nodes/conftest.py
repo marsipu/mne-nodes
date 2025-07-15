@@ -4,7 +4,9 @@ Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+import json
 from os import mkdir
+from pathlib import Path
 
 import pytest
 
@@ -16,13 +18,16 @@ from mne_nodes.pipeline.controller import Controller
 
 @pytest.fixture
 def controller(tmpdir):
-    # Create meeg_root and fsmri_root
-    meeg_root = tmpdir.join("MEEG")
+    # Create a config_file, meeg_root and fsmri_root
+    config_path = Path(tmpdir.join("test_config.json"))
+    with open(config_path, "w") as f:
+        json.dump({"name": "test_controller"}, f, indent=4)
+    meeg_root = Path(tmpdir.join("MEEG"))
     mkdir(meeg_root)
-    fsmri_root = tmpdir.join("FSMRI")
+    fsmri_root = Path(tmpdir.join("FSMRI"))
     mkdir(fsmri_root)
     # Create Controller
-    ct = Controller(None, meeg_root, fsmri_root)
+    ct = Controller(config_path, meeg_root, fsmri_root)
 
     return ct
 
@@ -33,6 +38,7 @@ def main_window(controller, qtbot):
     qtbot.addWidget(mw)
 
     return mw
+
 
 @pytest.fixture
 def parameter_values():
@@ -54,6 +60,7 @@ def parameter_values():
         "path": "C:/test",
     }
 
+
 @pytest.fixture
 def parameter_values_alt():
     """Fixture to provide alternative parameter values."""
@@ -73,6 +80,7 @@ def parameter_values_alt():
         "color": {"A": "#12345678", "B": "#13243546"},
         "path": "D:/test",
     }
+
 
 @pytest.fixture
 def nodeviewer(qtbot, controller):
@@ -129,3 +137,45 @@ def nodeviewer(qtbot, controller):
     func_node2.setPos(400, 100)
 
     return viewer
+
+
+@pytest.fixture
+def custom_module(tmpdir):
+    pkg_path = tmpdir.join("test_module")
+    mkdir(pkg_path)
+    # Generate test Code
+    test_code = "def test_func(a):\n    return a ** 2\n"
+    with open(pkg_path.join("test.py"), "w") as f:
+        f.write(test_code)
+    # Generate test configuration file
+    test_config = {
+        "module_name": "test_module",
+        "module_alias": "test_module",
+        "functions": {
+            "test_func": {
+                "alias": "test_func",
+                "group": "Test",
+                "module": "test_module",
+                "thread-safe": True,
+                "plot": False,
+                "inputs": ["a"],
+                "outputs": ["a_squared"],
+            }
+        },
+        "parameters": {
+            "a": {
+                "alias": "A",
+                "Group": "Test",
+                "default": 2,
+                "unit": "s",
+                "description": "This is a test parameter",
+                "gui": "IntGui",
+                "gui_args": {"min_val": 0},
+            }
+        },
+    }
+    test_config_path = Path(pkg_path.join("test_config.json"))
+    with open(test_config_path, "w") as f:
+        json.dump(test_config, f, indent=4)
+
+    return test_config_path
