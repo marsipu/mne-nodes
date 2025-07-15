@@ -4,7 +4,6 @@ Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-from importlib import import_module
 from os.path import join, isfile
 
 from PySide6.QtWidgets import QMessageBox
@@ -12,7 +11,6 @@ from PySide6.QtWidgets import QMessageBox
 from mne_nodes.pipeline.controller import Controller
 
 
-# ToDo Next: Make this test run
 def test_init(monkeypatch, tmpdir):
 
     monkeypatch.setattr(
