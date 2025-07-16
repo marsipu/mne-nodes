@@ -10,6 +10,7 @@ import functools
 from mne_nodes.gui.plot_widgets import show_plot_manager
 
 
+# ToDo: integrate plot management into exeution pipeline
 def pipeline_plot(plot_func):
     @functools.wraps(plot_func)
     def func_wrapper(*args, **kwargs):

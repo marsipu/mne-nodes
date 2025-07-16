@@ -9,12 +9,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "n_jobs"
-                ]
+                "raw"
             ],
-            "outputs": []
+            "outputs": [
+                "raw"
+            ],
+            "parameters": [
+                "n_jobs"
+            ]
         },
         "filter_data": {
             "alias": "Filter",
@@ -23,28 +25,31 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "filter_target",
-                    "highpass",
-                    "lowpass",
-                    "filter_length",
-                    "l_trans_bandwidth",
-                    "h_trans_bandwidth",
-                    "filter_method",
-                    "iir_params",
-                    "fir_phase",
-                    "fir_window",
-                    "fir_design",
-                    "skip_by_annotation",
-                    "fir_pad",
-                    "n_jobs",
-                    "enable_cuda",
-                    "erm_t_limit",
-                    "bad_interpolation"
-                ]
+                "erm",
+                "info"
             ],
-            "outputs": []
+            "outputs": [
+                "erm_processed"
+            ],
+            "parameters": [
+                "filter_target",
+                "highpass",
+                "lowpass",
+                "filter_length",
+                "l_trans_bandwidth",
+                "h_trans_bandwidth",
+                "filter_method",
+                "iir_params",
+                "fir_phase",
+                "fir_window",
+                "fir_design",
+                "skip_by_annotation",
+                "fir_pad",
+                "n_jobs",
+                "enable_cuda",
+                "erm_t_limit",
+                "bad_interpolation"
+            ]
         },
         "notch_filter": {
             "alias": "Notch Filter",
@@ -53,13 +58,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "notch_frequencies",
-                    "n_jobs"
-                ]
+                "filtered"
             ],
-            "outputs": []
+            "outputs": [
+                "filtered"
+            ],
+            "parameters": [
+                "notch_frequencies",
+                "n_jobs"
+            ]
         },
         "interpolate_bads": {
             "alias": "Interpolate Bads",
@@ -67,13 +74,11 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "meeg",
-                    "bad_interpolation"
-                ]
-            ],
-            "outputs": []
+            "inputs": [],
+            "outputs": [],
+            "parameters": [
+                "bad_interpolation"
+            ]
         },
         "add_erm_ssp": {
             "alias": "Empty-Room SSP",
@@ -82,17 +87,20 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "erm_ssp_duration",
-                    "erm_n_grad",
-                    "erm_n_mag",
-                    "erm_n_eeg",
-                    "n_jobs",
-                    "show_plots"
-                ]
+                "filtered",
+                "erm_processed"
             ],
-            "outputs": []
+            "outputs": [
+                "filtered"
+            ],
+            "parameters": [
+                "erm_ssp_duration",
+                "erm_n_grad",
+                "erm_n_mag",
+                "erm_n_eeg",
+                "n_jobs",
+                "show_plots"
+            ]
         },
         "eeg_reference_raw": {
             "alias": "Set EEG Reference",
@@ -101,12 +109,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "ref_channels"
-                ]
+                "filtered",
+                "forward"
             ],
-            "outputs": []
+            "outputs": [
+                "filtered"
+            ],
+            "parameters": [
+                "ref_channels"
+            ]
         },
         "find_events": {
             "alias": "Find events",
@@ -115,15 +126,17 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "stim_channels",
-                    "min_duration",
-                    "shortest_event",
-                    "adjust_timeline_by_msec"
-                ]
+                "raw"
             ],
-            "outputs": []
+            "outputs": [
+                "events"
+            ],
+            "parameters": [
+                "stim_channels",
+                "min_duration",
+                "shortest_event",
+                "adjust_timeline_by_msec"
+            ]
         },
         "find_6ch_binary_events": {
             "alias": "Find events HD",
@@ -132,14 +145,16 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "min_duration",
-                    "shortest_event",
-                    "adjust_timeline_by_msec"
-                ]
+                "raw"
             ],
-            "outputs": []
+            "outputs": [
+                "events"
+            ],
+            "parameters": [
+                "min_duration",
+                "shortest_event",
+                "adjust_timeline_by_msec"
+            ]
         },
         "epoch_raw": {
             "alias": "Get Epochs",
@@ -148,26 +163,32 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "ch_types",
-                    "ch_names",
-                    "t_epoch",
-                    "baseline",
-                    "apply_proj",
-                    "reject",
-                    "flat",
-                    "reject_by_annotation",
-                    "bad_interpolation",
-                    "use_autoreject",
-                    "consensus_percs",
-                    "n_interpolates",
-                    "overwrite_ar",
-                    "decim",
-                    "n_jobs"
-                ]
+                "filtered",
+                "events",
+                "json"
             ],
-            "outputs": []
+            "outputs": [
+                "reject_log",
+                "json",
+                "epochs"
+            ],
+            "parameters": [
+                "ch_types",
+                "ch_names",
+                "t_epoch",
+                "baseline",
+                "apply_proj",
+                "reject",
+                "flat",
+                "reject_by_annotation",
+                "bad_interpolation",
+                "use_autoreject",
+                "consensus_percs",
+                "n_interpolates",
+                "overwrite_ar",
+                "decim",
+                "n_jobs"
+            ]
         },
         "estimate_noise_covariance": {
             "alias": "Noise-Covariance",
@@ -176,15 +197,19 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "baseline",
-                    "n_jobs",
-                    "noise_cov_mode",
-                    "noise_cov_method"
-                ]
+                "epochs",
+                "erm_processed"
             ],
-            "outputs": []
+            "outputs": [
+                "noise_covariance",
+                "noise_covariance"
+            ],
+            "parameters": [
+                "baseline",
+                "n_jobs",
+                "noise_cov_mode",
+                "noise_cov_method"
+            ]
         },
         "run_ica": {
             "alias": "Run ICA",
@@ -193,26 +218,37 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "ica_method",
-                    "ica_fitto",
-                    "n_components",
-                    "ica_noise_cov",
-                    "ica_remove_proj",
-                    "ica_reject",
-                    "ica_autoreject",
-                    "overwrite_ar",
-                    "ch_types",
-                    "ch_names",
-                    "reject_by_annotation",
-                    "ica_eog",
-                    "eog_channel",
-                    "ica_ecg",
-                    "ecg_channel"
-                ]
+                "noise_covariance",
+                "json",
+                "filtered"
             ],
-            "outputs": []
+            "outputs": [
+                "json",
+                "eog_epochs",
+                "json",
+                "json",
+                "ecg_epochs",
+                "json",
+                "json",
+                "ica"
+            ],
+            "parameters": [
+                "ica_method",
+                "ica_fitto",
+                "n_components",
+                "ica_noise_cov",
+                "ica_remove_proj",
+                "ica_reject",
+                "ica_autoreject",
+                "overwrite_ar",
+                "ch_types",
+                "ch_names",
+                "reject_by_annotation",
+                "ica_eog",
+                "eog_channel",
+                "ica_ecg",
+                "ecg_channel"
+            ]
         },
         "apply_ica": {
             "alias": "Apply ICA",
@@ -221,13 +257,17 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "ica_apply_target",
-                    "n_pca_components"
-                ]
+                "ica",
+                "erm_processed",
+                "erm"
             ],
-            "outputs": []
+            "outputs": [
+                "erm_processed"
+            ],
+            "parameters": [
+                "ica_apply_target",
+                "n_pca_components"
+            ]
         },
         "get_evokeds": {
             "alias": "Get Evokeds",
@@ -236,12 +276,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "detrend_order"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [
+                "evokeds"
+            ],
+            "parameters": [
+                "detrend_order"
+            ]
         },
         "compute_psd_raw": {
             "alias": "Compute PSD (Raw)",
@@ -250,13 +292,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "psd_method",
-                    "n_jobs"
-                ]
+                "filtered"
             ],
-            "outputs": []
+            "outputs": [
+                "psd_raw"
+            ],
+            "parameters": [
+                "psd_method",
+                "n_jobs"
+            ]
         },
         "compute_psd_epochs": {
             "alias": "Compute PSD (Epochs)",
@@ -265,13 +309,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "psd_method",
-                    "n_jobs"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [
+                "psd_epochs"
+            ],
+            "parameters": [
+                "psd_method",
+                "n_jobs"
+            ]
         },
         "tfr": {
             "alias": "Time-Frequency",
@@ -279,22 +325,27 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "meeg",
-                    "tfr_freqs",
-                    "tfr_n_cycles",
-                    "tfr_average",
-                    "tfr_use_fft",
-                    "tfr_baseline",
-                    "tfr_baseline_mode",
-                    "tfr_method",
-                    "multitaper_bandwidth",
-                    "stockwell_width",
-                    "n_jobs"
-                ]
+            "inputs": [],
+            "outputs": [
+                "power_tfr_average",
+                "itc_tfr_average",
+                "power_tfr_epochs",
+                "itc_tfr_epochs",
+                "power_tfr_average",
+                "itc_tfr_average"
             ],
-            "outputs": []
+            "parameters": [
+                "tfr_freqs",
+                "tfr_n_cycles",
+                "tfr_average",
+                "tfr_use_fft",
+                "tfr_baseline",
+                "tfr_baseline_mode",
+                "tfr_method",
+                "multitaper_bandwidth",
+                "stockwell_width",
+                "n_jobs"
+            ]
         },
         "apply_watershed": {
             "alias": null,
@@ -302,12 +353,9 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "fsmri"
-                ]
-            ],
-            "outputs": []
+            "inputs": [],
+            "outputs": [],
+            "parameters": []
         },
         "prepare_bem": {
             "alias": null,
@@ -315,14 +363,15 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "fsmri",
-                    "bem_spacing",
-                    "bem_conductivity"
-                ]
+            "inputs": [],
+            "outputs": [
+                "bem_model",
+                "bem_solution"
             ],
-            "outputs": []
+            "parameters": [
+                "bem_spacing",
+                "bem_conductivity"
+            ]
         },
         "setup_src": {
             "alias": null,
@@ -330,15 +379,15 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "fsmri",
-                    "src_spacing",
-                    "surface",
-                    "n_jobs"
-                ]
+            "inputs": [],
+            "outputs": [
+                "source_space"
             ],
-            "outputs": []
+            "parameters": [
+                "src_spacing",
+                "surface",
+                "n_jobs"
+            ]
         },
         "compute_src_distances": {
             "alias": null,
@@ -347,12 +396,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "fsmri",
-                    "n_jobs"
-                ]
+                "source_space"
             ],
-            "outputs": []
+            "outputs": [
+                "source_space"
+            ],
+            "parameters": [
+                "n_jobs"
+            ]
         },
         "make_dense_scalp_surfaces": {
             "alias": null,
@@ -360,12 +411,9 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "fsmri"
-                ]
-            ],
-            "outputs": []
+            "inputs": [],
+            "outputs": [],
+            "parameters": []
         },
         "setup_vol_src": {
             "alias": null,
@@ -374,12 +422,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "fsmri",
-                    "vol_src_spacing"
-                ]
+                "bem_solution"
             ],
-            "outputs": []
+            "outputs": [
+                "volume_source_space"
+            ],
+            "parameters": [
+                "vol_src_spacing"
+            ]
         },
         "create_forward_solution": {
             "alias": null,
@@ -388,13 +438,16 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "n_jobs",
-                    "ch_types"
-                ]
+                "info",
+                "transformation"
             ],
-            "outputs": []
+            "outputs": [
+                "forward"
+            ],
+            "parameters": [
+                "n_jobs",
+                "ch_types"
+            ]
         },
         "morph_fsmri": {
             "alias": null,
@@ -403,12 +456,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "morph_to"
-                ]
+                "forward"
             ],
-            "outputs": []
+            "outputs": [
+                "source_morph"
+            ],
+            "parameters": [
+                "morph_to"
+            ]
         },
         "morph_labels_from_fsaverage": {
             "alias": null,
@@ -416,12 +471,9 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "fsmri"
-                ]
-            ],
-            "outputs": []
+            "inputs": [],
+            "outputs": [],
+            "parameters": []
         },
         "create_inverse_operator": {
             "alias": null,
@@ -430,11 +482,14 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg"
-                ]
+                "info",
+                "noise_covariance",
+                "forward"
             ],
-            "outputs": []
+            "outputs": [
+                "inverse_operator"
+            ],
+            "parameters": []
         },
         "source_estimate": {
             "alias": null,
@@ -443,14 +498,17 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "inverse_method",
-                    "pick_ori",
-                    "lambda2"
-                ]
+                "inverse_operator",
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [
+                "source_estimates"
+            ],
+            "parameters": [
+                "inverse_method",
+                "pick_ori",
+                "lambda2"
+            ]
         },
         "apply_morph": {
             "alias": null,
@@ -459,12 +517,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "morph_to"
-                ]
+                "source_estimates",
+                "source_morph"
             ],
-            "outputs": []
+            "outputs": [
+                "morphed_source_estimates"
+            ],
+            "parameters": [
+                "morph_to"
+            ]
         },
         "label_time_course": {
             "alias": null,
@@ -473,13 +534,15 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "target_labels",
-                    "extract_mode"
-                ]
+                "source_estimates"
             ],
-            "outputs": []
+            "outputs": [
+                "ltc"
+            ],
+            "parameters": [
+                "target_labels",
+                "extract_mode"
+            ]
         },
         "ecd_fit": {
             "alias": null,
@@ -488,15 +551,19 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "ecd_times",
-                    "ecd_positions",
-                    "ecd_orientations",
-                    "t_epoch"
-                ]
+                "evokeds",
+                "noise_covariance",
+                "transformation"
             ],
-            "outputs": []
+            "outputs": [
+                "ecd"
+            ],
+            "parameters": [
+                "ecd_times",
+                "ecd_positions",
+                "ecd_orientations",
+                "t_epoch"
+            ]
         },
         "src_connectivity": {
             "alias": null,
@@ -505,19 +572,22 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg",
-                    "target_labels",
-                    "inverse_method",
-                    "lambda2",
-                    "con_methods",
-                    "con_fmin",
-                    "con_fmax",
-                    "con_time_window",
-                    "n_jobs"
-                ]
+                "info",
+                "inverse_operator"
             ],
-            "outputs": []
+            "outputs": [
+                "connectivity"
+            ],
+            "parameters": [
+                "target_labels",
+                "inverse_method",
+                "lambda2",
+                "con_methods",
+                "con_fmin",
+                "con_fmax",
+                "con_time_window",
+                "n_jobs"
+            ]
         },
         "grand_avg_evokeds": {
             "alias": null,
@@ -525,14 +595,14 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "group",
-                    "ga_interpolate_bads",
-                    "ga_drop_bads"
-                ]
+            "inputs": [],
+            "outputs": [
+                "ga_evokeds"
             ],
-            "outputs": []
+            "parameters": [
+                "ga_interpolate_bads",
+                "ga_drop_bads"
+            ]
         },
         "grand_avg_tfr": {
             "alias": null,
@@ -540,12 +610,11 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "group"
-                ]
+            "inputs": [],
+            "outputs": [
+                "ga_tfr"
             ],
-            "outputs": []
+            "parameters": []
         },
         "grand_avg_morphed": {
             "alias": null,
@@ -553,13 +622,13 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "group",
-                    "morph_to"
-                ]
+            "inputs": [],
+            "outputs": [
+                "ga_stc"
             ],
-            "outputs": []
+            "parameters": [
+                "morph_to"
+            ]
         },
         "grand_avg_ltc": {
             "alias": null,
@@ -567,12 +636,11 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "group"
-                ]
+            "inputs": [],
+            "outputs": [
+                "ga_ltc"
             ],
-            "outputs": []
+            "parameters": []
         },
         "grand_avg_connect": {
             "alias": null,
@@ -580,12 +648,11 @@
             "module": "basic_operations",
             "thread-safe": true,
             "plot": false,
-            "inputs": [
-                [
-                    "group"
-                ]
+            "inputs": [],
+            "outputs": [
+                "ga_con"
             ],
-            "outputs": []
+            "parameters": []
         },
         "print_info": {
             "alias": "Print Info",
@@ -594,11 +661,10 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                [
-                    "meeg"
-                ]
+                "info"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": []
         }
     },
     "parameters": {

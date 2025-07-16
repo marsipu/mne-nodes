@@ -67,17 +67,16 @@ from mne_nodes.gui.base_widgets import (
     SimpleList,
     SimplePandasTable,
 )
+from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import (
-    ErrorDialog,
-    Worker,
-    WorkerDialog,
     center,
     set_ratio_geometry,
-    gui_error,
     get_user_input,
 )
 from mne_nodes.gui.models import AddFilesModel
 from mne_nodes.gui.parameter_widgets import ComboGui
+from mne_nodes.pipeline.exception_handling import gui_error
+from mne_nodes.pipeline.execution import Worker, WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import compare_filep, QS, logger
 

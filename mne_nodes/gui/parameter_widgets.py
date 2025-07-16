@@ -52,14 +52,14 @@ from mne_nodes.gui.base_widgets import (
 from mne_nodes.gui.dialogs import CheckListDlg
 from mne_nodes.gui.gui_utils import (
     get_std_icon,
-    WorkerDialog,
-    get_exception_tuple,
     center,
     set_app_theme,
     set_app_font,
     get_user_input,
 )
 from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI
 from mne_nodes.pipeline.pipeline_utils import QS, iswin, logger
 
@@ -244,18 +244,12 @@ class Param(QWidget):
             self._get_param()
 
     def _read_data(self, name):
+        # get data from Parameters in Controller
+        if isinstance(self.data, Controller):
+            value = self.data.parameter(name)
         # get data from dictionary
-        if isinstance(self.data, dict) and name in self.data:
-            value = self.data[name]
-
-        # get data from Parameters in Project in MainWindow
-        # (depending on selected parameter-preset and selected Project)
-        elif (
-            isinstance(self.data, Controller)
-            and name in self.data.pr.parameters[self.data.pr.p_preset]
-        ):
-            value = self.data.pr.parameters[self.data.pr.p_preset][name]
-
+        elif isinstance(self.data, dict):
+            value = self.data.get(name, self.default)
         # get data from QSettings
         elif isinstance(self.data, QS) and name in self.data.childKeys():
             value = self.data.value(name)

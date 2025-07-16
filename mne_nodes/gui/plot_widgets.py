@@ -42,7 +42,8 @@ except ImportError:
     Figure3D = None
 from mne_nodes import _object_refs
 from mne_nodes.gui.base_widgets import SimpleList, CheckList
-from mne_nodes.gui.gui_utils import Worker, set_ratio_geometry
+from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.pipeline.execution import Worker
 from mne_nodes.pipeline.function_utils import get_arguments
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 

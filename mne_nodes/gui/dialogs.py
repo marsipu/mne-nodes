@@ -8,6 +8,7 @@ from collections import Counter
 from importlib import resources
 from pathlib import Path
 
+from PySide6.QtWidgets import QApplication
 from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -27,6 +28,7 @@ from mne_nodes.gui.base_widgets import SimpleList, SimpleDialog
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
+from mne_nodes.pipeline.pipeline_utils import logger
 from mne_nodes.pipeline.project import Project
 
 
@@ -386,3 +388,61 @@ class AboutDialog(QDialog):
         self.setLayout(layout)
         set_ratio_geometry((0.25, 0.9), self)
         self.open()
+
+
+class ErrorDialog(SimpleDialog):
+    def __init__(self, exception_tuple, parent=None, title=None):
+        if parent:
+            super().__init__(parent)
+        else:
+            super().__init__()
+        self.err = exception_tuple
+        self.title = title
+        if self.title:
+            self.setWindowTitle(self.title)
+        else:
+            self.setWindowTitle("An Error ocurred!")
+
+        set_ratio_geometry(0.6, self)
+
+        self.init_ui()
+
+        if parent:
+            self.open()
+        else:
+            self.exec()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+
+        self.display = QTextEdit()
+        self.display.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.display.setReadOnly(True)
+        self.formated_tb_text = self.err[2].replace("\n", "<br>")
+        if self.title:
+            self.html_text = (
+                f"<h1>{self.title}</h1>"
+                f"<h2>{self.err[1]}</h2>"
+                f"{self.formated_tb_text}"
+            )
+        else:
+            self.html_text = f"<h1>{self.err[1]}</h1>" f"{self.formated_tb_text}"
+        self.display.setHtml(self.html_text)
+        layout.addWidget(self.display)
+
+        self.close_bt = QPushButton("Close")
+        self.close_bt.clicked.connect(self.close)
+        layout.addWidget(self.close_bt)
+
+        self.setLayout(layout)
+
+
+def show_error_dialog(exc_str):
+    """Checks if a QApplication instance is available and shows the Error-Dialog.
+
+    If unavailable (non-console application), log an additional notice.
+    """
+    if QApplication.instance() is not None:
+        ErrorDialog(exc_str, title="A unexpected error occurred")
+    else:
+        logger().debug("No QApplication instance available.")

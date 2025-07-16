@@ -9,12 +9,12 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "fsmri",
-                    "backend_3d"
-                ]
+                "source_space"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "backend_3d"
+            ]
         },
         "plot_bem": {
             "alias": null,
@@ -23,12 +23,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "fsmri",
-                    "show_plots"
-                ]
+                "source_space",
+                "volume_source_space"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_noise_covariance": {
             "alias": null,
@@ -37,12 +38,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "noise_covariance",
+                "info"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_transformation": {
             "alias": null,
@@ -51,12 +53,13 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "backend_3d"
-                ]
+                "info",
+                "transformation"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "backend_3d"
+            ]
         },
         "plot_sensitivity_maps": {
             "alias": null,
@@ -65,12 +68,12 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "ch_types"
-                ]
+                "forward"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "ch_types"
+            ]
         },
         "plot_sensors": {
             "alias": null,
@@ -79,14 +82,14 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "plot_sensors_kind",
-                    "ch_types",
-                    "show_plots"
-                ]
+                "info"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "plot_sensors_kind",
+                "ch_types",
+                "show_plots"
+            ]
         },
         "plot_raw": {
             "alias": null,
@@ -95,13 +98,14 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots",
-                    "close_func"
-                ]
+                "raw",
+                "events"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots",
+                "close_func"
+            ]
         },
         "plot_filtered": {
             "alias": null,
@@ -110,13 +114,14 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots",
-                    "close_func"
-                ]
+                "filtered",
+                "events"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots",
+                "close_func"
+            ]
         },
         "plot_events": {
             "alias": null,
@@ -125,12 +130,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "events"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_power_spectra": {
             "alias": null,
@@ -139,12 +144,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "psd_raw"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_power_spectra_topomap": {
             "alias": null,
@@ -153,13 +158,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "psd_topomap_bands",
-                    "show_plots"
-                ]
+                "psd_raw"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "psd_topomap_bands",
+                "show_plots"
+            ]
         },
         "plot_power_spectra_epochs": {
             "alias": null,
@@ -168,12 +173,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "psd_epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_power_spectra_epochs_topomap": {
             "alias": null,
@@ -182,13 +187,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "psd_topomap_bands",
-                    "show_plots"
-                ]
+                "psd_epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "psd_topomap_bands",
+                "show_plots"
+            ]
         },
         "plot_tfr": {
             "alias": null,
@@ -197,12 +202,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "power_tfr_average",
+                "itc_tfr_average"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_epochs": {
             "alias": null,
@@ -211,12 +217,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_epochs_image": {
             "alias": null,
@@ -225,12 +231,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_epochs_topo": {
             "alias": null,
@@ -239,12 +245,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_epochs_drop_log": {
             "alias": null,
@@ -253,12 +259,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_autoreject_log": {
             "alias": null,
@@ -267,12 +273,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "reject_log",
+                "epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_evoked_topo": {
             "alias": null,
@@ -281,12 +288,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_evoked_topomap": {
             "alias": null,
@@ -295,12 +302,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_evoked_butterfly": {
             "alias": null,
@@ -309,13 +316,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "apply_proj",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "apply_proj",
+                "show_plots"
+            ]
         },
         "plot_evoked_joint": {
             "alias": null,
@@ -324,12 +331,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_evoked_white": {
             "alias": null,
@@ -338,12 +345,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds",
+                "noise_covariance"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_evoked_image": {
             "alias": null,
@@ -352,12 +360,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_compare_evokeds": {
             "alias": null,
@@ -366,12 +374,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_gfp": {
             "alias": null,
@@ -380,12 +388,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_stc": {
             "alias": "Plot Source-Estimate",
@@ -394,22 +402,22 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "target_labels",
-                    "label_colors",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "backend_3d"
-                ]
+                "source_estimates"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "target_labels",
+                "label_colors",
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "backend_3d"
+            ]
         },
         "plot_stc_interactive": {
             "alias": null,
@@ -418,20 +426,20 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "backend_3d"
-                ]
+                "source_estimates"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "backend_3d"
+            ]
         },
         "plot_labels": {
             "alias": null,
@@ -439,18 +447,16 @@
             "module": "basic_plot",
             "thread-safe": false,
             "plot": true,
-            "inputs": [
-                [
-                    "fsmri",
-                    "target_labels",
-                    "label_colors",
-                    "stc_hemi",
-                    "stc_surface",
-                    "stc_views",
-                    "backend_3d"
-                ]
-            ],
-            "outputs": []
+            "inputs": [],
+            "outputs": [],
+            "parameters": [
+                "target_labels",
+                "label_colors",
+                "stc_hemi",
+                "stc_surface",
+                "stc_views",
+                "backend_3d"
+            ]
         },
         "plot_animated_stc": {
             "alias": "Plot Source-Estimate Video",
@@ -459,24 +465,24 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "target_labels",
-                    "label_colors",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "stc_animation_span",
-                    "stc_animation_dilat",
-                    "backend_3d"
-                ]
+                "source_estimates"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "target_labels",
+                "label_colors",
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "stc_animation_span",
+                "stc_animation_dilat",
+                "backend_3d"
+            ]
         },
         "plot_snr": {
             "alias": null,
@@ -485,12 +491,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "evokeds",
+                "inverse_operator"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_label_time_course": {
             "alias": null,
@@ -499,13 +506,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "label_colors",
-                    "show_plots"
-                ]
+                "ltc"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "label_colors",
+                "show_plots"
+            ]
         },
         "plot_ecd": {
             "alias": null,
@@ -514,11 +521,11 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "meeg"
-                ]
+                "ecd",
+                "transformation"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": []
         },
         "plot_src_connectivity": {
             "alias": null,
@@ -527,13 +534,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "label_colors",
-                    "show_plots"
-                ]
+                "connectivity"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "label_colors",
+                "show_plots"
+            ]
         },
         "plot_grand_avg_evokeds": {
             "alias": null,
@@ -542,12 +549,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "show_plots"
-                ]
+                "ga_evokeds"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_grand_avg_tfr": {
             "alias": null,
@@ -556,12 +563,12 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "show_plots"
-                ]
+                "ga_tfr"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         },
         "plot_grand_avg_stc": {
             "alias": null,
@@ -570,22 +577,22 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "target_labels",
-                    "label_colors",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "backend_3d"
-                ]
+                "ga_stc"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "target_labels",
+                "label_colors",
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "backend_3d"
+            ]
         },
         "plot_grand_avg_stc_anim": {
             "alias": null,
@@ -594,24 +601,24 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "target_labels",
-                    "label_colors",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "stc_animation_span",
-                    "stc_animation_dilat",
-                    "backend_3d"
-                ]
+                "ga_stc"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "target_labels",
+                "label_colors",
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "stc_animation_span",
+                "stc_animation_dilat",
+                "backend_3d"
+            ]
         },
         "plot_grand_average_stc_interactive": {
             "alias": null,
@@ -620,21 +627,21 @@
             "thread-safe": false,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "label_colors",
-                    "stc_surface",
-                    "stc_hemi",
-                    "stc_views",
-                    "stc_time",
-                    "stc_clim",
-                    "stc_roll",
-                    "stc_azimuth",
-                    "stc_elevation",
-                    "backend_3d"
-                ]
+                "ga_stc"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "label_colors",
+                "stc_surface",
+                "stc_hemi",
+                "stc_views",
+                "stc_time",
+                "stc_clim",
+                "stc_roll",
+                "stc_azimuth",
+                "stc_elevation",
+                "backend_3d"
+            ]
         },
         "plot_grand_avg_ltc": {
             "alias": null,
@@ -643,13 +650,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "label_colors",
-                    "show_plots"
-                ]
+                "ga_ltc"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "label_colors",
+                "show_plots"
+            ]
         },
         "plot_grand_avg_connect": {
             "alias": null,
@@ -658,13 +665,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "group",
-                    "label_colors",
-                    "show_plots"
-                ]
+                "ga_con"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "label_colors",
+                "show_plots"
+            ]
         },
         "plot_ica_components": {
             "alias": "Plot ICA-Components",
@@ -673,13 +680,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots",
-                    "close_func"
-                ]
+                "ica"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots",
+                "close_func"
+            ]
         },
         "plot_ica_sources": {
             "alias": "Plot ICA-Sources",
@@ -688,14 +695,14 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "ica_source_data",
-                    "show_plots",
-                    "close_func"
-                ]
+                "ica"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "ica_source_data",
+                "show_plots",
+                "close_func"
+            ]
         },
         "plot_ica_overlay": {
             "alias": "Plot ICA-Overlay",
@@ -704,13 +711,13 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "ica_overlay_data",
-                    "show_plots"
-                ]
+                "ica"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "ica_overlay_data",
+                "show_plots"
+            ]
         },
         "plot_ica_properties": {
             "alias": "Plot ICA-Properties",
@@ -719,13 +726,17 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "ica_fitto",
-                    "show_plots"
-                ]
+                "ica",
+                "json",
+                "json",
+                "eog_epochs",
+                "ecg_epochs"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "ica_fitto",
+                "show_plots"
+            ]
         },
         "plot_ica_scores": {
             "alias": "Plot ICA-Scores",
@@ -734,12 +745,15 @@
             "thread-safe": true,
             "plot": true,
             "inputs": [
-                [
-                    "meeg",
-                    "show_plots"
-                ]
+                "json",
+                "ica",
+                "json",
+                "ica"
             ],
-            "outputs": []
+            "outputs": [],
+            "parameters": [
+                "show_plots"
+            ]
         }
     },
     "parameters": {

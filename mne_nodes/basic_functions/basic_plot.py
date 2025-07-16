@@ -18,7 +18,6 @@ import numpy as np
 
 # Make use of program also possible with sensor-space installation of mne
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.plot_utils import pipeline_plot
 
 try:
     from nilearn.plotting import plot_anat
@@ -107,7 +106,6 @@ def plot_sensors(meeg, plot_sensors_kind, ch_types, show_plots):
     )
 
 
-@pipeline_plot
 def plot_events(meeg, show_plots):
     events = meeg.load_events()
 
@@ -310,7 +308,6 @@ def plot_evoked_joint(meeg, show_plots):
         )
 
 
-@pipeline_plot
 def plot_evoked_butterfly(meeg, apply_proj, show_plots):
     evokeds = meeg.load_evokeds()
     figs = list()

@@ -13,7 +13,7 @@ from qtpy.QtWidgets import QInputDialog
 from mne_nodes.gui.welcome_window import WelcomeWindow
 
 
-def test_welcome_window(controller, tmpdir, qtbot, monkeypatch):
+def test_welcome_window(controller, tmp_path, qtbot, monkeypatch):
     welcome_window = WelcomeWindow(controller)
     qtbot.addWidget(welcome_window)
 
@@ -23,7 +23,7 @@ def test_welcome_window(controller, tmpdir, qtbot, monkeypatch):
     assert controller.pr.name == "test2"
 
     # make new home-path
-    new_home_path = tmpdir.join("TestHome2")
+    new_home_path = tmp_path / "TestHome2"
     mkdir(new_home_path)
     monkeypatch.setattr(compat, "getexistingdirectory", lambda *args: new_home_path)
     qtbot.mouseClick(welcome_window.home_path_bt, Qt.LeftButton)

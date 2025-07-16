@@ -4,7 +4,7 @@ import sys
 from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
 
-from mne_nodes.gui.gui_utils import ConsoleWidget
+from mne_nodes.gui.console import ConsoleWidget
 
 test_text = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus.
 Suspendisse lectus tortor, dignissim sit amet, adipiscing nec, ultricies sed,

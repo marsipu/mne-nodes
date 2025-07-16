@@ -14,6 +14,7 @@ import sys
 import traceback
 from importlib import reload, resources, import_module
 from importlib.util import cache_from_source
+from inspect import getsource
 from os import listdir
 from os.path import isdir, join, isfile
 from pathlib import Path
@@ -23,10 +24,16 @@ import pandas as pd
 
 from mne_nodes import basic_functions, extra
 from mne_nodes.gui.gui_utils import get_user_input, ask_user
-from mne_nodes.pipeline.legacy import transfer_file_params_to_single_subject, \
-    convert_pandas_meta
-from mne_nodes.pipeline.pipeline_utils import (QS, logger, type_json_hook,
-                                               TypedJSONEncoder, )
+from mne_nodes.pipeline.legacy import (
+    transfer_file_params_to_single_subject,
+    convert_pandas_meta,
+)
+from mne_nodes.pipeline.pipeline_utils import (
+    QS,
+    logger,
+    type_json_hook,
+    TypedJSONEncoder,
+)
 from mne_nodes.pipeline.project import Project
 
 home_dirs = ["custom_packages", "freesurfer", "projects"]
@@ -478,6 +485,7 @@ class Controller:
             "use_plot_manager": False,
         }
 
+        # Initialize modules
         self.load_basic_modules()
         self.load_custom_modules()
 
@@ -581,18 +589,11 @@ class Controller:
     def inputs(self):
         """This holds all data inputs from MEEG and FSMRI data.
 
-        There can be multiple input-groups for each data type, represented by multiple
-        nodes.
+        There can be multiple input-nodes for each data type with each having a distinct
+        name (keys in the second level of the dictionary).
         """
         if "inputs" not in self.config:
-            self.config["inputs"] = {
-                "MEEG": {
-                    "All": list(),
-                },
-                "FSMRI": {
-                    "All": list(),
-                },
-            }
+            self.config["inputs"] = {k: dict() for k in self.input_data_types}
         return self.config["inputs"]
 
     def input(self, data_type, group=None):
@@ -604,13 +605,6 @@ class Controller:
         if group not in self.inputs[data_type]:
             raise ValueError(f"Group {group} not found in inputs for {data_type}.")
         return self.inputs[data_type][group]
-
-    @property
-    def input_nodes(self):
-        """This holds all input nodes for the project (by id)."""
-        if "input_nodes" not in self.config:
-            self.config["input_nodes"] = dict()
-        return self.config["input_nodes"]
 
     @property
     def selected_inputs(self):
@@ -676,36 +670,51 @@ class Controller:
         """This holds the metadata for the parameters."""
         return self._parameter_metas
 
-    def get_default_parameter(self, parameter_name):
-        """Get the default parameter for a given parameter name."""
-        # ToDo: Implement a method to retrieve default parameters
-        a = list()
-        a.append(parameter_name)
-        return None
+    @property
+    def parameter_preset(self):
+        """This holds the current parameter preset for the project."""
+        if "parameter_preset" not in self.config:
+            self.config["parameter_preset"] = "Default"
+        return self.config["parameter_preset"]
 
-    def parameter(self, parameter_name, parameter_preset="Default", raise_missing=True):
+    @parameter_preset.setter
+    def parameter_preset(self, value):
+        """Set the current parameter preset for the project."""
+        if value not in self.parameters:
+            raise KeyError(f"Parameter preset '{value}' not found in project.")
+        self.config["parameter_preset"] = value
+        self.save_config()
+
+    def get_default(self, parameter_name):
+        """Get the default value for a given parameter name."""
+        parameter_meta = self.parameter_metas.get(parameter_name, None)
+        if self.parameter_metas is None:
+            raise KeyError(f"Parameter '{parameter_name}' not found in Parameter-Meta.")
+        default_value = parameter_meta.get("default", None)
+        if default_value is None:
+            raise KeyError(
+                f"Default value for parameter '{parameter_name}' not found in Parameter-Meta."
+            )
+        return default_value
+
+    def parameter(self, parameter_name, parameter_preset=None, raise_missing=True):
         """Get a specific parameter from the project parameters."""
+        parameter_preset = parameter_preset or self.parameter_preset
         if parameter_preset not in self.parameters:
             if raise_missing:
                 raise KeyError(
                     f"Parameter preset '{parameter_preset}' not found in project."
                 )
             else:
-                parameter_preset = "Default"
+                parameter_preset = list(self.parameters.keys())[0]
+                self.parameter_preset = parameter_preset
         if parameter_name not in self.parameters[parameter_preset]:
             if raise_missing:
                 raise KeyError(f"Parameter '{parameter_name}' not found in project.")
             else:
-                return self.get_default_parameter(parameter_name)
+                return self.get_default(parameter_name)
 
         return self.parameters[parameter_preset][parameter_name]
-
-    @property
-    def parameter_preset(self):
-        """This holds the current parameter preset for the project."""
-        if "parameter_preset" not in self.config:
-            self.config["parameter_preset"] = None
-        return self.config["parameter_preset"]
 
     @property
     def function_nodes(self):
@@ -717,7 +726,9 @@ class Controller:
     @property
     def function_metas(self):
         """This holds the metadata for the functions used in the project.
-        Only unique function names are allowed accross basic and custom packages."""
+
+        Only unique function names are allowed accross basic and custom packages.
+        """
         return self._function_metas
 
     def get_meta(self, name):
@@ -729,6 +740,22 @@ class Controller:
         else:
             raise KeyError(f"Metadata for '{name}' not found in project.")
 
+    def get_function_code(self, function_name):
+        """Get the code for a specific function from the modules."""
+        module_name = self.get_meta(function_name)["module"]
+        module = self.modules[module_name]
+        function = getattr(module, function_name)
+        if function is None:
+            raise KeyError(
+                f"Function '{function_name}' not found in module '{module_name}'."
+            )
+        code = getsource(function)
+        module_code = getsource(module)
+        # Get start/end lines of the function code in module
+        re.search(code, module_code)
+
+        return None, None, None
+
     @property
     def modules(self):
         """This holds all modules used in the project."""
@@ -736,8 +763,8 @@ class Controller:
 
     @property
     def custom_module_meta(self):
-        """This holds the custom modules used in the project,
-        stored by name and path to the config-file."""
+        """This holds the custom modules used in the project, stored by name and path to
+        the config-file."""
         if "custom_module_meta" not in self.config:
             self.config["custom_module_meta"] = dict()
         return self.config["custom_module_meta"]
@@ -761,6 +788,20 @@ class Controller:
         if "plot_files" not in self.config:
             self.config["plot_files"] = dict()
         return self.config["plot_files"]
+
+    @property
+    def input_data_types(self):
+        """This holds the input data types for the project.
+
+        Keys are the data-type while values are the names/aliases of the data-type
+        """
+        if "input_data_types" not in self.config:
+            self.config["input_data_types"] = {
+                "raw": "MEG/EEG",
+                "fsmri": "Freesurfer MRI",
+            }
+            self.save_config()
+        return self.config["input_data_types"]
 
     ####################################################################################
     # Modules
@@ -835,7 +876,7 @@ class Controller:
             # Remove the module from sys.modules
             del sys.modules[module_name]
 
-            # Clear bytecode cache if we found the module file
+            # Clear bytecode cache if possible
             bytecode_file = cache_from_source(str(module.__file__))
             try:
                 os.remove(bytecode_file)
@@ -864,24 +905,6 @@ class Controller:
         """Initialize connections between input nodes and function nodes."""
         # ToDo Next: Start and establish connections between input nodes and
         #  function nodes
-        pass
-
-    def add_input_node(self, data_type, group=None):
-        """Add a new input node to the project.
-
-        Parameters
-        ----------
-        data_type : str
-            The type of data (e.g., 'MEEG', 'FSMRI').
-        group : str, optional
-            The group name for the input node, by default None.
-        """
-        # ToDo Next: Add an input node to the project
-        pass
-
-    def add_function_node(self, function_name):
-        """Add a new function node to the project."""
-        # ToDo Next: Add a function node to the project
         pass
 
     ####################################################################################
@@ -914,7 +937,7 @@ class Controller:
         # Add inputs (and split groups into multiple input nodes)
         for group_name, names in pr.all_groups.items():
             self.inputs["MEEG"][group_name] = names
-            self.add_input_node("MEEG", group_name)
+            self.viewer.add_input_node("MEEG", group_name)
         self.inputs["MEEG"]["All"].extend(pr.all_meeg)
         self.selected_inputs.extend(pr.sel_meeg)
 
@@ -943,7 +966,7 @@ class Controller:
                 self._function_metas[func_name] = meta
 
         for func in pr.sel_functions:
-            self.add_function_node(func)
+            self.viewer.add_function_node(func)
 
     def convert_custom_package(self, package_name):
         # ToDo: Convert a custom package to the new format

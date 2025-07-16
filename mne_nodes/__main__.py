@@ -13,11 +13,11 @@ from qtpy.QtCore import QTimer, Qt
 from qtpy.QtWidgets import QApplication
 
 from mne_nodes.gui.gui_utils import (
-    StdoutStderrStream,
-    UncaughtHook,
     set_app_font,
     set_app_theme,
 )
+from mne_nodes.pipeline.exception_handling import UncaughtHook
+from mne_nodes.gui.console import StdoutStderrStream
 from mne_nodes.gui.welcome_window import WelcomeWindow
 from mne_nodes.pipeline import pipeline_utils
 from mne_nodes.pipeline.legacy import legacy_import_check

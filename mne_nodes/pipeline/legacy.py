@@ -7,11 +7,14 @@ Github: https://github.com/marsipu/mne-nodes
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 from ast import literal_eval
+from inspect import getsource
 from os.path import isdir, join, isfile
 
+from mne_nodes.basic_functions import basic_operations, basic_plot
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 from mne_nodes.pipeline.pipeline_utils import type_json_hook, logger
 
@@ -124,15 +127,21 @@ def transfer_file_params_to_single_subject(ct):
 
 def convert_pandas_meta(func_pd, param_pd):
     """Convert pandas DataFrames to a dictionary structure for function and parameter
-    configuration.
-    """
+    configuration."""
     modules = func_pd["module"].unique()
+    input_names = ["meeg", "fsmri", "group"]
     configs = dict()
-    for module in modules:
-        module_dict = {"module_name": module, "module_alias": module, "functions": {}, "parameters": {}}
+    for module_name in modules:
+        module = basic_operations if module_name == "operations" else basic_plot
+        module_dict = {
+            "module_name": module_name,
+            "module_alias": module_name,
+            "functions": {},
+            "parameters": {},
+        }
         param_set = set()
 
-        for func_name, row in func_pd[func_pd["module"] == module].iterrows():
+        for func_name, row in func_pd[func_pd["module"] == module_name].iterrows():
             row_dict = row.to_dict()
             if row_dict["mayavi"]:
                 row_dict["thread-safe"] = False
@@ -155,8 +164,13 @@ def convert_pandas_meta(func_pd, param_pd):
 
             params = row_dict.pop("func_args").split(",")
 
-            row_dict["inputs"] = [params]
-            row_dict["outputs"] = list()
+            # Get inputs/outputs and parameters
+            input = params.pop(0)
+            func = getattr(module, func_name)
+            code = getsource(func)
+            row_dict["inputs"] = re.findall(rf"{input}\.load_([a-z_]+)\(", code)
+            row_dict["outputs"] = re.findall(rf"{input}\.save_([a-z_]+)\(", code)
+            row_dict["parameters"] = [p for p in params if p not in input_names]
 
             for key, value in row_dict.items():
                 if isinstance(value, float) and math.isnan(value):
@@ -183,6 +197,6 @@ def convert_pandas_meta(func_pd, param_pd):
                 eval_dict[key] = value
 
             module_dict["parameters"][param_name] = eval_dict
-        configs[module] = module_dict
+        configs[module_name] = module_dict
 
     return configs

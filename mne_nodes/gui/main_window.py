@@ -47,8 +47,6 @@ from mne_nodes.gui.function_widgets import (
     RunDialog,
 )
 from mne_nodes.gui.gui_utils import (
-    QProcessDialog,
-    WorkerDialog,
     center,
     set_ratio_geometry,
     get_std_icon,
@@ -80,6 +78,7 @@ from mne_nodes.gui.parameter_widgets import (
 from mne_nodes.gui.plot_widgets import PlotViewSelection
 from mne_nodes.gui.tools import DataTerminal
 from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.execution import WorkerDialog, QProcessDialog
 from mne_nodes.pipeline.function_utils import close_all
 from mne_nodes.pipeline.pipeline_utils import (
     restart_program,
@@ -183,9 +182,7 @@ class MainWindow(QMainWindow):
         # First save the former projects-data
         WorkerDialog(self, self.pr.save, blocking=True)
 
-        new_project = get_user_input(
-            "Enter a name for a new project", "string"
-        )
+        new_project = get_user_input("Enter a name for a new project", "string")
         if new_project is not None:
             self.pr = self.ct.change_project(new_project)
             self.update_project_ui()
@@ -928,9 +925,7 @@ class MainWindow(QMainWindow):
         if version == "stable":
             command = "pip install --upgrade mne_nodes"
         else:
-            command = (
-                "pip install " "https://github.com/marsipu/mne-nodes/zipball/main"
-            )
+            command = "pip install " "https://github.com/marsipu/mne-nodes/zipball/main"
         if iswin and not _run_from_script():
             QMessageBox.information(
                 self,

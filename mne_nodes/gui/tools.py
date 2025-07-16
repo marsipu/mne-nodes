@@ -20,13 +20,11 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.base_widgets import CheckList
-from mne_nodes.gui.gui_utils import (
-    CodeEditor,
-    MainConsoleWidget,
-    WorkerDialog,
-    get_exception_tuple,
-    set_ratio_geometry,
-)
+from mne_nodes.gui.code_editor import CodeEditor
+from mne_nodes.gui.console import MainConsoleWidget
+from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import MEEG
 from mne_nodes.pipeline.pipeline_utils import QS
 

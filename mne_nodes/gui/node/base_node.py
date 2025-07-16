@@ -2,12 +2,18 @@
 import logging
 from collections import OrderedDict
 
+from qtpy.QtCore import QRectF, Qt
+from qtpy.QtGui import QColor, QPen, QPainterPath
+from qtpy.QtWidgets import (
+    QGraphicsItem,
+    QGraphicsTextItem,
+    QGraphicsProxyWidget,
+    QCheckBox,
+)
+
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
-from qtpy.QtCore import QRectF, Qt
-from qtpy.QtGui import QColor, QPen, QPainterPath
-from qtpy.QtWidgets import QGraphicsItem, QGraphicsTextItem, QGraphicsProxyWidget
 
 
 class NodeTextItem(QGraphicsTextItem):
@@ -30,9 +36,11 @@ class BaseNode(QGraphicsItem):
         Can also be just a list with kwargs for the :meth:`BaseNode.add_port()`.
     old_id : int, None, optional
         Old id for reestablishing connections.
+    checkable : bool, optional
+        If True, the node can be checked in the NodeViewer. Default is True.
     """
 
-    def __init__(self, ct, name=None, ports=None, old_id=None):
+    def __init__(self, ct, name=None, ports=None, old_id=None, checkable=True):
         self.ct = ct
         # Initialize QGraphicsItem
         super().__init__()
@@ -43,9 +51,10 @@ class BaseNode(QGraphicsItem):
         self.setZValue(1)
 
         # Initialize hidden attributes for properties (with node_defaults)
-        self.id = id(self)
-        self.old_id = old_id
         self._name = name
+        self.old_id = old_id
+        self.id = id(self)
+        self.checkable = checkable
 
         self._width = defaults["nodes"]["width"]
         self._height = defaults["nodes"]["height"]
@@ -69,6 +78,12 @@ class BaseNode(QGraphicsItem):
         else:
             for port_kwargs in ports:
                 self.add_port(**port_kwargs)
+
+        # Initialize checkbox if checkable
+        if self.checkable:
+            self.checkbox = QCheckBox()
+        else:
+            self.checkbox = None
 
     @property
     def name(self):
@@ -701,7 +716,14 @@ class BaseNode(QGraphicsItem):
             self.align_ports(v_offset=height)
             # arrange node widgets
             self.align_widgets(v_offset=height)
-
+            # add checkbox if checkable
+            if self.checkable:
+                rect = self.boundingRect()
+                widget = QGraphicsProxyWidget(self)
+                widget.setWidget(self.checkbox)
+                x = rect.left() + 5
+                y = rect.top() + 5
+                widget.setPos(x, y)
             self.update()
         else:
             logging.warning("Node not in scene.")

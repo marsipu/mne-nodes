@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QMessageBox
 from mne_nodes.pipeline.controller import Controller
 
 
-def test_init(monkeypatch, tmpdir):
+def test_init(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "qtpy.QtWidgets.QMessageBox.question",
@@ -21,24 +21,24 @@ def test_init(monkeypatch, tmpdir):
         "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
     )
     monkeypatch.setattr(
-        "qtpy.QtWidgets.QFileDialog.getExistingDirectory", lambda x, y: tmpdir
+        "qtpy.QtWidgets.QFileDialog.getExistingDirectory", lambda x, y: tmp_path
     )
 
     # Initialize the controller in gui mode
     Controller()
 
     # Initialize another controller with the new config-file
-    controller = Controller(config_path=join(tmpdir, "test_config.json"))
+    controller = Controller(config_path=join(tmp_path, "test_config.json"))
 
     # Test renaming the controller
     controller.name = "test2"
     assert controller.name == "test2", "Controller name should be updated to 'test2'"
-    assert isfile(join(tmpdir, "test2_config.json")), "Config file should be renamed"
+    assert isfile(tmp_path / "test2_config.json"), "Config file should be renamed"
 
     # ToDo: Test initialization of the controller in headless mode
 
 
-def test_module_import(tmpdir, controller, custom_module):
+def test_module_import(tmp_path, controller, custom_module):
     # Assert basic modules are imported
     assert controller._basic_module_list == list(
         controller._modules.keys()
@@ -55,7 +55,7 @@ def test_module_import(tmpdir, controller, custom_module):
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
-    test_script_path = join(tmpdir, "test_module", "test.py")
+    test_script_path = tmp_path / "test_module" / "test.py"
     new_test_code = "def test_func(a):\n    return a ** 3\n"
     with open(test_script_path, "w") as f:
         f.write(new_test_code)
@@ -68,3 +68,4 @@ def test_module_import(tmpdir, controller, custom_module):
     print(f"New function: {new_func} at {id(new_func)}")
     assert new_func(2) == 8, "New function reference should return updated value"
 
+    pass

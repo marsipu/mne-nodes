@@ -51,16 +51,16 @@ from mne_nodes.gui.base_widgets import (
     SimpleDialog,
     SimpleList,
 )
+from mne_nodes.gui.code_editor import CodeEditor
+from mne_nodes.gui.console import MainConsoleWidget
+from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import (
-    CodeEditor,
-    ErrorDialog,
     center,
-    get_exception_tuple,
     set_ratio_geometry,
     get_std_icon,
-    MainConsoleWidget,
 )
 from mne_nodes.gui.models import CustomFunctionModel, RunModel
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.function_utils import QRunController
 from mne_nodes.pipeline.pipeline_utils import QS
 
@@ -1146,8 +1146,7 @@ class CustomFunctionImport(QDialog):
             self.code_editor.insertPlainText(self.code_dict[self.current_function])
 
     def show_code(self):
-        self.code_editor = CodeEditor(self)
-        self.code_editor.setReadOnly(True)
+        self.code_editor = CodeEditor(self, read_only=True)
         self.update_code_editor()
         code_dialog = SimpleDialog(
             self.code_editor, parent=self, modal=False, window_title="Source-Code"

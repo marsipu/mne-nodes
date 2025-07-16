@@ -18,7 +18,7 @@ from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
-from mne_nodes.gui.node.nodes import FunctionNode
+from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, SlicerPipeItem, Pipe
 from mne_nodes.gui.node.ports import Port
 
@@ -26,9 +26,9 @@ from mne_nodes.gui.node.ports import Port
 class NodeViewer(QGraphicsView):
     """The NodeGraph displays the nodes and connections and manages them."""
 
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     # Signals
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     NodesCreated = Signal(list)
     NodesDeleted = Signal(list)
     NodeDoubleClicked = Signal(BaseNode)
@@ -116,9 +116,9 @@ class NodeViewer(QGraphicsView):
         self._debug_path.setPath(QPainterPath())
         self.scene().addItem(self._debug_path)
 
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     # Properties
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     @property
     def nodes(self):
         """Return list of nodes in the node graph.
@@ -157,9 +157,9 @@ class NodeViewer(QGraphicsView):
             layout = "curved"
         self._pipe_layout = layout
 
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     # Backend
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     def add_node(self, node):
         """Add a node to the node graph.
 
@@ -179,6 +179,32 @@ class NodeViewer(QGraphicsView):
         node.draw_node()
 
         return node
+
+    def add_input_node(self, data_type="raw", name=None, **kwargs):
+        """Add a new input node to the project.
+
+        Parameters
+        ----------
+        data_type : str, optional
+            The type of data (e.g. raw, fsmri) for the input node, by default "raw".
+        name : str, optional
+            The name for the input node for example a group name, by default None.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the BaseNode constructor.
+        """
+        node = InputNode(self.ct, data_type, name=name, **kwargs)
+        if name is None:
+            if len(self.ct.inputs[data_type]) == 0:
+                name = "All"
+            else:
+                name = f"{len(self.ct.inputs[data_type]) + 1}"
+        self.ct.inputs[data_type][name] = node
+        self.add_node(node)
+
+    def add_function_node(self, function_name):
+        """Add a new function node to the project."""
+        # ToDo Next: Add a function node to the project
+        pass
 
     def remove_node(self, node):
         """Remove a node from the node graph.
@@ -287,9 +313,9 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node)
 
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     # Frontend
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     def _set_viewer_zoom(self, value, sensitivity=None, pos=None):
         """Sets the zoom level.
 
@@ -654,9 +680,9 @@ class NodeViewer(QGraphicsView):
 
         super(NodeViewer, self).keyReleaseEvent(event)
 
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
     # Scene Events
-    # ----------------------------------------------------------------------------------
+    ####################################################################################
 
     def sceneMouseMoveEvent(self, event):
         """

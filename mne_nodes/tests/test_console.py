@@ -9,7 +9,7 @@ import os
 import pytest
 
 from mne_nodes.__main__ import init_streams
-from mne_nodes.gui.gui_utils import MainConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.pipeline.pipeline_utils import logger, init_logging
 
 

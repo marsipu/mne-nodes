@@ -6,7 +6,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 import json
 from os import mkdir
-from pathlib import Path
 
 import pytest
 
@@ -17,14 +16,15 @@ from mne_nodes.pipeline.controller import Controller
 
 
 @pytest.fixture
-def controller(tmpdir):
+def controller(tmp_path):
     # Create a config_file, meeg_root and fsmri_root
-    config_path = Path(tmpdir.join("test_config.json"))
+    config_path = tmp_path / "test_config.json"
     with open(config_path, "w") as f:
         json.dump({"name": "test_controller"}, f, indent=4)
-    meeg_root = Path(tmpdir.join("MEEG"))
+    meeg_root = tmp_path / "MEEG"
+
     mkdir(meeg_root)
-    fsmri_root = Path(tmpdir.join("FSMRI"))
+    fsmri_root = tmp_path / "FSMRI"
     mkdir(fsmri_root)
     # Create Controller
     ct = Controller(config_path, meeg_root, fsmri_root)
@@ -128,6 +128,8 @@ def nodeviewer(qtbot, controller):
             },
         },
     }
+    viewer.add_input_node()
+
     func_node1 = FunctionNode(controller, **func_kwargs)
     viewer.add_node(func_node1)
     func_node2 = FunctionNode(controller, **func_kwargs)
@@ -140,12 +142,35 @@ def nodeviewer(qtbot, controller):
 
 
 @pytest.fixture
-def custom_module(tmpdir):
-    pkg_path = tmpdir.join("test_module")
+def test_code():
+    """Fixture to provide a simple test code."""
+    return (
+        "def test_func1(a):\n    "
+        "print('This is a test function')\n    "
+        "return a ** 2\n"
+        "\n"
+        "def test_func2(b):\n    "
+        "print('This is another test function')\n    "
+        "return b + 1\n"
+        "\n"
+    )
+
+
+@pytest.fixture
+def test_script(tmp_path, test_code):
+    """Fixture to create a temporary Python script with test code."""
+    test_script_path = tmp_path / "test_script.py"
+    with open(test_script_path, "w") as f:
+        f.write(test_code)
+    return test_script_path
+
+
+@pytest.fixture
+def custom_module(tmp_path, test_code):
+    pkg_path = tmp_path / "test_module"
     mkdir(pkg_path)
-    # Generate test Code
-    test_code = "def test_func(a):\n    return a ** 2\n"
-    with open(pkg_path.join("test.py"), "w") as f:
+    # Generate test python file
+    with open(pkg_path / "test.py", "w") as f:
         f.write(test_code)
     # Generate test configuration file
     test_config = {
@@ -174,7 +199,7 @@ def custom_module(tmpdir):
             }
         },
     }
-    test_config_path = Path(pkg_path.join("test_config.json"))
+    test_config_path = pkg_path / "test_config.json"
     with open(test_config_path, "w") as f:
         json.dump(test_config, f, indent=4)
 

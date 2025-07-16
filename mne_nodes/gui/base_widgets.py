@@ -1197,9 +1197,7 @@ class EditPandasTable(BasePandasTable):
     def edit_row_header(self):
         row = self.view.selectionModel().currentIndex().row()
         old_value = self.model._data.index[row]
-        text = get_user_input(
-            f"Change Header '{old_value}' in row {row} to:", "string"
-        )
+        text = get_user_input(f"Change Header '{old_value}' in row {row} to:", "string")
         if text is not None:
             self.model.setHeaderData(row, Qt.Vertical, text)
 
