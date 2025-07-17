@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -46,7 +45,7 @@ class OldController:
         self.pr = None
         # Try to load home_path from QSettings
         self.home_path = home_path or QS().value("home_path", defaultValue=None)
-        self.settings = dict()
+        self.settings = {}
         if self.home_path is None:
             raise RuntimeError("No Home-Path found!")
 
@@ -94,7 +93,7 @@ class OldController:
 
         # Load default settings
         default_path = join(resources.files(extra), "default_settings.json")
-        with open(default_path, "r") as file:
+        with open(default_path) as file:
             self.default_settings = json.load(file)
 
         # Load settings (which are stored as .json-file in home_path)
@@ -102,9 +101,9 @@ class OldController:
         self.load_settings()
 
         # Initialize data types (like "raw", "epochs", etc.)
-        self._data_types = list()
+        self._data_types = []
 
-        self.all_modules = dict()
+        self.all_modules = {}
         self.all_pd_funcs = None
 
         # Pandas-DataFrame for contextual data of basic functions
@@ -148,7 +147,7 @@ class OldController:
 
     def load_settings(self):
         try:
-            with open(join(self.home_path, "mne_nodes-settings.json"), "r") as file:
+            with open(join(self.home_path, "mne_nodes-settings.json")) as file:
                 self.settings = json.load(file)
             # Account for settings, which were not saved
             # but exist in default_settings
@@ -291,7 +290,7 @@ class OldController:
     def load_edu(self):
         if self.edu_program_name is not None:
             edu_path = join(self.home_path, "edu_programs", self.edu_program_name)
-            with open(edu_path, "r") as file:
+            with open(edu_path) as file:
                 self.edu_program = json.load(file)
 
             self.all_pd_funcs = self.pd_funcs.copy()
@@ -328,7 +327,7 @@ class OldController:
         # Add functions to sys.path
         sys.path.insert(0, str(Path(basic_functions.__file__).parent))
         basic_functions_list = [x for x in dir(basic_functions) if "__" not in x]
-        self.all_modules["basic"] = list()
+        self.all_modules["basic"] = []
         for module_name in basic_functions_list:
             self.all_modules["basic"].append(module_name)
 
@@ -341,7 +340,7 @@ class OldController:
         ]:
             pkg_name = directory.name
             pkg_path = directory.path
-            file_dict = {"functions": None, "parameters": None, "modules": list()}
+            file_dict = {"functions": None, "parameters": None, "modules": []}
             for file_name in [
                 f for f in listdir(pkg_path) if not f.startswith((".", "_"))
             ]:
@@ -358,7 +357,7 @@ class OldController:
             # Check, that there is a whole set for a custom-module
             # (module-file, functions, parameters)
             if all([value is not None or value != [] for value in file_dict.values()]):
-                self.all_modules[pkg_name] = list()
+                self.all_modules[pkg_name] = []
                 functions_path = file_dict["functions"]
                 parameters_path = file_dict["parameters"]
                 correct_count = 0
@@ -463,19 +462,21 @@ class Controller:
 
     def __init__(self, config_path=None, meeg_root=None, fsmri_root=None):
         self._config_path = config_path or QS().value("config_path", defaultValue=None)
-        self._config = dict()
+        self._config = {}
         self.meeg_root = meeg_root or self.meeg_root
         self.fsmri_root = fsmri_root or self.fsmri_root
-        self._modules = dict()
+
+        # Property attributes
+        self._modules = {}
         self._basic_module_list = ["basic_operations", "basic_plot"]
-        self._function_metas = dict()
-        self._parameter_metas = dict()
+        self._function_metas = {}
+        self._parameter_metas = {}
+        self._input_nodes = {k: {} for k in self.input_data_types}
+        self._function_nodes = {}
 
         self.default_settings = {
-            "selected_project": None,
-            "selected_modules": ["operations", "plot"],
+            "selected_modules": ["basic_operations", "basic_operations"],
             "parameter_preset": "Default",
-            "checked_funcs": [],
             "show_plots": True,
             "save_plots": True,
             "shutdown": False,
@@ -483,6 +484,12 @@ class Controller:
             "dpi": 150,
             "overwrite": False,
             "use_plot_manager": False,
+            "log_level": 20,
+            "education": 0,
+            "app_font": "Calibri",
+            "app_font_size": 10,
+            "app_style": "fusion",
+            "app_theme": "auto",
         }
 
         # Initialize modules
@@ -528,7 +535,7 @@ class Controller:
     def config(self):
         """Configuration dictionary loaded from the config-file."""
         if not self._config:
-            with open(self.config_path, "r") as file:
+            with open(self.config_path) as file:
                 self._config = json.load(file, object_hook=type_json_hook)
         return self._config
 
@@ -587,30 +594,34 @@ class Controller:
 
     @property
     def inputs(self):
-        """This holds all data inputs from MEEG and FSMRI data.
+        """This holds all data input nodes from MEEG and FSMRI data.
 
         There can be multiple input-nodes for each data type with each having a distinct
         name (keys in the second level of the dictionary).
         """
         if "inputs" not in self.config:
-            self.config["inputs"] = {k: dict() for k in self.input_data_types}
+            self.config["inputs"] = {k: {} for k in self.input_data_types}
         return self.config["inputs"]
 
-    def input(self, data_type, group=None):
-        """Get the input nodes for a specific data type and group."""
-        if group is None:
-            group = "All"
-        if data_type not in self.inputs:
+    @property
+    def input_nodes(self):
+        return self._input_nodes
+
+    def input_node(self, data_type, name=None):
+        """Get the input node for a specific data type and (group)name."""
+        if name is None:
+            name = "All"
+        if data_type not in self.input_nodes:
             raise ValueError(f"Data type {data_type} not found in inputs.")
-        if group not in self.inputs[data_type]:
-            raise ValueError(f"Group {group} not found in inputs for {data_type}.")
-        return self.inputs[data_type][group]
+        if name not in self.input_nodes[data_type]:
+            raise ValueError(f"Group {name} not found in inputs for {data_type}.")
+        return self.input_nodes[data_type][name]
 
     @property
     def selected_inputs(self):
         """This holds all selected inputs."""
         if "selected_inputs" not in self.config:
-            self.config["selected_inputs"] = list()
+            self.config["selected_inputs"] = []
         return self.config["selected_inputs"]
 
     @property
@@ -618,7 +629,7 @@ class Controller:
         """This holds the mapping of input nodes to data types (like MRI or Empty-
         Room)."""
         if "input_mapping" not in self.config:
-            self.config["input_mapping"] = dict()
+            self.config["input_mapping"] = {}
         return self.config["input_mapping"]
 
     @property
@@ -628,7 +639,7 @@ class Controller:
         Maybe this is obsolete with mne-bids.
         """
         if "bad_channels" not in self.config:
-            self.config["bad_channels"] = dict()
+            self.config["bad_channels"] = {}
         return self.config["bad_channels"]
 
     @property
@@ -638,7 +649,7 @@ class Controller:
         Maybe this is obsolete with mne-bids.
         """
         if "event_ids" not in self.config:
-            self.config["event_ids"] = dict()
+            self.config["event_ids"] = {}
         return self.config["event_ids"]
 
     @property
@@ -648,21 +659,21 @@ class Controller:
         Maybe this is obsolete with mne-bids.
         """
         if "selected_event_ids" not in self.config:
-            self.config["selected_event_ids"] = dict()
+            self.config["selected_event_ids"] = {}
         return self.config["selected_event_ids"]
 
     @property
     def ica_exclude(self):
         """This holds the ICA-excluded components for MEEG data."""
         if "ica_exclude" not in self.config:
-            self.config["ica_exclude"] = dict()
+            self.config["ica_exclude"] = {}
         return self.config["ica_exclude"]
 
     @property
     def parameters(self):
         """This holds the parameters for the project."""
         if "parameters" not in self.config:
-            self.config["parameters"] = dict()
+            self.config["parameters"] = {}
         return self.config["parameters"]
 
     @property
@@ -707,7 +718,6 @@ class Controller:
                 )
             else:
                 parameter_preset = list(self.parameters.keys())[0]
-                self.parameter_preset = parameter_preset
         if parameter_name not in self.parameters[parameter_preset]:
             if raise_missing:
                 raise KeyError(f"Parameter '{parameter_name}' not found in project.")
@@ -718,10 +728,21 @@ class Controller:
 
     @property
     def function_nodes(self):
-        """This maps the node(s) to each function used in the project (by id)."""
-        if "function_nodes" not in self.config:
-            self.config["function_nodes"] = dict()
-        return self.config["function_nodes"]
+        """This maps the node(s) to each function used in the project (by name and
+        id)."""
+        return self._function_nodes
+
+    def function_node(self, function_name, node_id=None):
+        """Get the function node for a specific function name and (optional) node id."""
+        if function_name not in self.function_nodes:
+            raise KeyError(f"Function '{function_name}' not found in project.")
+        if node_id is None:
+            return self.function_nodes[function_name]
+        elif node_id not in self.function_nodes[function_name]:
+            raise KeyError(
+                f"Node with id '{node_id}' for function '{function_name}' not found."
+            )
+        return self.function_nodes[function_name][node_id]
 
     @property
     def function_metas(self):
@@ -766,27 +787,27 @@ class Controller:
         """This holds the custom modules used in the project, stored by name and path to
         the config-file."""
         if "custom_module_meta" not in self.config:
-            self.config["custom_module_meta"] = dict()
+            self.config["custom_module_meta"] = {}
         return self.config["custom_module_meta"]
 
     @property
     def add_kwargs(self):
         """This holds additional keyword arguments for the project."""
         if "add_kwargs" not in self.config:
-            self.config["add_kwargs"] = dict()
+            self.config["add_kwargs"] = {}
         return self.config["add_kwargs"]
 
     def selected_nodes(self):
         """This holds the selected nodes for the project (by id)."""
         if "selected_nodes" not in self.config:
-            self.config["selected_nodes"] = list()
+            self.config["selected_nodes"] = []
         return self.config["selected_nodes"]
 
     @property
     def plot_files(self):
         """This holds the plot file-paths for the project."""
         if "plot_files" not in self.config:
-            self.config["plot_files"] = dict()
+            self.config["plot_files"] = {}
         return self.config["plot_files"]
 
     @property
@@ -813,7 +834,7 @@ class Controller:
             raise RuntimeError(
                 f"Config file for {module_name} not found at {config_file_path}."
             )
-        with open(config_file_path, "r") as file:
+        with open(config_file_path) as file:
             config_data = json.load(file, object_hook=type_json_hook)
         self.function_metas.update(config_data["functions"])
         self.parameter_metas.update(config_data["parameters"])
@@ -936,16 +957,16 @@ class Controller:
 
         # Add inputs (and split groups into multiple input nodes)
         for group_name, names in pr.all_groups.items():
-            self.inputs["MEEG"][group_name] = names
+            self.inputs["raw"][group_name] = names
             self.viewer.add_input_node("MEEG", group_name)
-        self.inputs["MEEG"]["All"].extend(pr.all_meeg)
+        self.inputs["raw"]["All"].extend(pr.all_meeg)
         self.selected_inputs.extend(pr.sel_meeg)
 
         # Add Empty-Room data if available
         if len(pr.all_erm) > 0:
-            self.inputs["MEEG"]["Empty-Room"] = pr.all_erm
+            self.inputs["raw"]["Empty-Room"] = pr.all_erm
 
-        self.inputs["FSMRI"]["All"].extend(pr.all_fsmri)
+        self.inputs["fsmri"]["All"].extend(pr.all_fsmri)
         self.selected_inputs.extend(pr.sel_fsmri)
 
         self.config["bad_channels"] = pr.meeg_bad_channels

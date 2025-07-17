@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -11,7 +10,7 @@ _object_refs = {
     "welcome_window": None,
     "main_window": None,
     "plot_manager": None,
-    "dialogs": dict(),
-    "parameter_widgets": dict(),
+    "dialogs": {},
+    "parameter_widgets": {},
     "color_tester": None,
 }

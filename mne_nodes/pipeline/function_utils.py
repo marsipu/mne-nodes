@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-from __future__ import print_function
 
 import gc
 import inspect
@@ -149,17 +147,17 @@ class RunController:
     def __init__(self, controller):
         self.ct = controller
 
-        self.all_steps = list()
+        self.all_steps = []
         self.thread_idx_count = 0
         self.all_objects = OrderedDict()
-        self.current_all_funcs = dict()
+        self.current_all_funcs = {}
         self.current_obj_name = None
         self.current_object = None
         self.loaded_fsmri = None
         self.current_func = None
 
         self.prog_count = 0
-        self.errors = list()
+        self.errors = []
 
         self.init_lists()
 
@@ -294,7 +292,7 @@ class RunController:
             self.mark_current_items(2)
 
             # Run function in Multiprocessing-Pool
-            kwds = dict()
+            kwds = {}
             kwds["func"] = get_func(self.current_func, self.current_object)
             kwds["keywargs"] = get_arguments(kwds["func"], self.current_object)
 
@@ -310,7 +308,7 @@ class RunController:
             self.current_obj_name = name
             self.current_func = func
             self.get_object()
-            kwds = dict()
+            kwds = {}
             kwds["func"] = get_func(self.current_func, self.current_object)
             kwds["keywargs"] = get_arguments(kwds["func"], self.current_object)
             logger().info(
@@ -334,7 +332,7 @@ class QRunController(RunController):
     def __init__(self, run_dialog, controller):
         super().__init__(controller)
         self.rd = run_dialog
-        self.errors = dict()
+        self.errors = {}
         self.error_count = 0
         self.is_prog_text = False
         self.paused = False

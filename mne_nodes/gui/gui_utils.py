@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -42,7 +41,7 @@ from mne_nodes.pipeline.pipeline_utils import QS, logger, is_test
 
 # Load theme colors
 theme_color_path = join(str(resources.files(extra)), "color_themes.json")
-with open(theme_color_path, "r") as file:
+with open(theme_color_path) as file:
     theme_colors = json.load(file)
 
 
@@ -393,7 +392,7 @@ class ColorTester(QDialog):
         if theme == "auto":
             theme = _get_auto_theme()
         self.theme = theme
-        self.color_display = dict()
+        self.color_display = {}
         self.init_ui()
 
         self.show()

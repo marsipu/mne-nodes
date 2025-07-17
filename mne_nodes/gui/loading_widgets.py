@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import logging
 import os
 import re
@@ -93,8 +93,8 @@ def index_parser(index, all_items, groups=None):
     Returns
     -------
     """
-    indices = list()
-    rm = list()
+    indices = []
+    rm = []
 
     try:
         if index == "":
@@ -629,7 +629,7 @@ class AddFilesWidget(QWidget):
         # Sorted indexes in reverse to avoid problems when removing several
         # indices at once
         row_idxs = sorted(
-            set([idx.row() for idx in self.view.selectionModel().selectedIndexes()]),
+            {idx.row() for idx in self.view.selectionModel().selectedIndexes()},
             reverse=True,
         )
         for row_idx in row_idxs:
@@ -643,7 +643,7 @@ class AddFilesWidget(QWidget):
 
     def insert_files(self, files_list):
         if len(files_list) > 0:
-            existing_files = list()
+            existing_files = []
 
             for file_path in files_list:
                 p = Path(file_path)
@@ -714,7 +714,7 @@ class AddFilesWidget(QWidget):
             # create a list of file and obj directories
             # names in the given directory
             list_of_file = os.walk(folder_path)
-            files_list = list()
+            files_list = []
             file_types = [x for x in self.supported_file_types if x != ".*"]
             # Iterate over all the entries
             for dirpath, _, filenames in list_of_file:
@@ -862,8 +862,8 @@ class AddMRIWidget(QWidget):
         self.ct = ct
         self.layout = QVBoxLayout()
 
-        self.folders = list()
-        self.paths = dict()
+        self.folders = []
+        self.paths = {}
 
         self.init_ui()
 
@@ -982,8 +982,8 @@ class AddMRIWidget(QWidget):
         WorkerDialog(self, self.add_mri_subjects, blocking=True)
 
         self.list_widget.clear()
-        self.folders = list()
-        self.paths = dict()
+        self.folders = []
+        self.paths = {}
 
         self.pr.save()
         self.mw.file_dock.update_dock()
@@ -1110,7 +1110,7 @@ class CopyBadsDialog(QDialog):
 
         # Preselect the current selected MEEG
         self.copy_from = [self.parent_w.current_obj.name]
-        self.copy_tos = list()
+        self.copy_tos = []
 
         self.listw1 = CheckList(
             self.all_files, self.copy_from, ui_buttons=False, one_check=True
@@ -1162,8 +1162,8 @@ class SubBadsWidget(QWidget):
         self.pr = main_win.ct.pr
         self.setWindowTitle("Assign bad_channels for your files")
         self.all_files = self.pr.all_meeg + self.pr.all_erm
-        self.bad_chkbts = dict()
-        self.info_dict = dict()
+        self.bad_chkbts = {}
+        self.info_dict = {}
         self.current_obj = None
         self.raw = None
         self.raw_fig = None
@@ -1237,7 +1237,7 @@ class SubBadsWidget(QWidget):
         # because it doesn't seem to reflect exactly the actual width
         max_h_size = int(self.bt_scroll.geometry().width() * 0.85)
 
-        self.bad_chkbts = dict()
+        self.bad_chkbts = {}
 
         # Make Checkboxes for channels in info
         for ch_name in info["ch_names"]:
@@ -1428,10 +1428,10 @@ class EventIDGui(QDialog):
         self.pr = main_win.ct.pr
 
         self.name = None
-        self.event_id = dict()
-        self.queries = dict()
-        self.labels = list()
-        self.checked_labels = list()
+        self.event_id = {}
+        self.queries = {}
+        self.labels = []
+        self.checked_labels = []
 
         self.layout = QVBoxLayout()
         self.init_ui()
@@ -1505,7 +1505,7 @@ class EventIDGui(QDialog):
         if self.name in self.pr.meeg_event_id:
             self.event_id = self.pr.meeg_event_id[self.name]
         else:
-            self.event_id = dict()
+            self.event_id = {}
         self.event_id_widget.replace_data(self.event_id)
 
         meeg = MEEG(self.name, self.ct, suppress_warnings=True)
@@ -1537,7 +1537,7 @@ class EventIDGui(QDialog):
                 self.pr.meeg_event_id[self.name] = self.event_id
 
                 # Get selected Trials, add queries and write them to meeg.pr
-                sel_event_id = dict()
+                sel_event_id = {}
                 for label in self.checked_labels:
                     if label in self.queries:
                         sel_event_id[label] = self.queries[label]
@@ -1567,7 +1567,7 @@ class EventIDGui(QDialog):
             # they were changed to dicts for queries
             self.checked_labels = list(self.pr.sel_event_id[self.name])
         else:
-            self.checked_labels = list()
+            self.checked_labels = []
         self.update_check_list()
 
     # ToDo: Make all combinations possible and also int-keys (can't split)
@@ -1592,7 +1592,7 @@ class EventIDGui(QDialog):
                 ):
                     self.checked_labels.remove(chk_label)
         else:
-            self.labels = list()
+            self.labels = []
 
         self.check_widget.replace_data(self.labels)
         self.check_widget.replace_checked(self.checked_labels)
@@ -1619,7 +1619,7 @@ class EvIDApply(QDialog):
         # Save to make sel_event_id available in apply_evid
         self.p.save_event_id()
 
-        self.apply_to = list()
+        self.apply_to = []
 
         self.layout = QVBoxLayout()
         self.init_ui()
@@ -1662,7 +1662,7 @@ class CopyTrans(QDialog):
         self.pr = main_win.ct.pr
 
         # Get MEEGs, where a trans-file is already existing
-        self.from_meegs = list()
+        self.from_meegs = []
         for meeg_name in self.pr.all_meeg:
             meeg = MEEG(meeg_name, self.ct)
             if isfile(meeg.trans_path):
@@ -1674,7 +1674,7 @@ class CopyTrans(QDialog):
         ]
 
         self.current_meeg = None
-        self.copy_tos = list()
+        self.copy_tos = []
 
         self.init_ui()
         self.open()
@@ -1766,7 +1766,7 @@ class FileManagment(QDialog):
         self.pd_group_time = pd.DataFrame(index=self.pr.all_groups)
         self.pd_group_size = pd.DataFrame(index=self.pr.all_groups)
 
-        self.param_results = dict()
+        self.param_results = {}
 
         self.init_ui()
 
@@ -1802,7 +1802,7 @@ class FileManagment(QDialog):
                 obj = Group(obj_name, self.ct)
 
             obj.get_existing_paths()
-            self.param_results[obj_name] = dict()
+            self.param_results[obj_name] = {}
 
             for path_type in obj.existing_paths:
                 if len(obj.existing_paths[path_type]) > 0:
@@ -2122,8 +2122,8 @@ class ICASelect(QDialog):
         self.ct = main_win.ct
         self.pr = main_win.ct.pr
         self.current_obj = None
-        self.parameters = dict()
-        self.chkbxs = dict()
+        self.parameters = {}
+        self.chkbxs = {}
 
         self.max_width, self.max_height = set_ratio_geometry(0.8)
         self.setMaximumSize(self.max_width, self.max_height)
@@ -2225,7 +2225,7 @@ class ICASelect(QDialog):
         if self.current_obj.name in self.pr.meeg_ica_exclude:
             selected_components = self.pr.meeg_ica_exclude[self.current_obj.name]
         else:
-            selected_components = list()
+            selected_components = []
 
         # Clear all checkboxes
         for idx in self.chkbxs:
@@ -2376,10 +2376,10 @@ class ExportDialog(QDialog):
         self.mw = main_win
         self.ct = main_win.ct
 
-        self.common_types = list()
-        self.selected_types = list()
+        self.common_types = []
+        self.selected_types = []
         self.dest_path = None
-        self.export_paths = dict()
+        self.export_paths = {}
 
         self._get_common_types()
         self._init_ui()

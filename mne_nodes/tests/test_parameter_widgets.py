@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import inspect
 
 import pytest
@@ -126,7 +126,7 @@ def test_basic_param_guis(qtbot, gui_name, parameter_values, parameter_values_al
             gui.set_param(parameters[type_gui_name])
             assert gui.get_value() == parameters[type_gui_name]
         kwargs["type_selection"] = True
-        kwargs["type_kwargs"] = dict()
+        kwargs["type_kwargs"] = {}
         for type_gui_name in gui.gui_types.values():
             type_class = getattr(parameter_widgets, type_gui_name)
             gui_parameters = list(inspect.signature(type_class).parameters) + list(

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 from ast import literal_eval
 from copy import copy
 from functools import partial
@@ -800,7 +800,7 @@ class ListGui(Param):
             if self.cached_value is not None:
                 value = self.cached_value
             else:
-                value = list()
+                value = []
             self.value_label.clear()
         else:
             value = self.param_value
@@ -909,7 +909,7 @@ class CheckListGui(Param):
             if self.cached_value:
                 value = self.cached_value
             else:
-                value = list()
+                value = []
             self.value_label.clear()
         else:
             value = self.param_value
@@ -1008,7 +1008,7 @@ class DictGui(Param):
             if self.cached_value:
                 value = self.cached_value
             else:
-                value = dict()
+                value = {}
             self.value_label.clear()
         else:
             value = self.param_value
@@ -1147,7 +1147,7 @@ class MultiTypeGui(Param):
             "checklist",
             "slider",
         ]
-        self.type_kwargs = type_kwargs or dict()
+        self.type_kwargs = type_kwargs or {}
 
         # A dictionary to map possible types with their GUI
         self.gui_types = {
@@ -1193,7 +1193,7 @@ class MultiTypeGui(Param):
         if gui_name in self.type_kwargs:
             kwargs = self.type_kwargs[gui_name]
         else:
-            kwargs = dict()
+            kwargs = {}
 
         # Set standard parameter-keyword-arguments as given to MultiTypeGui
         kwargs["data"] = self.data
@@ -1290,7 +1290,7 @@ class LabelPicker(mne.viz.Brain):
         self.selected = selected
         self.list_changed_slot = list_changed_slot
 
-        self._shown_labels = list()
+        self._shown_labels = []
 
         # Title text
         self.add_text(0, 0.9, "", color="w", font_size=14, name="title")
@@ -1438,10 +1438,10 @@ class LabelDialog(SimpleDialog):
         self._surface = None
         # Put selected labels from LabelGui in both parc and extra,
         # since they get removed if not fitting later anyway
-        self._parc_labels = list()
-        self._selected_parc_labels = copy(paramw.param_value) or list()
-        self._extra_labels = list()
-        self._selected_extra_labels = copy(paramw.param_value) or list()
+        self._parc_labels = []
+        self._selected_parc_labels = copy(paramw.param_value) or []
+        self._extra_labels = []
+        self._selected_extra_labels = copy(paramw.param_value) or []
 
         self.resize(400, 800)
         center(self)
@@ -1531,7 +1531,7 @@ class LabelDialog(SimpleDialog):
         self.extra_label_list.content_changed()
 
         # Update selected parcellation labels
-        all_labels_exept_other = list()
+        all_labels_exept_other = []
         for parc_name, labels in self._fsmri.labels.items():
             if parc_name != "Other":
                 all_labels_exept_other += [lb.name for lb in labels]
@@ -1699,7 +1699,7 @@ class LabelGui(Param):
             if self.cached_value:
                 value = self.cached_value
             else:
-                value = list()
+                value = []
             self.value_label.clear()
         else:
             value = self.param_value
@@ -1846,7 +1846,7 @@ class ResetDialog(QDialog):
     def __init__(self, p_dock):
         super().__init__(p_dock)
         self.pd = p_dock
-        self.selected_params = list()
+        self.selected_params = []
 
         self.init_ui()
         self.open()
@@ -1885,8 +1885,8 @@ class CopyPDialog(QDialog):
         self.pd = p_dock
         self.p = p_dock.ct.pr.parameters
         self.selected_from = None
-        self.selected_to = list()
-        self.selected_ps = list()
+        self.selected_to = []
+        self.selected_ps = []
 
         self.init_ui()
         self.open()
@@ -1992,7 +1992,7 @@ class ParametersDock(QDockWidget):
         # Make sure there are no spaces left
         all_used_params_str = all_used_params_str.replace(" ", "")
         all_used_params = set(all_used_params_str.split(","))
-        drop_idx_list = list()
+        drop_idx_list = []
         self.cleaned_pd_params = self.ct.pd_params.copy()
         for param in self.cleaned_pd_params.index:
             if param in all_used_params:

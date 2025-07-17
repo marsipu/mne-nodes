@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 from os.path import isfile
 from pathlib import Path
@@ -83,8 +82,8 @@ class CodeEditor(QPlainTextEdit):
         self.highlighter = PythonHighlighter(self.document())
         self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.file_path = self._file_path = file_path
         self.file_section = file_section
+        self.file_path = self._file_path = file_path
         self.setReadOnly(read_only)
 
     @property
@@ -94,7 +93,7 @@ class CodeEditor(QPlainTextEdit):
     @file_path.setter
     def file_path(self, value):
         if isfile(value):
-            with open(value, "r", encoding="utf-8") as f:
+            with open(value, encoding="utf-8") as f:
                 code = f.read()
             if self.file_section is not None:
                 start, end = self.file_section
@@ -118,7 +117,7 @@ class CodeEditor(QPlainTextEdit):
         # Insert code into a specific section of a file if defined
         if self.file_section is not None:
             start, end = self.file_section
-            with open(self.file_path, "r") as f:
+            with open(self.file_path) as f:
                 existing_code = f.read()
             code_split = existing_code.split("\n")
             new_split = code.split("\n")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 from collections import OrderedDict
 
@@ -70,7 +69,7 @@ class Port(QGraphicsItem):
         self._name = name
         self._port_type = port_type
         self.multi_connection = multi_connection
-        self.connected_ports = list()
+        self.connected_ports = []
         self.connected_pipes = OrderedDict()
         self.accepted_ports = accepted_ports
 

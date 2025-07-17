@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-
-from __future__ import print_function
 
 import itertools
 from functools import partial
@@ -310,7 +307,7 @@ def plot_evoked_joint(meeg, show_plots):
 
 def plot_evoked_butterfly(meeg, apply_proj, show_plots):
     evokeds = meeg.load_evokeds()
-    figs = list()
+    figs = []
     for evoked in evokeds:
         titles_dict = {
             cht: f"{cht}: {meeg.name}-{evoked.comment}"
@@ -429,7 +426,7 @@ def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
     ica = meeg.load_ica()
     data = meeg.load(ica_overlay_data)
 
-    overlay_figs = list()
+    overlay_figs = []
 
     if ica_overlay_data == "evoked":
         for evoked in [e for e in data if e.comment in meeg.sel_trials]:
@@ -449,8 +446,8 @@ def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
 def plot_ica_properties(meeg, ica_fitto, show_plots):
     ica = meeg.load_ica()
 
-    eog_indices = meeg.load_json("eog_indices", default=list())
-    ecg_indices = meeg.load_json("ecg_indices", default=list())
+    eog_indices = meeg.load_json("eog_indices", default=[])
+    ecg_indices = meeg.load_json("ecg_indices", default=[])
     psd_args = {"fmax": meeg.pa["lowpass"]}
 
     if len(eog_indices) > 0:
@@ -485,7 +482,7 @@ def plot_ica_properties(meeg, ica_fitto, show_plots):
 
 
 def plot_ica_scores(meeg, show_plots):
-    eog_scores = meeg.load_json("eog_scores", default=list())
+    eog_scores = meeg.load_json("eog_scores", default=[])
     if len(eog_scores) > 1:
         ica = meeg.load_ica()
         eog_score_fig = ica.plot_scores(
@@ -497,7 +494,7 @@ def plot_ica_scores(meeg, show_plots):
     else:
         eog_score_fig = None
 
-    ecg_scores = meeg.load_json("ecg_scores", default=list())
+    ecg_scores = meeg.load_json("ecg_scores", default=[])
     if len(ecg_scores) > 1:
         ica = meeg.load_ica()
         ecg_score_fig = ica.plot_scores(
@@ -870,7 +867,7 @@ def _plot_connectivity(obj, con_dict, label_colors, show_plots):
             labels = obj.fsmri.get_labels(con.names)
             if "unknown-lh" in labels:
                 labels.pop("unknown-lh")
-            colors = list()
+            colors = []
             for label in labels:
                 color = label_colors.get(label.name)
                 if color is None:
@@ -893,7 +890,7 @@ def _plot_connectivity(obj, con_dict, label_colors, show_plots):
             rh_labels = [label for (yp, label) in sorted(zip(rh_label_ypos, rh_labels))]
 
             # Save the plot order and create a circular layout
-            node_order = list()
+            node_order = []
             node_order.extend(lh_labels[::-1])  # reverse the order
             node_order.extend(rh_labels)
 

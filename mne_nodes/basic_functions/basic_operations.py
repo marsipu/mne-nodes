@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-
-from __future__ import print_function
 
 import gc
 import os
@@ -302,8 +299,8 @@ def find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_b
     # Binary Coding of 6 Stim Channels in Biomagenetism Lab Heidelberg
     # prepare arrays
     events = np.ndarray(shape=(0, 3), dtype=np.int32)
-    evs = list()
-    evs_tol = list()
+    evs = []
+    evs_tol = []
 
     # Find events for each stim channel, append sample values to list
     evs.append(
@@ -801,7 +798,7 @@ def apply_ica(meeg, ica_apply_target, n_pca_components):
 
 def get_evokeds(meeg, detrend_order):
     meeg.load_epochs()
-    evokeds = list()
+    evokeds = []
     for trial, epoch in meeg.get_trial_epochs():
         evoked = epoch.average()
         # Todo: optional if you want weights in your evoked.comment?!
@@ -818,7 +815,7 @@ def get_evokeds(meeg, detrend_order):
 
 def calculate_gfp(evoked):
     ch_types = evoked.get_channel_types(unique=True, only_data_chs=True)
-    gfp_dict = dict()
+    gfp_dict = {}
     for ch_type in ch_types:
         d = evoked.copy().pick(ch_type).data
         gfp = np.sqrt((d * d).mean(axis=0))
@@ -828,7 +825,7 @@ def calculate_gfp(evoked):
 
 
 def grand_avg_evokeds(group, ga_interpolate_bads, ga_drop_bads):
-    trial_dict = dict()
+    trial_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
         print(f"Add {name} to grand_average")
@@ -852,7 +849,7 @@ def grand_avg_evokeds(group, ga_interpolate_bads, ga_drop_bads):
             else:
                 print(f"{evoked.comment} for {name} got nave=0")
 
-    ga_evokeds = dict()
+    ga_evokeds = {}
     for trial in trial_dict:
         if len(trial_dict[trial]) != 0:
             ga = mne.grand_average(
@@ -896,8 +893,8 @@ def tfr(
     n_jobs,
     **kwargs,
 ):
-    powers = list()
-    itcs = list()
+    powers = []
+    itcs = []
 
     # Calculate Time-Frequency for each trial from epochs
     # using the selected method
@@ -977,7 +974,7 @@ def tfr(
 
 
 def grand_avg_tfr(group):
-    trial_dict = dict()
+    trial_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
         print(f"Add {name} to grand_average")
@@ -991,7 +988,7 @@ def grand_avg_tfr(group):
             else:
                 print(f"{pw.comment} for {name} got nave=0")
 
-    ga_dict = dict()
+    ga_dict = {}
     for trial in trial_dict:
         if len(trial_dict[trial]) != 0:
             # Make sure, all have the same number of channels
@@ -1313,7 +1310,7 @@ def source_estimate(meeg, inverse_method, pick_ori, lambda2):
     inverse_operator = meeg.load_inverse_operator()
     evokeds = meeg.load_evokeds()
 
-    stcs = dict()
+    stcs = {}
     for evoked in [ev for ev in evokeds if ev.comment in meeg.sel_trials]:
         stc = mne.minimum_norm.apply_inverse(
             evoked, inverse_operator, lambda2, method=inverse_method, pick_ori=pick_ori
@@ -1338,10 +1335,10 @@ def label_time_course(meeg, target_labels, extract_mode):
             f"No labels found for {meeg.name}. " "Please check the labels you selected."
         )
 
-    ltc_dict = dict()
+    ltc_dict = {}
 
     for trial in stcs:
-        ltc_dict[trial] = dict()
+        ltc_dict[trial] = {}
         times = stcs[trial].times
         for label in labels:
             ltc = stcs[trial].extract_label_time_course(label, src, mode=extract_mode)[
@@ -1365,7 +1362,7 @@ def mixed_norm_estimate(meeg, pick_ori, inverse_method):
         stcs = meeg.load_source_estimates()
     else:
         print("No dSPM-Inverse-Solution available, calculating...")
-        stcs = dict()
+        stcs = {}
         snr = 3.0
         lambda2 = 1.0 / snr**2
         for evoked in evokeds:
@@ -1374,8 +1371,8 @@ def mixed_norm_estimate(meeg, pick_ori, inverse_method):
                 evoked, inv_op, lambda2, method="dSPM"
             )
 
-    mixn_dips = dict()
-    mixn_stcs = dict()
+    mixn_dips = {}
+    mixn_stcs = {}
 
     for evoked in [ev for ev in evokeds if ev.comment in meeg.sel_trials]:
         alpha = 30  # regularization parameter between 0 and 100 (100 is high)
@@ -1438,11 +1435,11 @@ def ecd_fit(meeg, ecd_times, ecd_positions, ecd_orientations, t_epoch):
     bem = meeg.fsmri.load_bem_solution()
     trans = meeg.load_transformation()
 
-    ecd_dips = dict()
+    ecd_dips = {}
 
     for evoked in evokeds:
         trial = evoked.comment
-        ecd_dips[trial] = dict()
+        ecd_dips[trial] = {}
         for dip in ecd_time:
             tmin, tmax = ecd_time[dip]
             copy_evoked = evoked.copy().crop(tmin, tmax)
@@ -1490,7 +1487,7 @@ def apply_morph(meeg, morph_to):
         stcs = meeg.load_source_estimates()
         morph = meeg.load_source_morph()
 
-        morphed_stcs = dict()
+        morphed_stcs = {}
         for trial in stcs:
             morphed_stcs[trial] = morph.apply(stcs[trial])
         meeg.save_morphed_source_estimates(morphed_stcs)
@@ -1529,10 +1526,10 @@ def src_connectivity(
             "No trials selected, check your Selected IDs in Preparation/"
         )
 
-    con_dict = dict()
+    con_dict = {}
 
     for trial, epoch in meeg.get_trial_epochs():
-        con_dict[trial] = dict()
+        con_dict[trial] = {}
         epochs = epoch
 
         # Crop if necessary
@@ -1587,9 +1584,9 @@ def grand_avg_morphed(group, morph_to):
     # stc in the end!!!
     n_chunks = 8
     # divide in chunks to save memory
-    fusion_dict = dict()
+    fusion_dict = {}
     for i in range(0, len(group.group_list), n_chunks):
-        sub_trial_dict = dict()
+        sub_trial_dict = {}
         ga_chunk = group.group_list[i : i + n_chunks]
         print(ga_chunk)
         for name in ga_chunk:
@@ -1623,7 +1620,7 @@ def grand_avg_morphed(group, morph_to):
                 else:
                     fusion_dict.update({trial: [sub_trial_average]})
 
-    ga_stcs = dict()
+    ga_stcs = {}
     for trial in fusion_dict:
         if len(fusion_dict[trial]) != 0:
             print(f"grand_average for {group.name}-{trial}")
@@ -1642,7 +1639,7 @@ def grand_avg_morphed(group, morph_to):
 
 
 def grand_avg_ltc(group):
-    ltc_average_dict = dict()
+    ltc_average_dict = {}
     times = None
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
@@ -1650,7 +1647,7 @@ def grand_avg_ltc(group):
         ltc_dict = meeg.load_ltc()
         for trial in ltc_dict:
             if trial not in ltc_average_dict:
-                ltc_average_dict[trial] = dict()
+                ltc_average_dict[trial] = {}
             for label in ltc_dict[trial]:
                 # First row of array is label-time-course-data,
                 # second row is time-array
@@ -1661,9 +1658,9 @@ def grand_avg_ltc(group):
                 # Should be the same for each trial and label
                 times = ltc_dict[trial][label][1]
 
-    ga_ltc = dict()
+    ga_ltc = {}
     for trial in ltc_average_dict:
-        ga_ltc[trial] = dict()
+        ga_ltc[trial] = {}
         for label in ltc_average_dict[trial]:
             if len(ltc_average_dict[trial][label]) != 0:
                 print(f"grand_average for {trial}-{label}")
@@ -1677,22 +1674,22 @@ def grand_avg_ltc(group):
 
 def grand_avg_connect(group):
     # Prepare the Average-Dict
-    con_average_dict = dict()
+    con_average_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
         print(f"Add {name} to grand_average")
         con_dict = meeg.load_connectivity()
         for trial in con_dict:
             if trial not in con_average_dict:
-                con_average_dict[trial] = dict()
+                con_average_dict[trial] = {}
             for con_method, con in con_dict[trial].items():
                 if con_method not in con_average_dict[trial]:
-                    con_average_dict[trial][con_method] = list()
+                    con_average_dict[trial][con_method] = []
                 con_average_dict[trial][con_method].append(con)
 
-    ga_con_dict = dict()
+    ga_con_dict = {}
     for trial in con_average_dict:
-        ga_con_dict[trial] = dict()
+        ga_con_dict[trial] = {}
         for con_method, con_list in con_average_dict[trial].items():
             if len(con_list) != 0:
                 print(f"grand_average for {trial}-{con_method}")

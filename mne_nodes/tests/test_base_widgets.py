@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-
 
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
@@ -16,7 +14,7 @@ def test_checklist(qtbot):
     from mne_nodes.gui.base_widgets import CheckList
 
     data = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
-    checked = list()
+    checked = []
     cl = CheckList(data=data, checked=checked)
     qtbot.addWidget(cl)
 

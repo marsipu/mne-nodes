@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 from ast import literal_eval
 from datetime import datetime
 
@@ -29,7 +29,7 @@ class BaseListModel(QAbstractListModel):
 
     Parameters
     ----------
-    data : list()
+    data : []
         input existing list here, otherwise defaults to empty list
     show_index : bool
         Set True if you want to display the list-index in front of each value
@@ -42,7 +42,7 @@ class BaseListModel(QAbstractListModel):
         self.show_index = show_index
         self.drag_drop = drag_drop
         if data is None:
-            self._data = list()
+            self._data = []
         else:
             self._data = data
 
@@ -103,7 +103,7 @@ class EditListModel(BaseListModel):
 
     Parameters
     ----------
-    data : list()
+    data : []
         input existing list here, otherwise defaults to empty list
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -137,9 +137,9 @@ class CheckListModel(BaseListModel):
 
     Parameters
     ----------
-    data : list()
+    data : []
         list with content to be displayed, defaults to empty list
-    checked : list()
+    checked : []
         list which stores the checked items from data
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -160,12 +160,12 @@ class CheckListModel(BaseListModel):
         self.one_check = one_check
 
         if data is None:
-            self._data = list()
+            self._data = []
         else:
             self._data = data
 
         if checked is None:
-            self._checked = list()
+            self._checked = []
         else:
             self._checked = checked
 
@@ -205,9 +205,9 @@ class CheckDictModel(BaseListModel):
 
     Parameters
     ----------
-    data : list()
+    data : []
         list with content to be displayed, defaults to empty list
-    check_dict : dict()
+    check_dict : {}
         dictionary which may contain items from data as keys
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -263,9 +263,9 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
 
     Parameters
     ----------
-    data : list()
+    data : []
         list with content to be displayed, defaults to empty list
-    check_dict : dict()
+    check_dict : {}
         dictionary which may contain items from data as keys
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -318,7 +318,7 @@ class BaseDictModel(QAbstractTableModel):
     def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
         if data is None:
-            self._data = dict()
+            self._data = {}
         else:
             self._data = data
 
@@ -599,7 +599,7 @@ class TreeItem:
     def __init__(self, data, parent=None):
         self._data = data
         self._parent = parent
-        self._children = list()
+        self._children = []
 
     def child(self, number):
         if 0 <= number < len(self._children):

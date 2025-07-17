@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 from collections import Counter
 from importlib import resources
 from pathlib import Path
@@ -181,9 +181,9 @@ class RawInfo(QDialog):
         info = meeg.load_info()
         fp = meeg.file_parameters
         meeg.get_existing_paths()
-        other_infos = dict()
+        other_infos = {}
 
-        sizes = list()
+        sizes = []
         for path_type in meeg.existing_paths:
             for path in meeg.existing_paths[path_type]:
                 file_name = Path(path).name
@@ -348,7 +348,7 @@ class AboutDialog(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
         self.mw = main_win
-        with open(resources.files(extra) / "license.txt", "r") as file:
+        with open(resources.files(extra) / "license.txt") as file:
             license_text = file.read()
         license_text = license_text.replace("\n", "<br>")
         text = (

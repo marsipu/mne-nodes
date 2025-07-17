@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 from functools import partial
 from importlib import import_module
 from os.path import join, isfile
@@ -51,7 +51,7 @@ from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 class PlotManager(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.plots = dict()
+        self.plots = {}
         self.init_ui()
         self.show()
 
@@ -92,9 +92,9 @@ class PlotManager(QMainWindow):
     def add_plot(self, plot, name, func_name):
         if name not in self.plots:
             self.name_cmbx.addItem(name)
-            self.plots[name] = dict()
+            self.plots[name] = {}
         if func_name not in self.plots[name]:
-            self.plots[name][func_name] = list()
+            self.plots[name][func_name] = []
             self.func_list.model._data.append(func_name)
             self.func_list.content_changed()
 
@@ -150,15 +150,15 @@ class PlotViewSelection(QDialog):
         self.selected_func = None
         self.target = None
         self.interactive = False
-        self.objects = list()
-        self.selected_objs = list()
-        self.selected_ppresets = list()
+        self.objects = []
+        self.selected_objs = []
+        self.selected_ppresets = []
 
         # Stores the widgets for parameter-presets/objects
-        self.all_figs = dict()
+        self.all_figs = {}
         # Stores all widget-items (including single widgets
         # for plot_functions with multiple plots as output)
-        self.all_images = dict()
+        self.all_images = {}
 
         self.init_ui()
         self.show()
@@ -218,7 +218,7 @@ class PlotViewSelection(QDialog):
             elif self.target == "Group":
                 target_objects = list(self.ct.pr.all_groups.keys())
             else:
-                target_objects = list()
+                target_objects = []
 
             # If non-interactive only list objects
             # where a plot-image already was saved
@@ -271,8 +271,8 @@ class PlotViewSelection(QDialog):
             self.prog_dlg.setValue(self.prog_cnt)
 
             for p_preset in self.selected_ppresets:
-                self.all_images[p_preset] = dict()
-                self.all_figs[p_preset] = dict()
+                self.all_images[p_preset] = {}
+                self.all_figs[p_preset] = {}
                 for obj_name in self.selected_objs:
                     if self.target == "MEEG":
                         obj = MEEG(obj_name, self.ct)
@@ -338,7 +338,7 @@ class PlotViewSelection(QDialog):
                             self.thread_finished(None)
                         else:
                             # Load pixmaps from Image-Paths
-                            pixmaps = list()
+                            pixmaps = []
 
                             for image_path in image_paths:
                                 if isfile(image_path):
@@ -372,7 +372,7 @@ class PlotViewSelection(QDialog):
             # Make sure, that return_value is a list
             return_value = [return_value]
 
-        fig_list = list()
+        fig_list = []
         for fig in return_value:
             # Add the default size of the figure for later zooming
             fig_list.append((fig, fig.get_size_inches()))

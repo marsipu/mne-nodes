@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -78,7 +77,7 @@ class EducationEditor(QMainWindow):
         super().__init__(main_win)
         self.mw = main_win
         self.ct = main_win.ct
-        self.edu = dict()
+        self.edu = {}
         self.edu["name"] = "Education"
         self.edu["meeg"] = self.ct.pr.sel_meeg.copy()
         self.edu["fsmri"] = self.ct.pr.sel_fsmri.copy()
@@ -92,8 +91,8 @@ class EducationEditor(QMainWindow):
             "group_view": False,
         }
         self.edu["format"] = "PlainText"
-        self.edu["tour_list"] = list()
-        self.edu["tour"] = dict()
+        self.edu["tour_list"] = []
+        self.edu["tour"] = {}
 
         self.edu_folder = join(self.ct.home_path, "edu_programs")
         set_ratio_geometry(0.8, self)
@@ -240,7 +239,7 @@ class EducationEditor(QMainWindow):
     def load_edu_file(self):
         file_path = compat.getopenfilename(self, directory=self.edu_folder)[0]
         if file_path != "":
-            with open(file_path, "r") as file:
+            with open(file_path) as file:
                 self.edu = json.load(file)
 
         self.update_ui()

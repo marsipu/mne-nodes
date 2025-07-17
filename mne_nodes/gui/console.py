@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import io
 import sys
 
@@ -23,7 +23,7 @@ class ConsoleWidget(QPlainTextEdit):
         self.is_progress = False
 
         # Buffer to avoid crash for too many inputs
-        self.buffer = list()
+        self.buffer = []
         self.buffer_time = 50
         self.buffer_timer = QTimer()
         self.buffer_timer.timeout.connect(self.write_buffer)

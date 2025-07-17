@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 from collections import OrderedDict
 
@@ -67,10 +66,10 @@ class BaseNode(QGraphicsItem):
         self._title_item = NodeTextItem(self._name, self)
         self._inputs = OrderedDict()
         self._outputs = OrderedDict()
-        self._widgets = list()
+        self._widgets = []
 
         # Initialize iports
-        ports = ports or list()
+        ports = ports or []
         # If old id is added for reestablishing connections
         if isinstance(ports, dict):
             for port_kwargs in ports.values():
@@ -241,8 +240,7 @@ class BaseNode(QGraphicsItem):
         # port names must be unique for inputs/outputs
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
-            logging.warning(f"Input port {name} already exists.")
-            return
+            raise ValueError(f"Port '{name}' already exists for '{port_type}'.")
         # Create port
         port = Port(
             self, name, port_type, multi_connection, accepted_ports, old_id=old_id

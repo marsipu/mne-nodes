@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
-
-from __future__ import print_function
 
 import functools
 import inspect
@@ -174,8 +171,8 @@ class BaseLoading:
         self.img_format = self.ct.get_setting("img_format")
         self.dpi = self.ct.get_setting("dpi")
 
-        self.data_dict = dict()
-        self.existing_paths = dict()
+        self.data_dict = {}
+        self.existing_paths = {}
 
         self.init_attributes()
         if name is not None:
@@ -186,9 +183,9 @@ class BaseLoading:
     def init_plot_files(self):
         # Prepare plot-files-dictionary for Loading-Object
         if self.name not in self.pr.plot_files:
-            self.pr.plot_files[self.name] = dict()
+            self.pr.plot_files[self.name] = {}
         if self.p_preset not in self.pr.plot_files[self.name]:
-            self.pr.plot_files[self.name][self.p_preset] = dict()
+            self.pr.plot_files[self.name][self.p_preset] = {}
         self.plot_files = self.pr.plot_files[self.name][self.p_preset]
 
     def get_parameter(self, parameter_name):
@@ -208,8 +205,8 @@ class BaseLoading:
         """Initialization of all paths and the io_dict, should be overridden in
         inherited classes."""
         self.save_dir = ""
-        self.io_dict = dict()
-        self.deprecated_paths = dict()
+        self.io_dict = {}
+        self.deprecated_paths = {}
 
     def _return_path_list(self, data_type):
         paths = self.io_dict[data_type]["path"]
@@ -238,10 +235,10 @@ class BaseLoading:
             self.save_dir, f"_{self.name}_file_parameters.json"
         )
         try:
-            with open(self.file_parameters_path, "r") as file:
+            with open(self.file_parameters_path) as file:
                 self.file_parameters = json.load(file, object_hook=type_json_hook)
         except (json.JSONDecodeError, FileNotFoundError):
-            self.file_parameters = dict()
+            self.file_parameters = {}
 
     def save_file_parameter_file(self):
         # Save File-Parameters file
@@ -254,7 +251,7 @@ class BaseLoading:
             if isfile(path + "-lh.stc"):
                 paths = [path + "-lh.stc", path + "-rh.stc"]
             else:
-                paths = list()
+                paths = []
         else:
             paths = [path]
 
@@ -262,7 +259,7 @@ class BaseLoading:
             file_name = Path(path).name
 
             if file_name not in self.file_parameters:
-                self.file_parameters[file_name] = dict()
+                self.file_parameters[file_name] = {}
             # Get the name of the calling function (assuming it is 2 Frames
             # above when running in pipeline)
             function = inspect.stack()[2][3]
@@ -289,7 +286,7 @@ class BaseLoading:
         self.save_file_parameter_file()
 
     def clean_file_parameters(self):
-        remove_files = list()
+        remove_files = []
         n_remove_params = 0
         for file_name in self.file_parameters:
             # Can be changed to only relative path (12.02.2021)
@@ -311,7 +308,7 @@ class BaseLoading:
             if function == "<module>" or function not in self.ct.pd_funcs.index:
                 pass
             else:
-                remove_params = list()
+                remove_params = []
                 critical_params_str = self.ct.pd_funcs.loc[function, "func_args"]
                 # Make sure there are no spaces left
                 critical_params_str = critical_params_str.replace(" ", "")
@@ -417,7 +414,7 @@ class BaseLoading:
 
             # Check if required keys are in the dictionary-levels
             if calling_func not in self.plot_files:
-                self.plot_files[calling_func] = list()
+                self.plot_files[calling_func] = []
 
             if matplotlib_figure:
                 if isinstance(matplotlib_figure, list):
@@ -486,7 +483,7 @@ class BaseLoading:
     def load_json(self, file_name, default=None):
         file_path = join(self.save_dir, f"{self.name}_{self.p_preset}_{file_name}.json")
         try:
-            with open(file_path, "r") as file:
+            with open(file_path) as file:
                 data = json.load(file, object_hook=type_json_hook)
         except json.JSONDecodeError:
             logger().warning(f"{file_path} could not be loaded")
@@ -536,7 +533,7 @@ class BaseLoading:
                     or isfile(p + "-rh.stc")
                 ]
             else:
-                self.existing_paths[data_type] = list()
+                self.existing_paths[data_type] = []
 
     def remove_path(self, data_type):
         # Remove path specified by path_type (which is the name
@@ -638,7 +635,7 @@ class MEEG(BaseLoading):
 
         # The assigned bad-channels
         if self.name not in self.pr.meeg_bad_channels:
-            self.bad_channels = list()
+            self.bad_channels = []
             if not self.suppress_warnings:
                 logger().warning(
                     f"No bad channels assigned for {self.name},"
@@ -649,7 +646,7 @@ class MEEG(BaseLoading):
 
         # The selected trials from the event-id
         if self.name not in self.pr.sel_event_id:
-            self.sel_trials = dict()
+            self.sel_trials = {}
             if not self.suppress_warnings:
                 logger().warning(
                     f"No Trials selected for {self.name}," f" defaulting to empty list"
@@ -663,7 +660,7 @@ class MEEG(BaseLoading):
 
         # The assigned event-id
         if self.name not in self.pr.meeg_event_id:
-            self.event_id = dict()
+            self.event_id = {}
             if not self.suppress_warnings:
                 logger().warning(
                     f"No EventID assigned for {self.name},"
@@ -679,7 +676,7 @@ class MEEG(BaseLoading):
 
         # The excluded ica-components
         if self.name not in self.pr.meeg_ica_exclude:
-            self.ica_exclude = list()
+            self.ica_exclude = []
         else:
             self.ica_exclude = self.pr.meeg_ica_exclude[self.name]
 
@@ -1010,7 +1007,7 @@ class MEEG(BaseLoading):
     def rename(self, new_name):
         # Stor old name
         old_name = self.name
-        all_old_paths = dict()
+        all_old_paths = {}
         for data_type in self.io_dict:
             all_old_paths[data_type] = self._return_path_list(data_type)
 
@@ -1292,7 +1289,7 @@ class MEEG(BaseLoading):
 
     @load_decorator
     def load_source_estimates(self):
-        stcs = dict()
+        stcs = {}
         for trial in self.stc_paths:
             stcs[trial] = mne.source_estimate.read_source_estimate(
                 self.stc_paths[trial]
@@ -1307,7 +1304,7 @@ class MEEG(BaseLoading):
 
     @load_decorator
     def load_morphed_source_estimates(self):
-        morphed_stcs = dict()
+        morphed_stcs = {}
         for trial in self.morphed_stc_paths:
             morphed_stcs[trial] = mne.source_estimate.read_source_estimate(
                 self.morphed_stc_paths[trial]
@@ -1321,10 +1318,10 @@ class MEEG(BaseLoading):
             morphed_stcs[trial].save(self.morphed_stc_paths[trial], overwrite=True)
 
     def load_mixn_dipoles(self):
-        mixn_dips = dict()
+        mixn_dips = {}
         for trial in self.sel_trials:
             idx = 0
-            dip_list = list()
+            dip_list = []
             for idx in range(len(listdir(join(self.save_dir, "mixn_dipoles")))):
                 mixn_dip_path = join(
                     self.save_dir,
@@ -1356,7 +1353,7 @@ class MEEG(BaseLoading):
                 dip.save(mxn_dip_path, overwrite=True)
 
     def load_mixn_source_estimates(self):
-        mixn_stcs = dict()
+        mixn_stcs = {}
         for trial in self.sel_trials:
             mx_stc_path = join(
                 self.save_dir, f"{self.name}_{trial}_{self.p_preset}-mixn"
@@ -1373,9 +1370,9 @@ class MEEG(BaseLoading):
 
     @load_decorator
     def load_ecd(self):
-        ecd_dipoles = dict()
+        ecd_dipoles = {}
         for trial in self.ecd_paths:
-            ecd_dipoles[trial] = dict()
+            ecd_dipoles[trial] = {}
             for dip in self.ecd_paths[trial]:
                 ecd_dipoles[trial][dip] = mne.read_dipole(self.ecd_paths[trial][dip])
 
@@ -1392,9 +1389,9 @@ class MEEG(BaseLoading):
 
     @load_decorator
     def load_ltc(self):
-        ltcs = dict()
+        ltcs = {}
         for trial in self.sel_trials:
-            ltcs[trial] = dict()
+            ltcs[trial] = {}
             for label in self.ltc_paths[trial]:
                 ltc_path = self.ltc_paths[trial][label]
                 if isfile(ltc_path):
@@ -1419,9 +1416,9 @@ class MEEG(BaseLoading):
 
     @load_decorator
     def load_connectivity(self):
-        con_dict = dict()
+        con_dict = {}
         for trial in self.con_paths:
-            con_dict[trial] = dict()
+            con_dict[trial] = {}
             for con_method, con_path in self.con_paths[trial].items():
                 con_dict[trial][con_method] = mne_connectivity.read_connectivity(
                     con_path
@@ -1540,15 +1537,15 @@ class FSMRI(BaseLoading):
         annot_dir = join(self.subjects_dir, self.name, "label")
         try:
             files = os.listdir(annot_dir)
-            annotations = set([file[3:-6] for file in files if file[-6:] == ".annot"])
+            annotations = {file[3:-6] for file in files if file[-6:] == ".annot"}
         except FileNotFoundError:
             annotations = set()
 
         return annotations
 
     def _get_available_labels(self):
-        labels = dict()
-        labels["Other"] = list()
+        labels = {}
+        labels["Other"] = []
         label_dir = join(self.subjects_dir, self.name, "label")
         try:
             files = os.listdir(label_dir)
@@ -1584,7 +1581,7 @@ class FSMRI(BaseLoading):
         return labels
 
     def get_labels(self, target_labels=None, parcellation=None):
-        labels = list()
+        labels = []
         if self.name is None:
             logger().warning("FSMRI-Object has no name and is empty!")
         else:
@@ -1594,7 +1591,7 @@ class FSMRI(BaseLoading):
 
             # Subselect labels with parcellation
             if parcellation is None:
-                search_labels = list()
+                search_labels = []
                 for parcellation in self.labels:
                     search_labels += self.labels[parcellation]
             else:
@@ -1678,7 +1675,7 @@ class Group(BaseLoading):
             self.group_list = self.pr.all_groups[self.name]
 
         # The assigned event-id
-        self.event_id = dict()
+        self.event_id = {}
         for group_item in [
             gi for gi in self.group_list if gi in self.ct.pr.meeg_event_id
         ]:
@@ -1688,7 +1685,7 @@ class Group(BaseLoading):
         if len(self.group_list) > 0:
             self.sel_trials = MEEG(self.group_list[0], self.ct).sel_trials
         else:
-            self.sel_trials = dict()
+            self.sel_trials = {}
 
         # The fsmri where all group members are morphed to
         self.fsmri = FSMRI(self.pa["morph_to"], self.ct)
@@ -1803,7 +1800,7 @@ class Group(BaseLoading):
 
     @load_decorator
     def load_ga_evokeds(self):
-        ga_evokeds = dict()
+        ga_evokeds = {}
         for trial in self.sel_trials:
             ga_evokeds[trial] = mne.read_evokeds(self.ga_evokeds_paths[trial])[0]
 
@@ -1818,7 +1815,7 @@ class Group(BaseLoading):
 
     @load_decorator
     def load_ga_tfr(self):
-        ga_tfr = dict()
+        ga_tfr = {}
         for trial in self.sel_trials:
             ga_tfr[trial] = mne.time_frequency.read_tfrs(self.ga_tfr_paths[trial])[0]
 
@@ -1831,7 +1828,7 @@ class Group(BaseLoading):
 
     @load_decorator
     def load_ga_stc(self):
-        ga_stcs = dict()
+        ga_stcs = {}
         for trial in self.sel_trials:
             ga_stcs[trial] = mne.read_source_estimate(self.ga_stc_paths[trial])
 
@@ -1844,9 +1841,9 @@ class Group(BaseLoading):
 
     @load_decorator
     def load_ga_ltc(self):
-        ga_ltc = dict()
+        ga_ltc = {}
         for trial in self.ga_ltc_paths:
-            ga_ltc[trial] = dict()
+            ga_ltc[trial] = {}
             for label in self.ga_ltc_paths[trial]:
                 ga_ltc[trial][label] = np.load(self.ga_ltc_paths[trial][label])
 
@@ -1860,7 +1857,7 @@ class Group(BaseLoading):
 
     @load_decorator
     def load_ga_con(self):
-        ga_connect = dict()
+        ga_connect = {}
         for trial in self.ga_con_paths:
             ga_connect[trial] = {}
             for con_method, con_path in self.ga_con_paths[trial].items():

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import sys
 from functools import partial
 
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
         self.ct = controller
         self.pr = controller.pr
         self.edu_tour = None
-        self.bt_dict = dict()
+        self.bt_dict = {}
         # For functions, which should or should not
         # be called durin initialization
         self.first_init = True
@@ -758,7 +758,7 @@ class MainWindow(QMainWindow):
                 },
             ],
         )
-        fn = dict()
+        fn = {}
         for func_name, func_kwargs in demo_dict.items():
             fnode = self.node_viewer.create_node("FunctionNode", **func_kwargs)
             fn[func_name] = fnode
@@ -832,7 +832,7 @@ class MainWindow(QMainWindow):
         if self.ct.edu_program:
             dock_kwargs = self.ct.edu_program["dock_kwargs"]
         else:
-            dock_kwargs = dict()
+            dock_kwargs = {}
         self.file_dock = FileDock(self, **dock_kwargs)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
         self.view_menu.addAction(self.file_dock.toggleViewAction())

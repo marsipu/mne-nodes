@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -32,7 +31,7 @@ class ParamGuis(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.gui_dict = dict()
+        self.gui_dict = {}
 
         self.init_ui()
 

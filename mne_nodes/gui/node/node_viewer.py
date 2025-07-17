@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import logging
 import math
 from collections import OrderedDict
@@ -192,28 +191,45 @@ class NodeViewer(QGraphicsView):
         **kwargs : dict, optional
             Additional keyword arguments to pass to the BaseNode constructor.
         """
-        node = InputNode(self.ct, data_type, name=name, **kwargs)
         if name is None:
-            if len(self.ct.inputs[data_type]) == 0:
+            if len(self.ct.input_nodes[data_type]) == 0:
                 name = "All"
             else:
-                name = f"{len(self.ct.inputs[data_type]) + 1}"
-        self.ct.inputs[data_type][name] = node
+                name = f"{len(self.ct.input_nodes[data_type]) + 1}"
+        node = InputNode(self.ct, data_type, name=name, **kwargs)
+        if data_type not in self.ct.input_data_types:
+            raise ValueError(
+                f"Invalid data_type '{data_type}'. "
+                f"Valid types are: {', '.join(self.ct.input_data_types.keys())}"
+            )
+        self.ct.input_nodes[data_type][name] = node
         self.add_node(node)
 
-    def add_function_node(self, function_name):
-        """Add a new function node to the project."""
-        # ToDo Next: Add a function node to the project
-        pass
+        return node
 
-    def remove_node(self, node):
+    def add_function_node(self, function_name, **kwargs):
+        """Add a new function node to the project."""
+        node = FunctionNode(self.ct, function=function_name, **kwargs)
+        if function_name in self.ct.function_nodes:
+            self.ct.function_nodes[function_name].update({node.id: node})
+        else:
+            self.ct.function_nodes[function_name] = {node.id: node}
+        self.add_node(node)
+
+        return node
+
+    def remove_node(self, node=None, **kwargs):
         """Remove a node from the node graph.
 
         Parameters
         ----------
-        node : BaseNode
+        node : BaseNode, optional
             Node instance to remove.
+        **kwargs : dict, optional
+            Keyword arguments to find node with self.node by index, name, or id.
         """
+        if node is None:
+            self.node(**kwargs)
         # Remove connected pipes
         for port in node.ports:
             for connected_port in port.connected_ports:
@@ -264,17 +280,17 @@ class NodeViewer(QGraphicsView):
         return None
 
     def to_dict(self):
-        viewer_dict = dict()
+        viewer_dict = {}
         viewer_dict["nodes"] = {
             node_id: node.to_dict() for node_id, node in self.nodes.items()
         }
 
         # Save connections
-        viewer_dict["connections"] = dict()
+        viewer_dict["connections"] = {}
         for node_id, node in self.nodes.items():
-            viewer_dict["connections"][node.id] = dict()
+            viewer_dict["connections"][node.id] = {}
             for port in node.ports:
-                viewer_dict["connections"][node.id][port.id] = dict()
+                viewer_dict["connections"][node.id][port.id] = {}
                 for connected_port in port.connected_ports:
                     viewer_dict["connections"][node.id][port.id][
                         connected_port.node.id
@@ -464,7 +480,7 @@ class NodeViewer(QGraphicsView):
             self.MMB_state = False
 
         # update the recorded node positions.
-        selection = set([])
+        selection = set()
         selection.update(self.selected_nodes())
         self._node_positions.update({n: n.xy_pos for n in selection})
 
@@ -603,7 +619,7 @@ class NodeViewer(QGraphicsView):
                         break
 
         self._previous_pos = event.pos()
-        super(NodeViewer, self).mouseMoveEvent(event)
+        super().mouseMoveEvent(event)
 
     def wheelEvent(self, event):
         try:
@@ -654,7 +670,7 @@ class NodeViewer(QGraphicsView):
 
     def keyPressEvent(self, event):
         if self._LIVE_PIPE.isVisible():
-            super(NodeViewer, self).keyPressEvent(event)
+            super().keyPressEvent(event)
             return
 
         # show cursor text
@@ -671,14 +687,14 @@ class NodeViewer(QGraphicsView):
             self._cursor_text.setPos(self.mapToScene(self._previous_pos))
             self._cursor_text.setVisible(True)
 
-        super(NodeViewer, self).keyPressEvent(event)
+        super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event):
         # hide and reset cursor text.
         self._cursor_text.setPlainText("")
         self._cursor_text.setVisible(False)
 
-        super(NodeViewer, self).keyReleaseEvent(event)
+        super().keyReleaseEvent(event)
 
     ####################################################################################
     # Scene Events

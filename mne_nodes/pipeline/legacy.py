@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import json
 import math
 import os
@@ -104,7 +104,7 @@ def transfer_file_params_to_single_subject(ct):
     old_fp_path = join(ct.pr.pscripts_path, f"file_parameters_{ct.pr.name}.json")
     if isfile(old_fp_path):
         print("Transfering File-Parameters to single files...")
-        with open(old_fp_path, "r") as file:
+        with open(old_fp_path) as file:
             file_parameters = json.load(file, object_hook=type_json_hook)
             for obj_name in file_parameters:
                 if obj_name in ct.pr.all_meeg:
@@ -130,7 +130,7 @@ def convert_pandas_meta(func_pd, param_pd):
     configuration."""
     modules = func_pd["module"].unique()
     input_names = ["meeg", "fsmri", "group"]
-    configs = dict()
+    configs = {}
     for module_name in modules:
         module = basic_operations if module_name == "operations" else basic_plot
         module_dict = {
@@ -181,7 +181,7 @@ def convert_pandas_meta(func_pd, param_pd):
 
         for param_name, row in param_pd.iterrows():
             row_dict = row.to_dict()
-            eval_dict = dict()
+            eval_dict = {}
             for key, value in row_dict.items():
                 if key in ["default", "gui_args"]:
                     try:

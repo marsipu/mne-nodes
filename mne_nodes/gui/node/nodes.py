@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-import logging
-
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -12,7 +9,6 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList
-from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.gui.loading_widgets import AddFilesWidget, AddMRIWidget
 from mne_nodes.gui.node.base_node import BaseNode
 
@@ -70,11 +66,8 @@ class FunctionNode(BaseNode):
         super().__init__(ct, **kwargs)
         self.function = function
         self.name = function
-        self.func_meta = ct.function_metas.get(function, None)
-        if self.func_meta is None:
-            raise RuntimeError(
-                f"Function metadata for '{function}' not found in controller."
-            )
+        self.func_meta = ct.function_metas[function]
+        self.parameters = self.func_meta["parameters"]
 
         # Initialize inputs and outputs
         for input_name in self.func_meta["inputs"]:
@@ -85,42 +78,20 @@ class FunctionNode(BaseNode):
             self.add_output(
                 output_name, multi_connection=True, accepted_ports=[output_name]
             )
-
+        # Initialize the parameters
         widget = QGroupBox("Parameters")
         layout = QVBoxLayout(widget)
-        if len(self.parameters) > 5:
+        if len(self.func_meta["parameters"]) > 5:
             widget = QScrollArea()
             sub_widget = QWidget()
             layout = QVBoxLayout(sub_widget)
             widget.setWidget(sub_widget)
-
         for param_name in self.func_meta["parameters"]:
-            param_kwargs = self.ct.parameter_metas.get(param_name, None)
-            if param_kwargs is None:
-                raise RuntimeError(
-                    f"Parameter metadata for '{param_name}' not found in controller."
-                )
-            gui_name = param_kwargs.pop("gui", None)
-            if gui_name is None:
-                raise RuntimeError(
-                    f"Parameter '{param_name}' does not have a GUI defined in metadata."
-                )
-            gui = getattr(parameter_widgets, gui_name, None)
-            if gui is None:
-                raise RuntimeError(
-                    f"GUI widget '{gui_name}' for parameter '{param_name}' not found."
-                )
-            try:
-                parameter_gui = gui(data=self.ct, **param_kwargs)
-            except Exception:
-                err_tuple = get_exception_tuple()
-                logging.error(
-                    f"Initialization of Parameter-Widget for '{param_name}' "
-                    f"with {param_kwargs} failed:\n"
-                    f"{err_tuple[1]}"
-                )
-            else:
-                layout.addWidget(parameter_gui)
+            param_kwargs = self.ct.parameter_metas[param_name].copy()
+            gui_name = param_kwargs.pop("gui")
+            gui = getattr(parameter_widgets, gui_name)
+            parameter_gui = gui(data=self.ct, **param_kwargs)
+            layout.addWidget(parameter_gui)
         self.add_widget(widget)
 
     def to_dict(self):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from mne_nodes.gui.gui_utils import mouseDrag
 from qtpy.QtCore import Qt, QPointF
 

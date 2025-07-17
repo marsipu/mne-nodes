@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -34,23 +33,16 @@ gui_mode = True
 _logger = None
 
 # Default Settings/QSettings
-
+# ToDo: Next separate settings and enable loading them into parameters (e.g. n_jobs), finally make the node-test run
 default_device_settings = {
     "gui": 1,
-    "home_path": "",
     "n_jobs": -1,
     "n_parallel": 1,
     "use_qthread": 1,
     "save_ram": 1,
     "enable_cuda": 0,
-    "log_level": 20,
-    "education": 0,
     "fs_path": "",
     "mne_path": "",
-    "app_font": "Calibri",
-    "app_font_size": 10,
-    "app_style": "fusion",
-    "app_theme": "auto",
 }
 
 
@@ -175,7 +167,7 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
             'missing', if path hasn't been saved yet
     """
 
-    result_dict = dict()
+    result_dict = {}
     file_name = Path(path).name
     # Try to get the parameters relevant for the last function,
     # which altered the data at path
@@ -190,7 +182,7 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
         else:
             critical_params = [critical_params_str]
     except KeyError:
-        critical_params = list()
+        critical_params = []
         function = None
 
     if not target_parameters:
@@ -297,12 +289,11 @@ def _get_func_param_kwargs(func, params):
 
 
 class QS:
-    """
-    Unified settings handler that uses Qt's QSettings if available,
-    otherwise falls back to a JSON file in the user's home directory.
-    On initialization, checks for a Qt installation and sets the backend accordingly.
-    Since QSettings does not preserve types, the type is stored with the setting
-    in QSettings. Supported types are: int, float, str, bool
+    """Unified settings handler that uses Qt's QSettings if available, otherwise falls
+    back to a JSON file in the user's home directory. On initialization, checks for a Qt
+    installation and sets the backend accordingly. Since QSettings does not preserve
+    types, the type is stored with the setting in QSettings. Supported types are: int,
+    float, str, bool.
 
     Methods
     -------
@@ -349,7 +340,7 @@ class QS:
         if not hasattr(self, "settings"):
             self.settings = deepcopy(self.default_qsettings)
         if isfile(self.settings_path):
-            with open(self.settings_path, "r") as file:
+            with open(self.settings_path) as file:
                 self.settings = json.load(file)
         else:
             self.settings = deepcopy(self.default_qsettings)

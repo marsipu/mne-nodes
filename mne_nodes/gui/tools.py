@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -33,7 +32,7 @@ class HistoryDlg(QDialog):
     def __init__(self, dt):
         super().__init__(dt)
         self.dt = dt
-        self.checked = list()
+        self.checked = []
 
         self.init_ui()
         self.open()
@@ -71,7 +70,7 @@ class DataTerminal(QDialog):
         self.pr = main_win.ct.pr
 
         self.obj = current_object
-        self.history = list()
+        self.history = []
 
         self.default_t_globals = [
             "mw",

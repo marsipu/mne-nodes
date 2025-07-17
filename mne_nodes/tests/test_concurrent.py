@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -21,8 +20,8 @@ Github: https://github.com/marsipu/mne-nodes
 # def test_qprocess_worker(qtbot):
 #     commands = ['conda', 'quatsch']
 #     pw = QProcessWorker(commands, printtostd=False)
-#     output = list()
-#     errors = list()
+#     output = []
+#     errors = []
 #     pw.stdoutSignal.connect(lambda x: output.append(x))
 #     pw.stderrSignal.connect(lambda x: errors.append(x))
 #     pw.start()

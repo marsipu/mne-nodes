@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -118,7 +117,7 @@ class Base(QWidget):
         try:
             selected = [self.model.getData(idx) for idx in self.view.selectedIndexes()]
         except (KeyError, IndexError):
-            selected = list()
+            selected = []
 
         return selected
 
@@ -648,7 +647,7 @@ class BaseDict(Base):
 
     def _selected_keyvalue(self, indexes):
         try:
-            return set([self.get_keyvalue_by_index(idx) for idx in indexes])
+            return {self.get_keyvalue_by_index(idx) for idx in indexes}
         except TypeError:
             return [self.get_keyvalue_by_index(idx) for idx in indexes]
 
@@ -817,9 +816,7 @@ class EditDict(BaseDict):
         self.model.insertRow(row)
 
     def remove_row(self):
-        row_idxs = set(
-            [idx.row() for idx in self.view.selectionModel().selectedIndexes()]
-        )
+        row_idxs = {idx.row() for idx in self.view.selectionModel().selectedIndexes()}
         for row_idx in row_idxs:
             self.model.removeRow(row_idx)
 
@@ -891,14 +888,14 @@ class BasePandasTable(Base):
         data_list.append((data, row, column))
 
     def get_current(self):
-        current_list = list()
+        current_list = []
         self.get_rowcol_by_index(self.view.currentIndex(), current_list)
 
         return current_list
 
     def _current_changed(self, current_idx, previous_idx):
-        current_list = list()
-        previous_list = list()
+        current_list = []
+        previous_list = []
 
         self.get_rowcol_by_index(current_idx, current_list)
         self.get_rowcol_by_index(previous_idx, previous_list)
@@ -910,7 +907,7 @@ class BasePandasTable(Base):
     def get_selected(self):
         # Somehow, the indexes got from selectionChanged
         # don't appear to be right (maybe some issue with QItemSelection?).
-        selection_list = list()
+        selection_list = []
         for idx in self.view.selectedIndexes():
             self.get_rowcol_by_index(idx, selection_list)
 
@@ -936,7 +933,7 @@ class BasePandasTable(Base):
         clear_selection: bool | None
             Set True if you want to clear the selection before selecting.
         """
-        indexes = list()
+        indexes = []
         # Get indexes for matching items in pd_data
         # (even if there are multiple matches)
         if values:
@@ -1175,7 +1172,7 @@ class EditPandasTable(BasePandasTable):
 
     def remove_row(self):
         rows = sorted(
-            set([ix.row() for ix in self.view.selectionModel().selectedIndexes()]),
+            {ix.row() for ix in self.view.selectionModel().selectedIndexes()},
             reverse=True,
         )
         for row in rows:
@@ -1184,7 +1181,7 @@ class EditPandasTable(BasePandasTable):
 
     def remove_column(self):
         columns = sorted(
-            set([ix.column() for ix in self.view.selectionModel().selectedIndexes()]),
+            {ix.column() for ix in self.view.selectionModel().selectedIndexes()},
             reverse=True,
         )
         for column in columns:
@@ -1391,9 +1388,7 @@ class AssignWidget(QWidget):
 
     def items_selected(self, selected):
         # Get all unique values of selected items
-        values = set(
-            [self.assignments[key] for key in selected if key in self.assignments]
-        )
+        values = {self.assignments[key] for key in selected if key in self.assignments}
         self.props_w.select(values)
 
     def assign(self):

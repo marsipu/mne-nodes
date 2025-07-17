@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
@@ -100,7 +99,7 @@ class RunDialog(QDialog):
         view_layout.addWidget(self.func_view, 1, 1)
 
         view_layout.addWidget(QLabel("Errors: "), 0, 2)
-        self.error_widget = SimpleList(list())
+        self.error_widget = SimpleList([])
         self.error_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         # Connect Signal from error_widget to function
         # to enable inspecting the errors
@@ -223,8 +222,8 @@ class EditGuiArgsDlg(QDialog):
     def __init__(self, cf_dialog):
         super().__init__(cf_dialog)
         self.cf = cf_dialog
-        self.gui_args = dict()
-        self.default_gui_args = dict()
+        self.gui_args = {}
+        self.default_gui_args = {}
 
         if self.cf.current_parameter:
             covered_params = [
@@ -253,7 +252,7 @@ class EditGuiArgsDlg(QDialog):
             if pd.notna(loaded_gui_args):
                 self.gui_args = literal_eval(loaded_gui_args)
             else:
-                self.gui_args = dict()
+                self.gui_args = {}
 
             # Fill in all possible Options, which are not already changed
             for arg_key in [
@@ -344,10 +343,10 @@ class CustomFunctionImport(QDialog):
         self.exst_parameters += list(self.ct.settings.keys())
         self.exst_parameters += list(QS().childKeys())
         self.exst_parameters += list(self.ct.pr.parameters[self.ct.pr.p_preset].keys())
-        self.param_exst_dict = dict()
+        self.param_exst_dict = {}
 
         self.code_editor = None
-        self.code_dict = dict()
+        self.code_dict = {}
 
         # Get available parameter-guis
         self.available_param_guis = [
@@ -967,8 +966,8 @@ class CustomFunctionImport(QDialog):
 
     def guitype_cmbx_changed(self, idx):
         text = self.guitype_cmbx.itemText(idx)
-        gui_args = dict()
-        options = list()
+        gui_args = {}
+        options = []
 
         if self.current_parameter:
             # If ComboGui or CheckListGui, options have to be set:
@@ -1075,7 +1074,7 @@ class CustomFunctionImport(QDialog):
         # Test ParamGui with Value
         if gui_args is None:
             gui_args = {}
-        test_parameters = dict()
+        test_parameters = {}
         try:
             test_parameters[self.current_parameter] = literal_eval(default_string)
         except (ValueError, SyntaxError):
@@ -1424,7 +1423,7 @@ class TestParamGui(QDialog):
         super().__init__(cf_dialog)
         self.cf = cf_dialog
         # Dict as Replacement for Parameters in Project for Testing
-        self.test_parameters = dict()
+        self.test_parameters = {}
 
         default_string = self.cf.add_pd_params.loc[self.cf.current_parameter, "default"]
         gui_type = self.cf.add_pd_params.loc[self.cf.current_parameter, "gui_type"]
@@ -1517,7 +1516,7 @@ class SavePkgDialog(QDialog):
             ].index
             final_add_pd_funcs = self.cf_dialog.add_pd_funcs.drop(index=drop_funcs)
 
-            drop_params = list()
+            drop_params = []
             for param in self.cf_dialog.add_pd_params.index:
                 if not any(
                     [
@@ -1726,7 +1725,7 @@ class AddKwargs(QDialog):
         list_layout.addWidget(func_list)
 
         self.kwarg_dict = EditDict(
-            dict(),
+            {},
             title="Add Keyword-Arguments:",
             resize_rows=True,
             resize_columns=True,
@@ -1754,7 +1753,7 @@ class AddKwargs(QDialog):
         self.current_func = func_name
         # Add dict for func_name if not present
         if func_name not in self.ct.pr.add_kwargs:
-            self.ct.pr.add_kwargs[func_name] = dict()
+            self.ct.pr.add_kwargs[func_name] = {}
         # Give reference to this dictionary to the DictModel
         self.kwarg_dict.replace_data(self.ct.pr.add_kwargs[func_name])
 
