@@ -78,7 +78,8 @@ from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.pipeline.execution import Worker, WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
-from mne_nodes.pipeline.pipeline_utils import compare_filep, QS, logger
+from mne_nodes.pipeline.pipeline_utils import compare_filep
+from mne_nodes.pipeline.settings import QS
 
 
 def index_parser(index, all_items, groups=None):
@@ -778,7 +779,7 @@ class AddFilesWidget(QWidget):
                 self.pr.add_meeg(name, file_path, is_erm)
                 worker_signals.pgbar_n.emit(n + 1)
             else:
-                logger().info("Canceled Loading")
+                logging.info("Canceled Loading")
                 break
 
     def add_files_starter(self):
@@ -935,9 +936,9 @@ class AddMRIWidget(QWidget):
                     self.paths.update({fsmri: folder_path})
                     self.populate_list_widget()
                 else:
-                    logger().info(f"{fsmri} already existing in {self.ct.subjects_dir}")
+                    logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
             else:
-                logger().warning(
+                logging.warning(
                     "Selected Folder doesn't seem to " "be a Freesurfer-Segmentation"
                 )
 
@@ -957,9 +958,9 @@ class AddMRIWidget(QWidget):
                     self.folders.append(fsmri)
                     self.paths.update({fsmri: folder_path})
                 else:
-                    logger().info(f"{fsmri} already existing in {self.ct.subjects_dir}")
+                    logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
             else:
-                logger().warning(
+                logging.warning(
                     "Selected Folder doesn't seem to be " "a Freesurfer-Segmentation"
                 )
         self.populate_list_widget()
@@ -1791,7 +1792,7 @@ class FileManagment(QDialog):
             obj_pd = self.pd_group
             obj_pd_time = self.pd_group_time
             obj_pd_size = self.pd_group_size
-        logger().debug(f"Loading {kind}")
+        logging.debug(f"Loading {kind}")
 
         for obj_name in obj_list:
             if kind == "MEEG":
@@ -2352,7 +2353,7 @@ class ReloadRaw(QDialog):
         meeg = MEEG(selected_raw, self.ct)
         raw = mne.io.read_raw(raw_path, preload=True)
         meeg.save_raw(raw)
-        logger().info(f"Reloaded raw for {selected_raw}")
+        logging.info(f"Reloaded raw for {selected_raw}")
 
     def start_reload(self):
         # Not with partial because otherwise the clicked-arg
@@ -2429,18 +2430,18 @@ class ExportDialog(QDialog):
 
     def export_data(self):
         if self.dest_path:
-            logger().info("Starting Export\n")
+            logging.info("Starting Export\n")
             for meeg_name, path_types in self.export_paths.items():
                 os.mkdir(join(self.dest_path, meeg_name))
                 for path_type in [pt for pt in path_types if pt in self.selected_types]:
                     paths = path_types[path_type]
-                    logger().info(f"\r{meeg_name}: Copying {path_type}...")
+                    logging.info(f"\r{meeg_name}: Copying {path_type}...")
                     for src_path in paths:
                         dest_name = Path(src_path).name
                         shutil.copy2(
                             src_path, join(self.dest_path, meeg_name, dest_name)
                         )
-                    logger().info(f"\r{meeg_name}: Copied {path_type}!")
+                    logging.info(f"\r{meeg_name}: Copied {path_type}!")
 
         else:
             QMessageBox.warning(self, "Ups!", "Destination-Path not set!")

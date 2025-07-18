@@ -27,12 +27,8 @@ from mne_nodes.pipeline.legacy import (
     transfer_file_params_to_single_subject,
     convert_pandas_meta,
 )
-from mne_nodes.pipeline.pipeline_utils import (
-    QS,
-    logger,
-    type_json_hook,
-    TypedJSONEncoder,
-)
+from mne_nodes.pipeline.pipeline_utils import type_json_hook, TypedJSONEncoder
+from mne_nodes.pipeline.settings import QS
 from mne_nodes.pipeline.project import Project
 
 home_dirs = ["custom_packages", "freesurfer", "projects"]
@@ -58,15 +54,13 @@ class OldController:
             raise RuntimeError(f"{self.home_path} not writable!")
 
         # Initialize log-file
-        self.logging_path = join(self.home_path, "_pipeline.log")
-        file_handlers = [h for h in logger().handlers if h.name == "file"]
-        if len(file_handlers) > 0:
-            logger().removeHandler(file_handlers[0])
-        file_handler = logging.FileHandler(self.logging_path, "w")
+        logger = logging.getLogger()
+        logging_path = QS.value("log_file_path") or join(Path.home() / "mne_nodes.log")
+        file_handler = logging.FileHandler(logging_path, "w")
         file_handler.set_name("file")
-        logger().addHandler(file_handler)
+        logger.addHandler(file_handler)
 
-        logger().info(f"Home-Path: {self.home_path}")
+        logging.info(f"Home-Path: {self.home_path}")
         QS().setValue("home_path", self.home_path)
         # Create subdirectories if not existing for a valid home_path
         for subdir in [d for d in home_dirs if not isdir(join(self.home_path, d))]:
@@ -185,7 +179,7 @@ class OldController:
             with open(join(self.home_path, "mne_nodes-settings.json"), "w") as file:
                 json.dump(self.settings, file, indent=4)
         except FileNotFoundError:
-            logger().warning("Settings could not be saved!")
+            logging.warning("Settings could not be saved!")
 
         # Sync QSettings with other instances
         QS().sync()
@@ -203,7 +197,7 @@ class OldController:
         self.settings["selected_project"] = new_project
         if new_project not in self.projects:
             self.projects.append(new_project)
-        logger().info(f"Selected-Project: {self.pr.name}")
+        logging.info(f"Selected-Project: {self.pr.name}")
         # Legacy
         transfer_file_params_to_single_subject(self)
 
@@ -225,7 +219,7 @@ class OldController:
             shutil.rmtree(join(self.projects_path, project))
         except OSError as error:
             print(error)
-            logger().warning(
+            logging.warning(
                 f"The folder of {project} can't be deleted "
                 f"and has to be deleted manually!"
             )
@@ -244,7 +238,7 @@ class OldController:
                     self.pr.rename(new_project_name)
                 except PermissionError:
                     # ToDo: Warning-Function for GUI with dialog and non-GUI
-                    logger().critical(
+                    logging.critical(
                         f"Can't rename {old_name} to {new_project_name}. "
                         f"Probably a file from inside the project is still opened. "
                         f"Please close all files and try again."
@@ -253,7 +247,7 @@ class OldController:
                     self.projects.remove(old_name)
                     self.projects.append(new_project_name)
         else:
-            logger().warning(
+            logging.warning(
                 "The project-folder seems to be not writable at the moment, "
                 "maybe some files inside are still in use?"
             )
@@ -414,7 +408,7 @@ class OldController:
 
             else:
                 missing_files = [key for key in file_dict if file_dict[key] is None]
-                logger().warning(
+                logging.warning(
                     f"Files for import of {pkg_name} " f"are missing: {missing_files}"
                 )
 
@@ -849,7 +843,7 @@ class Controller:
         try:
             module = import_module(module_name, package=pkg_name)
         except ModuleNotFoundError:
-            logger().error(f"Module {module_name} not found in {pkg_path}].")
+            logging.error(f"Module {module_name} not found in {pkg_path}].")
         else:
             self._modules[module_name] = module
         # Load the config file for the basic module
@@ -902,7 +896,7 @@ class Controller:
             try:
                 os.remove(bytecode_file)
             except Exception as e:
-                logger().warning(f"Error clearing bytecode cache: {e}")
+                logging.warning(f"Error clearing bytecode cache: {e}")
 
             # Import the module again
             new_module = import_module(module_name)

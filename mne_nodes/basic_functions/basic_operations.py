@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import gc
+import logging
 import os
 import shutil
 import subprocess
@@ -26,11 +27,9 @@ from mne_nodes.pipeline.loading import MEEG, FSMRI
 from mne_nodes.pipeline.pipeline_utils import (
     check_kwargs,
     compare_filep,
-    ismac,
-    iswin,
     get_n_jobs,
-    logger,
 )
+from mne_nodes import ismac, iswin
 
 
 # Todo: Create docstrings for each function
@@ -51,7 +50,7 @@ def find_bads(meeg, n_jobs, **kwargs):
     noisy_chs, flat_chs = find_bad_channels_maxwell(
         raw, coord_frame=coord_frame, **kwargs
     )
-    logger().info(f"Noisy channels: {noisy_chs}\n" f"Flat channels: {flat_chs}")
+    logging.info(f"Noisy channels: {noisy_chs}\n" f"Flat channels: {flat_chs}")
     raw.info["bads"] = noisy_chs + flat_chs + raw.info["bads"]
     meeg.set_bad_channels(raw.info["bads"])
     meeg.save_raw(raw)
@@ -1200,7 +1199,7 @@ def morph_fsmri(meeg, morph_to):
         )
         meeg.save_source_morph(morph)
     else:
-        logger().info(
+        logging.info(
             f"There is no need to morph the source-space for {meeg.name}, "
             f'because the morph-destination "{morph_to}" '
             f"is the same as the associated FSMRI."
@@ -1492,7 +1491,7 @@ def apply_morph(meeg, morph_to):
             morphed_stcs[trial] = morph.apply(stcs[trial])
         meeg.save_morphed_source_estimates(morphed_stcs)
     else:
-        logger().info(
+        logging.info(
             f"{meeg.name} is already in source-space of {morph_to} "
             f"and won't be morphed"
         )

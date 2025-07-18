@@ -1,18 +1,17 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-import pytest
+import logging
 
-from mne_nodes.pipeline.pipeline_utils import logger
+import pytest
 
 
 def _test_load_save(obj, available_test_paths, excepted_data_types=[]):
     for data_type in [d for d in obj.io_dict if d not in excepted_data_types]:
-        logger().info(f"Testing {data_type}")
+        logging.info(f"Testing {data_type}")
         if data_type not in available_test_paths:
             with pytest.raises((OSError, FileNotFoundError)):
                 obj.load(data_type)

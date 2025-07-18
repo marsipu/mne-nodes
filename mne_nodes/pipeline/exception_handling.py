@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import logging
 import multiprocessing
 import sys
@@ -13,10 +13,9 @@ from contextlib import contextmanager
 from PySide6.QtCore import QObject, Signal
 
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
-from mne_nodes.pipeline.pipeline_utils import logger
 
 
-class ExceptionTuple(object):
+class ExceptionTuple:
     def __init__(self, *args):
         self._data = [*args]
 
@@ -36,7 +35,7 @@ def get_exception_tuple(is_mp=False):
     traceback_str = traceback.format_exc(limit=-10)
     # ToDo: Is this doing what it's supposed to do?
     if is_mp:
-        logger = multiprocessing.get_logger()
+        logger = multiprocessing.get_logging
     else:
         logger = logging.getLogger()
     logger.error(f"{exctype}: {value}")
@@ -73,7 +72,7 @@ class UncaughtHook(QObject):
     _exception_caught = Signal(object)
 
     def __init__(self, *args, **kwargs):
-        super(UncaughtHook, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         # connect signal to execute the message box function
         # always on main thread
@@ -95,7 +94,7 @@ class UncaughtHook(QObject):
                 exc_value,
                 "".join(traceback.format_tb(exc_traceback)),
             )
-            logger().critical(
+            logging.critical(
                 "Uncaught exception:",
                 exc_info=exc_info,
             )

@@ -30,7 +30,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes import _object_refs
+from mne_nodes import _object_refs, ismac, iswin
 from mne_nodes.gui.dialogs import (
     QuickGuide,
     RawInfo,
@@ -82,11 +82,9 @@ from mne_nodes.pipeline.execution import WorkerDialog, QProcessDialog
 from mne_nodes.pipeline.function_utils import close_all
 from mne_nodes.pipeline.pipeline_utils import (
     restart_program,
-    ismac,
-    QS,
     _run_from_script,
-    iswin,
 )
+from mne_nodes.pipeline.settings import QS
 
 
 class MainWindow(QMainWindow):

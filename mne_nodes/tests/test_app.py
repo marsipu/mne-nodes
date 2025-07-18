@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import mne_nodes
+
 
 def test_headless_run():
     import sys
     from mne_nodes.__main__ import main
-    from mne_nodes.pipeline import pipeline_utils
 
     # Simulate command line arguments for headless run
     sys.argv = ["mne-nodes", "--headless"]
@@ -18,7 +18,7 @@ def test_headless_run():
     main()
 
     # Check if the application is running in headless mode
-    assert pipeline_utils.gui_mode is False
+    assert mne_nodes.gui_mode is False
 
 
 def test_legacy_import_check(monkeypatch):

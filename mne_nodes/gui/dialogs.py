@@ -4,6 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 from collections import Counter
 from importlib import resources
 from pathlib import Path
@@ -28,7 +29,6 @@ from mne_nodes.gui.base_widgets import SimpleList, SimpleDialog
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.pipeline_utils import logger
 from mne_nodes.pipeline.project import Project
 
 
@@ -445,4 +445,4 @@ def show_error_dialog(exc_str):
     if QApplication.instance() is not None:
         ErrorDialog(exc_str, title="A unexpected error occurred")
     else:
-        logger().debug("No QApplication instance available.")
+        logging.debug("No QApplication instance available.")

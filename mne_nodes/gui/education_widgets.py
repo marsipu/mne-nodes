@@ -30,7 +30,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.base_widgets import CheckDictEditList, CheckList
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
-from mne_nodes.pipeline.pipeline_utils import QS
+from mne_nodes.pipeline.settings import QS
 
 
 class EducationTour(QWizard):

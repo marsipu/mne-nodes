@@ -4,6 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 from functools import partial
 from importlib import import_module
 from os.path import join, isfile
@@ -33,8 +34,6 @@ from qtpy.QtWidgets import (
     QToolBar,
     QSpinBox,
 )
-
-from mne_nodes.pipeline.pipeline_utils import logger
 
 try:
     from mne.viz import Figure3D
@@ -112,7 +111,7 @@ class PlotManager(QMainWindow):
             elif isinstance(subplot, Figure3D):
                 plot_widget = subplot
             else:
-                logger().error(
+                logging.error(
                     f'Unrecognized type "{type(subplot)}" ' f'for "{func_name}"'
                 )
                 plot_widget = QWidget()
@@ -318,7 +317,7 @@ class PlotViewSelection(QDialog):
                             self.thread_error(err_tuple, o_name, ppreset, "plot")
 
                         worker.signals.error.connect(error_func)
-                        logger().info(
+                        logging.info(
                             f"Starting Thread for Object= {obj_name} "
                             f"and Parameter-Preset= {p_preset}"
                         )

@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 from os.path import join, isfile
 
 from PySide6.QtWidgets import QMessageBox
 
 from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.pipeline_utils import init_logging
 
 
 def test_init(monkeypatch, tmp_path):
@@ -23,6 +24,8 @@ def test_init(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "qtpy.QtWidgets.QFileDialog.getExistingDirectory", lambda x, y: tmp_path
     )
+
+    init_logging()
 
     # Initialize the controller in gui mode
     Controller()
@@ -50,13 +53,12 @@ def test_module_import(tmp_path, controller, custom_module):
     assert "test" in controller._modules, "Custom module should be imported"
 
     # Test custom module reload
-    original_func = controller.modules["test"].test_func
-    print(f"Original function: {original_func} at {id(original_func)}")
+    original_func = controller.modules["test"].test_func1
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
     test_script_path = tmp_path / "test_module" / "test.py"
-    new_test_code = "def test_func(a):\n    return a ** 3\n"
+    new_test_code = "def test_func1(a):\n    return a ** 3\n"
     with open(test_script_path, "w") as f:
         f.write(new_test_code)
 
@@ -64,8 +66,6 @@ def test_module_import(tmp_path, controller, custom_module):
     controller.reload_modules()
 
     # Get a new reference to the function
-    new_func = controller.modules["test"].test_func
+    new_func = controller.modules["test"].test_func1
     print(f"New function: {new_func} at {id(new_func)}")
     assert new_func(2) == 8, "New function reference should return updated value"
-
-    pass

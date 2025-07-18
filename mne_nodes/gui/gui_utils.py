@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import json
+import logging
 import os
 import sys
 from functools import partial
@@ -12,10 +13,7 @@ from importlib import resources
 from os.path import join
 
 import darkdetect
-from qtpy.QtCore import (
-    Qt,
-    QEvent,
-)
+from qtpy.QtCore import Qt, QEvent
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -34,10 +32,11 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 
+import mne_nodes
 from mne_nodes import _object_refs
 from mne_nodes import extra
-from mne_nodes.pipeline import pipeline_utils
-from mne_nodes.pipeline.pipeline_utils import QS, logger, is_test
+from mne_nodes.pipeline.pipeline_utils import is_test
+from mne_nodes.pipeline.settings import QS
 
 # Load theme colors
 theme_color_path = join(str(resources.files(extra)), "color_themes.json")
@@ -77,7 +76,7 @@ def get_std_icon(icon_name):
 
 def ask_user(prompt):
     """Ask the user a question and return the answer (yes or no)."""
-    if pipeline_utils.gui_mode:
+    if mne_nodes.gui_mode:
         parent = QApplication.activeWindow()
         ans = QMessageBox.question(
             parent,
@@ -102,11 +101,11 @@ def ask_user(prompt):
     else:
         warning_message = None
     if warning_message is not None:
-        if pipeline_utils.gui_mode:
+        if mne_nodes.gui_mode:
             parent = QApplication.activeWindow()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
-            logger().warning(warning_message)
+            logging.warning(warning_message)
         return ask_user(prompt)
 
     return ans
@@ -137,7 +136,7 @@ def get_user_input(prompt, input_type="string", file_filter=None):
         If `input_type` is not "string" or "path".
     """
     type_error_message = f"input_type must be 'string' or 'path', not '{input_type}'"
-    if pipeline_utils.gui_mode:
+    if mne_nodes.gui_mode:
         parent = QApplication.activeWindow()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
@@ -188,11 +187,11 @@ def get_user_input(prompt, input_type="string", file_filter=None):
     else:
         warning_message = None
     if warning_message is not None:
-        if pipeline_utils.gui_mode:
+        if mne_nodes.gui_mode:
             parent = QApplication.activeWindow()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
-            logger().warning(warning_message)
+            logging.warning(warning_message)
         return get_user_input(prompt, input_type)
 
     return user_input
@@ -338,7 +337,7 @@ def get_palette(theme):
 def _get_auto_theme():
     system_theme = darkdetect.theme().lower()
     if system_theme is None:
-        logger().info("System theme detection failed. Using light theme.")
+        logging.info("System theme detection failed. Using light theme.")
         system_theme = "light"
     return system_theme
 

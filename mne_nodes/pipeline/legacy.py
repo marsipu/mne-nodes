@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import json
+import logging
 import math
 import os
 import re
@@ -16,7 +17,7 @@ from os.path import isdir, join, isfile
 
 from mne_nodes.basic_functions import basic_operations, basic_plot
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
-from mne_nodes.pipeline.pipeline_utils import type_json_hook, logger
+from mne_nodes.pipeline.pipeline_utils import type_json_hook
 
 renamed_parameters = {
     "filter_target": {"Raw": "raw", "Epochs": "epochs", "Evoked": "evoked"},
@@ -89,7 +90,7 @@ def legacy_import_check(test_package=None):
                 try:
                     install_package(install_name)
                 except subprocess.CalledProcessError:
-                    logger().critical("Installation failed!")
+                    logging.critical("Installation failed!")
                 else:
                     return
             print(

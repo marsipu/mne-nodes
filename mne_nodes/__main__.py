@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
+
 import argparse
+import logging
 import os
 import sys
 
@@ -12,21 +13,14 @@ import qtpy
 from qtpy.QtCore import QTimer, Qt
 from qtpy.QtWidgets import QApplication
 
-from mne_nodes.gui.gui_utils import (
-    set_app_font,
-    set_app_theme,
-)
-from mne_nodes.pipeline.exception_handling import UncaughtHook
+import mne_nodes
+from mne_nodes import ismac, islin
 from mne_nodes.gui.console import StdoutStderrStream
+from mne_nodes.gui.gui_utils import set_app_font, set_app_theme
 from mne_nodes.gui.welcome_window import WelcomeWindow
-from mne_nodes.pipeline import pipeline_utils
+from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
-from mne_nodes.pipeline.pipeline_utils import (
-    ismac,
-    islin,
-    init_logging,
-    logger,
-)
+from mne_nodes.pipeline.pipeline_utils import init_logging
 
 app_name = "mne-nodes"
 organization_name = "marsipu"
@@ -43,9 +37,9 @@ def main():
     debug_mode = os.environ.get("MNEPHD_DEBUG", False) == "true"
     init_logging(debug_mode)
 
-    logger().info("Starting MNE-Pipeline HD")
+    logging.info("Starting MNE-Pipeline HD")
 
-    if pipeline_utils.gui_mode:
+    if mne_nodes.gui_mode:
         # Enable High-DPI
         if hasattr(Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps"):
             QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
@@ -86,11 +80,11 @@ def main():
             qt_version = qtpy.PYQT_VERSION
         else:
             qt_version = qtpy.PYSIDE_VERSION
-        logger().info(f"Using {qtpy.API_NAME} {qt_version}")
+        logging.info(f"Using {qtpy.API_NAME} {qt_version}")
 
         # Initialize Exception-Hook
         if debug_mode:
-            logger().info("Debug-Mode is activated")
+            logging.info("Debug-Mode is activated")
         else:
             qt_exception_hook = UncaughtHook()
             sys.excepthook = qt_exception_hook.exception_hook
@@ -110,7 +104,7 @@ def main():
         sys.exit(app.exec())
     else:
         # Headless mode (no gui)
-        logger().info("Started in headless mode (no gui).")
+        logging.info("Started in headless mode (no gui).")
         # ToDo: Implement headless functionality
 
 
@@ -128,6 +122,6 @@ if __name__ == "__main__":
     cli_args = parser.parse_args(sys.argv[1:])
 
     if cli_args.nogui:
-        pipeline_utils.gui_mode = False
+        mne_nodes.gui_mode = False
 
     main()

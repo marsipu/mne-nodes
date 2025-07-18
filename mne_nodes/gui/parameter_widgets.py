@@ -4,6 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 from ast import literal_eval
 from copy import copy
 from functools import partial
@@ -40,7 +41,7 @@ from qtpy.QtWidgets import (
 from vtkmodules.vtkCommonCore import vtkCommand
 from vtkmodules.vtkRenderingCore import vtkCellPicker
 
-from mne_nodes import _object_refs
+from mne_nodes import _object_refs, iswin
 from mne_nodes.gui.base_widgets import (
     CheckList,
     EditDict,
@@ -61,7 +62,7 @@ from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI
-from mne_nodes.pipeline.pipeline_utils import QS, iswin, logger
+from mne_nodes.pipeline.settings import QS
 
 
 # ToDo: Unify None-select and more
@@ -263,7 +264,7 @@ class Param(QWidget):
         if not self.none_select:
             if self.data_type != "multiple":
                 if not isinstance(data, self.data_type):
-                    logger().warning(
+                    logging.warning(
                         f"Data for {self.name} has to be of type {self.data_type}, "
                         f"but is of type {type(data)} instead!"
                     )
@@ -694,7 +695,7 @@ class ComboGui(Param):
                     value = self.default
                 else:
                     value = options[0]
-                logger().warning(
+                logging.warning(
                     f"{old_value} not in options for {self.name}, set to {value}."
                 )
         if isinstance(self.options, dict):
@@ -1222,7 +1223,7 @@ class MultiTypeGui(Param):
         try:
             old_widget.widget().deleteLater()
         except RuntimeError:
-            logger().debug("Old widget already deleted")
+            logging.debug("Old widget already deleted")
         del old_widget, self.param_widget
 
         self.param_type = self.types[type_idx]

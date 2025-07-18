@@ -141,14 +141,23 @@ def custom_module(tmp_path, test_code):
         "module_alias": "test_module",
         "functions": {
             "test_func": {
-                "alias": "test_func",
+                "alias": "test_func1",
                 "group": "Test",
                 "module": "test_module",
                 "thread-safe": True,
                 "plot": False,
                 "inputs": ["a"],
                 "outputs": ["a_squared"],
-            }
+            },
+            "test_func2": {
+                "alias": "test_func2",
+                "group": "Test",
+                "module": "test_module",
+                "thread-safe": True,
+                "plot": False,
+                "inputs": ["b"],
+                "outputs": ["b_plus_one"],
+            },
         },
         "parameters": {
             "a": {
@@ -159,7 +168,16 @@ def custom_module(tmp_path, test_code):
                 "description": "This is a test parameter",
                 "gui": "IntGui",
                 "gui_args": {"min_val": 0},
-            }
+            },
+            "b": {
+                "alias": "B",
+                "Group": "Test",
+                "default": 3,
+                "unit": "s",
+                "description": "This is another test parameter",
+                "gui": "FloatGui",
+                "gui_args": {"min_val": 0.0},
+            },
         },
     }
     test_config_path = pkg_path / "test_config.json"

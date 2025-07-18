@@ -25,7 +25,7 @@ from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.pipeline_utils import QS
+from mne_nodes.pipeline.settings import QS
 
 
 class HistoryDlg(QDialog):

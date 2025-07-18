@@ -7,6 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import gc
 import inspect
 import io
+import logging
 import sys
 from collections import OrderedDict
 from importlib import import_module
@@ -20,7 +21,9 @@ from mne_nodes.gui.base_widgets import TimedMessageBox
 from mne_nodes.pipeline.exception_handling import ExceptionTuple, get_exception_tuple
 from mne_nodes.pipeline.execution import Worker
 from mne_nodes.pipeline.loading import BaseLoading, FSMRI, Group, MEEG
-from mne_nodes.pipeline.pipeline_utils import shutdown, ismac, QS, logger
+from mne_nodes.pipeline.pipeline_utils import shutdown
+from mne_nodes import ismac
+from mne_nodes.pipeline.settings import QS
 
 
 class StreamManager:
@@ -275,14 +278,14 @@ class RunController:
 
     def finished(self):
         for name, func, error in self.errors:
-            logger().critical(f"Error in {name} <- {func}: {error}")
+            logging.critical(f"Error in {name} <- {func}: {error}")
 
     def prepare_start(self):
         # Take first step of all_steps until there are no steps left.
         if len(self.all_steps) > 0:
             # Getting information as encoded in init_lists
             self.current_obj_name, self.current_func = self.all_steps.pop(0)
-            logger().debug(
+            logging.debug(
                 f"Running {self.current_func} for " f"{self.current_obj_name}"
             )
             # Get current object
@@ -311,7 +314,7 @@ class RunController:
             kwds = {}
             kwds["func"] = get_func(self.current_func, self.current_object)
             kwds["keywargs"] = get_arguments(kwds["func"], self.current_object)
-            logger().info(
+            logging.info(
                 f"########################################\n"
                 f"Running {self.current_func} for {self.current_obj_name}\n"
                 f"########################################\n"
@@ -447,19 +450,19 @@ class QRunController(RunController):
                 or (ismpl and show_plots and use_qthread)
                 or (ismpl and not show_plots and use_qthread and ismac)
             ):
-                logger().info("Starting in Main-Thread.")
+                logging.info("Starting in Main-Thread.")
                 result = run_func(**kwds)
                 self.process_finished(result)
 
             elif QS().value("use_qthread"):
-                logger().info("Starting in separate Thread.")
+                logging.info("Starting in separate Thread.")
                 worker = Worker(function=run_func, **kwds)
                 worker.signals.error.connect(self.process_finished)
                 worker.signals.finished.connect(self.process_finished)
                 QThreadPool.globalInstance().start(worker)
 
             else:
-                logger().info("Starting in process from multiprocessing.")
+                logging.info("Starting in process from multiprocessing.")
                 recv_pipe, send_pipe = Pipe(False)
                 kwds["pipe"] = send_pipe
                 stream_rcv = StreamReceiver(recv_pipe)

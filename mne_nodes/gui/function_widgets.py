@@ -61,7 +61,7 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.gui.models import CustomFunctionModel, RunModel
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.function_utils import QRunController
-from mne_nodes.pipeline.pipeline_utils import QS
+from mne_nodes.pipeline.settings import QS
 
 
 class RunDialog(QDialog):

@@ -27,7 +27,7 @@ from mne_nodes.gui.gui_utils import center, get_user_input
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.execution import WorkerDialog
-from mne_nodes.pipeline.pipeline_utils import QS
+from mne_nodes.pipeline.settings import QS
 
 
 class WelcomeWindow(QWidget):
