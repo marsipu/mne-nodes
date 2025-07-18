@@ -21,7 +21,7 @@ try:
 except (ModuleNotFoundError, ValueError):
     pass
 
-from mne_nodes.basic_functions import basic_operations as op
+from mne_nodes.basic_operations import basic_operations as op
 
 
 # ==============================================================================
@@ -55,8 +55,7 @@ def plot_raw(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
     if hasattr(fig, "canvas"):
         # Connect to closing of Matplotlib-Figure
         fig.canvas.mpl_connect(
-            "close_event",
-            partial(close_func, meeg=meeg, raw=raw, raw_type="raw"),
+            "close_event", partial(close_func, meeg=meeg, raw=raw, raw_type="raw")
         )
     else:
         # Connect to closing of PyQt-Figure
@@ -78,8 +77,8 @@ def plot_filtered(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
         events=events,
         bad_color="red",
         scalings="auto",
-        title=f'{meeg.name} highpass={meeg.pa["highpass"]} '
-        f'lowpass={meeg.pa["lowpass"]}',
+        title=f"{meeg.name} highpass={meeg.pa['highpass']} "
+        f"lowpass={meeg.pa['lowpass']}",
         show=show_plots,
         **kwargs,
     )
@@ -202,9 +201,7 @@ def plot_tfr(meeg, show_plots):
     else:
         for itc in itcs:
             fig5 = itc.plot(
-                title=f"{meeg.name}-{itc.comment}-itc",
-                combine="mean",
-                show=show_plots,
+                title=f"{meeg.name}-{itc.comment}-itc", combine="mean", show=show_plots
             )
             meeg.plot_save(
                 "time_frequency",
@@ -731,13 +728,7 @@ def plot_animated_stc(
 
 
 def plot_labels(
-    fsmri,
-    target_labels,
-    label_colors,
-    stc_hemi,
-    stc_surface,
-    stc_views,
-    backend_3d,
+    fsmri, target_labels, label_colors, stc_hemi, stc_surface, stc_views, backend_3d
 ):
     with mne.viz.use_3d_backend(backend_3d):
         Brain = mne.viz.get_brain_class()
@@ -782,7 +773,7 @@ def plot_ecd(meeg):
             print(
                 f"Highest GOF {dipole.gof[best_idx]:.2f}% at "
                 f"t={best_time * 1000:.1f} ms with confidence volume"
-                f'{dipole.conf["vol"][best_idx] * 100 ** 3} cm^3'
+                f"{dipole.conf['vol'][best_idx] * 100**3} cm^3"
             )
 
             mri_pos = mne.head_to_mri(
@@ -795,8 +786,7 @@ def plot_ecd(meeg):
                 "ECD",
                 dipole,
                 trial,
-                f"{meeg.name}-{trial}_{meeg.pr.p_preset}_"
-                f"ECD-{dipole}{meeg.img_format}",
+                f"{meeg.name}-{trial}_{meeg.pr.p_preset}_ECD-{dipole}{meeg.img_format}",
             )
             t1_path = join(meeg.subjects_dir, meeg.fsmri.name, "mri", "T1.mgz")
             plot_anat(
@@ -834,9 +824,7 @@ def plot_label_time_course(meeg, label_colors, show_plots):
     ltcs = meeg.load_ltc()
     for trial in ltcs:
         plt.figure()
-        plt.title(
-            f"{meeg.name}-{trial}\n" f'Extraction-Mode: {meeg.pa["extract_mode"]}'
-        )
+        plt.title(f"{meeg.name}-{trial}\nExtraction-Mode: {meeg.pa['extract_mode']}")
         plt.xlabel("Time in s")
         plt.ylabel("Source amplitude")
         for label_name, data in ltcs[trial].items():
@@ -1098,7 +1086,7 @@ def plot_grand_avg_ltc(group, label_colors, show_plots):
         plt.figure()
         plt.title(
             f"Label-Time-Course for {group.name}-{trial}\n"
-            f'with Extraction-Mode: {group.pa["extract_mode"]}'
+            f"with Extraction-Mode: {group.pa['extract_mode']}"
         )
         plt.xlabel("Time in ms")
         plt.ylabel("Source amplitude")
@@ -1112,10 +1100,6 @@ def plot_grand_avg_ltc(group, label_colors, show_plots):
         group.plot_save("ga_label-time-course", trial=trial)
 
 
-def plot_grand_avg_connect(
-    group,
-    label_colors,
-    show_plots,
-):
+def plot_grand_avg_connect(group, label_colors, show_plots):
     con_dict = group.load_ga_con()
     _plot_connectivity(group, con_dict, label_colors, show_plots)

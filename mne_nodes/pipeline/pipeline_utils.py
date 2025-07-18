@@ -5,42 +5,15 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import inspect
-import json
 import logging
 import multiprocessing
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
-import numpy as np
 import psutil
 
 from mne_nodes import ismac, iswin, islin
-from mne_nodes.pipeline.settings import QS
-
-
-def init_logging(debug_mode=False):
-    # Initialize Root Logger
-    logger = logging.getLogger()
-    if debug_mode:
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(QS().value("log_level", defaultValue=logging.INFO))
-    # Format console handler
-    fmt = "{asctime} [{levelname}] {module}.{funcName}(): {message}"
-    date_fmt = "%H:%M:%S"
-    formatter = logging.Formatter(fmt, date_fmt, style="{")
-    console_handler = logging.StreamHandler()
-    console_handler.set_name("console")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    # Format file handler
-    logging_path = QS().value("log_file_path") or Path.home() / "mne_nodes.log"
-    file_handler = logging.FileHandler(logging_path, mode="w", encoding="utf-8")
-    file_handler.set_name("file")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
 
 def get_n_jobs(n_jobs):
@@ -53,69 +26,9 @@ def get_n_jobs(n_jobs):
     return n_cores
 
 
-def encode_tuples(input_dict):
-    """Encode tuples in a dictionary, because JSON does not recognize them (CAVE:
-
-    input_dict is changed in place)
-    """
-    for key, value in input_dict.items():
-        if isinstance(value, dict):
-            encode_tuples(value)
-        else:
-            if isinstance(value, tuple):
-                input_dict[key] = {"tuple_type": value}
-
-
-datetime_format = "%d.%m.%Y %H:%M:%S"
-
-
-class TypedJSONEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, np.integer):
-            return int(o)
-        elif isinstance(o, np.floating):
-            return float(o)
-        # Only onedimensional arrays are supported
-        elif isinstance(o, np.ndarray):
-            return {"numpy_array": o.tolist()}
-        elif isinstance(o, datetime):
-            return {"datetime": o.strftime(datetime_format)}
-        elif isinstance(o, set):
-            return {"set_type": list(o)}
-        elif isinstance(o, Path):
-            return {"path_type": str(o)}
-        else:
-            return super().default(o)
-
-    def encode(self, o):
-        # Also encode tuples (not captured by default())
-        o = {k: {"tuple_type": v} if isinstance(v, tuple) else v for k, v in o.items()}
-        return super().encode(o)
-
-
-def type_json_hook(obj):
-    if "numpy_int" in obj.keys():
-        return obj["numpy_int"]
-    elif "numpy_float" in obj.keys():
-        return obj["numpy_float"]
-    # Only onedimensional arrays are supported
-    elif "numpy_array" in obj.keys():
-        return np.asarray(obj["numpy_array"])
-    elif "datetime" in obj.keys():
-        return datetime.strptime(obj["datetime"], datetime_format)
-    elif "tuple_type" in obj.keys():
-        return tuple(obj["tuple_type"])
-    elif "set_type" in obj.keys():
-        return set(obj["set_type"])
-    elif "path_type" in obj.keys():
-        return Path(obj["path_type"])
-    else:
-        return obj
-
-
 def compare_filep(obj, path, target_parameters=None, verbose=True):
-    """Compare the parameters of the previous run to the current parameters for the
-    given path.
+    """Compare the parameters of the previous run to the current parameters for
+    the given path.
 
     Parameters
     ----------
@@ -237,7 +150,8 @@ def shutdown():
 
 
 def restart_program():
-    """Restarts the current program, with file objects and descriptors cleanup."""
+    """Restarts the current program, with file objects and descriptors
+    cleanup."""
     logging.info("Restarting")
     try:
         p = psutil.Process(os.getpid())
@@ -267,3 +181,28 @@ def is_test():
 
 def _run_from_script():
     return "__main__.py" in sys.argv[0]
+
+
+def change_file_section(file_path, section, new_content):
+    """Modifies a specified section of a file with new content.
+
+    This function reads a file and alters a defined range of lines, specified
+    by the section parameter, with the provided new content. It then writes
+    the modified lines back to the original file.
+
+    Parameters
+    ----------
+    file_path : str
+        The path to the file to be modified.
+    section : tuple[int, int]
+        A tuple indicating the start and end line indices (0-based, inclusive of
+        start and exclusive of end) defining the section of the file to be replaced.
+    new_content : str
+        The new string content to replace the specified section of the file.
+    """
+    with open(file_path) as file:
+        lines = file.readlines()
+    start, end = section
+    lines[start:end] = new_content.splitlines(keepends=True)
+    with open(file_path, "w") as file:
+        file.writelines(lines)

@@ -1951,6 +1951,30 @@
             "description": "Set frequencies for Notch filtering",
             "gui": "FuncGui",
             "gui_args": null
+        },
+        "n_jobs": {
+            "alias": "Number of jobs for multiprocessing",
+            "group": "General",
+            "default": -1,
+            "unit": null,
+            "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+            "gui": "MultiTypeGui",
+            "gui_args": {
+                "type_selection": true,
+                "types": [
+                    "int",
+                    "combo"
+                ],
+                "type_kwargs": {
+                    "int": {
+                        "min_val": -1,
+                        "special_value_text": "auto"
+                    },
+                    "combo": {
+                        "options": ["cuda"]
+                    }
+                }
+            }
         }
     }
 }

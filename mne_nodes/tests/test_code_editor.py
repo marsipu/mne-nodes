@@ -27,7 +27,7 @@ def test_load_save(qtbot, tmp_path, test_script):
     assert saved_content == original_code + new_code
 
 
-def test_insert_code(qtbot, tmp_path, test_code, test_script):
+def test_insert_code(qtbot, tmp_path, test_code, test_module, test_script):
     # Test insertion of code into a specific section
     code_func1 = "\n".join(test_code.split("\n")[:4])
     code_func2 = "\n".join(test_code.split("\n")[4:])
@@ -36,13 +36,13 @@ def test_insert_code(qtbot, tmp_path, test_code, test_script):
     qtbot.addWidget(editor)
     # Assert only section code is shown
     assert editor.toPlainText() == code_func1
-    # Insert new code
-    new_code = "\nprint('New code inserted!')\n"
+    # Replace old code
+    new_code = "print('Old code replacement!')\n"
     editor.moveCursor(QTextCursor.MoveOperation.End)
-    editor.insertPlainText(new_code)
+    editor.setPlainText(new_code)
     # Save changes
     editor.save()
     # Verify file contents
     with open(test_script, encoding="utf-8") as f:
         saved_content = f.read()
-    assert saved_content == code_func1 + new_code + "\n" + code_func2
+    assert saved_content == new_code + code_func2

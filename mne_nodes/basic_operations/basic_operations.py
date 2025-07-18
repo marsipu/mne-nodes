@@ -24,11 +24,7 @@ from mne.preprocessing import ICA, find_bad_channels_maxwell
 from mne_connectivity import SpectralConnectivity
 
 from mne_nodes.pipeline.loading import MEEG, FSMRI
-from mne_nodes.pipeline.pipeline_utils import (
-    check_kwargs,
-    compare_filep,
-    get_n_jobs,
-)
+from mne_nodes.pipeline.pipeline_utils import check_kwargs, compare_filep, get_n_jobs
 from mne_nodes import ismac, iswin
 
 
@@ -50,7 +46,7 @@ def find_bads(meeg, n_jobs, **kwargs):
     noisy_chs, flat_chs = find_bad_channels_maxwell(
         raw, coord_frame=coord_frame, **kwargs
     )
-    logging.info(f"Noisy channels: {noisy_chs}\n" f"Flat channels: {flat_chs}")
+    logging.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
     raw.info["bads"] = noisy_chs + flat_chs + raw.info["bads"]
     meeg.set_bad_channels(raw.info["bads"])
     meeg.save_raw(raw)
@@ -407,9 +403,7 @@ def find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_b
                 and q not in events[:, 0] - 1
             ):
                 events = np.append(
-                    events,
-                    [[q, 0, int(2**a + 2**b + 2**c + 2**d + 2**e)]],
-                    axis=0,
+                    events, [[q, 0, int(2**a + 2**b + 2**c + 2**d + 2**e)]], axis=0
                 )
 
     for a, b, c, d in combinations(range(6), 4):
@@ -565,10 +559,7 @@ def epoch_raw(
             if reject is None or overwrite_ar:
                 reject = ar.get_rejection_threshold(epochs, random_state=8)
                 meeg.save_json("autoreject_threshold", reject)
-            print(
-                f"Dropping bad epochs with autoreject"
-                f" rejection-thresholds: {reject}"
-            )
+            print(f"Dropping bad epochs with autoreject rejection-thresholds: {reject}")
 
         else:
             # Remove entries from reject if not present in channels
@@ -577,7 +568,7 @@ def epoch_raw(
                 reject = reject.copy()
                 for key in [k for k in reject if k not in existing_ch_types]:
                     reject.pop(key)
-            print(f"Dropping bad epochs with chosen " f"rejection-thresholds: {reject}")
+            print(f"Dropping bad epochs with chosen rejection-thresholds: {reject}")
 
         epochs.drop_bad(reject=reject)
 
@@ -1331,7 +1322,7 @@ def label_time_course(meeg, target_labels, extract_mode):
 
     if len(labels) == 0:
         raise RuntimeError(
-            f"No labels found for {meeg.name}. " "Please check the labels you selected."
+            f"No labels found for {meeg.name}. Please check the labels you selected."
         )
 
     ltc_dict = {}
@@ -1424,10 +1415,7 @@ def ecd_fit(meeg, ecd_times, ecd_positions, ecd_orientations, t_epoch):
         ecd_time = ecd_times[meeg.name]
     except KeyError:
         ecd_time = {"Dip1": (0, t_epoch[1])}
-        print(
-            f"No Dipole times assigned for {meeg.name},"
-            f" Dipole-Times: 0-{t_epoch[1]}"
-        )
+        print(f"No Dipole times assigned for {meeg.name}, Dipole-Times: 0-{t_epoch[1]}")
 
     evokeds = meeg.load_evokeds()
     noise_covariance = meeg.load_noise_covariance()
@@ -1492,8 +1480,7 @@ def apply_morph(meeg, morph_to):
         meeg.save_morphed_source_estimates(morphed_stcs)
     else:
         logging.info(
-            f"{meeg.name} is already in source-space of {morph_to} "
-            f"and won't be morphed"
+            f"{meeg.name} is already in source-space of {morph_to} and won't be morphed"
         )
 
 

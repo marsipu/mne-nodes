@@ -27,7 +27,7 @@ from mne_nodes.gui.gui_utils import center, get_user_input
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.execution import WorkerDialog
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class WelcomeWindow(QWidget):
@@ -51,7 +51,7 @@ class WelcomeWindow(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
         title_label = QLabel("Welcome to MNE-Pipeline!")
-        title_label.setFont(QFont(QS().value("app_font"), 20))
+        title_label.setFont(QFont(Settings().value("app_font"), 20))
         layout.addWidget(title_label)
 
         image_label = QLabel()
@@ -81,7 +81,7 @@ class WelcomeWindow(QWidget):
 
         self.edu_groupbox = QGroupBox("Education")
         self.edu_groupbox.setCheckable(True)
-        self.edu_groupbox.setChecked(QS().value("education", defaultValue=False))
+        self.edu_groupbox.setChecked(Settings().value("education", defaultValue=False))
         self.edu_groupbox.toggled.connect(self.edu_toggled)
 
         edu_layout = QVBoxLayout()
@@ -92,20 +92,20 @@ class WelcomeWindow(QWidget):
 
         bt_layout = QHBoxLayout()
         self.start_bt = QPushButton("Start")
-        self.start_bt.setFont(QFont(QS().value("app_font"), 20))
+        self.start_bt.setFont(QFont(Settings().value("app_font"), 20))
         self.start_bt.clicked.connect(self.init_main_window)
         bt_layout.addWidget(self.start_bt)
 
         close_bt = QPushButton("Close")
         close_bt.clicked.connect(self.close)
-        close_bt.setFont(QFont(QS().value("app_font"), 20))
+        close_bt.setFont(QFont(Settings().value("app_font"), 20))
         bt_layout.addWidget(close_bt)
 
         layout.addLayout(bt_layout)
         self.setLayout(layout)
 
     def edu_toggled(self, value):
-        QS().setValue("education", value)
+        Settings().setValue("education", value)
 
     def update_widgets(self):
         if self.ct is not None:
@@ -173,7 +173,7 @@ class WelcomeWindow(QWidget):
 
     def init_main_window(self):
         if self.ct is not None:
-            edu_on = QS().value("education")
+            edu_on = Settings().value("education")
             if edu_on:
                 self.ct.edu_program_name = self.edu_selection.get_current()
                 self.ct.load_edu()
@@ -185,8 +185,8 @@ class WelcomeWindow(QWidget):
         if self.ct is not None:
             WorkerDialog(self, self.ct.save, blocking=True, title="Saving Project!")
         if self.edu_groupbox.isChecked():
-            QS().setValue("education", 1)
+            Settings().setValue("education", 1)
         else:
-            QS().setValue("education", 0)
+            Settings().setValue("education", 0)
         _object_refs["welcom_window"] = None
         event.accept()

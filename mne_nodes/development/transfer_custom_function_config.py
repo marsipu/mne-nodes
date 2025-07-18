@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 import json
 
 import pandas as pd
 
 from mne_nodes.pipeline.legacy import convert_pandas_meta
-from mne_nodes.pipeline.pipeline_utils import TypedJSONEncoder
+from mne_nodes.pipeline.io import TypedJSONEncoder
 
 func_pd = pd.read_csv("../extra/functions.csv", sep=";", index_col=0)
 param_pd = pd.read_csv("../extra/parameters.csv", sep=";", index_col=0)
@@ -13,12 +12,12 @@ configs = convert_pandas_meta(func_pd, param_pd)
 for module_name, module_dict in configs.items():
     if module_name == "operations":
         module_type = "basic_operations"
-        config_file = "../basic_functions/basic_operations_config.json"
+        config_file = "../basic_operations/basic_operations_config.json"
         print_msg = f"Found {len(module_dict['functions'])} operations functions."
         success_msg = "Operation configuration files created successfully."
     else:
         module_type = "basic_plot"
-        config_file = "../basic_functions/basic_plot_config.json"
+        config_file = "../basic_plot/basic_plot_config.json"
         print_msg = f"Found {len(module_dict['functions'])} plotting functions."
         success_msg = "Function configuration files created successfully."
 

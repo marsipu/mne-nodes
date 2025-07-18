@@ -69,22 +69,14 @@ from mne_nodes.gui.loading_widgets import (
     ExportDialog,
 )
 from mne_nodes.gui.node.node_viewer import NodeViewer
-from mne_nodes.gui.parameter_widgets import (
-    BoolGui,
-    IntGui,
-    ParametersDock,
-    SettingsDlg,
-)
+from mne_nodes.gui.parameter_widgets import BoolGui, IntGui, ParametersDock, SettingsDlg
 from mne_nodes.gui.plot_widgets import PlotViewSelection
 from mne_nodes.gui.tools import DataTerminal
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.execution import WorkerDialog, QProcessDialog
 from mne_nodes.pipeline.function_utils import close_all
-from mne_nodes.pipeline.pipeline_utils import (
-    restart_program,
-    _run_from_script,
-)
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
+from mne_nodes.pipeline.settings import Settings
 
 
 class MainWindow(QMainWindow):
@@ -99,7 +91,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("MNE-Pipeline HD")
 
         # Set QThread as default (ToDo: MP)
-        QS().setValue("use_qthread", True)
+        Settings().setValue("use_qthread", True)
 
         # Initiate attributes for Main-Window
         self.ct = controller
@@ -142,7 +134,7 @@ class MainWindow(QMainWindow):
         self.update_project_box()
         # Update Statusbar
         self.statusBar().showMessage(
-            f"Home-Path: {self.ct.home_path}, " f"Project: {self.pr.name}"
+            f"Home-Path: {self.ct.home_path}, Project: {self.pr.name}"
         )
 
     def change_home_path(self):
@@ -172,7 +164,7 @@ class MainWindow(QMainWindow):
                 if welcome_window is not None:
                     welcome_window.ct = new_controller
                 self.statusBar().showMessage(
-                    f"Home-Path: {self.ct.home_path}," f" Project: {self.pr.name}"
+                    f"Home-Path: {self.ct.home_path}, Project: {self.pr.name}"
                 )
                 self.update_project_ui()
 
@@ -238,7 +230,7 @@ class MainWindow(QMainWindow):
 
     def init_edu(self):
         if (
-            QS().value("education")
+            Settings().value("education")
             and self.ct.edu_program
             and len(self.ct.edu_program["tour_list"]) > 0
         ):
@@ -393,7 +385,7 @@ class MainWindow(QMainWindow):
 
         self.toolbar.addWidget(
             IntGui(
-                data=QS(),
+                data=Settings(),
                 name="n_jobs",
                 min_val=-1,
                 special_value_text="Auto",
@@ -441,7 +433,7 @@ class MainWindow(QMainWindow):
                 data=self.ct.settings,
                 name="save_plots",
                 alias="Save Plots",
-                description="Do you want to save the " "plots made to a file?",
+                description="Do you want to save the plots made to a file?",
                 groupbox_layout=False,
             )
         )
@@ -482,9 +474,9 @@ class MainWindow(QMainWindow):
         start_bt = QPushButton("Start")
         stop_bt = QPushButton("Quit")
 
-        clear_bt.setFont(QFont(QS().value("app_font"), 18))
-        start_bt.setFont(QFont(QS().value("app_font"), 18))
-        stop_bt.setFont(QFont(QS().value("app_font"), 18))
+        clear_bt.setFont(QFont(Settings().value("app_font"), 18))
+        start_bt.setFont(QFont(Settings().value("app_font"), 18))
+        stop_bt.setFont(QFont(Settings().value("app_font"), 18))
 
         clear_bt.clicked.connect(self.clear)
         start_bt.clicked.connect(self.start)
@@ -580,35 +572,17 @@ class MainWindow(QMainWindow):
                     },
                 },
                 "ports": [
-                    {
-                        "name": "Raw",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Raw",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Raw", "port_type": "in"},
+                    {"name": "Raw", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Get Events": {
                 "parameters": {
-                    "event_id": {
-                        "alias": "Event-ID",
-                        "gui": "IntGui",
-                        "default": 1,
-                    },
+                    "event_id": {"alias": "Event-ID", "gui": "IntGui", "default": 1}
                 },
                 "ports": [
-                    {
-                        "name": "Raw",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Events",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Raw", "port_type": "in"},
+                    {"name": "Events", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Epoch Data": {
@@ -618,11 +592,7 @@ class MainWindow(QMainWindow):
                         "gui": "FloatGui",
                         "default": -0.2,
                     },
-                    "epochs_tmax": {
-                        "alias": "tmax",
-                        "gui": "FloatGui",
-                        "default": 0.5,
-                    },
+                    "epochs_tmax": {"alias": "tmax", "gui": "FloatGui", "default": 0.5},
                     "apply_baseline": {
                         "alias": "Baseline",
                         "gui": "BoolGui",
@@ -630,39 +600,18 @@ class MainWindow(QMainWindow):
                     },
                 },
                 "ports": [
-                    {
-                        "name": "Raw",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Events",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Epochs",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Raw", "port_type": "in"},
+                    {"name": "Events", "port_type": "in"},
+                    {"name": "Epochs", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Average Epochs": {
                 "parameters": {
-                    "event_id": {
-                        "alias": "Event-ID",
-                        "gui": "IntGui",
-                        "default": 1,
-                    },
+                    "event_id": {"alias": "Event-ID", "gui": "IntGui", "default": 1}
                 },
                 "ports": [
-                    {
-                        "name": "Epochs",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Evokeds",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Epochs", "port_type": "in"},
+                    {"name": "Evokeds", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Make Forward Model": {
@@ -671,18 +620,11 @@ class MainWindow(QMainWindow):
                         "alias": "Forward Subject",
                         "gui": "StringGui",
                         "default": "fsaverage",
-                    },
+                    }
                 },
                 "ports": [
-                    {
-                        "name": "MRI",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Fwd",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "MRI", "port_type": "in"},
+                    {"name": "Fwd", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Make Inverse Operator": {
@@ -691,22 +633,12 @@ class MainWindow(QMainWindow):
                         "alias": "Inverse Subject",
                         "gui": "StringGui",
                         "default": "fsaverage",
-                    },
+                    }
                 },
                 "ports": [
-                    {
-                        "name": "Evokeds",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Fwd",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Inv",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Evokeds", "port_type": "in"},
+                    {"name": "Fwd", "port_type": "in"},
+                    {"name": "Inv", "port_type": "out", "multi_connection": True},
                 ],
             },
             "Plot Source Estimates": {
@@ -715,18 +647,11 @@ class MainWindow(QMainWindow):
                         "alias": "Subject",
                         "gui": "StringGui",
                         "default": "fsaverage",
-                    },
+                    }
                 },
                 "ports": [
-                    {
-                        "name": "Inv",
-                        "port_type": "in",
-                    },
-                    {
-                        "name": "Plot",
-                        "port_type": "out",
-                        "multi_connection": True,
-                    },
+                    {"name": "Inv", "port_type": "in"},
+                    {"name": "Plot", "port_type": "out", "multi_connection": True},
                 ],
             },
         }
@@ -738,22 +663,10 @@ class MainWindow(QMainWindow):
             node_class="AssignmentNode",
             name="Assignment",
             ports=[
-                {
-                    "name": "Evokeds",
-                    "port_type": "in",
-                },
-                {
-                    "name": "Fwd",
-                    "port_type": "in",
-                },
-                {
-                    "name": "Evokeds",
-                    "port_type": "out",
-                },
-                {
-                    "name": "Fwd",
-                    "port_type": "out",
-                },
+                {"name": "Evokeds", "port_type": "in"},
+                {"name": "Fwd", "port_type": "in"},
+                {"name": "Evokeds", "port_type": "out"},
+                {"name": "Fwd", "port_type": "out"},
             ],
         )
         fn = {}
@@ -844,7 +757,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "_sample_ exists!",
-                "The sample-dataset is already " "imported as _sample_!",
+                "The sample-dataset is already imported as _sample_!",
             )
         else:
             WorkerDialog(
@@ -861,7 +774,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self,
                 "_test_ exists!",
-                "The test-dataset is already " "imported as _test_!",
+                "The test-dataset is already imported as _test_!",
             )
         else:
             WorkerDialog(
@@ -923,7 +836,7 @@ class MainWindow(QMainWindow):
         if version == "stable":
             command = "pip install --upgrade mne_nodes"
         else:
-            command = "pip install " "https://github.com/marsipu/mne-nodes/zipball/main"
+            command = "pip install https://github.com/marsipu/mne-nodes/zipball/main"
         if iswin and not _run_from_script():
             QMessageBox.information(
                 self,
@@ -967,8 +880,7 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "Do you want to restart?",
-            "Please restart the Pipeline-Program "
-            "to apply the changes from the Update!",
+            "Please restart the Pipeline-Program to apply the changes from the Update!",
         )
 
         if answer == QMessageBox.Yes:

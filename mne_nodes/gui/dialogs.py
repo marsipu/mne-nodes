@@ -29,13 +29,13 @@ from mne_nodes.gui.base_widgets import SimpleList, SimpleDialog
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.project import Project
+from mne_nodes.pipeline.legacy import Project
 
 
 class CheckListDlg(QDialog):
     def __init__(self, parent, data, checked):
-        """BaseClass for A Dialog with a Check-List, open() has to be called in SubClass
-        or directly.
+        """BaseClass for A Dialog with a Check-List, open() has to be called in
+        SubClass or directly.
 
         Parameters
         ----------
@@ -196,7 +196,7 @@ class RawInfo(QDialog):
             other_infos["size"] = f"{int(sizes_sum / 1024)}"
             size_unit = "KB"
         else:
-            other_infos["size"] = f"{int(sizes_sum / 1024 ** 2)}"
+            other_infos["size"] = f"{int(sizes_sum / 1024**2)}"
             size_unit = "MB"
 
         ch_type_counter = Counter(info.get_channel_types())
@@ -235,7 +235,7 @@ class RawInfo(QDialog):
                 self.info_string += f"<b>{key_tuple[1]}:</b> {value}<br>"
             else:
                 self.info_string += (
-                    f"<b>{key_tuple[1]}:</b> {value}" f" <i>{key_tuple[2]}</i><br>"
+                    f"<b>{key_tuple[1]}:</b> {value} <i>{key_tuple[2]}</i><br>"
                 )
 
         self.info_label.setHtml(self.info_string)
@@ -421,12 +421,10 @@ class ErrorDialog(SimpleDialog):
         self.formated_tb_text = self.err[2].replace("\n", "<br>")
         if self.title:
             self.html_text = (
-                f"<h1>{self.title}</h1>"
-                f"<h2>{self.err[1]}</h2>"
-                f"{self.formated_tb_text}"
+                f"<h1>{self.title}</h1><h2>{self.err[1]}</h2>{self.formated_tb_text}"
             )
         else:
-            self.html_text = f"<h1>{self.err[1]}</h1>" f"{self.formated_tb_text}"
+            self.html_text = f"<h1>{self.err[1]}</h1>{self.formated_tb_text}"
         self.display.setHtml(self.html_text)
         layout.addWidget(self.display)
 
@@ -438,7 +436,8 @@ class ErrorDialog(SimpleDialog):
 
 
 def show_error_dialog(exc_str):
-    """Checks if a QApplication instance is available and shows the Error-Dialog.
+    """Checks if a QApplication instance is available and shows the Error-
+    Dialog.
 
     If unavailable (non-console application), log an additional notice.
     """

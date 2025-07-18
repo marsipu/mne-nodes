@@ -7,6 +7,7 @@ from qtpy.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
 from qtpy.QtWidgets import QPlainTextEdit, QWidget, QVBoxLayout, QPushButton
 
 from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.pipeline.pipeline_utils import change_file_section
 
 
 class PythonHighlighter(QSyntaxHighlighter):
@@ -81,7 +82,6 @@ class CodeEditor(QPlainTextEdit):
         self.setFont(QFont("Consolas", 12))
         self.highlighter = PythonHighlighter(self.document())
         self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
-        self.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.file_section = file_section
         self.file_path = self._file_path = file_path
         self.setReadOnly(read_only)
@@ -97,7 +97,7 @@ class CodeEditor(QPlainTextEdit):
                 code = f.read()
             if self.file_section is not None:
                 start, end = self.file_section
-                code_lines = code.split("\n")
+                code_lines = code.splitlines()
                 code = "\n".join(code_lines[start:end])
             self.setPlainText(code)
         self._file_path = value
@@ -116,15 +116,7 @@ class CodeEditor(QPlainTextEdit):
         code = self.toPlainText()
         # Insert code into a specific section of a file if defined
         if self.file_section is not None:
-            start, end = self.file_section
-            with open(self.file_path) as f:
-                existing_code = f.read()
-            code_split = existing_code.split("\n")
-            new_split = code.split("\n")
-            code_split[start:end] = new_split
-            code = "\n".join(code_split)
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            f.write(code)
+            change_file_section(self.file_path, self.file_section, code)
         logging.info(f"Saved code to file: {self.file_path}")
 
 

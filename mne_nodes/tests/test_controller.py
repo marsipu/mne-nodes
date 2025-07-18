@@ -9,11 +9,10 @@ from os.path import join, isfile
 from PySide6.QtWidgets import QMessageBox
 
 from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.pipeline_utils import init_logging
+from mne_nodes.pipeline.pipeline_utils import change_file_section
 
 
 def test_init(monkeypatch, tmp_path):
-
     monkeypatch.setattr(
         "qtpy.QtWidgets.QMessageBox.question",
         lambda x, y, z: QMessageBox.StandardButton.Yes,
@@ -21,11 +20,7 @@ def test_init(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
     )
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QFileDialog.getExistingDirectory", lambda x, y: tmp_path
-    )
-
-    init_logging()
+    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
 
     # Initialize the controller in gui mode
     Controller()
@@ -41,15 +36,12 @@ def test_init(monkeypatch, tmp_path):
     # ToDo: Test initialization of the controller in headless mode
 
 
-def test_module_import(tmp_path, controller, custom_module):
+def test_module_import(tmp_path, controller, test_module, test_script):
     # Assert basic modules are imported
-    assert controller._basic_module_list == list(
-        controller._modules.keys()
-    ), "Basic modules should be imported"
+    assert controller.modules.keys() == ["basic_operations", "basic_plot"]
 
     # Add a custom module
-    controller.config["custom_module_meta"] = {"test": custom_module}
-    controller.load_custom_modules()
+    controller.add_custom_module(test_module)
     assert "test" in controller._modules, "Custom module should be imported"
 
     # Test custom module reload
@@ -57,10 +49,10 @@ def test_module_import(tmp_path, controller, custom_module):
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
-    test_script_path = tmp_path / "test_module" / "test.py"
+    func1_code, start, end = controller.get_function_code("func1")
+
     new_test_code = "def test_func1(a):\n    return a ** 3\n"
-    with open(test_script_path, "w") as f:
-        f.write(new_test_code)
+    change_file_section(test_script, (start, end), new_test_code)
 
     # Reload the modules
     controller.reload_modules()
@@ -69,3 +61,5 @@ def test_module_import(tmp_path, controller, custom_module):
     new_func = controller.modules["test"].test_func1
     print(f"New function: {new_func} at {id(new_func)}")
     assert new_func(2) == 8, "New function reference should return updated value"
+
+    # Test insertion

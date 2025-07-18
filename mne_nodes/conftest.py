@@ -6,27 +6,67 @@ Github: https://github.com/marsipu/mne-nodes
 
 import json
 from os import mkdir
+from os.path import isdir
+from pathlib import Path
 
 import pytest
 
+from mne_nodes.__main__ import init_logging
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.controller import Controller
 
+# Initialize logging for tests
+init_logging(debug_mode=True)
+
+test_parameters = {
+    "int": 1,
+    "float": 5.3,
+    "string": "postcentral-lh",
+    "multi_type": 42,
+    "func": "np.arange(10) * np.pi",
+    "bool": True,
+    "tuple": (45, 3.4, "6", False),
+    "combo": "b",
+    "list": [1, 454.33, "postcentral-lh", True],
+    "check_list": ["postcentral-lh"],
+    "dict": {"A": "B", "C": 58.144, "D": [1, 2, 3, 4], "E": {"A": 1, "B": 2}},
+    "slider": 5,
+    "color": {"C": "#98765432", "3": "#97867564"},
+    "path": Path().home(),
+}
+
+alternative_test_parameters = {
+    "int": 5,
+    "float": 8.45,
+    "string": "precentral-lh",
+    "multi_type": 32,
+    "func": "np.ones((2,3))",
+    "bool": False,
+    "tuple": (2, 5.6, "23", True),
+    "combo": "c",
+    "list": [33, 2234.33, "precentral-lh", False],
+    "check_list": ["precentral-lh"],
+    "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
+    "slider": 2,
+    "color": {"A": "#12345678", "B": "#13243546"},
+    "path": Path().home() / "test_path",
+}
+
 
 @pytest.fixture
 def controller(tmp_path):
-    # Create a config_file, meeg_root and fsmri_root
+    # Create a config_file, data_path and subjects_dir
     config_path = tmp_path / "test_config.json"
     with open(config_path, "w") as f:
         json.dump({"name": "test_controller"}, f, indent=4)
-    meeg_root = tmp_path / "MEEG"
+    data_path = tmp_path / "MEEG"
 
-    mkdir(meeg_root)
-    fsmri_root = tmp_path / "FSMRI"
-    mkdir(fsmri_root)
+    mkdir(data_path)
+    subjects_dir = tmp_path / "FSMRI"
+    mkdir(subjects_dir)
     # Create Controller
-    ct = Controller(config_path, meeg_root, fsmri_root)
+    ct = Controller(config_path, data_path, subjects_dir)
 
     return ct
 
@@ -42,43 +82,13 @@ def main_window(controller, qtbot):
 @pytest.fixture
 def parameter_values():
     """Fixture to provide a dictionary of parameter values."""
-    return {
-        "int": 1,
-        "float": 5.3,
-        "string": "postcentral-lh",
-        "multi_type": 42,
-        "func": "np.arange(10) * np.pi",
-        "bool": True,
-        "tuple": (45, 6),
-        "combo": "b",
-        "list": [1, 454.33, "postcentral-lh", 5],
-        "check_list": ["postcentral-lh"],
-        "dict": {"A": "B", "C": 58.144, 3: [1, 2, 3, 4], "D": {"A": 1, "B": 2}},
-        "slider": 5,
-        "color": {"C": "#98765432", "3": "#97867564"},
-        "path": "C:/test",
-    }
+    return test_parameters
 
 
 @pytest.fixture
 def parameter_values_alt():
     """Fixture to provide alternative parameter values."""
-    return {
-        "int": 5,
-        "float": 8.45,
-        "string": "precentral-lh",
-        "multi_type": 32,
-        "func": "np.ones((2,3))",
-        "bool": False,
-        "tuple": (2, 23),
-        "combo": "c",
-        "list": [33, 2234.33, "precentral-lh", 3],
-        "check_list": ["precentral-lh"],
-        "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
-        "slider": 2,
-        "color": {"A": "#12345678", "B": "#13243546"},
-        "path": "D:/test",
-    }
+    return alternative_test_parameters
 
 
 @pytest.fixture
@@ -122,19 +132,18 @@ def test_code():
 @pytest.fixture
 def test_script(tmp_path, test_code):
     """Fixture to create a temporary Python script with test code."""
-    test_script_path = tmp_path / "test_script.py"
+    test_module_path = tmp_path / "test_module"
+    if not isdir(test_module_path):
+        mkdir(test_module_path)
+    test_script_path = test_module_path / "test.py"
     with open(test_script_path, "w") as f:
         f.write(test_code)
+
     return test_script_path
 
 
 @pytest.fixture
-def custom_module(tmp_path, test_code):
-    pkg_path = tmp_path / "test_module"
-    mkdir(pkg_path)
-    # Generate test python file
-    with open(pkg_path / "test.py", "w") as f:
-        f.write(test_code)
+def test_module(tmp_path, test_script):
     # Generate test configuration file
     test_config = {
         "module_name": "test_module",
@@ -180,7 +189,7 @@ def custom_module(tmp_path, test_code):
             },
         },
     }
-    test_config_path = pkg_path / "test_config.json"
+    test_config_path = test_script.parent / "test_config.json"
     with open(test_config_path, "w") as f:
         json.dump(test_config, f, indent=4)
 

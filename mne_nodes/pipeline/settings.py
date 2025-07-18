@@ -8,33 +8,35 @@ import json
 import logging
 from ast import literal_eval
 from copy import deepcopy
-from os.path import join, isfile
+from os import mkdir
+from os.path import isfile, isdir
 from pathlib import Path
+from types import NoneType
 
 from mne_nodes import gui_mode
+from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder
 
 # ToDo: Next separate settings and enable loading them into parameters (e.g. n_jobs), finally make the node-test run
 # Default Settings/QSettings
 default_device_settings = {
     "config_path": None,
+    "data_path": None,
+    "plot_path": None,
     "log_file_path": None,
-    "gui": 1,
-    "n_jobs": -1,
-    "n_parallel": 1,
+    "fs_path": None,
+    "wls_mne_path": None,
     "use_qthread": 1,
     "save_ram": 1,
     "enable_cuda": 0,
-    "fs_path": None,
-    "mne_path": None,
 }
 
 
-class QS:
-    """Unified settings handler that uses Qt's QSettings if available, otherwise falls
-    back to a JSON file in the user's home directory. On initialization, checks for a Qt
-    installation and sets the backend accordingly. Since QSettings does not preserve
-    types, the type is stored with the setting in QSettings. Supported types are: int,
-    float, str, bool.
+class Settings:
+    """Unified settings handler that uses Qt's QSettings if available,
+    otherwise falls back to a JSON file in the user's home directory. On
+    initialization, checks for a Qt installation and sets the backend
+    accordingly. Since QSettings does not preserve types, the type is stored
+    with the setting in QSettings.
 
     Methods
     -------
@@ -66,15 +68,27 @@ class QS:
         super().__init__()
 
         self.default_qsettings = default_device_settings.copy()
-        self.supported_types = [int, float, str, bool]
+        self.supported_types = [
+            int,
+            float,
+            str,
+            bool,
+            tuple,
+            list,
+            dict,
+            NoneType,
+            Path,
+        ]
         if gui_mode:
             from qtpy.QtCore import QSettings  # noqa: F401
 
             self.qsettings = QSettings()
             self.settings_path = None
+            self.settings = None
         else:
             self.qsettings = None
-            self.settings_path = join(Path.home(), ".mne_nodes.json")
+            self.settings_path = Path.home() / ".mne-nodes" / ".mne_nodes.json"
+            self.settings = None
 
     def load_settings(self):
         """Load settings from the JSON file if Qt is not available."""
@@ -82,14 +96,16 @@ class QS:
             self.settings = deepcopy(self.default_qsettings)
         if isfile(self.settings_path):
             with open(self.settings_path) as file:
-                self.settings = json.load(file)
+                self.settings = json.load(file, object_hook=type_json_hook)
         else:
             self.settings = deepcopy(self.default_qsettings)
 
     def write_settings(self):
         """Write settings to the JSON file if Qt is not available."""
+        if not isdir(self.settings_path.parent):
+            mkdir(self.settings_path.parent)
         with open(self.settings_path, "w") as file:
-            json.dump(self.settings, file)
+            json.dump(self.settings, file, indent=4, cls=TypedJSONEncoder)
 
     def get_default(self, name):
         if name in self.default_qsettings:
@@ -99,26 +115,24 @@ class QS:
 
     def value(self, setting, defaultValue=None):
         if gui_mode:
-            loaded_value = self.qsettings.value(setting, defaultValue=defaultValue)
+            loaded_value = self.qsettings.value(
+                setting,
+                defaultValue=defaultValue or self.default_qsettings.get(setting),
+            )
             # Check if the type is stored in QSettings
             type_key = f"type_{setting}_type"
             type_str = self.qsettings.value(type_key, None)
-
             if type_str is not None and type(loaded_value).__name__ != type_str:
-                try:
-                    loaded_value = literal_eval(loaded_value)
-                except (SyntaxError, ValueError):
-                    if loaded_value in ["true", "false"]:
-                        loaded_value = loaded_value == "true"
-                    else:
-                        return self.get_default(setting)
-            if loaded_value is None:
-                if defaultValue is None:
-                    return self.get_default(setting)
+                if type_str == "bool":
+                    loaded_value = loaded_value == "true"
+                elif type_str == "Path":
+                    loaded_value = Path(loaded_value)
                 else:
-                    return defaultValue
-            else:
-                return loaded_value
+                    try:
+                        loaded_value = literal_eval(loaded_value)
+                    except (SyntaxError, ValueError):
+                        return self.get_default(setting)
+            return loaded_value
         else:
             self.load_settings()
             if setting in self.settings:
@@ -129,17 +143,21 @@ class QS:
                 return defaultValue
 
     def setValue(self, setting, value):
-        if type(value) not in self.supported_types:
+        if not any(isinstance(value, t) for t in self.supported_types):
             raise TypeError(
                 f"Unsupported type {type(value)} for setting '{setting}'. "
                 f"Supported types are: {self.supported_types}"
             )
         if gui_mode:
-            value_type = type(value)
+            if isinstance(value, Path):
+                value_type = "Path"
+            else:
+                value_type = type(value).__name__
             self.qsettings.setValue(setting, value)
             # Store the type of the value in the QSettings too
-            self.qsettings.setValue(f"type_{setting}_type", value_type.__name__)
+            self.qsettings.setValue(f"type_{setting}_type", value_type)
         else:
+            # Always load the settings to allow synchronization across multiple instances
             self.load_settings()
             self.settings[setting] = value
             self.write_settings()

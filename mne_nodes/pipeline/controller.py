@@ -8,430 +8,26 @@ import json
 import logging
 import os
 import re
-import shutil
 import sys
-import traceback
-from importlib import reload, resources, import_module
+from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from os import listdir
 from os.path import isdir, join, isfile
 from pathlib import Path
 
 import mne
-import pandas as pd
 
-from mne_nodes import basic_functions, extra
+from mne_nodes.basic_operations import basic_operations
+from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user
-from mne_nodes.pipeline.legacy import (
-    transfer_file_params_to_single_subject,
-    convert_pandas_meta,
-)
-from mne_nodes.pipeline.pipeline_utils import type_json_hook, TypedJSONEncoder
-from mne_nodes.pipeline.settings import QS
-from mne_nodes.pipeline.project import Project
-
-home_dirs = ["custom_packages", "freesurfer", "projects"]
-project_dirs = ["_pipeline_scripts", "data", "figures"]
-
-
-class OldController:
-    def __init__(self, home_path=None, selected_project=None, edu_program_name=None):
-        # Check Home-Path
-        self.pr = None
-        # Try to load home_path from QSettings
-        self.home_path = home_path or QS().value("home_path", defaultValue=None)
-        self.settings = {}
-        if self.home_path is None:
-            raise RuntimeError("No Home-Path found!")
-
-        # Check if path exists
-        elif not isdir(self.home_path):
-            raise RuntimeError(f"{self.home_path} not found!")
-
-        # Check, if path is writable
-        elif not os.access(self.home_path, os.W_OK):
-            raise RuntimeError(f"{self.home_path} not writable!")
-
-        # Initialize log-file
-        logger = logging.getLogger()
-        logging_path = QS.value("log_file_path") or join(Path.home() / "mne_nodes.log")
-        file_handler = logging.FileHandler(logging_path, "w")
-        file_handler.set_name("file")
-        logger.addHandler(file_handler)
-
-        logging.info(f"Home-Path: {self.home_path}")
-        QS().setValue("home_path", self.home_path)
-        # Create subdirectories if not existing for a valid home_path
-        for subdir in [d for d in home_dirs if not isdir(join(self.home_path, d))]:
-            os.mkdir(join(self.home_path, subdir))
-
-        # Get Project-Folders (recognized by distinct sub-folders)
-        self.projects_path = join(self.home_path, "projects")
-        self.projects = [
-            p
-            for p in listdir(self.projects_path)
-            if all([isdir(join(self.projects_path, p, d)) for d in project_dirs])
-        ]
-
-        # Initialize Subjects-Dir
-        self.subjects_dir = join(self.home_path, "freesurfer")
-        mne.utils.set_config("SUBJECTS_DIR", self.subjects_dir, set_env=True)
-
-        # Initialize folder for custom packages
-        self.custom_pkg_path = join(self.home_path, "custom_packages")
-
-        # Initialize educational programs
-        self.edu_program_name = edu_program_name
-        self.edu_program = None
-
-        # Load default settings
-        default_path = join(resources.files(extra), "default_settings.json")
-        with open(default_path) as file:
-            self.default_settings = json.load(file)
-
-        # Load settings (which are stored as .json-file in home_path)
-        # settings=<everything, that's OS-independent>
-        self.load_settings()
-
-        # Initialize data types (like "raw", "epochs", etc.)
-        self._data_types = []
-
-        self.all_modules = {}
-        self.all_pd_funcs = None
-
-        # Pandas-DataFrame for contextual data of basic functions
-        # (included with program)
-        self.pd_funcs = pd.read_csv(
-            resources.files(extra) / "functions.csv",
-            sep=";",
-            index_col=0,
-            na_values=[""],
-            keep_default_na=False,
-        )
-
-        # Pandas-DataFrame for contextual data of parameters
-        # for basic functions (included with program)
-        self.pd_params = pd.read_csv(
-            resources.files(extra) / "parameters.csv",
-            sep=";",
-            index_col=0,
-            na_values=[""],
-            keep_default_na=False,
-        )
-
-        # Import the basic- and custom-function-modules
-        self.import_custom_modules()
-
-        # Check Project
-        if selected_project is None:
-            selected_project = self.settings["selected_project"]
-
-        if selected_project is None:
-            if len(self.projects) > 0:
-                selected_project = self.projects[0]
-
-        # Initialize Project
-        if selected_project is not None:
-            self.change_project(selected_project)
-
-    @property
-    def data_types(self):
-        return self._data_types
-
-    def load_settings(self):
-        try:
-            with open(join(self.home_path, "mne_nodes-settings.json")) as file:
-                self.settings = json.load(file)
-            # Account for settings, which were not saved
-            # but exist in default_settings
-            for setting in [
-                s for s in self.default_settings["settings"] if s not in self.settings
-            ]:
-                self.settings[setting] = self.default_settings["settings"][setting]
-        except FileNotFoundError:
-            self.settings = self.default_settings["settings"]
-        else:
-            # Check integrity of Settings-Keys
-            s_keys = set(self.settings.keys())
-            default_keys = set(self.default_settings["settings"])
-            # Remove additional (old) keys not appearing in default-settings
-            for setting in s_keys - default_keys:
-                self.settings.pop(setting)
-            # Add new keys from default-settings
-            # which are not present in settings
-            for setting in default_keys - s_keys:
-                self.settings[setting] = self.default_settings["settings"][setting]
-
-        # Check integrity of QSettings-Keys
-        QS().sync()
-        qs_keys = set(QS().childKeys())
-        qdefault_keys = set(self.default_settings["qsettings"])
-        # Remove additional (old) keys not appearing in default-settings
-        for qsetting in qs_keys - qdefault_keys:
-            QS().remove(qsetting)
-        # Add new keys from default-settings which are not present in QSettings
-        for qsetting in qdefault_keys - qs_keys:
-            QS().setValue(qsetting, self.default_settings["qsettings"][qsetting])
-
-    def save_settings(self):
-        try:
-            with open(join(self.home_path, "mne_nodes-settings.json"), "w") as file:
-                json.dump(self.settings, file, indent=4)
-        except FileNotFoundError:
-            logging.warning("Settings could not be saved!")
-
-        # Sync QSettings with other instances
-        QS().sync()
-
-    def get_setting(self, setting):
-        try:
-            value = self.settings[setting]
-        except KeyError:
-            value = self.default_settings["settings"][setting]
-
-        return value
-
-    def change_project(self, new_project):
-        self.pr = Project(self, new_project)
-        self.settings["selected_project"] = new_project
-        if new_project not in self.projects:
-            self.projects.append(new_project)
-        logging.info(f"Selected-Project: {self.pr.name}")
-        # Legacy
-        transfer_file_params_to_single_subject(self)
-
-        return self.pr
-
-    def remove_project(self, project):
-        self.projects.remove(project)
-        if self.pr.name == project:
-            if len(self.projects) > 0:
-                new_project = self.projects[0]
-            else:
-                new_project = get_user_input(
-                    "Please enter the name of a new project!", "string", force=True
-                )
-            self.change_project(new_project)
-
-        # Remove Project-Folder
-        try:
-            shutil.rmtree(join(self.projects_path, project))
-        except OSError as error:
-            print(error)
-            logging.warning(
-                f"The folder of {project} can't be deleted "
-                f"and has to be deleted manually!"
-            )
-
-    def rename_project(self):
-        check_writable = os.access(self.pr.project_path, os.W_OK)
-        if check_writable:
-            new_project_name = get_user_input(
-                f'Change the name of project "{self.pr.name}" to:',
-                "string",
-                force=False,
-            )
-            if new_project_name is not None:
-                try:
-                    old_name = self.pr.name
-                    self.pr.rename(new_project_name)
-                except PermissionError:
-                    # ToDo: Warning-Function for GUI with dialog and non-GUI
-                    logging.critical(
-                        f"Can't rename {old_name} to {new_project_name}. "
-                        f"Probably a file from inside the project is still opened. "
-                        f"Please close all files and try again."
-                    )
-                else:
-                    self.projects.remove(old_name)
-                    self.projects.append(new_project_name)
-        else:
-            logging.warning(
-                "The project-folder seems to be not writable at the moment, "
-                "maybe some files inside are still in use?"
-            )
-
-    def copy_parameters_between_projects(
-        self,
-        from_name,
-        from_p_preset,
-        to_name,
-        to_p_preset,
-        parameter=None,
-    ):
-        from_project = Project(self, from_name)
-        if to_name == self.pr.name:
-            to_project = self.pr
-        else:
-            to_project = Project(self, to_name)
-        if parameter is not None:
-            from_param = from_project.parameters[from_p_preset][parameter]
-            to_project.parameters[to_p_preset][parameter] = from_param
-        else:
-            from_param = from_project.parameters[from_p_preset]
-            to_project.parameters[to_p_preset] = from_param
-        to_project.save()
-
-    def save(self, worker_signals=None):
-        if self.pr is not None:
-            # Save Project
-            self.pr.save(worker_signals)
-            self.settings["selected_project"] = self.pr.name
-
-        self.save_settings()
-
-    def load_edu(self):
-        if self.edu_program_name is not None:
-            edu_path = join(self.home_path, "edu_programs", self.edu_program_name)
-            with open(edu_path) as file:
-                self.edu_program = json.load(file)
-
-            self.all_pd_funcs = self.pd_funcs.copy()
-            # Exclude functions which are not selected
-            self.pd_funcs = self.pd_funcs.loc[
-                self.pd_funcs.index.isin(self.edu_program["functions"])
-            ]
-
-            # Change the Project-Scripts-Path to a new folder
-            # to store the Education-Project-Scripts separately
-            self.pr.pscripts_path = join(
-                self.pr.project_path, f'_pipeline_scripts{self.edu_program["name"]}'
-            )
-            if not isdir(self.pr.pscripts_path):
-                os.mkdir(self.pr.pscripts_path)
-            self.pr.init_pipeline_scripts()
-
-            # Exclude MEEG
-            self.pr._all_meeg = self.pr.all_meeg.copy()
-            self.pr.all_meeg = [
-                meeg for meeg in self.pr.all_meeg if meeg in self.edu_program["meeg"]
-            ]
-
-            # Exclude FSMRI
-            self.pr._all_fsmri = self.pr.all_fsmri.copy()
-            self.pr.all_fsmri = [
-                meeg for meeg in self.pr.all_meeg if meeg in self.edu_program["meeg"]
-            ]
-
-    def import_custom_modules(self):
-        """Load all modules in functions and custom_functions."""
-
-        # Load basic-modules
-        # Add functions to sys.path
-        sys.path.insert(0, str(Path(basic_functions.__file__).parent))
-        basic_functions_list = [x for x in dir(basic_functions) if "__" not in x]
-        self.all_modules["basic"] = []
-        for module_name in basic_functions_list:
-            self.all_modules["basic"].append(module_name)
-
-        # Load custom_modules
-        pd_functions_pattern = r".*_functions\.csv"
-        pd_parameters_pattern = r".*_parameters\.csv"
-        custom_module_pattern = r"(.+)(\.py)$"
-        for directory in [
-            d for d in os.scandir(self.custom_pkg_path) if not d.name.startswith(".")
-        ]:
-            pkg_name = directory.name
-            pkg_path = directory.path
-            file_dict = {"functions": None, "parameters": None, "modules": []}
-            for file_name in [
-                f for f in listdir(pkg_path) if not f.startswith((".", "_"))
-            ]:
-                functions_match = re.match(pd_functions_pattern, file_name)
-                parameters_match = re.match(pd_parameters_pattern, file_name)
-                custom_module_match = re.match(custom_module_pattern, file_name)
-                if functions_match:
-                    file_dict["functions"] = join(pkg_path, file_name)
-                elif parameters_match:
-                    file_dict["parameters"] = join(pkg_path, file_name)
-                elif custom_module_match and custom_module_match.group(1) != "__init__":
-                    file_dict["modules"].append(custom_module_match)
-
-            # Check, that there is a whole set for a custom-module
-            # (module-file, functions, parameters)
-            if all([value is not None or value != [] for value in file_dict.values()]):
-                self.all_modules[pkg_name] = []
-                functions_path = file_dict["functions"]
-                parameters_path = file_dict["parameters"]
-                correct_count = 0
-                for module_match in file_dict["modules"]:
-                    module_name = module_match.group(1)
-                    # Add pkg-path to sys.path
-                    sys.path.insert(0, pkg_path)
-                    try:
-                        import_module(module_name)
-                    except Exception:
-                        traceback.print_exc()
-                    else:
-                        correct_count += 1
-                        # Add Module to dictionary
-                        self.all_modules[pkg_name].append(module_name)
-
-                # Make sure, that every module in modules
-                # is imported without error
-                # (otherwise don't append to pd_funcs and pd_params)
-                if len(file_dict["modules"]) == correct_count:
-                    try:
-                        read_pd_funcs = pd.read_csv(
-                            functions_path,
-                            sep=";",
-                            index_col=0,
-                            na_values=[""],
-                            keep_default_na=False,
-                        )
-                        read_pd_params = pd.read_csv(
-                            parameters_path,
-                            sep=";",
-                            index_col=0,
-                            na_values=[""],
-                            keep_default_na=False,
-                        )
-                    except Exception:
-                        traceback.print_exc()
-                    else:
-                        # Add pkg_name here (would be redundant
-                        # in read_pd_funcs of each custom-package)
-                        read_pd_funcs["pkg_name"] = pkg_name
-
-                        # Check, that there are no duplicates
-                        pd_funcs_to_append = read_pd_funcs.loc[
-                            ~read_pd_funcs.index.isin(self.pd_funcs.index)
-                        ]
-                        self.pd_funcs = pd.concat([self.pd_funcs, pd_funcs_to_append])
-                        pd_params_to_append = read_pd_params.loc[
-                            ~read_pd_params.index.isin(self.pd_params.index)
-                        ]
-                        self.pd_params = pd.concat(
-                            [self.pd_params, pd_params_to_append]
-                        )
-
-            else:
-                missing_files = [key for key in file_dict if file_dict[key] is None]
-                logging.warning(
-                    f"Files for import of {pkg_name} " f"are missing: {missing_files}"
-                )
-
-    def reload_modules(self):
-        for pkg_name in self.all_modules:
-            for module_name in self.all_modules[pkg_name]:
-                module = import_module(module_name)
-                try:
-                    reload(module)
-                # Custom-Modules somehow can't be reloaded
-                # because spec is not found
-                except ModuleNotFoundError:
-                    spec = None
-                    if spec:
-                        # All errors occuring here will
-                        # be caught by the UncaughtHook
-                        spec.loader.exec_module(module)
-                        sys.modules[module_name] = module
+from mne_nodes.pipeline.legacy import convert_pandas_meta, OldController, Project
+from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.settings import Settings
 
 
 class Controller:
-    """New controller, that combines the former old controller and project class and
-    loads a controller for each "project".
+    """New controller, that combines the former old controller and project
+    class and loads a controller for each "project".
 
     The home-path structure should no longer be as rigid as before, just specifying the
     path to meeg- and fsmri-data. For each controller, there is a config-file stored,
@@ -441,10 +37,11 @@ class Controller:
     ----------
     config_path : str or Path, optional
         Path to the config-file, if
-    meeg_root : str or Path, optional
-        Path to the MEEG data root directory, by default None.
-    fsmri_root : str or Path, optional
+    data_path : str or Path, optional
+        Path to the (processed) data directory. This contatins all data, mne-nodes works with.
+    subjects_dir : str or Path, optional
         Path to the FreeSurfer MRI data root directory, by default None.
+        Will be read and written to the mne config file.
 
     Attributes
     ----------
@@ -454,22 +51,24 @@ class Controller:
         Dictionary containing the configuration data loaded from the config-file.
     """
 
-    def __init__(self, config_path=None, meeg_root=None, fsmri_root=None):
-        self._config_path = config_path or QS().value("config_path", defaultValue=None)
+    def __init__(self, config_path=None, data_path=None, subjects_dir=None):
+        self._config_path = config_path or Settings().value(
+            "config_path", defaultValue=None
+        )
         self._config = {}
-        self.meeg_root = meeg_root or self.meeg_root
-        self.fsmri_root = fsmri_root or self.fsmri_root
+        self.settings = Settings()
+        self.data_path = data_path
+        self.subjects_dir = subjects_dir
 
         # Property attributes
         self._modules = {}
-        self._basic_module_list = ["basic_operations", "basic_plot"]
         self._function_metas = {}
         self._parameter_metas = {}
         self._input_nodes = {k: {} for k in self.input_data_types}
         self._function_nodes = {}
 
         self.default_settings = {
-            "selected_modules": ["basic_operations", "basic_operations"],
+            "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
             "show_plots": True,
             "save_plots": True,
@@ -538,22 +137,55 @@ class Controller:
             json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
-    def meeg_root(self):
-        return self.config.get("meeg_root", None)
+    def data_path(self):
+        """Path to the (processed) data directory.
 
-    @meeg_root.setter
-    def meeg_root(self, value):
-        self.config["meeg_root"] = value
-        self.save_config()
+        This contatins all data, mne-nodes works with. The original data
+        are generally left unchanged.
+        """
+        return self.settings.value("data_path")
+
+    @data_path.setter
+    def data_path(self, value):
+        if value is not None:
+            if not isdir(value):
+                raise ValueError(f"Path {value} does not exist!")
+            self.settings.setValue("data_path", value)
 
     @property
-    def fsmri_root(self):
-        return self.config.get("fsmri_root", None)
+    def subjects_dir(self):
+        """Path to the FreeSurfer subjects directory."""
+        subjects_dir = mne.get_config("SUBJECTS_DIR", None)
+        if subjects_dir is None:
+            subjects_dir = get_user_input(
+                "Please enter the path to the FreeSurfer subjects directory", "folder"
+            )
+            self.subjects_dir = subjects_dir
+        return subjects_dir
 
-    @fsmri_root.setter
-    def fsmri_root(self, value):
-        self.config["fsmri_root"] = value
-        self.save_config()
+    @subjects_dir.setter
+    def subjects_dir(self, value):
+        if value is not None:
+            if not isdir(value):
+                raise ValueError(f"Path {value} does not exist!")
+            mne.set_config("SUBJECTS_DIR", value)
+
+    @property
+    def plot_path(self):
+        plot_path = self.settings.value("plot_path")
+        if plot_path is None:
+            plot_path = get_user_input(
+                "Please enter the path to store the plots", "folder"
+            )
+            self.plot_path = plot_path
+        return plot_path
+
+    @plot_path.setter
+    def plot_path(self, value):
+        if value is not None:
+            if not isdir(value):
+                raise ValueError(f"Path {value} does not exist!")
+            self.settings.setValue("plot_path", value)
 
     @property
     def name(self):
@@ -575,23 +207,12 @@ class Controller:
         self._config["name"] = new_name
 
     @property
-    def plot_path(self):
-        return self.config.get("plots_path", None)
-
-    @plot_path.setter
-    def plot_path(self, value):
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-
-        self._config["plots_path"] = value
-        self.save_config()
-
-    @property
     def inputs(self):
         """This holds all data input nodes from MEEG and FSMRI data.
 
-        There can be multiple input-nodes for each data type with each having a distinct
-        name (keys in the second level of the dictionary).
+        There can be multiple input-nodes for each data type with each
+        having a distinct name (keys in the second level of the
+        dictionary).
         """
         if "inputs" not in self.config:
             self.config["inputs"] = {k: {} for k in self.input_data_types}
@@ -620,8 +241,8 @@ class Controller:
 
     @property
     def input_mapping(self):
-        """This holds the mapping of input nodes to data types (like MRI or Empty-
-        Room)."""
+        """This holds the mapping of input nodes to data types (like MRI or
+        Empty- Room)."""
         if "input_mapping" not in self.config:
             self.config["input_mapping"] = {}
         return self.config["input_mapping"]
@@ -722,12 +343,13 @@ class Controller:
 
     @property
     def function_nodes(self):
-        """This maps the node(s) to each function used in the project (by name and
-        id)."""
+        """This maps the node(s) to each function used in the project (by name
+        and id)."""
         return self._function_nodes
 
     def function_node(self, function_name, node_id=None):
-        """Get the function node for a specific function name and (optional) node id."""
+        """Get the function node for a specific function name and (optional)
+        node id."""
         if function_name not in self.function_nodes:
             raise KeyError(f"Function '{function_name}' not found in project.")
         if node_id is None:
@@ -742,34 +364,10 @@ class Controller:
     def function_metas(self):
         """This holds the metadata for the functions used in the project.
 
-        Only unique function names are allowed accross basic and custom packages.
+        Only unique function names are allowed accross basic and custom
+        packages.
         """
         return self._function_metas
-
-    def get_meta(self, name):
-        """Get the metadata for a specific parameter or function."""
-        if name in self.parameter_metas:
-            return self.parameter_metas[name]
-        elif name in self.function_metas:
-            return self.function_metas[name]
-        else:
-            raise KeyError(f"Metadata for '{name}' not found in project.")
-
-    def get_function_code(self, function_name):
-        """Get the code for a specific function from the modules."""
-        module_name = self.get_meta(function_name)["module"]
-        module = self.modules[module_name]
-        function = getattr(module, function_name)
-        if function is None:
-            raise KeyError(
-                f"Function '{function_name}' not found in module '{module_name}'."
-            )
-        code = getsource(function)
-        module_code = getsource(module)
-        # Get start/end lines of the function code in module
-        re.search(code, module_code)
-
-        return None, None, None
 
     @property
     def modules(self):
@@ -778,8 +376,8 @@ class Controller:
 
     @property
     def custom_module_meta(self):
-        """This holds the custom modules used in the project, stored by name and path to
-        the config-file."""
+        """This holds the custom modules used in the project, stored by name
+        and path to the config-file."""
         if "custom_module_meta" not in self.config:
             self.config["custom_module_meta"] = {}
         return self.config["custom_module_meta"]
@@ -808,7 +406,8 @@ class Controller:
     def input_data_types(self):
         """This holds the input data types for the project.
 
-        Keys are the data-type while values are the names/aliases of the data-type
+        Keys are the data-type while values are the names/aliases of the
+        data-type
         """
         if "input_data_types" not in self.config:
             self.config["input_data_types"] = {
@@ -850,17 +449,38 @@ class Controller:
         self._load_module_config(module_name, pkg_path)
 
     def load_basic_modules(self):
-        """Load the basic modules from the basic_functions package."""
-        # Add functions to sys.path
-        pkg_path = Path(basic_functions.__file__).parent
-
-        for module_name in self._basic_module_list:
-            self._import_module(module_name, pkg_path)
+        """Load the basic modules from the basic_operations package."""
+        for module in [basic_operations, basic_plot]:
+            module_name = module.__name__.split(".")[-1]  # Get the module name
+            self._modules[module_name] = module
+            pkg_path = Path(module.__file__).parent
+            self._load_module_config(module_name, pkg_path)
 
     def load_custom_modules(self):
+        """Load custom modules from their config files."""
         for module_name, config_file_path in self.custom_module_meta.items():
             pkg_path = Path(config_file_path).parent
             self._import_module(module_name, pkg_path)
+
+    def add_custom_module(self, config_file_path):
+        """Add a custom module to the controller.
+
+        Parameters
+        ----------
+        config_file_path : str or Path
+            Path to the configuration file for the custom module.
+        """
+        module_name = Path(config_file_path).stem.replace("_config", "")
+        if not isfile(config_file_path):
+            raise FileNotFoundError(f"Config file {config_file_path} does not exist.")
+        module_path = Path(config_file_path).parent / f"{module_name}.py"
+        if not isfile(module_path):
+            raise FileNotFoundError(
+                f"Module file {module_path} does not exist. The module file has to have the exact name of the module and the config file has to be named <module_name>_config.json."
+            )
+
+        self.custom_module_meta[module_name] = config_file_path
+        self.load_custom_modules()
 
     def reload_modules(self):
         """Reload all modules in the controller.
@@ -902,6 +522,32 @@ class Controller:
             new_module = import_module(module_name)
             # Update the module in the controller
             self._modules[module_name] = new_module
+
+    def get_meta(self, name):
+        """Get the metadata for a specific parameter or function."""
+        if name in self.parameter_metas:
+            return self.parameter_metas[name]
+        elif name in self.function_metas:
+            return self.function_metas[name]
+        else:
+            raise KeyError(f"Metadata for '{name}' not found in project.")
+
+    def get_function_code(self, function_name):
+        """Get the code for a specific function from the modules."""
+        module_name = self.get_meta(function_name)["module"]
+        module = self.modules[module_name]
+        function = getattr(module, function_name)
+        if function is None:
+            raise KeyError(
+                f"Function '{function_name}' not found in module '{module_name}'."
+            )
+        code = getsource(function)
+        module_code = getsource(module)
+        # ToDo: Get start/end lines of the function code in module
+        re.search(code, module_code)
+        pass
+
+        return None, None, None
 
     ####################################################################################
     # Node Management
@@ -945,8 +591,8 @@ class Controller:
             ct = old_controller
         pr = Project(ct, project_name)
         self.name = pr.name
-        self.meeg_root = pr.data_path
-        self.fsmri_root = ct.subjects_dir
+        self.data_path = pr.data_path
+        self.subjects_dir = ct.subjects_dir
         self.plot_path = pr.figures_path
 
         # Add inputs (and split groups into multiple input nodes)

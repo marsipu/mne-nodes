@@ -8,6 +8,7 @@ import argparse
 import logging
 import os
 import sys
+from pathlib import Path
 
 import qtpy
 from qtpy.QtCore import QTimer, Qt
@@ -20,7 +21,7 @@ from mne_nodes.gui.gui_utils import set_app_font, set_app_theme
 from mne_nodes.gui.welcome_window import WelcomeWindow
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
-from mne_nodes.pipeline.pipeline_utils import init_logging
+from mne_nodes.pipeline.settings import Settings
 
 app_name = "mne-nodes"
 organization_name = "marsipu"
@@ -33,7 +34,31 @@ def init_streams():
     sys.stderr = StdoutStderrStream("stderr")
 
 
+def init_logging(debug_mode=False):
+    """Initialize Root Logger."""
+    logger = logging.getLogger()
+    if debug_mode:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(Settings().value("log_level", defaultValue=logging.INFO))
+    # Format console handler
+    fmt = "{asctime} [{levelname}] {module}.{funcName}(): {message}"
+    date_fmt = "%H:%M:%S"
+    formatter = logging.Formatter(fmt, date_fmt, style="{")
+    console_handler = logging.StreamHandler()
+    console_handler.set_name("console")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    # Format file handler
+    logging_path = Settings().value("log_file_path") or Path.home() / "mne_nodes.log"
+    file_handler = logging.FileHandler(logging_path, mode="w", encoding="utf-8")
+    file_handler.set_name("file")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+
 def main():
+    # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
     debug_mode = os.environ.get("MNEPHD_DEBUG", False) == "true"
     init_logging(debug_mode)
 

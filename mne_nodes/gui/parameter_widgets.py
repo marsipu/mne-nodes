@@ -62,14 +62,14 @@ from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 # ToDo: Unify None-select and more
 # ToDo: potentially use docstring-inheritance to avoid repetition
 class Param(QWidget):
-    """Base-Class Parameter-GUIs, not to be called directly Inherited Clases should have
-    "Gui" in their name to get identified correctly.
+    """Base-Class Parameter-GUIs, not to be called directly Inherited Clases
+    should have "Gui" in their name to get identified correctly.
 
     Attributes
     ----------
@@ -160,8 +160,8 @@ class Param(QWidget):
         _object_refs["parameter_widgets"][self.name] = self
 
     def init_ui(self, layout=None):
-        """Base layout initialization, which adds the given layout to a group-box with
-        the parameters name if groupbox_layout is enabled.
+        """Base layout initialization, which adds the given layout to a group-
+        box with the parameters name if groupbox_layout is enabled.
 
         Else the layout will be horizontal with a QLabel for the name
         """
@@ -187,8 +187,10 @@ class Param(QWidget):
 
         else:
             # Add this to get no label in MultiTypeGui
-            if self.alias != "":
-                main_layout.addWidget(QLabel(self.alias))
+            # if self.alias != "":
+            none_chkbx = QCheckBox(self.alias)
+            none_chkbx.checkStateChanged.connect(self.groupbox_toggled)
+            main_layout.addWidget(none_chkbx)
             main_layout.addLayout(layout)
 
         self.setLayout(main_layout)
@@ -252,7 +254,7 @@ class Param(QWidget):
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
         # get data from QSettings
-        elif isinstance(self.data, QS) and name in self.data.childKeys():
+        elif isinstance(self.data, Settings) and name in self.data.childKeys():
             value = self.data.value(name)
         else:
             value = self.default
@@ -276,7 +278,7 @@ class Param(QWidget):
             self.data[name] = value
         elif isinstance(self.data, Controller):
             self.data.pr.parameters[self.data.pr.p_preset][name] = value
-        elif isinstance(self.data, QS):
+        elif isinstance(self.data, Settings):
             self.data.setValue(name, value)
 
     def save_param(self):
@@ -790,7 +792,7 @@ class ListGui(Param):
             else:
                 val_str = ", ".join([str(item) for item in value])
             if len(val_str) >= self.value_string_length:
-                self.value_label.setText(f"{val_str[:self.value_string_length]} ...")
+                self.value_label.setText(f"{val_str[: self.value_string_length]} ...")
             else:
                 self.value_label.setText(val_str)
         else:
@@ -899,7 +901,7 @@ class CheckListGui(Param):
             else:
                 val_str = ", ".join([str(item) for item in value])
             if len(val_str) >= self.value_string_length:
-                self.value_label.setText(f"{val_str[:self.value_string_length]} ...")
+                self.value_label.setText(f"{val_str[: self.value_string_length]} ...")
             else:
                 self.value_label.setText(val_str)
         else:
@@ -998,7 +1000,7 @@ class DictGui(Param):
             else:
                 val_str = ", ".join([f"{k}: {v}" for k, v in value.items()])
             if len(val_str) > self.value_string_length:
-                self.value_label.setText(f"{val_str[:self.value_string_length]} ...")
+                self.value_label.setText(f"{val_str[: self.value_string_length]} ...")
             else:
                 self.value_label.setText(val_str)
         else:
@@ -1649,8 +1651,7 @@ class LabelGui(Param):
         self.value_string_length = value_string_length
         if not isinstance(self.data, Controller):
             raise RuntimeError(
-                "LabelGui can only used with an instance of "
-                "Controller passed as data."
+                "LabelGui can only used with an instance of Controller passed as data."
             )
 
         self._dialog = None
@@ -1689,7 +1690,7 @@ class LabelGui(Param):
             else:
                 val_str = ", ".join([str(item) for item in value])
             if len(val_str) >= self.value_string_length:
-                self.value_label.setText(f"{val_str[:self.value_string_length]} ...")
+                self.value_label.setText(f"{val_str[: self.value_string_length]} ...")
             else:
                 self.value_label.setText(val_str)
         else:
@@ -1792,7 +1793,6 @@ class ColorGui(Param):
         self._get_param()
 
 
-# ToDo: Own testable QFileDialog-Implementations
 class PathGui(Param):
     """A GUI to pick a path."""
 
@@ -1811,6 +1811,7 @@ class PathGui(Param):
         super().__init__(**kwargs)
 
         self.pick_mode = pick_mode
+        self._path = None
 
         self.read_param()
         self._init_layout()
@@ -1829,17 +1830,17 @@ class PathGui(Param):
 
     def _pick_path(self):
         if self.pick_mode == "file":
-            path = compat.getopenfilename(self, self.description)[0]
+            self._path = compat.getopenfilename(self, self.description)[0]
         else:
-            path = compat.getexistingdirectory(self, self.description)
-        self.set_value(path)
+            self._path = compat.getexistingdirectory(self, self.description)
+        self.set_value(self._path)
         self._get_param()
 
     def set_value(self, value):
-        self.display_widget.setText(value)
+        self.display_widget.setText(str(value))
 
     def get_value(self):
-        return self.display_widget.text()
+        return self._path
 
 
 # Todo: Ordering Parameters in Tabs and add Find-Command
@@ -2032,19 +2033,19 @@ class ParametersDock(QDockWidget):
 
         title_layout2 = QHBoxLayout()
         copy_bt = QPushButton("Copy")
-        copy_bt.setFont(QFont(QS().value("app_font"), 16))
+        copy_bt.setFont(QFont(Settings().value("app_font"), 16))
         copy_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         copy_bt.clicked.connect(partial(CopyPDialog, self))
         title_layout2.addWidget(copy_bt)
 
         reset_bt = QPushButton("Reset")
-        reset_bt.setFont(QFont(QS().value("app_font"), 16))
+        reset_bt.setFont(QFont(Settings().value("app_font"), 16))
         reset_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         reset_bt.clicked.connect(partial(ResetDialog, self))
         title_layout2.addWidget(reset_bt)
 
         reset_all_bt = QPushButton("Reset All")
-        reset_all_bt.setFont(QFont(QS().value("app_font"), 16))
+        reset_all_bt.setFont(QFont(Settings().value("app_font"), 16))
         reset_all_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
         reset_all_bt.clicked.connect(self.reset_all_parameters)
         title_layout2.addWidget(reset_all_bt)
@@ -2166,7 +2167,7 @@ class ParametersDock(QDockWidget):
         msgbox = QMessageBox.question(
             self,
             "Reset all Parameters?",
-            "Do you really want to reset all " "parameters to their default?",
+            "Do you really want to reset all parameters to their default?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -2187,8 +2188,7 @@ class SettingsDlg(QDialog):
                 "slot": set_app_theme,
                 "gui_kwargs": {
                     "alias": "Application Theme",
-                    "description": "Changes the application theme "
-                    "(Restart required).",
+                    "description": "Changes the application theme (Restart required).",
                     "options": ["auto", "light", "dark", "high_contrast"],
                     "raise_missing": False,
                 },
@@ -2301,7 +2301,7 @@ class SettingsDlg(QDialog):
             data_type = details["data_type"]
             gui_kwargs = details["gui_kwargs"]
             if data_type == "QSettings":
-                gui_kwargs["data"] = QS()
+                gui_kwargs["data"] = Settings()
                 gui_kwargs["default"] = self.ct.default_settings["qsettings"][setting]
             elif data_type == "Controller":
                 gui_kwargs["data"] = self.mw.ct

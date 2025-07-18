@@ -23,8 +23,9 @@ import mne_connectivity
 import numpy as np
 from tqdm import tqdm
 
-from mne_nodes.pipeline.pipeline_utils import TypedJSONEncoder, type_json_hook, is_test
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.pipeline_utils import is_test
+from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.settings import Settings
 
 
 # BIDS-Considerations:
@@ -105,7 +106,7 @@ def load_decorator(load_func):
                         raise err
 
         # Save data in data-dict for machines with big RAM
-        if not QS().value("save_ram"):
+        if not Settings().value("save_ram"):
             self.data_dict[data_type] = data
 
         return data
@@ -136,7 +137,7 @@ def save_decorator(save_func):
         save_func(self, *args, **kwargs)
 
         # Save data in data-dict for machines with big RAM
-        if not QS().value("save_ram"):
+        if not Settings().value("save_ram"):
             self.data_dict[data_type] = data
 
         # Save File-Parameters
@@ -150,8 +151,8 @@ def save_decorator(save_func):
 # ToDo: Unify all objects to one loading-class
 # For example Group and MEEG can have the same load-method for Source-Estimates then
 class BaseLoading:
-    """Base-Class for Sub (The current File/MRI-File/Grand-Average-Group, which is
-    executed)"""
+    """Base-Class for Sub (The current File/MRI-File/Grand-Average-Group, which
+    is executed)"""
 
     def __init__(self, name, controller):
         # Basic Attributes (partly taking parameters or main-win-attributes
@@ -193,8 +194,8 @@ class BaseLoading:
             raise KeyError(f"Parameter {parameter_name} not found in parameters")
 
     def init_attributes(self):
-        """Initialization of additional attributes, should be overridden in inherited
-        classes."""
+        """Initialization of additional attributes, should be overridden in
+        inherited classes."""
         pass
 
     def init_paths(self):
@@ -323,7 +324,7 @@ class BaseLoading:
         for file_name in remove_files:
             self.file_parameters.pop(file_name)
         logging.info(
-            f"Removed {len(remove_files)} Files " f"and {n_remove_params} Parameters."
+            f"Removed {len(remove_files)} Files and {n_remove_params} Parameters."
         )
         self.save_file_parameter_file()
 
@@ -341,8 +342,9 @@ class BaseLoading:
         dpi=None,
         img_format=None,
     ):
-        """Save a plot with this method either by letting the figure be detected by the
-        backend (pyplot, mayavi) or by supplying the figure directly.
+        """Save a plot with this method either by letting the figure be
+        detected by the backend (pyplot, mayavi) or by supplying the figure
+        directly.
 
         Parameters
         ----------
@@ -418,7 +420,7 @@ class BaseLoading:
                         # Insert additional index in front of image-format
                         # (easier with removesuffix when moving to 3.9)
                         idx_file_name = (
-                            f"{file_name[:-len(self.img_format)]}"
+                            f"{file_name[: -len(self.img_format)]}"
                             f"--{ix}{self.img_format}"
                         )
                         idx_file_path = join(dir_path, idx_file_name)
@@ -515,7 +517,8 @@ class BaseLoading:
             logging.warning(f"{file_path} was removed")
 
     def get_existing_paths(self):
-        """Get existing paths and add the mapped File-Type to existing_paths (set)"""
+        """Get existing paths and add the mapped File-Type to existing_paths
+        (set)"""
         self.existing_paths.clear()
         for data_type in self.io_dict:
             paths = self._return_path_list(data_type)
@@ -645,7 +648,7 @@ class MEEG(BaseLoading):
             self.sel_trials = {}
             if not self.suppress_warnings:
                 logging.warning(
-                    f"No Trials selected for {self.name}," f" defaulting to empty list"
+                    f"No Trials selected for {self.name}, defaulting to empty list"
                 )
         else:
             self.sel_trials = self.pr.sel_event_id[self.name]
@@ -677,7 +680,8 @@ class MEEG(BaseLoading):
             self.ica_exclude = self.pr.meeg_ica_exclude[self.name]
 
     def init_paths(self):
-        """Load Paths as attributes (depending on which Parameter-Preset is selected)"""
+        """Load Paths as attributes (depending on which Parameter-Preset is
+        selected)"""
 
         # Main save directory
         self.save_dir = join(self.pr.data_path, self.name)
@@ -723,26 +727,25 @@ class MEEG(BaseLoading):
         )
         self.power_tfr_epochs_path = join(
             self.save_dir,
-            f"{self.name}_{self.p_preset}_" f'#{self.pa["tfr_method"]}-epo-pw-tfr.h5',
+            f"{self.name}_{self.p_preset}_#{self.pa['tfr_method']}-epo-pw-tfr.h5",
         )
         self.itc_tfr_epochs_path = join(
             self.save_dir,
-            f"{self.name}_{self.p_preset}_" f'{self.pa["tfr_method"]}-epo-itc-tfr.h5',
+            f"{self.name}_{self.p_preset}_{self.pa['tfr_method']}-epo-itc-tfr.h5",
         )
         self.power_tfr_average_path = join(
             self.save_dir,
-            f"{self.name}_{self.p_preset}_" f'{self.pa["tfr_method"]}-ave-pw-tfr.h5',
+            f"{self.name}_{self.p_preset}_{self.pa['tfr_method']}-ave-pw-tfr.h5",
         )
         self.itc_tfr_average_path = join(
             self.save_dir,
-            f"{self.name}_{self.p_preset}_" f'{self.pa["tfr_method"]}-ave-itc-tfr.h5',
+            f"{self.name}_{self.p_preset}_{self.pa['tfr_method']}-ave-itc-tfr.h5",
         )
         self.trans_path = join(self.save_dir, f"{self.fsmri.name}-trans.fif")
         self.forward_path = join(self.save_dir, f"{self.name}_{self.p_preset}-fwd.fif")
         self.source_morph_path = join(
             self.save_dir,
-            f'{self.name}--to--{self.pa["morph_to"]}_'
-            f'{self.pa["src_spacing"]}-morph.h5',
+            f"{self.name}--to--{self.pa['morph_to']}_{self.pa['src_spacing']}-morph.h5",
         )
         self.calm_cov_path = join(
             self.save_dir, f"{self.name}_{self.p_preset}-calm-cov.fif"
@@ -1322,7 +1325,7 @@ class MEEG(BaseLoading):
                 mixn_dip_path = join(
                     self.save_dir,
                     "mixn_dipoles",
-                    f"{self.name}_{trial}_" f"{self.p_preset}-mixn-dip{idx}.dip",
+                    f"{self.name}_{trial}_{self.p_preset}-mixn-dip{idx}.dip",
                 )
                 dip_list.append(mne.read_dipole(mixn_dip_path))
                 idx += 1
@@ -1344,7 +1347,7 @@ class MEEG(BaseLoading):
                 mxn_dip_path = join(
                     self.save_dir,
                     "mixn_dipoles",
-                    f"{self.name}_{trial}_" f"{self.p_preset}-mixn-dip{idx}.dip",
+                    f"{self.name}_{trial}_{self.p_preset}-mixn-dip{idx}.dip",
                 )
                 dip.save(mxn_dip_path, overwrite=True)
 
@@ -1448,8 +1451,8 @@ class FSMRI(BaseLoading):
 
     def init_attributes(self):
         """Initialize additional attributes for FSMRI."""
-        self.fs_path = QS().value("fs_path")
-        self.mne_path = QS().value("mne_path")
+        self.fs_path = Settings().value("fs_path")
+        self.mne_path = Settings().value("mne_path")
 
         # Initialize Parcellations and Labels
         if self.load_labels:
@@ -1470,7 +1473,7 @@ class FSMRI(BaseLoading):
                 "path": join(
                     self.save_dir,
                     "bem",
-                    f'{self.name}_{self.p_preset}_{self.pa["src_spacing"]}-src.fif',
+                    f"{self.name}_{self.p_preset}_{self.pa['src_spacing']}-src.fif",
                 ),
                 "load": self.load_source_space,
                 "save": self.save_source_space,
@@ -1500,7 +1503,7 @@ class FSMRI(BaseLoading):
 
         self.deprecated_paths = {
             "src": join(
-                self.save_dir, "bem", f'{self.name}_{self.pa["src_spacing"]}-src.fif'
+                self.save_dir, "bem", f"{self.name}_{self.pa['src_spacing']}-src.fif"
             ),
             "bem_model": join(self.save_dir, "bem", f"{self.name}-bem.fif"),
             "bem_solution": join(self.save_dir, "bem", f"{self.name}-bem-sol.fif"),
@@ -1665,7 +1668,7 @@ class Group(BaseLoading):
             self.group_list = []
             if not self.suppress_warnings:
                 logging.warning(
-                    f"No objects assigned for {self.name}," f" defaulting to empty list"
+                    f"No objects assigned for {self.name}, defaulting to empty list"
                 )
         else:
             self.group_list = self.pr.all_groups[self.name]
@@ -1695,9 +1698,7 @@ class Group(BaseLoading):
         # Data Paths
         self.ga_evokeds_paths = {
             trial: join(
-                self.save_dir,
-                "evokeds",
-                f"{self.name}_{trial}_" f"{self.p_preset}-ave.fif",
+                self.save_dir, "evokeds", f"{self.name}_{trial}_{self.p_preset}-ave.fif"
             )
             for trial in self.sel_trials
         }
@@ -1705,7 +1706,7 @@ class Group(BaseLoading):
             trial: join(
                 self.save_dir,
                 "time-frequency",
-                f"{self.name}_{trial}_" f"{self.p_preset}-tfr.h5",
+                f"{self.name}_{trial}_{self.p_preset}-tfr.h5",
             )
             for trial in self.sel_trials
         }
@@ -1713,7 +1714,7 @@ class Group(BaseLoading):
             trial: join(
                 self.save_dir,
                 "source-estimates",
-                f"{self.name}_{trial}_" f"{self.p_preset}",
+                f"{self.name}_{trial}_{self.p_preset}",
             )
             for trial in self.sel_trials
         }
@@ -1722,7 +1723,7 @@ class Group(BaseLoading):
                 label: join(
                     self.save_dir,
                     "label-time-courses",
-                    f"{self.name}_{trial}_" f"{self.p_preset}_{label}.npy",
+                    f"{self.name}_{trial}_{self.p_preset}_{label}.npy",
                 )
                 for label in self.pa["target_labels"]
             }
@@ -1733,7 +1734,7 @@ class Group(BaseLoading):
                 con_method: join(
                     self.save_dir,
                     "connectivity",
-                    f"{self.name}_{trial}_" f"{self.p_preset}_{con_method}.nc",
+                    f"{self.name}_{trial}_{self.p_preset}_{con_method}.nc",
                 )
                 for con_method in self.pa["con_methods"]
             }

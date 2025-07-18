@@ -30,7 +30,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.base_widgets import CheckDictEditList, CheckList
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class EducationTour(QWizard):
@@ -113,7 +113,7 @@ class EducationEditor(QMainWindow):
         self.setCentralWidget(QWidget())
 
         name_label = QLabel("Name:")
-        name_label.setFont(QFont(QS().value("app_font"), 14))
+        name_label.setFont(QFont(Settings().value("app_font"), 14))
         layout.addWidget(name_label)
         self.name_ledit = QLineEdit()
         self.name_ledit.textEdited.connect(self.name_changed)
@@ -145,7 +145,7 @@ class EducationEditor(QMainWindow):
         layout.addLayout(select_layout)
 
         page_label = QLabel("Make a Tour:")
-        page_label.setFont(QFont(QS().value("app_font"), 14))
+        page_label.setFont(QFont(Settings().value("app_font"), 14))
         self.format_cmbx = QComboBox()
         self.format_cmbx.addItems(["PlainText", "HTML"])
         self.format_cmbx.currentTextChanged.connect(self.format_changed)
@@ -255,12 +255,12 @@ class EducationEditor(QMainWindow):
         if not isdir(self.edu_folder):
             makedirs(self.edu_folder)
 
-        edu_path = join(self.edu_folder, f'{self.edu["name"]}-edu.json')
+        edu_path = join(self.edu_folder, f"{self.edu['name']}-edu.json")
         with open(edu_path, "w") as file:
             json.dump(self.edu, file, indent=4)
 
         new_pscripts_path = join(
-            self.ct.pr.project_path, f'_pipeline_scripts{self.edu["name"]}'
+            self.ct.pr.project_path, f"_pipeline_scripts{self.edu['name']}"
         )
         # Copy Pipeline-Scripts
         copytree(self.ct.pr.pscripts_path, new_pscripts_path, dirs_exist_ok=True)

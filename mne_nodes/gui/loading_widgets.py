@@ -48,8 +48,8 @@ from qtpy.QtWidgets import (
     QWizardPage,
 )
 
-from mne_nodes.basic_functions.basic_operations import find_bads
-from mne_nodes.basic_functions.basic_plot import (
+from mne_nodes.basic_operations.basic_operations import find_bads
+from mne_nodes.basic_plot.basic_plot import (
     plot_ica_components,
     plot_ica_sources,
     plot_ica_overlay,
@@ -68,18 +68,14 @@ from mne_nodes.gui.base_widgets import (
     SimplePandasTable,
 )
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.gui_utils import (
-    center,
-    set_ratio_geometry,
-    get_user_input,
-)
+from mne_nodes.gui.gui_utils import center, set_ratio_geometry, get_user_input
 from mne_nodes.gui.models import AddFilesModel
 from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.pipeline.execution import Worker, WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import compare_filep
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 def index_parser(index, all_items, groups=None):
@@ -181,7 +177,7 @@ class RemoveDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
-        label = QLabel(f"Do you really want to remove" f" the selected {self.mode}?")
+        label = QLabel(f"Do you really want to remove the selected {self.mode}?")
         layout.addWidget(label)
 
         if self.mode == "MEEG":
@@ -691,7 +687,7 @@ class AddFilesWidget(QWidget):
                 QMessageBox.information(
                     self,
                     "Existing Files",
-                    f"These files already exist in your meeg.pr:" f"{existing_files}",
+                    f"These files already exist in your meeg.pr:{existing_files}",
                 )
 
     def get_files_path(self):
@@ -708,8 +704,7 @@ class AddFilesWidget(QWidget):
 
     def get_folder_path(self):
         folder_path = compat.getexistingdirectory(
-            self,
-            "Choose a folder to import your raw-Files from " "(including subfolders)",
+            self, "Choose a folder to import your raw-Files from (including subfolders)"
         )
         if folder_path != "":
             # create a list of file and obj directories
@@ -939,12 +934,12 @@ class AddMRIWidget(QWidget):
                     logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
             else:
                 logging.warning(
-                    "Selected Folder doesn't seem to " "be a Freesurfer-Segmentation"
+                    "Selected Folder doesn't seem to be a Freesurfer-Segmentation"
                 )
 
     def import_mri_subjects(self):
         parent_folder = compat.getexistingdirectory(
-            self, "Choose a folder containting several " "Freesurfer-Segmentations"
+            self, "Choose a folder containting several Freesurfer-Segmentations"
         )
         folder_list = sorted(
             [f for f in os.listdir(parent_folder) if not f.startswith(".")],
@@ -961,7 +956,7 @@ class AddMRIWidget(QWidget):
                     logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
             else:
                 logging.warning(
-                    "Selected Folder doesn't seem to be " "a Freesurfer-Segmentation"
+                    "Selected Folder doesn't seem to be a Freesurfer-Segmentation"
                 )
         self.populate_list_widget()
 
@@ -1328,7 +1323,7 @@ class SubBadsWidget(QWidget):
             self,
             find_bads,
             meeg=self.current_obj,
-            n_jobs=QS().value("n_jobs"),
+            n_jobs=Settings().value("n_jobs"),
             show_console=True,
             show_buttons=True,
             close_directly=False,
@@ -2413,7 +2408,7 @@ class ExportDialog(QDialog):
         layout.addWidget(
             SimpleList(
                 self.ct.pr.sel_meeg,
-                title="Export selected data for the " "following MEEG-Files:",
+                title="Export selected data for the following MEEG-Files:",
             )
         )
         layout.addWidget(

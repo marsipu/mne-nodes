@@ -53,15 +53,11 @@ from mne_nodes.gui.base_widgets import (
 from mne_nodes.gui.code_editor import CodeEditor
 from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.gui_utils import (
-    center,
-    set_ratio_geometry,
-    get_std_icon,
-)
+from mne_nodes.gui.gui_utils import center, set_ratio_geometry, get_std_icon
 from mne_nodes.gui.models import CustomFunctionModel, RunModel
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.function_utils import QRunController
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class RunDialog(QDialog):
@@ -302,8 +298,7 @@ class ChooseOptions(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(
             QLabel(
-                f"For {self.gui_type}, you need to specify"
-                f" the options to choose from"
+                f"For {self.gui_type}, you need to specify the options to choose from"
             )
         )
         layout.addWidget(EditList(data=self.options))
@@ -341,7 +336,7 @@ class CustomFunctionImport(QDialog):
         self.exst_functions = list(self.ct.pd_funcs.index)
         self.exst_parameters = ["mw", "pr", "meeg", "fsmri", "group"]
         self.exst_parameters += list(self.ct.settings.keys())
-        self.exst_parameters += list(QS().childKeys())
+        self.exst_parameters += list(Settings().childKeys())
         self.exst_parameters += list(self.ct.pr.parameters[self.ct.pr.p_preset].keys())
         self.param_exst_dict = {}
 
@@ -395,11 +390,11 @@ class CustomFunctionImport(QDialog):
         # Import Button and Combobox
         add_bt_layout = QHBoxLayout()
         addfn_bt = QPushButton("Load Function/s")
-        addfn_bt.setFont(QFont(QS().value("app_font"), 12))
+        addfn_bt.setFont(QFont(Settings().value("app_font"), 12))
         addfn_bt.clicked.connect(self.get_functions)
         add_bt_layout.addWidget(addfn_bt)
         editfn_bt = QPushButton("Edit Function/s")
-        editfn_bt.setFont(QFont(QS().value("app_font"), 12))
+        editfn_bt.setFont(QFont(Settings().value("app_font"), 12))
         editfn_bt.clicked.connect(self.edit_functions)
         add_bt_layout.addWidget(editfn_bt)
         layout.addLayout(add_bt_layout)
@@ -449,7 +444,7 @@ class CustomFunctionImport(QDialog):
 
         self.falias_le = QLineEdit()
         self.falias_le.setToolTip(
-            "Set a name if you want something other" " than the functions-name"
+            "Set a name if you want something other than the functions-name"
         )
         self.falias_le.textEdited.connect(self.falias_changed)
         func_setup_formlayout.addRow("Alias", self.falias_le)
@@ -457,7 +452,7 @@ class CustomFunctionImport(QDialog):
         target_layout = QHBoxLayout()
         self.target_cmbx = QComboBox()
         self.target_cmbx.setToolTip(
-            "Set the target on which " "the function shall operate"
+            "Set the target on which the function shall operate"
         )
         self.target_cmbx.setEditable(False)
         self.target_cmbx.activated.connect(self.target_cmbx_changed)
@@ -468,9 +463,7 @@ class CustomFunctionImport(QDialog):
 
         tab_layout = QHBoxLayout()
         self.tab_cmbx = QComboBox()
-        self.tab_cmbx.setToolTip(
-            "Choose the Tab for the function " "(Compute/Plot/...)"
-        )
+        self.tab_cmbx.setToolTip("Choose the Tab for the function (Compute/Plot/...)")
         self.tab_cmbx.setEditable(True)
         self.tab_cmbx.activated.connect(self.tab_cmbx_changed)
         self.tab_cmbx.editTextChanged.connect(self.tab_cmbx_edited)
@@ -482,7 +475,7 @@ class CustomFunctionImport(QDialog):
         group_layout = QHBoxLayout()
         self.group_cmbx = QComboBox()
         self.group_cmbx.setToolTip(
-            "Choose the function-group for the " "function or create a new one"
+            "Choose the function-group for the function or create a new one"
         )
         self.group_cmbx.setEditable(True)
         self.group_cmbx.activated.connect(self.group_cmbx_changed)
@@ -509,7 +502,7 @@ class CustomFunctionImport(QDialog):
             "Choose, if the function contains an interactive Matplotlib-Plot"
         )
         self.mtpl_nobt.setToolTip(
-            "Choose, if the function contains " "no interactive Matplotlib-Plot"
+            "Choose, if the function contains no interactive Matplotlib-Plot"
         )
         self.mtpl_bts.buttonToggled.connect(self.mtpl_changed)
         self.mtpl_chkl = QLabel()
@@ -530,10 +523,10 @@ class CustomFunctionImport(QDialog):
         myv_layout.addWidget(self.myv_yesbt)
         myv_layout.addWidget(self.myv_nobt)
         self.myv_yesbt.setToolTip(
-            "Choose, if the function contains " "a Pyvista/Mayavi-Plot"
+            "Choose, if the function contains a Pyvista/Mayavi-Plot"
         )
         self.myv_nobt.setToolTip(
-            "Choose, if the function contains " "a Pyvista/Mayavi-Plot"
+            "Choose, if the function contains a Pyvista/Mayavi-Plot"
         )
         self.myv_bts.buttonToggled.connect(self.myv_changed)
         self.myv_chkl = QLabel()
@@ -571,7 +564,7 @@ class CustomFunctionImport(QDialog):
         param_setup_formlayout = QFormLayout()
         self.palias_le = QLineEdit()
         self.palias_le.setToolTip(
-            "Set a name if you want something other " "than the parameters-name"
+            "Set a name if you want something other than the parameters-name"
         )
         self.palias_le.textEdited.connect(self.palias_changed)
         param_setup_formlayout.addRow("Alias", self.palias_le)
@@ -623,17 +616,17 @@ class CustomFunctionImport(QDialog):
         bt_layout = QHBoxLayout()
 
         save_bt = QPushButton("Save")
-        save_bt.setFont(QFont(QS().value("app_font"), 16))
+        save_bt.setFont(QFont(Settings().value("app_font"), 16))
         save_bt.clicked.connect(self.save_pkg)
         bt_layout.addWidget(save_bt)
 
         src_bt = QPushButton("Show Code")
-        src_bt.setFont(QFont(QS().value("app_font"), 16))
+        src_bt.setFont(QFont(Settings().value("app_font"), 16))
         src_bt.clicked.connect(self.show_code)
         bt_layout.addWidget(src_bt)
 
         close_bt = QPushButton("Quit")
-        close_bt.setFont(QFont(QS().value("app_font"), 16))
+        close_bt.setFont(QFont(Settings().value("app_font"), 16))
         close_bt.clicked.connect(self.close)
         bt_layout.addWidget(close_bt)
 
@@ -1264,7 +1257,7 @@ class ImportFuncs(QDialog):
 
         if len(self.already_existing_funcs) > 0:
             exst_label = QLabel(
-                f"These functions already exist: " f"{self.already_existing_funcs}"
+                f"These functions already exist: {self.already_existing_funcs}"
             )
             exst_label.setWordWrap(True)
             layout.addWidget(exst_label)
@@ -1340,9 +1333,9 @@ class ImportFuncs(QDialog):
                             if pd.notna(
                                 self.cf.add_pd_params.loc[param_key, "functions"]
                             ):
-                                self.cf.add_pd_params.loc[
-                                    param_key, "functions"
-                                ] += func_key
+                                self.cf.add_pd_params.loc[param_key, "functions"] += (
+                                    func_key
+                                )
                             else:
                                 self.cf.add_pd_params.loc[param_key, "functions"] = (
                                     func_key
@@ -1717,18 +1710,13 @@ class AddKwargs(QDialog):
 
         list_layout = QHBoxLayout()
         func_list = CheckDictList(
-            self.ct.pd_funcs.index,
-            self.ct.pr.add_kwargs,
-            no_bt="SP_MessageBoxQuestion",
+            self.ct.pd_funcs.index, self.ct.pr.add_kwargs, no_bt="SP_MessageBoxQuestion"
         )
         func_list.currentChanged.connect(self.func_selected)
         list_layout.addWidget(func_list)
 
         self.kwarg_dict = EditDict(
-            {},
-            title="Add Keyword-Arguments:",
-            resize_rows=True,
-            resize_columns=True,
+            {}, title="Add Keyword-Arguments:", resize_rows=True, resize_columns=True
         )
         list_layout.addWidget(self.kwarg_dict)
 
@@ -1741,7 +1729,8 @@ class AddKwargs(QDialog):
         self.setLayout(layout)
 
     def _check_empty(self):
-        """Check if the dict for current_func in add_kwargs is empty, then remove it."""
+        """Check if the dict for current_func in add_kwargs is empty, then
+        remove it."""
         if self.current_func:
             if self.current_func in self.ct.pr.add_kwargs:
                 if len(self.ct.pr.add_kwargs[self.current_func]) == 0:

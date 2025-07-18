@@ -13,6 +13,7 @@ from importlib import resources
 from os.path import join
 
 import darkdetect
+from qtpy import compat
 from qtpy.QtCore import Qt, QEvent
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
@@ -29,14 +30,13 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QComboBox,
     QWidget,
-    QFileDialog,
 )
 
 import mne_nodes
 from mne_nodes import _object_refs
 from mne_nodes import extra
 from mne_nodes.pipeline.pipeline_utils import is_test
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 # Load theme colors
 theme_color_path = join(str(resources.files(extra)), "color_themes.json")
@@ -78,11 +78,7 @@ def ask_user(prompt):
     """Ask the user a question and return the answer (yes or no)."""
     if mne_nodes.gui_mode:
         parent = QApplication.activeWindow()
-        ans = QMessageBox.question(
-            parent,
-            "Question",
-            prompt,
-        )
+        ans = QMessageBox.question(parent, "Question", prompt)
         ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
         ans = ans == QMessageBox.StandardButton.Yes
     elif is_test() or sys.stdin.isatty():
@@ -112,7 +108,8 @@ def ask_user(prompt):
 
 
 def get_user_input(prompt, input_type="string", file_filter=None):
-    """Get user input either via GUI or terminal, supporting string and path input.
+    """Get user input either via GUI or terminal, supporting string and path
+    input.
 
     Parameters
     ----------
@@ -141,17 +138,10 @@ def get_user_input(prompt, input_type="string", file_filter=None):
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
         elif input_type == "folder":
-            user_input = QFileDialog.getExistingDirectory(
-                parent,
-                prompt,
-            )
+            user_input = compat.getexistingdirectory(parent, prompt)
             ok = user_input != ""
         elif input_type == "file":
-            user_input, ok = QFileDialog.getOpenFileName(
-                parent,
-                prompt,
-                filter=file_filter,
-            )
+            user_input, ok = compat.getopenfilename(parent, prompt, filter=file_filter)
         else:
             raise ValueError(type_error_message)
     # Checks for interactive terminal
@@ -298,14 +288,7 @@ def get_palette(theme):
         ],
         "background_disabled": ["Window", "HighlightedText", "AlternateBase", "Button"],
     }
-    color_roles_inactive = {
-        "primary": [
-            "Highlight",
-        ],
-        "foreground": [
-            "HighlightedText",
-        ],
-    }
+    color_roles_inactive = {"primary": ["Highlight"], "foreground": ["HighlightedText"]}
 
     colors = {k: QColor(v) for k, v in theme_colors[theme].items()}
     palette = QPalette()
@@ -345,7 +328,7 @@ def _get_auto_theme():
 def set_app_theme():
     app = QApplication.instance()
     app.setStyle("Fusion")
-    app_theme = QS().value("app_theme")
+    app_theme = Settings().value("app_theme")
     # Detect system theme
     if app_theme == "auto":
         app_theme = _get_auto_theme()
@@ -378,8 +361,8 @@ def set_app_theme():
 
 def set_app_font():
     app = QApplication.instance()
-    font_family = QS().value("app_font")
-    font_size = QS().value("app_font_size")
+    font_family = Settings().value("app_font")
+    font_size = Settings().value("app_font_size")
     app.setFont(QFont(font_family, font_size))
 
 
@@ -387,7 +370,7 @@ class ColorTester(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         _object_refs["color_tester"] = self
-        theme = QS().value("app_theme")
+        theme = Settings().value("app_theme")
         if theme == "auto":
             theme = _get_auto_theme()
         self.theme = theme
@@ -411,7 +394,7 @@ class ColorTester(QDialog):
             button_display.setFixedSize(20, 20)
             button_display.setStyleSheet(
                 f"background-color: {theme_colors[self.theme][field_name]};"
-                f"border-color: black;border-style: solid;border-width: 2px",
+                f"border-color: black;border-style: solid;border-width: 2px"
             )
             button_layout.addWidget(button_display)
             button = QPushButton("Change Color")
@@ -437,7 +420,7 @@ class ColorTester(QDialog):
         set_app_theme()
 
     def change_theme(self, theme):
-        QS().setValue("app_theme", theme)
+        Settings().setValue("app_theme", theme)
         self.theme = theme
         set_app_theme()
         for field_name, color in theme_colors[theme].items():

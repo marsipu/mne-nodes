@@ -25,7 +25,7 @@ from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class HistoryDlg(QDialog):
@@ -159,7 +159,7 @@ class DataTerminal(QDialog):
         self.sub_layout.addWidget(self.inputw, 0, 0, 3, 1)
 
         self.start_bt = QPushButton("Start")
-        self.start_bt.setFont(QFont(QS().value("app_font"), 16))
+        self.start_bt.setFont(QFont(Settings().value("app_font"), 16))
         self.start_bt.setSizePolicy(
             QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         )
@@ -167,7 +167,7 @@ class DataTerminal(QDialog):
         self.sub_layout.addWidget(self.start_bt, 0, 1)
 
         self.history_bt = QPushButton("History")
-        self.history_bt.setFont(QFont(QS().value("app_font"), 16))
+        self.history_bt.setFont(QFont(Settings().value("app_font"), 16))
         self.history_bt.setSizePolicy(
             QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         )
@@ -175,7 +175,7 @@ class DataTerminal(QDialog):
         self.sub_layout.addWidget(self.history_bt, 1, 1)
 
         self.quit_bt = QPushButton("Close")
-        self.quit_bt.setFont(QFont(QS().value("app_font"), 16))
+        self.quit_bt.setFont(QFont(Settings().value("app_font"), 16))
         self.quit_bt.setSizePolicy(
             QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
         )

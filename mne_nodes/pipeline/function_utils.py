@@ -23,7 +23,7 @@ from mne_nodes.pipeline.execution import Worker
 from mne_nodes.pipeline.loading import BaseLoading, FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import shutdown
 from mne_nodes import ismac
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class StreamManager:
@@ -123,8 +123,8 @@ def get_arguments(func, obj):
             arguments[arg_name] = obj.pa[arg_name]
         elif arg_name in obj.ct.settings:
             arguments[arg_name] = obj.ct.settings[arg_name]
-        elif arg_name in QS().childKeys():
-            arguments[arg_name] = QS().value(arg_name)
+        elif arg_name in Settings().childKeys():
+            arguments[arg_name] = Settings().value(arg_name)
 
     # Add additional keyword-arguments if added for function by user
     if func.__name__ in obj.pr.add_kwargs:
@@ -233,9 +233,9 @@ class RunController:
         # Mark current object with status
         self.all_objects[self.current_object.name]["status"] = status
         # Mark current function with status
-        self.all_objects[self.current_object.name]["functions"][
-            self.current_func
-        ] = status
+        self.all_objects[self.current_object.name]["functions"][self.current_func] = (
+            status
+        )
 
     def get_object(self):
         self.current_type = self.all_objects[self.current_obj_name]["type"]
@@ -285,9 +285,7 @@ class RunController:
         if len(self.all_steps) > 0:
             # Getting information as encoded in init_lists
             self.current_obj_name, self.current_func = self.all_steps.pop(0)
-            logging.debug(
-                f"Running {self.current_func} for " f"{self.current_obj_name}"
-            )
+            logging.debug(f"Running {self.current_func} for {self.current_obj_name}")
             # Get current object
             self.get_object()
 
@@ -444,7 +442,7 @@ class QRunController(RunController):
             ismayavi = self.ct.pd_funcs.loc[self.current_func, "mayavi"]
             ismpl = self.ct.pd_funcs.loc[self.current_func, "matplotlib"]
             show_plots = self.ct.get_setting("show_plots")
-            use_qthread = QS().value("use_qthread")
+            use_qthread = Settings().value("use_qthread")
             if (
                 ismayavi
                 or (ismpl and show_plots and use_qthread)
@@ -454,7 +452,7 @@ class QRunController(RunController):
                 result = run_func(**kwds)
                 self.process_finished(result)
 
-            elif QS().value("use_qthread"):
+            elif Settings().value("use_qthread"):
                 logging.info("Starting in separate Thread.")
                 worker = Worker(function=run_func, **kwds)
                 worker.signals.error.connect(self.process_finished)

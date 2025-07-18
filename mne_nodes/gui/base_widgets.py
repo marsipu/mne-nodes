@@ -48,7 +48,7 @@ from mne_nodes.gui.models import (
     FileManagementModel,
     TreeModel,
 )
-from mne_nodes.pipeline.settings import QS
+from mne_nodes.pipeline.settings import Settings
 
 
 class Base(QWidget):
@@ -88,9 +88,9 @@ class Base(QWidget):
         if self.title:
             title_label = QLabel(self.title)
             if len(self.title) <= 12:
-                title_label.setFont(QFont(QS().value("app_font"), 14))
+                title_label.setFont(QFont(Settings().value("app_font"), 14))
             else:
-                title_label.setFont(QFont(QS().value("app_font"), 12))
+                title_label.setFont(QFont(Settings().value("app_font"), 12))
             layout.addWidget(title_label)
 
         layout.addWidget(self.view)
@@ -309,7 +309,7 @@ class EditList(BaseList):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(QS().value("app_font"), 14))
+            title_label.setFont(QFont(Settings().value("app_font"), 14))
             super_layout.addWidget(title_label)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
@@ -419,7 +419,7 @@ class CheckList(BaseList):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(QS().value("app_font"), 14))
+            title_label.setFont(QFont(Settings().value("app_font"), 14))
             super_layout.addWidget(title_label)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
@@ -436,7 +436,8 @@ class CheckList(BaseList):
         self.content_changed()
 
     def select_all(self):
-        """Select all Items while leaving reference to model._checked intact."""
+        """Select all Items while leaving reference to model._checked
+        intact."""
         for item in [i for i in self.model._data if i not in self.model._checked]:
             self.model._checked.append(item)
         # Inform Model about changes
@@ -444,7 +445,8 @@ class CheckList(BaseList):
         self._checked_changed()
 
     def clear_all(self):
-        """Deselect all Items while leaving reference to model._checked intact."""
+        """Deselect all Items while leaving reference to model._checked
+        intact."""
         self.model._checked.clear()
         # Inform Model about changes
         self.content_changed()
@@ -452,8 +454,8 @@ class CheckList(BaseList):
 
 
 class CheckDictList(BaseList):
-    """A List-Widget to display the items of a list and mark them depending on their
-    appearance in check_dict.
+    """A List-Widget to display the items of a list and mark them depending on
+    their appearance in check_dict.
 
     Parameters
     ----------
@@ -518,8 +520,8 @@ class CheckDictList(BaseList):
 
 
 class CheckDictEditList(EditList):
-    """A List-Widget to display the items of a list and mark them depending of their
-    appearance in check_dict.
+    """A List-Widget to display the items of a list and mark them depending of
+    their appearance in check_dict.
 
     Parameters
     ----------
@@ -615,9 +617,9 @@ class BaseDict(Base):
             model.layoutChanged.emit()
 
     def get_keyvalue_by_index(self, index):
-        """For the given index, make an entry in item_dict with the data at index as key
-        and a dict as value defining. if data is key or value and refering to the
-        corresponding key/value of data depending on its type.
+        """For the given index, make an entry in item_dict with the data at
+        index as key and a dict as value defining. if data is key or value and
+        refering to the corresponding key/value of data depending on its type.
 
         Parameters
         ----------
@@ -803,7 +805,7 @@ class EditDict(BaseDict):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(QS().value("app_font"), 14))
+            title_label.setFont(QFont(Settings().value("app_font"), 14))
             super_layout.addWidget(title_label)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
@@ -849,11 +851,7 @@ class BasePandasTable(Base):
         resize_columns=False,
     ):
         super().__init__(
-            model=model,
-            view=view,
-            drag_drop=drag_drop,
-            parent=parent,
-            title=title,
+            model=model, view=view, drag_drop=drag_drop, parent=parent, title=title
         )
 
         if resize_rows:
@@ -921,7 +919,8 @@ class BasePandasTable(Base):
         logging.debug(f"Selection changed to {selection_list}")
 
     def select(self, values=None, rows=None, columns=None, clear_selection=True):
-        """Select items in Pandas DataFrame by value or select complete rows/columns.
+        """Select items in Pandas DataFrame by value or select complete
+        rows/columns.
 
         Parameters
         ----------
@@ -1130,7 +1129,7 @@ class EditPandasTable(BasePandasTable):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(QS().value("app_font"), 14))
+            title_label.setFont(QFont(Settings().value("app_font"), 14))
             super_layout.addWidget(title_label)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
@@ -1138,8 +1137,8 @@ class EditPandasTable(BasePandasTable):
             self.setLayout(layout)
 
     def update_data(self):
-        """Has to be called, when model._data is rereferenced by for example add_row to
-        keep external data updated.
+        """Has to be called, when model._data is rereferenced by for example
+        add_row to keep external data updated.
 
         Returns
         -------
@@ -1340,25 +1339,18 @@ class AssignWidget(QWidget):
             subtitle1, subtitle2 = None, None
 
         self.items_w = CheckDictList(
-            self.items,
-            self.assignments,
-            extended_selection=True,
-            title=subtitle1,
+            self.items, self.assignments, extended_selection=True, title=subtitle1
         )
         self.items_w.selectionChanged.connect(self.items_selected)
         list_layout.addWidget(self.items_w)
 
         if self.props_editable:
             self.props_w = EditList(
-                self.props,
-                extended_selection=False,
-                title=subtitle2,
+                self.props, extended_selection=False, title=subtitle2
             )
         else:
             self.props_w = SimpleList(
-                self.props,
-                extended_selection=False,
-                title=subtitle2,
+                self.props, extended_selection=False, title=subtitle2
             )
         list_layout.addWidget(self.props_w)
         layout.addLayout(list_layout)
@@ -1366,13 +1358,13 @@ class AssignWidget(QWidget):
         bt_layout = QHBoxLayout()
         assign_bt = QPushButton("Assign")
         assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        assign_bt.setFont(QFont(QS().value("app_font"), 13))
+        assign_bt.setFont(QFont(Settings().value("app_font"), 13))
         assign_bt.clicked.connect(self.assign)
         bt_layout.addWidget(assign_bt)
 
         show_assign_bt = QPushButton("Show Assignments")
         show_assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        show_assign_bt.setFont(QFont(QS().value("app_font"), 13))
+        show_assign_bt.setFont(QFont(Settings().value("app_font"), 13))
         show_assign_bt.clicked.connect(self.show_assignments)
         bt_layout.addWidget(show_assign_bt)
         layout.addLayout(bt_layout)
@@ -1380,7 +1372,7 @@ class AssignWidget(QWidget):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(QS().value("app_font"), 14))
+            title_label.setFont(QFont(Settings().value("app_font"), 14))
             super_layout.addWidget(title_label, alignment=Qt.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
@@ -1447,11 +1439,7 @@ class TimedMessageBox(QMessageBox):
 
     def _static_setup(icon, timeout, parent, title, text, buttons, defaultButton):
         cls = TimedMessageBox(
-            timeout=timeout,
-            title=title,
-            text=text,
-            icon=icon,
-            parent=parent,
+            timeout=timeout, title=title, text=text, icon=icon, parent=parent
         )
 
         cls._update_timeout_text()
@@ -1577,30 +1565,21 @@ class AllBaseWidgets(QWidget):
         }
 
         self.widget_kwargs = {
-            "SimpleList": {
-                "extended_selection": True,
-                "title": "BaseList",
-            },
+            "SimpleList": {"extended_selection": True, "title": "BaseList"},
             "EditList": {
                 "ui_button_pos": "bottom",
                 "extended_selection": True,
                 "title": "EditList",
             },
             "CheckList": {"one_check": False, "title": "CheckList"},
-            "CheckDictList": {
-                "extended_selection": True,
-                "title": "CheckDictList",
-            },
+            "CheckDictList": {"extended_selection": True, "title": "CheckDictList"},
             "CheckDictEditList": {"title": "CheckDictEditList"},
             "SimpleDict": {"title": "BaseDict"},
             "EditDict": {"ui_button_pos": "left", "title": "EditDict"},
             "SimplePandasTable": {"title": "BasePandasTable"},
             "EditPandasTable": {"title": "EditPandasTable"},
             "DictTree": {"title": "BaseDictTree"},
-            "AssignWidget": {
-                "properties_editable": True,
-                "title": "AssignWidget",
-            },
+            "AssignWidget": {"properties_editable": True, "title": "AssignWidget"},
         }
 
         self.tab_widget = QTabWidget()
