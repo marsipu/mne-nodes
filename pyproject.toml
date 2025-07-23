@@ -71,6 +71,7 @@ raw-options = { version_scheme = "release-branch-semver" }
 [tool.ruff]
 line-length = 88
 fix = true
+show-fixes = true
 target-version = "py39"
 
 [tool.ruff.format]

@@ -33,7 +33,6 @@ from qtpy.QtWidgets import (
     QMessageBox,
 )
 
-from mne_nodes import _object_refs
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.models import (
     BaseDictModel,
@@ -1271,7 +1270,8 @@ class SimpleDialog(QDialog):
     ):
         super().__init__(parent)
 
-        _object_refs["dialogs"][self.__class__.__name__] = self
+        # Make sure, the dialog is deleted when closed
+        self.setAttribute(Qt.WA_DeleteOnClose)
 
         layout = QVBoxLayout()
 
@@ -1299,10 +1299,6 @@ class SimpleDialog(QDialog):
             self.open()
         else:
             self.show()
-
-    def closeEvent(self, event):
-        event.accept()
-        _object_refs["dialogs"].pop(self.__class__.__name__)
 
 
 class AssignWidget(QWidget):

@@ -20,7 +20,7 @@ from mne_nodes.pipeline.controller import Controller
 init_logging(debug_mode=True)
 
 test_parameters = {
-    "int": 1,
+    "int": 2,
     "float": 5.3,
     "string": "postcentral-lh",
     "multi_type": 42,

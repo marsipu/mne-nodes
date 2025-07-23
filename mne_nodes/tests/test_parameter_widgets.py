@@ -47,14 +47,12 @@ gui_kwargs = {
 def _check_param(gui, gui_name, value):
     if gui_name == "FuncGui":
         value = _eval_param(value)
-        (
-            assert_allclose(gui.get_value(), value),
-            f"Expected {value}, got {gui.get_value()}",
-        )
+        (assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}")
     else:
-        assert gui.get_value() == value, f"Expected {value}, got {gui.get_value()}"
+        assert gui.value == value, f"Expected {value}, got {gui.value}"
 
 
+# ToDo Next: Fix remaining tests (MultiTypeGui, FuncGui, DualTupleGui)
 @pytest.mark.parametrize("gui_name", list(gui_mapping.keys()))
 @pytest.mark.parametrize("groupbox_layout", [True, False])
 def test_basic_param_guis(
@@ -75,11 +73,11 @@ def test_basic_param_guis(
 
     # Check if value changes correctly
     new_param = parameter_values_alt[gui_mapping[gui_name]]
-    gui.set_param(new_param)
+    gui.value = new_param
     _check_param(gui, gui_name, new_param)
 
     # Set value to None
-    gui.set_param(None)
+    gui.value = None
     assert parameters[gui_name] is None
     if groupbox_layout:
         assert not gui.group_box.isChecked()
@@ -105,39 +103,40 @@ def test_basic_param_guis(
             neg_value = -1000
             max_val = kwargs["max_val"]
             min_val = kwargs["min_val"]
-        gui.set_param(value)
+        gui.value = value
         assert parameters[gui_name] == max_val
         # less than min
-        gui.set_param(neg_value)
+        gui.value = neg_value
         assert parameters[gui_name] == min_val
 
     # Test return integer for BoolGui
     if "return_integer" in gui_parameters:
         gui.return_integer = True
-        gui.set_param(True)
-        assert gui.get_value() == 1
+        gui.value = True
+        assert gui.value == 1
 
     # Test ComboGui
+    # ToDo: Test Options change
     if gui_name == "ComboGui":
         # Check no error and default when raise_missing=False
-        gui.set_param("d")
-        assert gui.get_value() == "a"
+        gui.value = "d"
+        assert gui.value == "a"
         # Check error when missing
         gui.raise_missing = True
         with pytest.raises(RuntimeError):
-            gui.set_param("d")
+            gui.value = "d"
 
         # Test option-aliases
-        gui.set_param("a")
+        gui.value = "a"
         assert gui.param_widget.currentText() == "A"
         gui.param_widget.setCurrentText("B")
-        assert gui.get_value() == "b"
+        assert gui.value == "b"
 
     # Test MultiTypeGui
     if gui_name == "MultiTypeGui":
         for gui_type, type_gui_name in gui.gui_types.items():
-            gui.set_param(parameters[type_gui_name])
-            assert gui.get_value() == parameters[type_gui_name]
+            gui.value = parameters[type_gui_name]
+            assert gui.value == parameters[type_gui_name]
         kwargs["type_selection"] = True
         kwargs["type_kwargs"] = {}
         for type_gui_name in gui.gui_types.values():
@@ -152,8 +151,8 @@ def test_basic_param_guis(
         gui = gui_class(data=parameters, name=gui_name, **kwargs)
         for type_idx, (gui_type, type_gui_name) in enumerate(gui.gui_types.items()):
             gui.change_type(type_idx)
-            gui.set_param(parameters[type_gui_name])
-            assert gui.get_value() == parameters[type_gui_name]
+            gui.value = parameters[type_gui_name]
+            assert gui.value == parameters[type_gui_name]
 
 
 def test_label_gui(qtbot, controller):
