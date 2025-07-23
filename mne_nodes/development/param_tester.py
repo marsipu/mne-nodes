@@ -51,7 +51,10 @@ class ParamGuis(QWidget):
             max_cols = 4
             param_names = list(self.parameters.keys())
             for idx, gui_name in enumerate(param_names):
-                gui_class = getattr(parameter_widgets, gui_name)
+                gui_class = getattr(parameter_widgets, gui_name, None)
+                if gui_class is None:
+                    print(f"Warning: No GUI class found for {gui_name}")
+                    continue
                 gui_parameters = list(inspect.signature(gui_class).parameters) + list(
                     inspect.signature(Param).parameters
                 )
@@ -61,17 +64,23 @@ class ParamGuis(QWidget):
                     if key in gui_parameters
                 }
                 try:
-                    gui = gui_class(data=self.parameters, name=gui_name, **kwargs)
+                    gui = gui_class(
+                        data=self.parameters,
+                        name=gui_name,
+                        groupbox_layout=groupbox_layout,
+                        **kwargs,
+                    )
                 except Exception as e:
                     traceback.print_exc()
                     gui = QWidget(self)
                     layout = QVBoxLayout(gui)
                     layout.addWidget(QLabel(f"Error creating GUI for {gui_name}:\n{e}"))
                 grid_layout.addWidget(gui, idx // max_cols, idx % max_cols)
-                self.gui_dict[gui_name] = gui
-
-            test_layout.addLayout(grid_layout)
-
+                if gui_name in self.gui_dict:
+                    self.gui_dict[gui_name].append(gui)
+                else:
+                    self.gui_dict[gui_name] = [gui]
+            test_layout.addWidget(groupbox)
         set_layout = QHBoxLayout()
         self.gui_cmbx = QComboBox()
         self.gui_cmbx.addItems(list(self.gui_dict.keys()))
@@ -99,9 +108,9 @@ class ParamGuis(QWidget):
         except (SyntaxError, ValueError):
             value = self.set_le.text()
         self.parameters[current_gui] = value
-        p_gui = self.gui_dict[current_gui]
-        p_gui.read_param()
-        p_gui._set_param()
+        for p_gui in self.gui_dict[current_gui]:
+            p_gui.read_param()
+            p_gui._set_param()
         print(traceback.format_exc())
 
     def show_parameters(self):

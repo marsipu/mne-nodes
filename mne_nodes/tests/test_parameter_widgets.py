@@ -22,7 +22,7 @@ gui_mapping = {
     "MultiTypeGui": "multi_type",
     "FuncGui": "func",
     "BoolGui": "bool",
-    "TupleGui": "tuple",
+    "DualTupleGui": "tuple",
     "ComboGui": "combo",
     "ListGui": "list",
     "CheckListGui": "check_list",
@@ -36,7 +36,7 @@ gui_kwargs = {
     "none_select": True,
     "min_val": -40,
     "max_val": 100,
-    "step": 0.5,
+    "step": 0.1,
     "return_integer": False,
     "param_unit": "ms",
     "options": {"a": "A", "b": "B", "c": "C"},
@@ -47,18 +47,25 @@ gui_kwargs = {
 def _check_param(gui, gui_name, value):
     if gui_name == "FuncGui":
         value = _eval_param(value)
-        assert_allclose(gui.get_value(), value)
+        (
+            assert_allclose(gui.get_value(), value),
+            f"Expected {value}, got {gui.get_value()}",
+        )
     else:
-        assert gui.get_value() == value
+        assert gui.get_value() == value, f"Expected {value}, got {gui.get_value()}"
 
 
 @pytest.mark.parametrize("gui_name", list(gui_mapping.keys()))
-def test_basic_param_guis(qtbot, gui_name, parameter_values, parameter_values_alt):
+@pytest.mark.parametrize("groupbox_layout", [True, False])
+def test_basic_param_guis(
+    qtbot, gui_name, groupbox_layout, parameter_values, parameter_values_alt
+):
     gui_class = getattr(parameter_widgets, gui_name)
     gui_parameters = list(inspect.signature(gui_class).parameters) + list(
         inspect.signature(Param).parameters
     )
     kwargs = {key: value for key, value in gui_kwargs.items() if key in gui_parameters}
+    kwargs["groupbox_layout"] = groupbox_layout
     parameters = {key: parameter_values[value] for key, value in gui_mapping.items()}
     gui = gui_class(data=parameters, name=gui_name, **kwargs)
     qtbot.addWidget(gui)
@@ -74,15 +81,21 @@ def test_basic_param_guis(qtbot, gui_name, parameter_values, parameter_values_al
     # Set value to None
     gui.set_param(None)
     assert parameters[gui_name] is None
-    assert not gui.group_box.isChecked()
+    if groupbox_layout:
+        assert not gui.group_box.isChecked()
+    else:
+        assert not gui.none_chkbx.isChecked()
 
     # Uncheck groupbox
-    gui.group_box.setChecked(True)
+    if groupbox_layout:
+        gui.group_box.setChecked(True)
+    else:
+        gui.none_chkbx.setChecked(True)
     parameters[gui_name] = new_param
     _check_param(gui, gui_name, new_param)
 
     if "max_val" in gui_parameters:
-        if gui_name == "TupleGui":
+        if gui_name == "DualTupleGui":
             value = (1000, 1000)
             neg_value = (-1000, -1000)
             max_val = (kwargs["max_val"], kwargs["max_val"])

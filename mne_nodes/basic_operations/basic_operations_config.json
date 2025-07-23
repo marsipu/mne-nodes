@@ -963,7 +963,7 @@
             ],
             "unit": "s",
             "description": "start and end of epoch",
-            "gui": "TupleGui",
+            "gui": "DualTupleGui",
             "gui_args": null
         },
         "baseline": {
@@ -975,7 +975,7 @@
             ],
             "unit": "s",
             "description": "start and end of baseline",
-            "gui": "TupleGui",
+            "gui": "DualTupleGui",
             "gui_args": {
                 "max_val": 0,
                 "none_select": true
@@ -1326,7 +1326,7 @@
             "default": null,
             "unit": null,
             "description": "Check to apply the entered baseline",
-            "gui": "TupleGui",
+            "gui": "DualTupleGui",
             "gui_args": {
                 "none_select": true
             }
@@ -1632,7 +1632,7 @@
             ],
             "unit": "s",
             "description": "time-span for stc-animation[s]",
-            "gui": "TupleGui",
+            "gui": "DualTupleGui",
             "gui_args": null
         },
         "stc_animation_dilat": {
@@ -1745,7 +1745,7 @@
             ],
             "unit": null,
             "description": "time-window for connectivity",
-            "gui": "TupleGui",
+            "gui": "DualTupleGui",
             "gui_args": {
                 "none_select": true,
                 "step": 0.001

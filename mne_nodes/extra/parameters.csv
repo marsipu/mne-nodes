@@ -20,8 +20,8 @@ stim_channels;Stimulation-Channels;events;['STI 001'];;Stimulation Channel(s);Li
 min_duration;Minimum Duration;events;0.002;s;Minimum-Duration for events;FloatGui;{'min_val': 0, 'step': 0.001, 'decimals': 3}
 shortest_event;Shortest Event;events;2;sample;Shortest possible Event;IntGui;{'min_val': 0}
 adjust_timeline_by_msec;Adjust Time;events;0;ms;custom delay to stimulus in ms;IntGui;{'min_val':-10000, 'max_val': 10000}
-t_epoch;Epoch-Timeframe;epochs;(-0.5,1.5);s;start and end of epoch;TupleGui;
-baseline;Baseline-Timeframe;epochs;(-0.5,0);s;start and end of baseline;TupleGui;{'max_val': 0, 'none_select': True}
+t_epoch;Epoch-Timeframe;epochs;(-0.5,1.5);s;start and end of epoch;DualTupleGui;
+baseline;Baseline-Timeframe;epochs;(-0.5,0);s;start and end of baseline;DualTupleGui;{'max_val': 0, 'none_select': True}
 detrend_order;;epochs;None;;The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.;ComboGui;{'none_select': True, 'options': ['DC', 'Linear']}
 apply_proj;Apply Projections;epochs;True;;If to apply the projections (if present);BoolGui;
 bad_interpolation;Bad-Channel-Interpolation;Preprocessing;None;;Choose where to apply bad-channels-interpolation;ComboGui;{'none_select': True, 'options': ['raw_filtered', 'epochs', 'evoked']}
@@ -52,7 +52,7 @@ tfr_method;;Time-Frequency;morlet;;Choose the method to calculate Time-Frequency
 tfr_n_cycles;n_cycles;Time-Frequency;np.arange(7,40,3) / 2;;Select the number of cycles for each frequency;FuncGui;
 tfr_average;;Time-Frequency;True;;If to take the average of the Time-Frequency across observations;BoolGui;
 tfr_use_fft;use_fft;Time-Frequency;False;;If to use fft based convolution;BoolGui;
-tfr_baseline;;Time-Frequency;None;;Check to apply the entered baseline;TupleGui;{'none_select': True}
+tfr_baseline;;Time-Frequency;None;;Check to apply the entered baseline;DualTupleGui;{'none_select': True}
 tfr_baseline_mode;;Time-Frequency;mean;;Select the mode for baseline-application (if enabled);ComboGui;{'options':['mean', 'ratio', 'logratio', 'percent', 'zscore', 'zlogratio']}
 multitaper_bandwidth;;Time-Frequency;4.0;;;FloatGui;
 stockwell_width;;Time-Frequency;1.0;;;FloatGui;
@@ -75,7 +75,7 @@ stc_background;;Inverse;'black';;Background for Source Estimate Plots;MultiTypeG
 stc_roll;;Inverse;0;;Roll for view in for Source Estimate Plots;IntGui;{'max_val': 360}
 stc_azimuth;;Inverse;70;;Azimuth for view for Source Estimate Plots;IntGui;{'max_val': 360}
 stc_elevation;;Inverse;60;;Elevation for view for Source Estimate Plots;IntGui;{'max_val': 360}
-stc_animation_span;;Inverse;(0,0.5);s;time-span for stc-animation[s];TupleGui;
+stc_animation_span;;Inverse;(0,0.5);s;time-span for stc-animation[s];DualTupleGui;
 stc_animation_dilat;;Inverse;20;;time-dilation for stc-animation;IntGui;
 target_labels;Target Labels;Inverse;[];;;LabelGui;
 label_colors;;Inverse;{};;Set custom colors for labels.;ColorGui;{'keys': 'target_labels', 'none_select':True}
@@ -83,7 +83,7 @@ extract_mode;Label-Extraction-Mode;Inverse;mean;;mode for extracting label-time-
 con_methods;;Connectivity;['coh'];;methods for connectivity;CheckListGui;{'options': ['coh', 'cohy', 'imcoh', 'plv', 'ciplv', 'ppc', 'pli', 'pli2_unbiased', 'wpli', 'wpli2_debiased']}
 con_fmin;;Connectivity;30;;lower frequency/frequencies for connectivity;MultiTypeGui;{'type_selection': True, 'types': ['float', 'list']}
 con_fmax;;Connectivity;80;;upper frequency/frequencies for connectivity;MultiTypeGui;{'type_selection': True, 'types': ['float', 'list']}
-con_time_window;;Connectivity;(0, 0.5);;time-window for connectivity;TupleGui;{'none_select': True, 'step': 0.001}
+con_time_window;;Connectivity;(0, 0.5);;time-window for connectivity;DualTupleGui;{'none_select': True, 'step': 0.001}
 ecd_times;;Inverse;{};;;DictGui;
 ecd_positions;;Inverse;{};;;DictGui;
 ecd_orientations;;Inverse;{};;;DictGui;

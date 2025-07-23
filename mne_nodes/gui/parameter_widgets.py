@@ -8,6 +8,7 @@ import logging
 from ast import literal_eval
 from copy import copy
 from functools import partial
+from math import log10
 
 import mne
 import numpy as np
@@ -83,6 +84,7 @@ class Param(QWidget):
         Else the layout will be horizontal with a QLabel for the name.
     """
 
+    data_type = None
     paramChanged = Signal(object)
 
     def __init__(
@@ -143,13 +145,11 @@ class Param(QWidget):
         self.groupbox_layout = groupbox_layout
         self.none_select = none_select
         self.description = description
-        if self.description:
+        if description is not None:
             self.setToolTip(description)
-
-        # Making sure, that groupbox_layout is on when none_select is one
-        # (Selection of None works by checking/unchecking the GroupBox)
-        if self.none_select:
-            self.groupbox_layout = True
+        self.group_box = None
+        self.none_chkbx = None
+        self.param_layout = None
 
         # Connect widget on which this widget depends on
         dep_widget = _object_refs["parameter_widgets"].get(depending_on, None)
@@ -159,54 +159,66 @@ class Param(QWidget):
         # Add to object-reference
         _object_refs["parameter_widgets"][self.name] = self
 
-    def init_ui(self, layout=None):
+    def init_ui(self, layout):
         """Base layout initialization, which adds the given layout to a group-
         box with the parameters name if groupbox_layout is enabled.
 
-        Else the layout will be horizontal with a QLabel for the name
+        Else the layout will be horizontal with a QCheckbox/QLabel for
+        the name.
         """
-
+        self.param_layout = layout
         main_layout = QHBoxLayout()
-
         if self.groupbox_layout:
             self.group_box = QGroupBox(self.alias)
             self.group_box.setLayout(layout)
 
             if self.none_select:
                 self.group_box.setCheckable(True)
-                self.group_box.toggled.connect(self.groupbox_toggled)
-
+                self.group_box.toggled.connect(self.none_changed)
                 if self.param_value is None:
                     self.group_box.setChecked(False)
                 else:
                     self.group_box.setChecked(True)
             else:
                 self.group_box.setCheckable(False)
-
             main_layout.addWidget(self.group_box)
-
         else:
-            # Add this to get no label in MultiTypeGui
-            # if self.alias != "":
-            none_chkbx = QCheckBox(self.alias)
-            none_chkbx.checkStateChanged.connect(self.groupbox_toggled)
-            main_layout.addWidget(none_chkbx)
+            if self.none_select:
+                self.none_chkbx = QCheckBox(self.alias)
+                self.none_chkbx.checkStateChanged.connect(self.none_changed)
+                main_layout.addWidget(self.none_chkbx)
+            else:
+                name_label = QLabel(self.alias)
+                main_layout.addWidget(name_label)
             main_layout.addLayout(layout)
 
         self.setLayout(main_layout)
 
-    def groupbox_toggled(self, checked):
-        if checked:
+    def _set_enabled_parameter_layout(self, enabled):
+        if not self.groupbox_layout:
+            if self.param_layout is not None:
+                for i in range(self.param_layout.count()):
+                    widget = self.param_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.setEnabled(enabled)
+
+    def none_changed(self, checked):
+        if checked == Qt.Checked or checked is True:
             self._get_param()
+            self._set_enabled_parameter_layout(True)
         else:
             self.param_value = None
+            self._set_enabled_parameter_layout(False)
         self._set_param()
         self.save_param()
 
-    def check_groupbox_state(self):
+    def check_none_state(self):
         if self.none_select:
             if self.param_value is None:
-                self.group_box.setChecked(False)
+                if self.groupbox_layout:
+                    self.group_box.setChecked(False)
+                else:
+                    self.none_chkbx.setChecked(False)
             else:
                 # Save param_value separatetly, because when Widget inside
                 # GroupBox changes Enabled-State to Enabled,
@@ -214,7 +226,10 @@ class Param(QWidget):
                 # param_value with the displayed value and not with the
                 # original value.
                 saved_value = self.param_value
-                self.group_box.setChecked(True)
+                if self.groupbox_layout:
+                    self.group_box.setChecked(True)
+                else:
+                    self.none_chkbx.setChecked(True)
                 self.param_value = saved_value
                 self.save_param()
 
@@ -234,7 +249,7 @@ class Param(QWidget):
 
     def _set_param(self):
         """Set current parameter value to gui."""
-        self.check_groupbox_state()
+        self.check_none_state()
         if self.param_value is not None:
             self.set_value(self.param_value)
 
@@ -266,11 +281,10 @@ class Param(QWidget):
         if not self.none_select:
             if self.data_type != "multiple":
                 if not isinstance(data, self.data_type):
-                    logging.warning(
+                    raise RuntimeError(
                         f"Data for {self.name} has to be of type {self.data_type}, "
                         f"but is of type {type(data)} instead!"
                     )
-                    data = self.data_type()
         self.param_value = data
 
     def _save_data(self, name, value):
@@ -479,7 +493,7 @@ class FuncGui(Param):
         return value
 
     def _set_param(self):
-        self.check_groupbox_state()
+        self.check_none_state()
         if self.param_value is not None:
             self.set_value(self.param_exp)
 
@@ -556,8 +570,11 @@ class BoolGui(Param):
         return value
 
 
-class TupleGui(Param):
-    """A GUI for Tuple-Parameters."""
+class DualTupleGui(Param):
+    """A GUI for two parameters in a tuple (e.g. for filters, limits etc.).
+
+    It only supports integer and float values.
+    """
 
     data_type = tuple
 
@@ -579,7 +596,7 @@ class TupleGui(Param):
 
         self.param_widget1 = QDoubleSpinBox()
         self.param_widget2 = QDoubleSpinBox()
-        decimals = len(str(step)[str(step).find(".") :]) - 1
+        decimals = int(-log10(step))
         self.param_widget1.setDecimals(decimals)
         self.param_widget2.setDecimals(decimals)
 
@@ -785,7 +802,7 @@ class ListGui(Param):
     def set_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.check_groupbox_state()
+        self.check_none_state()
         if isinstance(value, list):
             if self.param_unit:
                 val_str = ", ".join([f"{item} {self.param_unit}" for item in value])
@@ -894,7 +911,7 @@ class CheckListGui(Param):
     def set_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.check_groupbox_state()
+        self.check_none_state()
         if isinstance(value, list):
             if self.param_unit:
                 val_str = ", ".join([f"{item} {self.param_unit}" for item in value])
@@ -988,7 +1005,7 @@ class DictGui(Param):
     def set_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.check_groupbox_state()
+        self.check_none_state()
         if isinstance(value, dict):
             if self.param_unit:
                 val_str = ", ".join(
@@ -1096,7 +1113,7 @@ class SliderGui(Param):
             self.param_widget.setValue(int(new_value * 10**self.decimal_count))
 
     def set_value(self, value):
-        self.check_groupbox_state()
+        self.check_none_state()
         if value is not None:
             if self.decimal_count > 0:
                 self.param_widget.setValue(int(value * 10**self.decimal_count))
@@ -1160,7 +1177,7 @@ class MultiTypeGui(Param):
             "str": "StringGui",
             "list": "ListGui",
             "dict": "DictGui",
-            "tuple": "TupleGui",
+            "tuple": "DualTupleGui",
             "combo": "ComboGui",
             "checklist": "CheckListGui",
             "slider": "SliderGui",
@@ -1245,7 +1262,6 @@ class MultiTypeGui(Param):
             self.init_ui(type_layout)
 
     def set_value(self, value):
-        self.check_groupbox_state()
         if self.type_selection:
             self.param_widget.param_value = value
             self.param_widget._set_param()
@@ -1683,7 +1699,7 @@ class LabelGui(Param):
     def set_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.check_groupbox_state()
+        self.check_none_state()
         if isinstance(value, list):
             if self.param_unit:
                 val_str = ", ".join([f"{item}" for item in value])
@@ -1837,6 +1853,7 @@ class PathGui(Param):
         self._get_param()
 
     def set_value(self, value):
+        self._path = value
         self.display_widget.setText(str(value))
 
     def get_value(self):
