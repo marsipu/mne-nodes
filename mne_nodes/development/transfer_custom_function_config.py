@@ -9,6 +9,20 @@ func_pd = pd.read_csv("../extra/functions.csv", sep=";", index_col=0)
 param_pd = pd.read_csv("../extra/parameters.csv", sep=";", index_col=0)
 configs = convert_pandas_meta(func_pd, param_pd)
 
+n_jobs_config = {
+    "alias": "Number of jobs for multiprocessing",
+    "default": -1,
+    "unit": None,
+    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+    "gui": "MultiTypeGui",
+    "type_selection": True,
+    "types": ["int", "combo"],
+    "type_kwargs": {
+        "int": {"min_val": -1, "special_value_text": "auto"},
+        "combo": {"options": ["cuda"]},
+    },
+}
+
 for module_name, module_dict in configs.items():
     if module_name == "operations":
         module_type = "basic_operations"
@@ -25,6 +39,11 @@ for module_name, module_dict in configs.items():
         func_dict["module"] = module_type
     module_dict["module_name"] = module_type
     module_dict["module_alias"] = module_type
+
+    # Add n_jobs-config
+    if module_name == "operations":
+        module_dict["parameters"]["n_jobs"] = n_jobs_config
+
     print(print_msg)
     with open(config_file, "w") as f:
         json.dump(module_dict, f, indent=4, cls=TypedJSONEncoder)

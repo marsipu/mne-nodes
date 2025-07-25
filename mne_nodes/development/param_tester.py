@@ -44,8 +44,7 @@ class ParamGuis(QWidget):
         test_layout = QVBoxLayout()
         for groupbox_layout in [True, False]:
             groupbox = QGroupBox(f"GroupBox Layout: {groupbox_layout}")
-            # ToDo Next: Add Test field with groupbox_layout and not,
-            #  then return to initializtion of the nodes with test_nodes
+
             grid_layout = QGridLayout()
             groupbox.setLayout(grid_layout)
             max_cols = 4

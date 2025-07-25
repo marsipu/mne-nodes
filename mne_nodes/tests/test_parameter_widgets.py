@@ -38,7 +38,7 @@ gui_kwargs = {
     "max_val": 100,
     "step": 0.1,
     "return_integer": False,
-    "param_unit": "ms",
+    "unit": "ms",
     "options": {"a": "A", "b": "B", "c": "C"},
     "keys": "DictGui",
 }
@@ -51,7 +51,6 @@ def _check_param(gui, gui_name, value):
         assert gui.value == value, f"Expected {value}, got {gui.value}"
 
 
-# ToDo Next: Fix remaining tests (MultiTypeGui, FuncGui, DualTupleGui)
 @pytest.mark.parametrize("gui_name", list(gui_mapping.keys()))
 @pytest.mark.parametrize("groupbox_layout", [True, False])
 def test_basic_param_guis(

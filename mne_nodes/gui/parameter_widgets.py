@@ -93,7 +93,7 @@ class Param(QWidget):
         name,
         alias=None,
         default=None,
-        param_unit=None,
+        unit=None,
         groupbox_layout=True,
         none_select=False,
         description=None,
@@ -115,7 +115,7 @@ class Param(QWidget):
             shouldn't be used as a key in Python).
         default : object
             The default value depending on GUI-Type.
-        param_unit : str | None
+        unit : str | None
             Supply an optional suffix with the name of the unit.
         groupbox_layout : bool
             If a groupbox should be used as layout
@@ -137,7 +137,7 @@ class Param(QWidget):
         self.alias = alias if alias else self.name
         self._value = None
         self.default = default
-        self.param_unit = param_unit
+        self.param_unit = unit
         self.groupbox_layout = groupbox_layout
         self.none_select = none_select
         self.description = description

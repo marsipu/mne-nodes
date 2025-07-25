@@ -108,6 +108,7 @@ def nodeviewer(qtbot, controller):
     func_node3 = viewer.add_function_node("epoch_raw")
     func_node4 = viewer.add_function_node("plot_epochs")
 
+    # Establish connections
     in_node.output("raw").connect_to(func_node1.input("raw"))
     in_node.output("raw").connect_to(func_node2.input("raw"))
     func_node1.output("raw").connect_to(func_node3.input("raw"))
@@ -179,7 +180,7 @@ def test_module(tmp_path, test_script):
                 "unit": "s",
                 "description": "This is a test parameter",
                 "gui": "IntGui",
-                "gui_args": {"min_val": 0},
+                "min_val": 0,
             },
             "b": {
                 "alias": "B",
@@ -188,7 +189,7 @@ def test_module(tmp_path, test_script):
                 "unit": "s",
                 "description": "This is another test parameter",
                 "gui": "FloatGui",
-                "gui_args": {"min_val": 0.0},
+                "min_val": 0.0,
             },
         },
     }

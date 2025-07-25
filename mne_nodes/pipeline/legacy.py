@@ -211,6 +211,12 @@ def convert_pandas_meta(func_pd, param_pd):
                 if isinstance(value, float) and math.isnan(value):
                     value = None
                 eval_dict[key] = value
+            eval_dict.pop("group")
+            # Convert gui-args
+            gui_args = eval_dict.pop("gui_args", {})
+            if gui_args is not None:
+                for k, v in gui_args.items():
+                    eval_dict[k] = v
 
             module_dict["parameters"][param_name] = eval_dict
         configs[module_name] = module_dict
