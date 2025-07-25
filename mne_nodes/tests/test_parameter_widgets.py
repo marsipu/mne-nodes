@@ -11,7 +11,7 @@ from qtpy.QtCore import Qt
 from numpy.testing import assert_allclose
 
 from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.parameter_widgets import Param, _eval_param, LabelGui
+from mne_nodes.gui.parameter_widgets import Param, LabelGui
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 
@@ -46,8 +46,7 @@ gui_kwargs = {
 
 def _check_param(gui, gui_name, value):
     if gui_name == "FuncGui":
-        value = _eval_param(value)
-        (assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}")
+        assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}"
     else:
         assert gui.value == value, f"Expected {value}, got {gui.value}"
 
@@ -84,12 +83,11 @@ def test_basic_param_guis(
     else:
         assert not gui.none_chkbx.isChecked()
 
-    # Uncheck groupbox
+    # Uncheck groupbox (old value should be restored)
     if groupbox_layout:
         gui.group_box.setChecked(True)
     else:
         gui.none_chkbx.setChecked(True)
-    parameters[gui_name] = new_param
     _check_param(gui, gui_name, new_param)
 
     if "max_val" in gui_parameters:
@@ -134,9 +132,11 @@ def test_basic_param_guis(
 
     # Test MultiTypeGui
     if gui_name == "MultiTypeGui":
+        # Check if value is set correctl,y
         for gui_type, type_gui_name in gui.gui_types.items():
             gui.value = parameters[type_gui_name]
             assert gui.value == parameters[type_gui_name]
+        # Check if changing type with type_selection works
         kwargs["type_selection"] = True
         kwargs["type_kwargs"] = {}
         for type_gui_name in gui.gui_types.values():

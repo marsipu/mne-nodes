@@ -9,6 +9,7 @@ from os import mkdir
 from os.path import isdir
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from mne_nodes.__main__ import init_logging
@@ -24,7 +25,8 @@ test_parameters = {
     "float": 5.3,
     "string": "postcentral-lh",
     "multi_type": 42,
-    "func": "np.arange(10) * np.pi",
+    "func": np.arange(10) * np.pi,
+    "func_exp": "np.arange(10) * np.pi",
     "bool": True,
     "tuple": (3.4, 5),
     "combo": "b",
@@ -41,7 +43,8 @@ alternative_test_parameters = {
     "float": 8.45,
     "string": "precentral-lh",
     "multi_type": 32,
-    "func": "np.ones((2,3))",
+    "func": np.ones((2, 3)),
+    "func_exp": "np.ones((2,3))",
     "bool": False,
     "tuple": (2, 55.1),
     "combo": "c",

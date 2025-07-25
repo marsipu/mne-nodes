@@ -97,6 +97,7 @@ class Param(QWidget):
         groupbox_layout=True,
         none_select=False,
         description=None,
+        parent_widget=None,
     ):
         """
         Parameters
@@ -125,10 +126,12 @@ class Param(QWidget):
         description : str | None
             Supply an optional description for the parameter,
             which will displayed as a Tool-Tip when the mouse
-            is hovered over the Widget.
+            is hovered over the Widget.#
+        parent_widget : QWidget | None
+            The parent widget of the parameter GUI. If None, it has no parent.
         """
 
-        super().__init__()
+        super().__init__(parent_widget)
         self.data = data
         self.name = name
         self.alias = alias if alias else self.name
@@ -163,9 +166,59 @@ class Param(QWidget):
         self._save_to_data(self.name, self._value)
         self.paramChanged.emit(self._value)
 
-    def set_value(self, value):
-        """Set the value by function call, e.g. as a slot."""
-        self.value = value
+    def _update_gui(self):
+        """Update GUI widgets to reflect current parameter value."""
+        self._check_none_state()
+        if self._value is not None:
+            self._set_widget_value(self._value)
+
+    def _on_widget_changed(self):
+        """Called when GUI widget value changes."""
+        if self.none_select and not self._is_enabled():
+            self.value = None
+        else:
+            widget_value = self._get_widget_value()
+            if widget_value != self._value:
+                self.value = widget_value
+
+    def _on_none_changed(self, checked=None):
+        """Handle none selection checkbox/groupbox state changes."""
+        if checked == Qt.Checked or checked is True:
+            self._set_enabled(True)
+            # Restore previous value or get current widget value
+            if self._value is None:
+                self.value = self._get_widget_value()
+        else:
+            self._value = None
+            self._set_enabled(False)
+
+    def _set_enabled(self, enabled):
+        """Enable/disable parameter layout widgets."""
+        if not self.groupbox_layout:
+            if self.param_layout is not None:
+                for i in range(self.param_layout.count()):
+                    widget = self.param_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.setEnabled(enabled)
+
+    def _is_enabled(self):
+        """Check if the parameter widget is enabled (for none_select
+        functionality)."""
+        if self.groupbox_layout and self.group_box:
+            return self.group_box.isChecked()
+        elif self.none_chkbx:
+            return self.none_chkbx.isChecked()
+        return True
+
+    def _check_none_state(self):
+        """Check and update none selection state."""
+        if self.none_select:
+            checked = self._value is not None
+            if self.groupbox_layout:
+                self.group_box.setChecked(checked)
+            else:
+                self.none_chkbx.setChecked(checked)
+                self._set_enabled(checked)
 
     def _load_from_data(self, name):
         """Load parameter value from the data source."""
@@ -185,12 +238,11 @@ class Param(QWidget):
             value = self.default
 
         # Validate data type
-        data_types = (
-            self.data_type if isinstance(self.data_type, list) else [self.data_type]
-        )
+        dt = self.data_type
+        # Allow NoneType if none_select is True
         if self.none_select:
-            data_types.append(NoneType)
-        if not any([isinstance(value, dt) for dt in data_types]):
+            dt = dt | NoneType
+        if not isinstance(value, dt):
             raise RuntimeError(
                 f"Data for {name} has to be of type {self.data_type}, "
                 f"but is of type {type(value)} instead!"
@@ -200,17 +252,11 @@ class Param(QWidget):
     def _save_to_data(self, name, value):
         """Save parameter value to the data source."""
         if isinstance(self.data, Controller):
-            self.data.parameters[self.data.parameter_preset][name] = self._value
+            self.data.parameters[self.data.parameter_preset][name] = value
         elif isinstance(self.data, dict):
-            self.data[name] = self._value
+            self.data[name] = value
         elif isinstance(self.data, Settings):
-            self.data.setValue(name, self._value)
-
-    def _update_gui(self):
-        """Update GUI widgets to reflect current parameter value."""
-        self._check_none_state()
-        if self._value is not None:
-            self._set_widget_value(self._value)
+            self.data.setValue(name, value)
 
     def _get_widget_value(self):
         """Get value from GUI widget.
@@ -225,24 +271,6 @@ class Param(QWidget):
         Should be overridden by child classes.
         """
         pass
-
-    def _on_widget_changed(self):
-        """Called when GUI widget value changes."""
-        if self.none_select and not self._is_enabled():
-            self.value = None
-        else:
-            widget_value = self._get_widget_value()
-            if widget_value != self._value:
-                self.value = widget_value
-
-    def _is_enabled(self):
-        """Check if the parameter widget is enabled (for none_select
-        functionality)."""
-        if self.groupbox_layout and self.group_box:
-            return self.group_box.isChecked()
-        elif self.none_chkbx:
-            return self.none_chkbx.isChecked()
-        return True
 
     def init_ui(self, layout):
         """Base layout initialization, which adds the given layout to a group-
@@ -275,42 +303,6 @@ class Param(QWidget):
 
         self.setLayout(main_layout)
         self._update_gui()
-
-    def _on_none_changed(self, checked=None):
-        """Handle none selection checkbox/groupbox state changes."""
-        if checked == Qt.Checked or checked is True:
-            self._set_enabled(True)
-            # Restore previous value or get current widget value
-            if self._value is None:
-                self.value = self._get_widget_value()
-        else:
-            self.value = None
-            self._set_enabled(False)
-
-    def _set_enabled(self, enabled):
-        """Enable/disable parameter layout widgets."""
-        if not self.groupbox_layout:
-            if self.param_layout is not None:
-                for i in range(self.param_layout.count()):
-                    widget = self.param_layout.itemAt(i).widget()
-                    if widget is not None:
-                        widget.setEnabled(enabled)
-
-    def _check_none_state(self):
-        """Check and update none selection state."""
-        if self.none_select:
-            if self._value is None:
-                if self.groupbox_layout and self.group_box:
-                    self.group_box.setChecked(False)
-                elif self.none_chkbx:
-                    self.none_chkbx.setChecked(False)
-                    self._set_enabled(False)
-            else:
-                if self.groupbox_layout and self.group_box:
-                    self.group_box.setChecked(True)
-                elif self.none_chkbx:
-                    self.none_chkbx.setChecked(True)
-                    self._set_enabled(True)
 
 
 class IntGui(Param):
@@ -449,6 +441,7 @@ class FuncGui(Param):
         """
         super().__init__(**kwargs)
         self.param_exp = None
+        self._cached_value = None
         self.param_widget = QLineEdit()
         self.param_widget.setToolTip(
             "Use of functions also allowed "
@@ -478,9 +471,13 @@ class FuncGui(Param):
             self.display_widget.setText(str(value)[:20])
 
     def _get_widget_value(self):
-        self.param_exp = self.param_widget.text()
-        value = _eval_param(self.param_exp)
+        if self._value is None:
+            value = self._cached_value
+        else:
+            self.param_exp = self.param_widget.text()
+            value = _eval_param(self.param_exp)
         self.display_widget.setText(str(value)[:20])
+
         return value
 
     def _load_from_data(self, name):
@@ -499,14 +496,14 @@ class FuncGui(Param):
 
         return real_value
 
-    def _save_to_data(self, name):
+    def _save_to_data(self, name, value):
         """Save both the expression and evaluated value to data source."""
         # Save the evaluated value
-        super()._save_to_data(name, self.value)
+        super()._save_to_data(name, value)
 
         # Save the expression with "_exp" suffix
         exp_name = name + "_exp"
-        exp_value = self.param_exp if self.param_exp is not None else self._value
+        exp_value = self.param_exp if self.param_exp is not None else str(self._value)
         super()._save_to_data(exp_name, exp_value)
 
     @property
@@ -520,18 +517,18 @@ class FuncGui(Param):
 
         For FuncGui, this can be an expression or evaluated value.
         """
-        if isinstance(new_value, str):
+        if new_value is None:
+            self._cached_value = self._value
+        elif isinstance(new_value, str):
             # If it's a string, treat it as an expression
-            self._value = _eval_param(new_value)
+            new_value = _eval_param(new_value)
             self.param_exp = new_value
         else:
             # If it's already evaluated, use it directly
-            self._value = new_value
             self.param_exp = str(new_value)
+        self._value = new_value
 
-        self._update_gui()
-        self._save_to_data()
-        self.paramChanged.emit(self._value)
+        self._update_param()
 
 
 class BoolGui(Param):
@@ -638,6 +635,7 @@ class DualTupleGui(Param):
             self.param_widget1.setValue(value[0])
             self.param_widget2.setValue(value[1])
             self._external_set = False
+        self._on_widget_changed()
 
     def _get_widget_value(self):
         """Get the values from both spinboxes and return them as a tuple."""
@@ -992,7 +990,7 @@ class DictGui(Param):
 class SliderGui(Param):
     """A GUI to show a slider for Int/Float-Parameters."""
 
-    data_type = [int, str]
+    data_type = int | float
 
     def __init__(self, min_val=0, max_val=100, step=1, tracking=True, **kwargs):
         """
@@ -1078,7 +1076,7 @@ class SliderGui(Param):
 class MultiTypeGui(Param):
     """A GUI which accepts multiple types of values in a single LineEdit."""
 
-    data_type = [int, float, bool, str, list, dict, tuple]
+    data_type = int | float | bool | str | list | dict | tuple
 
     def __init__(self, type_selection=False, types=None, type_kwargs=None, **kwargs):
         """
@@ -1112,6 +1110,18 @@ class MultiTypeGui(Param):
             "checklist",
             "slider",
         ]
+        self.type_defaults = {
+            "int": 0,
+            "float": 0.0,
+            "bool": False,
+            "str": "",
+            "list": [],
+            "dict": {},
+            "tuple": (0, 0),
+            "combo": "",
+            "checklist": [],
+            "slider": 0.0,
+        }
         self.type_kwargs = type_kwargs or {}
 
         # A dictionary to map possible types with their GUI
@@ -1169,23 +1179,29 @@ class MultiTypeGui(Param):
         kwargs["none_select"] = False
         kwargs["description"] = self.description
         kwargs["param_unit"] = self.param_unit
+        kwargs["parent_widget"] = self
 
-        self.param_widget = globals()[gui_name](**kwargs)
-        self.param_widget.value = self.value
+        gui_class = globals()[gui_name]
+        # Check, if the saved value matches the new type, otherwise replace with None
+        if not isinstance(self._load_from_data(self.name), gui_class.data_type):
+            if isinstance(self.default, gui_class.data_type):
+                self._save_to_data(self.name, self.default)
+            else:
+                self._save_to_data(self.name, self.type_defaults[self.param_type])
+        self.param_widget = gui_class(**kwargs)
+        if isinstance(self.value, self.param_widget.data_type):
+            self.param_widget.value = self.value
         self.type_layout.addWidget(self.param_widget)
 
     def change_type(self, type_idx):
-        # Set Param-Value to None to avoid conflicts
-        # whith values from other types
-        self.value = None
-
         old_widget = self.type_layout.itemAt(1)
         self.type_layout.removeItem(old_widget)
         try:
             old_widget.widget().deleteLater()
         except RuntimeError:
             logging.debug("Old widget already deleted")
-        del old_widget, self.param_widget
+        self.param_widget = None
+        del old_widget
 
         self.param_type = self.types[type_idx]
 
@@ -2090,7 +2106,7 @@ class SettingsDlg(QDialog):
         self.settings_items = {
             "app_theme": {
                 "gui_type": "ComboGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "slot": set_app_theme,
                 "gui_kwargs": {
                     "alias": "Application Theme",
@@ -2101,7 +2117,7 @@ class SettingsDlg(QDialog):
             },
             "app_font": {
                 "gui_type": "ComboGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "slot": set_app_font,
                 "gui_kwargs": {
                     "alias": "Application Font",
@@ -2113,7 +2129,7 @@ class SettingsDlg(QDialog):
             },
             "app_font_size": {
                 "gui_type": "IntGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "slot": set_app_font,
                 "gui_kwargs": {
                     "alias": "Font Size",
@@ -2125,7 +2141,7 @@ class SettingsDlg(QDialog):
             },
             "img_format": {
                 "gui_type": "ComboGui",
-                "data_type": "Settings",
+                "source_type": "Settings",
                 "gui_kwargs": {
                     "alias": "Image Format",
                     "description": "Choose the image format for plots.",
@@ -2134,7 +2150,7 @@ class SettingsDlg(QDialog):
             },
             "dpi": {
                 "gui_type": "IntGui",
-                "data_type": "Settings",
+                "source_type": "Settings",
                 "gui_kwargs": {
                     "alias": "DPI",
                     "description": "Set dpi for saved plots.",
@@ -2144,7 +2160,7 @@ class SettingsDlg(QDialog):
             },
             "enable_cuda": {
                 "gui_type": "BoolGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "gui_kwargs": {
                     "alias": "Enable CUDA",
                     "description": "Enable for CUDA support "
@@ -2156,7 +2172,7 @@ class SettingsDlg(QDialog):
             },
             "save_ram": {
                 "gui_type": "BoolGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "gui_kwargs": {
                     "alias": "Save RAM",
                     "description": "Set to True on low RAM-Machines to avoid"
@@ -2169,7 +2185,7 @@ class SettingsDlg(QDialog):
             },
             "fs_path": {
                 "gui_type": "StringGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "gui_kwargs": {
                     "alias": "FREESURFER_HOME-Path",
                     "description": 'Set the Path to the "freesurfer"-directory'
@@ -2182,7 +2198,7 @@ class SettingsDlg(QDialog):
             },
             "mne_path": {
                 "gui_type": "StringGui",
-                "data_type": "QSettings",
+                "source_type": "QSettings",
                 "gui_kwargs": {
                     "alias": "MNE-WSL-Path",
                     "description": "Set the LINUX-Path to the mne-environment "
@@ -2204,13 +2220,13 @@ class SettingsDlg(QDialog):
 
         for setting, details in self.settings_items.items():
             gui_handle = globals()[details["gui_type"]]
-            data_type = details["data_type"]
+            source_type = details["source_type"]
             gui_kwargs = details["gui_kwargs"]
-            if data_type == "QSettings":
+            if source_type == "QSettings":
                 gui_kwargs["data"] = Settings()
                 gui_kwargs["default"] = self.ct.default_settings["qsettings"][setting]
-            elif data_type == "Controller":
-                gui_kwargs["data"] = self.mw.ct
+            elif source_type == "Controller":
+                gui_kwargs["data"] = self.ct
                 gui_kwargs["default"] = self.ct.pd_params.loc[setting, "default"]
             else:
                 gui_kwargs["data"] = self.ct.settings
