@@ -12,17 +12,16 @@ import numpy as np
 
 
 def encode_tuples(input_dict):
-    """Encode tuples in a dictionary, because JSON does not recognize them
-    (CAVE:
-
-    input_dict is changed in place)
-    """
+    """Encode tuples in a dictionary, because JSON does not recognize them."""
+    encoded_dict = input_dict.copy()
     for key, value in input_dict.items():
         if isinstance(value, dict):
-            encode_tuples(value)
+            encoded_dict[key] = encode_tuples(value)
         else:
             if isinstance(value, tuple):
-                input_dict[key] = {"tuple_type": value}
+                encoded_dict[key] = {"tuple_type": value}
+
+    return encoded_dict
 
 
 datetime_format = "%d.%m.%Y %H:%M:%S"
@@ -39,9 +38,9 @@ class TypedJSONEncoder(json.JSONEncoder):
             return float(o)
         # Only onedimensional arrays are supported
         elif isinstance(o, np.ndarray):
-            return {"numpy_array": o.tolist()}
+            return {"numpy_array_type": o.tolist()}
         elif isinstance(o, datetime):
-            return {"datetime": o.strftime(datetime_format)}
+            return {"datetime_type": o.strftime(datetime_format)}
         elif isinstance(o, set):
             return {"set_type": list(o)}
         elif isinstance(o, Path):
@@ -51,8 +50,13 @@ class TypedJSONEncoder(json.JSONEncoder):
 
     def encode(self, o):
         # Also encode tuples (not captured by default())
-        o = {k: {"tuple_type": v} if isinstance(v, tuple) else v for k, v in o.items()}
-        return super().encode(o)
+        new_o = encode_tuples(o)
+        return super().encode(new_o)
+
+    def iterencode(self, o, _one_shot=False):
+        # Also encode tuples (not captured by default())
+        new_o = encode_tuples(o)
+        return super().iterencode(new_o, _one_shot=_one_shot)
 
 
 def type_json_hook(obj):
@@ -61,10 +65,10 @@ def type_json_hook(obj):
     elif "numpy_float" in obj.keys():
         return obj["numpy_float"]
     # Only onedimensional arrays are supported
-    elif "numpy_array" in obj.keys():
-        return np.asarray(obj["numpy_array"])
-    elif "datetime" in obj.keys():
-        return datetime.strptime(obj["datetime"], datetime_format)
+    elif "numpy_array_type" in obj.keys():
+        return np.asarray(obj["numpy_array_type"])
+    elif "datetime_type" in obj.keys():
+        return datetime.strptime(obj["datetime_type"], datetime_format)
     elif "tuple_type" in obj.keys():
         return tuple(obj["tuple_type"])
     elif "set_type" in obj.keys():

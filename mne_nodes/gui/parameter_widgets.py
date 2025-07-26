@@ -137,7 +137,7 @@ class Param(QWidget):
         self.alias = alias if alias else self.name
         self._value = None
         self.default = default
-        self.param_unit = unit
+        self.unit = unit
         self.groupbox_layout = groupbox_layout
         self.none_select = none_select
         self.description = description
@@ -258,6 +258,16 @@ class Param(QWidget):
         elif isinstance(self.data, Settings):
             self.data.setValue(name, value)
 
+    def is_key(self, key):
+        """Check if the given key is existing inside data."""
+        if isinstance(self.data, Controller):
+            return key in self.data.parameters[self.data.parameter_preset]
+        elif isinstance(self.data, dict):
+            return key in self.data
+        elif isinstance(self.data, Settings):
+            return key in self.data.childKeys()
+        return False
+
     def _get_widget_value(self):
         """Get value from GUI widget.
 
@@ -332,8 +342,8 @@ class IntGui(Param):
         self.param_widget.setToolTip(f"MinValue = {min_val}\nMaxValue = {max_val}")
         if special_value_text:
             self.param_widget.setSpecialValueText(special_value_text)
-        if self.param_unit:
-            self.param_widget.setSuffix(f" {self.param_unit}")
+        if self.unit:
+            self.param_widget.setSuffix(f" {self.unit}")
         self.param_widget.valueChanged.connect(self._on_widget_changed)
 
         layout = QHBoxLayout()
@@ -375,8 +385,8 @@ class FloatGui(Param):
         self.param_widget.setSingleStep(step)
         self.param_widget.setDecimals(decimals)
         self.param_widget.setToolTip(f"MinValue = {min_val}\nMaxVal = {max_val}")
-        if self.param_unit:
-            self.param_widget.setSuffix(f" {self.param_unit}")
+        if self.unit:
+            self.param_widget.setSuffix(f" {self.unit}")
         self.param_widget.valueChanged.connect(self._on_widget_changed)
 
         layout = QHBoxLayout()
@@ -409,8 +419,8 @@ class StringGui(Param):
         self.param_widget.textChanged.connect(self._on_widget_changed)
         layout = QHBoxLayout()
         layout.addWidget(self.param_widget)
-        if self.param_unit is not None:
-            layout.addWidget(QLabel(self.param_unit))
+        if self.unit is not None:
+            layout.addWidget(QLabel(self.unit))
         self.init_ui(layout)
 
     def _set_widget_value(self, value):
@@ -457,8 +467,8 @@ class FuncGui(Param):
         func_layout.addWidget(label2, 0, 1, 1, 2)
         func_layout.addWidget(self.param_widget, 1, 0)
         func_layout.addWidget(self.display_widget, 1, 1)
-        if self.param_unit:
-            func_layout.addWidget(QLabel(self.param_unit))
+        if self.unit:
+            func_layout.addWidget(QLabel(self.unit))
         self.init_ui(func_layout)
 
     def _set_widget_value(self, value):
@@ -486,13 +496,12 @@ class FuncGui(Param):
         real_value = super()._load_from_data(name)
 
         # Load the expression (stored with "_exp" suffix)
-        exp_value = super()._load_from_data(name + "_exp")
-
-        # Set expression if it exists and is not empty
-        if exp_value != "" and exp_value is not None:
-            self.param_exp = exp_value
+        exp_name = name + "_exp"
+        if self.is_key(exp_name):
+            exp_value = super()._load_from_data(exp_name)
         else:
-            self.param_exp = real_value
+            exp_value = None
+        self.param_exp = exp_value
 
         return real_value
 
@@ -607,15 +616,15 @@ class DualTupleGui(Param):
         self.param_widget1.setMinimum(min_val)
         self.param_widget1.setMaximum(max_val)
         self.param_widget1.setSingleStep(step)
-        if self.param_unit:
-            self.param_widget1.setSuffix(f" {self.param_unit}")
+        if self.unit:
+            self.param_widget1.setSuffix(f" {self.unit}")
         self.param_widget1.valueChanged.connect(self._on_widget_changed)
 
         self.param_widget2.setMinimum(min_val)
         self.param_widget2.setMaximum(max_val)
         self.param_widget2.setSingleStep(step)
-        if self.param_unit:
-            self.param_widget2.setSuffix(f" {self.param_unit}")
+        if self.unit:
+            self.param_widget2.setSuffix(f" {self.unit}")
         self.param_widget2.valueChanged.connect(self._on_widget_changed)
         tuple_layout = QHBoxLayout()
         tuple_layout.addWidget(self.param_widget1)
@@ -676,8 +685,8 @@ class ComboGui(Param):
         self.param_widget.currentTextChanged.connect(self._on_widget_changed)
         layout = QHBoxLayout()
         layout.addWidget(self.param_widget)
-        if self.param_unit is not None:
-            layout.addWidget(QLabel(self.param_unit))
+        if self.unit is not None:
+            layout.addWidget(QLabel(self.unit))
         self.init_ui(layout)
 
     def change_options(self, options):
@@ -811,7 +820,7 @@ class ListGui(Param):
         if value is not None:
             self.cached_value = value
         self.value_label.setText(
-            convert_list_to_string(value, self.param_unit, self.value_string_length)
+            convert_list_to_string(value, self.unit, self.value_string_length)
         )
 
     def _get_widget_value(self):
@@ -892,7 +901,7 @@ class CheckListGui(Param):
         if value is not None:
             self.cached_value = value
         self.value_label.setText(
-            convert_list_to_string(value, self.param_unit, self.value_string_length)
+            convert_list_to_string(value, self.unit, self.value_string_length)
         )
 
     def _get_widget_value(self):
@@ -971,7 +980,7 @@ class DictGui(Param):
         if value is not None:
             self.cached_value = value
         self.value_label.setText(
-            convert_dict_to_string(value, self.param_unit, self.value_string_length)
+            convert_dict_to_string(value, self.unit, self.value_string_length)
         )
 
     def _get_widget_value(self):
@@ -1042,8 +1051,8 @@ class SliderGui(Param):
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.param_widget, stretch=10)
         slider_layout.addWidget(self.display_widget, stretch=1)
-        if self.param_unit:
-            slider_layout.addWidget(QLabel(self.param_unit))
+        if self.unit:
+            slider_layout.addWidget(QLabel(self.unit))
 
         self.init_ui(slider_layout)
 
@@ -1178,7 +1187,7 @@ class MultiTypeGui(Param):
         kwargs["groupbox_layout"] = False
         kwargs["none_select"] = False
         kwargs["description"] = self.description
-        kwargs["param_unit"] = self.param_unit
+        kwargs["unit"] = self.unit
         kwargs["parent_widget"] = self
 
         gui_class = globals()[gui_name]
@@ -1195,11 +1204,8 @@ class MultiTypeGui(Param):
 
     def change_type(self, type_idx):
         old_widget = self.type_layout.itemAt(1)
+        old_widget.widget().deleteLater()
         self.type_layout.removeItem(old_widget)
-        try:
-            old_widget.widget().deleteLater()
-        except RuntimeError:
-            logging.debug("Old widget already deleted")
         self.param_widget = None
         del old_widget
 
@@ -1633,7 +1639,7 @@ class LabelGui(Param):
         if value is not None:
             self.cached_value = value
         self.value_label.setText(
-            convert_list_to_string(value, self.param_unit, self.value_string_length)
+            convert_list_to_string(value, self.unit, self.value_string_length)
         )
 
     def _get_widget_value(self):
@@ -2027,7 +2033,7 @@ class ParametersDock(QDockWidget):
                         alias=alias,
                         default=default,
                         description=description,
-                        param_unit=unit,
+                        unit=unit,
                         **gui_args,
                     )
                 except Exception:

@@ -23,6 +23,14 @@ n_jobs_config = {
     },
 }
 
+show_plots_config = {
+    "alias": "Show plots",
+    "default": True,
+    "unit": None,
+    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+    "gui": "BoolGui",
+}
+
 for module_name, module_dict in configs.items():
     if module_name == "operations":
         module_type = "basic_operations"
@@ -43,6 +51,8 @@ for module_name, module_dict in configs.items():
     # Add n_jobs-config
     if module_name == "operations":
         module_dict["parameters"]["n_jobs"] = n_jobs_config
+    else:
+        module_dict["parameters"]["show_plots"] = show_plots_config
 
     print(print_msg)
     with open(config_file, "w") as f:

@@ -288,7 +288,7 @@ class Controller:
     def parameters(self):
         """This holds the parameters for the project."""
         if "parameters" not in self.config:
-            self.config["parameters"] = {}
+            self.config["parameters"] = {self.parameter_preset: {}}
         return self.config["parameters"]
 
     @property
@@ -314,30 +314,27 @@ class Controller:
     def get_default(self, parameter_name):
         """Get the default value for a given parameter name."""
         parameter_meta = self.parameter_metas.get(parameter_name, None)
-        if self.parameter_metas is None:
+        if parameter_meta is None:
             raise KeyError(f"Parameter '{parameter_name}' not found in Parameter-Meta.")
-        default_value = parameter_meta.get("default", None)
-        if default_value is None:
-            raise KeyError(
-                f"Default value for parameter '{parameter_name}' not found in Parameter-Meta."
-            )
+        default_value = parameter_meta["default"]
+
         return default_value
 
-    def parameter(self, parameter_name, parameter_preset=None, raise_missing=True):
+    def parameter(self, parameter_name, parameter_preset=None):
         """Get a specific parameter from the project parameters."""
         parameter_preset = parameter_preset or self.parameter_preset
         if parameter_preset not in self.parameters:
-            if raise_missing:
-                raise KeyError(
-                    f"Parameter preset '{parameter_preset}' not found in project."
-                )
-            else:
-                parameter_preset = list(self.parameters.keys())[0]
+            logging.warning(
+                f"Parameter preset '{parameter_preset}' not found in project. "
+                "Using 'Default' preset instead."
+            )
+            parameter_preset = "Default"
         if parameter_name not in self.parameters[parameter_preset]:
-            if raise_missing:
-                raise KeyError(f"Parameter '{parameter_name}' not found in project.")
-            else:
-                return self.get_default(parameter_name)
+            logging.warning(
+                f"Parameter '{parameter_name}' not found in preset '{parameter_preset}'. "
+                "Returning default value."
+            )
+            return self.get_default(parameter_name)
 
         return self.parameters[parameter_preset][parameter_name]
 

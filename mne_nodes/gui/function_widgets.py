@@ -227,7 +227,7 @@ class EditGuiArgsDlg(QDialog):
                 "name",
                 "alias",
                 "default",
-                "param_unit",
+                "unit",
                 "none_select",
                 "description",
             ]
@@ -1085,20 +1085,20 @@ class CustomFunctionImport(QDialog):
         else:
             description = None
         if pd.notna(self.add_pd_params.loc[self.current_parameter, "unit"]):
-            param_unit = self.add_pd_params.loc[self.current_parameter, "unit"]
+            unit = self.add_pd_params.loc[self.current_parameter, "unit"]
         else:
-            param_unit = None
+            unit = None
 
         gui_handle = getattr(parameter_widgets, gui_type)
         handle_params = inspect.signature(gui_handle).parameters
         try:
-            if "param_unit" in handle_params:
+            if "unit" in handle_params:
                 gui = gui_handle(
                     data=test_parameters,
                     name=self.current_parameter,
                     alias=alias,
                     description=description,
-                    param_unit=param_unit,
+                    unit=unit,
                     **gui_args,
                 )
             else:

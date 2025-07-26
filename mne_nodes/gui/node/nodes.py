@@ -94,7 +94,7 @@ class FunctionNode(BaseNode):
             param_kwargs["groupbox_layout"] = False
             gui_name = param_kwargs.pop("gui")
             gui = getattr(parameter_widgets, gui_name)
-            parameter_gui = gui(data=self.ct, **param_kwargs)
+            parameter_gui = gui(data=self.ct, name=param_name, **param_kwargs)
             layout.addWidget(parameter_gui)
         self.add_widget(widget)
 

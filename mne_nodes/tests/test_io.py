@@ -6,6 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 import json
 
+import numpy as np
 import pytest
 from qtpy.QtWidgets import QApplication
 
@@ -16,14 +17,17 @@ from mne_nodes.pipeline.settings import Settings
 
 def test_json_serialization(parameter_values):
     """Test if JSON serialization works as expected."""
-    serialized = json.dumps(parameter_values, cls=TypedJSONEncoder)
+    serialized = json.dumps(parameter_values, indent=4, cls=TypedJSONEncoder)
     deserialized = json.loads(serialized, object_hook=type_json_hook)
     # Check if the deserialized values match the original ones
     for key, value in parameter_values.items():
         assert key in deserialized, f"Key {key} not found in deserialized JSON"
-        assert deserialized[key] == value, (
-            f"Value mismatch for key {key}: {deserialized[key]} != {value}"
-        )
+        if isinstance(value, np.ndarray):
+            np.testing.assert_allclose(deserialized[key], value)
+        else:
+            assert deserialized[key] == value, (
+                f"Value mismatch for key {key}: {deserialized[key]} != {value}"
+            )
         # Check if the type is preserved
         assert isinstance(deserialized[key], type(value)), (
             f"Type mismatch for key {key}"

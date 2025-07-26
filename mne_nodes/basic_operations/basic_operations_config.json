@@ -900,20 +900,24 @@
         },
         "t_epoch": {
             "alias": "Epoch-Timeframe",
-            "default": [
-                -0.5,
-                1.5
-            ],
+            "default": {
+                "tuple_type": [
+                    -0.5,
+                    1.5
+                ]
+            },
             "unit": "s",
             "description": "start and end of epoch",
             "gui": "DualTupleGui"
         },
         "baseline": {
             "alias": "Baseline-Timeframe",
-            "default": [
-                -0.5,
-                0
-            ],
+            "default": {
+                "tuple_type": [
+                    -0.5,
+                    0
+                ]
+            },
             "unit": "s",
             "description": "start and end of baseline",
             "gui": "DualTupleGui",
@@ -1066,14 +1070,6 @@
             "unit": null,
             "description": "The number of components for ICA",
             "gui": "IntGui"
-        },
-        "max_pca_components": {
-            "alias": null,
-            "default": null,
-            "unit": null,
-            "description": null,
-            "gui": "IntGui",
-            "none_select": true
         },
         "n_pca_components": {
             "alias": null,
@@ -1337,129 +1333,12 @@
             "description": "lambda2 for Source-Estimate",
             "gui": "FuncGui"
         },
-        "stc_surface": {
-            "alias": null,
-            "default": "inflated",
-            "unit": null,
-            "description": "Select the surface type for Source Estimate Plots",
-            "gui": "ComboGui",
-            "options": [
-                "inflated",
-                "white",
-                "pial"
-            ]
-        },
-        "stc_hemi": {
-            "alias": null,
-            "default": "split",
-            "unit": null,
-            "description": "Select the hemispheres for Source Estimate Plots",
-            "gui": "ComboGui",
-            "options": [
-                "lh",
-                "rh",
-                "both",
-                "split"
-            ]
-        },
-        "stc_views": {
-            "alias": null,
-            "default": [
-                "med",
-                "lat"
-            ],
-            "unit": null,
-            "description": "Select the views for Source Estimate Plots",
-            "gui": "MultiTypeGui",
-            "type_selection": true,
-            "types": [
-                "str",
-                "list"
-            ]
-        },
-        "stc_time": {
-            "alias": null,
-            "default": 0,
-            "unit": null,
-            "description": "Initial time for Source Estimate Plots",
-            "gui": "FloatGui"
-        },
-        "stc_clim": {
-            "alias": null,
-            "default": "auto",
-            "unit": null,
-            "description": "Colorbar Limits for Source Estimate Plots",
-            "gui": "MultiTypeGui",
-            "type_selection": true,
-            "types": [
-                "str",
-                "dict"
-            ]
-        },
-        "stc_background": {
-            "alias": null,
-            "default": "black",
-            "unit": null,
-            "description": "Background for Source Estimate Plots",
-            "gui": "MultiTypeGui",
-            "type_selection": false
-        },
-        "stc_roll": {
-            "alias": null,
-            "default": 0,
-            "unit": null,
-            "description": "Roll for view in for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_azimuth": {
-            "alias": null,
-            "default": 70,
-            "unit": null,
-            "description": "Azimuth for view for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_elevation": {
-            "alias": null,
-            "default": 60,
-            "unit": null,
-            "description": "Elevation for view for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_animation_span": {
-            "alias": null,
-            "default": [
-                0,
-                0.5
-            ],
-            "unit": "s",
-            "description": "time-span for stc-animation[s]",
-            "gui": "DualTupleGui"
-        },
-        "stc_animation_dilat": {
-            "alias": null,
-            "default": 20,
-            "unit": null,
-            "description": "time-dilation for stc-animation",
-            "gui": "IntGui"
-        },
         "target_labels": {
             "alias": "Target Labels",
             "default": [],
             "unit": null,
             "description": null,
             "gui": "LabelGui"
-        },
-        "label_colors": {
-            "alias": null,
-            "default": {},
-            "unit": null,
-            "description": "Set custom colors for labels.",
-            "gui": "ColorGui",
-            "keys": "target_labels",
-            "none_select": true
         },
         "extract_mode": {
             "alias": "Label-Extraction-Mode",
@@ -1522,10 +1401,12 @@
         },
         "con_time_window": {
             "alias": null,
-            "default": [
-                0,
-                0.5
-            ],
+            "default": {
+                "tuple_type": [
+                    0,
+                    0.5
+                ]
+            },
             "unit": null,
             "description": "time-window for connectivity",
             "gui": "DualTupleGui",
@@ -1559,49 +1440,6 @@
             "unit": null,
             "description": "name of the freesurfer subject to be morphed to",
             "gui": "StringGui"
-        },
-        "ica_source_data": {
-            "alias": null,
-            "default": "raw_filtered",
-            "unit": null,
-            "description": "Which data to plot in sources-plot from ICA",
-            "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs",
-                "epochs_eog": "Epochs (EOG)",
-                "epochs_ecg": "Epochs (ECG)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)"
-            }
-        },
-        "ica_overlay_data": {
-            "alias": null,
-            "default": "evoked",
-            "unit": null,
-            "description": "Which data to plot in overlay-plot from ICA",
-            "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)"
-            }
-        },
-        "plot_sensors_kind": {
-            "alias": null,
-            "default": "topomap",
-            "unit": null,
-            "description": "The kind of plot for plot_sensors",
-            "gui": "ComboGui",
-            "options": [
-                "topomap",
-                "3d",
-                "select"
-            ]
         },
         "erm_ssp_duration": {
             "alias": null,
@@ -1655,33 +1493,6 @@
                 "welch",
                 "multitaper"
             ]
-        },
-        "psd_topomap_bands": {
-            "alias": null,
-            "default": null,
-            "unit": null,
-            "description": "The frequency bands for the topomap-plot",
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "backend_3d": {
-            "alias": "3D-Backend",
-            "default": "pyvistaqt",
-            "unit": null,
-            "description": "Choose the 3D-Backend for Brain-plots.",
-            "gui": "ComboGui",
-            "options": [
-                "pyvistaqt",
-                "notebook"
-            ]
-        },
-        "con_group_boundaries": {
-            "alias": null,
-            "default": null,
-            "unit": null,
-            "description": "Set group-boundaries for circular plot.",
-            "gui": "FuncGui",
-            "none_select": true
         },
         "notch_frequencies": {
             "alias": null,

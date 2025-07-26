@@ -157,10 +157,10 @@ def test_basic_param_guis(
 def test_label_gui(qtbot, controller):
     """Test opening label-gui without error."""
     # Add fsaverage
-    controller.pr.add_fsmri("fsaverage")
+    controller.add_fsmri("fsaverage")
 
     # Add start labels
-    controller.pr.parameters["Default"]["test_labels"] = [
+    controller.parameters["Default"]["test_labels"] = [
         "insula-lh",
         "postcentral-lh",
         "lh.BA1-lh",

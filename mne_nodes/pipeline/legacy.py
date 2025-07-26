@@ -196,6 +196,8 @@ def convert_pandas_meta(func_pd, param_pd):
             param_set.update(params)
 
         for param_name, row in param_pd.iterrows():
+            if param_name not in param_set:
+                continue
             row_dict = row.to_dict()
             eval_dict = {}
             for key, value in row_dict.items():
@@ -217,6 +219,14 @@ def convert_pandas_meta(func_pd, param_pd):
             if gui_args is not None:
                 for k, v in gui_args.items():
                     eval_dict[k] = v
+            # Convert tuple types
+            if param_name in [
+                "t_epoch",
+                "baseline",
+                "stc_animation_span",
+                "con_time_window",
+            ]:
+                eval_dict["default"] = tuple(eval_dict["default"])
 
             module_dict["parameters"][param_name] = eval_dict
         configs[module_name] = module_dict
