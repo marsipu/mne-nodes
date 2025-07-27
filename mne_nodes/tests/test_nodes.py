@@ -32,8 +32,9 @@ def test_nodes_basic_interaction(nodeviewer):
 
 # ToDo Next: Finish test
 def test_node_serialization(qtbot, nodeviewer):
+    nodeviewer.show()
     viewer_dict = nodeviewer.to_dict()
-    qtbot.wait(1000)
+    qtbot.wait(100000000)
     nodeviewer.clear()
     qtbot.wait(1000)
     nodeviewer.from_dict(viewer_dict)

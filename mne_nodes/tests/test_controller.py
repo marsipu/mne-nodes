@@ -6,7 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 from os.path import join, isfile
 
-from PySide6.QtWidgets import QMessageBox
+from qtpy.QtWidgets import QMessageBox
 
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.pipeline_utils import change_file_section

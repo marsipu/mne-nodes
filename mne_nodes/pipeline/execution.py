@@ -7,9 +7,9 @@ Github: https://github.com/marsipu/mne-nodes
 import sys
 from inspect import signature
 
-from PySide6.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, Qt, QProcess
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
+from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, Qt, QProcess
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QLabel,

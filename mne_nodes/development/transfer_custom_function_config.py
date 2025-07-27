@@ -31,6 +31,14 @@ show_plots_config = {
     "gui": "BoolGui",
 }
 
+enable_cuda_config = {
+    "alias": "Enable CUDA",
+    "default": False,
+    "unit": None,
+    "description": "If set to True, the function will use CUDA for processing. If set to False, the function will use CPU.",
+    "gui": "BoolGui",
+}
+
 for module_name, module_dict in configs.items():
     if module_name == "operations":
         module_type = "basic_operations"
@@ -48,9 +56,13 @@ for module_name, module_dict in configs.items():
     module_dict["module_name"] = module_type
     module_dict["module_alias"] = module_type
 
-    # Add n_jobs-config
+    # Some modifications
     if module_name == "operations":
         module_dict["parameters"]["n_jobs"] = n_jobs_config
+        module_dict["parameters"]["enable_cuda"] = enable_cuda_config
+        module_dict["functions"]["filter_data"]["inputs"] = ["raw"]
+        module_dict["functions"]["filter_data"]["outputs"] = ["raw"]
+        module_dict["functions"]["epoch_raw"]["inputs"] = ["raw", "events"]
     else:
         module_dict["parameters"]["show_plots"] = show_plots_config
 

@@ -9,7 +9,7 @@ import sys
 import traceback
 from ast import literal_eval
 
-from PySide6.QtWidgets import QLabel, QGroupBox
+from qtpy.QtWidgets import QLabel, QGroupBox
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,

@@ -23,7 +23,12 @@ from mne_nodes.gui.node.ports import Port
 
 
 class NodeViewer(QGraphicsView):
-    """The NodeGraph displays the nodes and connections and manages them."""
+    """The NodeGraph displays the nodes and connections and manages them.
+
+    This class provides a graphical interface for viewing and
+    manipulating node graphs with support for zooming, panning, node
+    selection, and connection management.
+    """
 
     ####################################################################################
     # Signals
@@ -122,9 +127,9 @@ class NodeViewer(QGraphicsView):
     def nodes(self):
         """Return list of nodes in the node graph.
 
-        Returns:
-        --------
-        nodes: OrderedDict
+        Returns
+        -------
+        OrderedDict
             The nodes are stored in an OrderedDict with the node id as the key.
         """
         return self._nodes
@@ -135,7 +140,7 @@ class NodeViewer(QGraphicsView):
 
         Returns
         -------
-        layout: str
+        str
             Pipe layout mode (either 'straight', 'curved', or 'angle').
         """
         return self._pipe_layout
@@ -146,12 +151,12 @@ class NodeViewer(QGraphicsView):
 
         Parameters
         ----------
-        layout: str
+        layout : str
             Pipe layout mode (either 'straight', 'curved', or 'angle').
         """
         if layout not in ["straight", "curved", "angle"]:
             logging.warning(
-                f"{layout} is not a valid pipe layout, " f"defaulting to 'curved'."
+                f"{layout} is not a valid pipe layout, defaulting to 'curved'."
             )
             layout = "curved"
         self._pipe_layout = layout
@@ -162,14 +167,19 @@ class NodeViewer(QGraphicsView):
     def add_node(self, node):
         """Add a node to the node graph.
 
-        See Also
-        --------
-        NodeGraph.registered_nodes : To list all node types
-
         Parameters
         ----------
         node : BaseNode
             The node to add to the node graph.
+
+        Returns
+        -------
+        BaseNode
+            The added node.
+
+        See Also
+        --------
+        NodeGraph.registered_nodes : To list all node types
         """
         self.scene().addItem(node)
         self._nodes[node.id] = node
@@ -190,6 +200,16 @@ class NodeViewer(QGraphicsView):
             The name for the input node for example a group name, by default None.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the BaseNode constructor.
+
+        Returns
+        -------
+        InputNode
+            The created input node.
+
+        Raises
+        ------
+        ValueError
+            If data_type is not in the available input data types.
         """
         if name is None:
             if len(self.ct.input_nodes[data_type]) == 0:
@@ -208,7 +228,20 @@ class NodeViewer(QGraphicsView):
         return node
 
     def add_function_node(self, function_name, **kwargs):
-        """Add a new function node to the project."""
+        """Add a new function node to the project.
+
+        Parameters
+        ----------
+        function_name : str
+            Name of the function to create a node for.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the FunctionNode constructor.
+
+        Returns
+        -------
+        FunctionNode
+            The created function node.
+        """
         node = FunctionNode(self.ct, function=function_name, **kwargs)
         if function_name in self.ct.function_nodes:
             self.ct.function_nodes[function_name].update({node.id: node})
@@ -244,7 +277,8 @@ class NodeViewer(QGraphicsView):
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
-        """Get a node from the node graph based on either its index, name, or id.
+        """Get a node from the node graph based on either its index, name, or
+        id.
 
         Parameters
         ----------
@@ -254,12 +288,12 @@ class NodeViewer(QGraphicsView):
             Name of the node in the node graph.
         node_id : str, optional
             Unique identifier of the node in the node graph.
-        old_id: int, optional
+        old_id : int, optional
             Old id of the node for reestablishing connections.
 
         Returns
         -------
-        BaseNode
+        BaseNode or list or None
             The node that matches the provided index, name, or id. If multiple
             parameters are provided, the method will prioritize them in
             the following order: node_idx, node_name, node_id, old_id.
@@ -280,6 +314,13 @@ class NodeViewer(QGraphicsView):
         return None
 
     def to_dict(self):
+        """Serialize the node viewer to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary containing nodes and connections data.
+        """
         viewer_dict = {}
         viewer_dict["nodes"] = {
             node_id: node.to_dict() for node_id, node in self.nodes.items()
@@ -299,6 +340,13 @@ class NodeViewer(QGraphicsView):
         return viewer_dict
 
     def from_dict(self, viewer_dict):
+        """Load node viewer from a dictionary.
+
+        Parameters
+        ----------
+        viewer_dict : dict
+            Dictionary containing nodes and connections data.
+        """
         self.clear()
         # Create nodes
         for node_info in viewer_dict["nodes"].values():
@@ -316,7 +364,13 @@ class NodeViewer(QGraphicsView):
                     port.connect_to(connected_port)
 
     def from_project(self):
-        """Legacy method to load nodes from the project."""
+        """Legacy method to load nodes from the project.
+
+        Notes
+        -----
+        This method loads function nodes from the current project's
+        selected functions.
+        """
         for function in self.ct.pr.sel_functions:
             node = FunctionNode(self.ct, function=function)
             self.add_node(node)
@@ -324,7 +378,13 @@ class NodeViewer(QGraphicsView):
         # Try making non-cyclic connections
 
     def clear(self):
-        """Clear the node graph."""
+        """Clear the node graph.
+
+        Notes
+        -----
+        This removes all nodes from the graph. List conversion is necessary
+        because self.nodes is mutated during iteration.
+        """
         # list conversion necessary because self.nodes is mutated
         for node in list(self.nodes.values()):
             self.remove_node(node)
@@ -333,12 +393,16 @@ class NodeViewer(QGraphicsView):
     # Frontend
     ####################################################################################
     def _set_viewer_zoom(self, value, sensitivity=None, pos=None):
-        """Sets the zoom level.
+        """Set the zoom level.
 
-        Args:
-            value (float): zoom factor.
-            sensitivity (float): zoom sensitivity.
-            pos (QPoint): mapped position.
+        Parameters
+        ----------
+        value : float
+            Zoom factor.
+        sensitivity : float, optional
+            Zoom sensitivity.
+        pos : QPoint, optional
+            Mapped position for zoom center.
         """
         if pos:
             pos = self.mapToScene(pos)
@@ -363,14 +427,28 @@ class NodeViewer(QGraphicsView):
     def _set_viewer_pan(self, pos_x, pos_y):
         """Set the viewer in panning mode.
 
-        Args:
-            pos_x (float): x pos.
-            pos_y (float): y pos.
+        Parameters
+        ----------
+        pos_x : float
+            X position offset.
+        pos_y : float
+            Y position offset.
         """
         self._scene_range.adjust(pos_x, pos_y, pos_x, pos_y)
         self._update_scene()
 
     def scale(self, sx, sy, pos=None):
+        """Scale the viewer.
+
+        Parameters
+        ----------
+        sx : float
+            X scale factor.
+        sy : float
+            Y scale factor.
+        pos : QPointF, optional
+            Center position for scaling.
+        """
         scale = [sx, sx]
         center = pos or self._scene_range.center()
         w = self._scene_range.width() / scale[0]
@@ -384,18 +462,27 @@ class NodeViewer(QGraphicsView):
         self._update_scene()
 
     def _update_scene(self):
-        """Redraw the scene."""
+        """Redraw the scene.
+
+        Notes
+        -----
+        This method updates the scene rectangle and fits the view.
+        """
         self.setSceneRect(self._scene_range)
         self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
 
     def _combined_rect(self, nodes):
-        """Returns a QRectF with the combined size of the provided node items.
+        """Return a QRectF with the combined size of the provided node items.
 
-        Args:
-            nodes (list[AbstractNodeItem]): list of node qgraphics items.
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            List of node graphics items.
 
-        Returns:
-            QRectF: combined rect
+        Returns
+        -------
+        QRectF
+            Combined bounding rectangle.
         """
         group = self.scene().createItemGroup(nodes)
         rect = group.boundingRect()
@@ -403,15 +490,22 @@ class NodeViewer(QGraphicsView):
         return rect
 
     def _items_near(self, pos, width=20, height=20):
-        """Filter node graph items from the specified position, width and height area.
+        """Filter node graph items from the specified position, width and
+        height area.
 
-        Args:
-            pos (QPointF): scene pos.
-            width (int): width area.
-            height (int): height area.
+        Parameters
+        ----------
+        pos : QPointF
+            Scene position.
+        width : int, optional
+            Width of search area, by default 20.
+        height : int, optional
+            Height of search area, by default 20.
 
-        Returns:
-            list: qgraphics items from the scene.
+        Returns
+        -------
+        list
+            Graphics items from the scene within the specified area.
         """
         x, y = pos.x() - width, pos.y() - height
         rect = QRectF(x, y, width, height)
@@ -701,13 +795,14 @@ class NodeViewer(QGraphicsView):
     ####################################################################################
 
     def sceneMouseMoveEvent(self, event):
-        """
-        triggered mouse move event for the scene.
-         - redraw the live connection pipe.
+        """Handle mouse move event for the scene.
 
-        Args:
-            event (QtWidgets.QGraphicsSceneMouseEvent):
-                The event handler from the QtWidgets.QGraphicsScene
+        This method redraws the live connection pipe during node connections.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
         """
         if not self._LIVE_PIPE.isVisible():
             return
@@ -743,13 +838,15 @@ class NodeViewer(QGraphicsView):
         self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos, color=pointer_color)
 
     def sceneMousePressEvent(self, event):
-        """
-        triggered mouse press event for the scene (takes priority over viewer event).
-         - detect selected pipe and start connection.
+        """Handle mouse press event for the scene.
 
-        Args:
-            event (QtWidgets.QGraphicsScenePressEvent):
-                The event handler from the QtWidgets.QGraphicsScene
+        This method takes priority over viewer events and detects selected
+        pipes to start connections.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsScenePressEvent
+            The event handler from the QtWidgets.QGraphicsScene.
         """
         # pipe slicer enabled.
         if event.modifiers() == (
@@ -804,10 +901,7 @@ class NodeViewer(QGraphicsView):
             from_port = pipe.port_from_pos(pos, True)
             from_port.hovered = True
 
-            attr = {
-                "in": "input_port",
-                "out": "output_port",
-            }
+            attr = {"in": "input_port", "out": "output_port"}
             self._detached_port = getattr(pipe, attr[from_port.port_type])
             self.start_live_connection(from_port)
             self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos)
@@ -819,25 +913,26 @@ class NodeViewer(QGraphicsView):
             pipe.delete()
 
     def sceneMouseReleaseEvent(self, event):
-        """Triggered mouse release event for the scene.
+        """Handle mouse release event for the scene.
 
-        Args:
-            event (QtWidgets.QGraphicsSceneMouseEvent):
-                The event handler from the QtWidgets.QGraphicsScene
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
         """
         if event.button() != Qt.MouseButton.MiddleButton:
             self.apply_live_connection(event)
 
     def apply_live_connection(self, event):
-        """Triggered mouse press/release event for the scene.
+        """Apply live connection for mouse press/release events.
 
-        - verifies the live connection pipe.
-        - makes a connection pipe if valid.
-        - emits the "connection changed" signal.
+        This method verifies the live connection pipe, makes a connection
+        pipe if valid, and emits the "connection changed" signal.
 
-        Args:
-            event (QtWidgets.QGraphicsSceneMouseEvent):
-                The event handler from the QtWidgets.QGraphicsScene
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
         """
         if not self._LIVE_PIPE.isVisible():
             return
@@ -908,7 +1003,12 @@ class NodeViewer(QGraphicsView):
     def start_live_connection(self, selected_port):
         """Create new pipe for the connection.
 
-        (show the live pipe visibility from the port following the cursor position)
+        Shows the live pipe visibility from the port following the cursor position.
+
+        Parameters
+        ----------
+        selected_port : Port
+            The port to start the connection from.
         """
         if not selected_port:
             return
@@ -925,7 +1025,9 @@ class NodeViewer(QGraphicsView):
     def end_live_connection(self):
         """Delete live connection pipe and reset start port.
 
-        (hides the pipe item used for drawing the live connection)
+        Notes
+        -----
+        This hides the pipe item used for drawing the live connection.
         """
         self._LIVE_PIPE.reset_path()
         self._LIVE_PIPE.setVisible(False)
@@ -937,11 +1039,12 @@ class NodeViewer(QGraphicsView):
 
         Parameters
         ----------
-        item: QGraphicsItem
+        item : QGraphicsItem
+            The graphics item to check.
 
         Returns
         -------
-        result: bool
+        bool
             True if the item is a node.
         """
         # For some reason, issubclass(item.__class__, BaseNode) does not work
@@ -954,11 +1057,12 @@ class NodeViewer(QGraphicsView):
 
         Parameters
         ----------
-        item: QGraphicsItem
+        item : QGraphicsItem
+            The graphics item to check.
 
         Returns
         -------
-        result: bool
+        bool
             True if the item is a port.
         """
         return isinstance(item, Port)
@@ -968,45 +1072,53 @@ class NodeViewer(QGraphicsView):
 
         Parameters
         ----------
-        item: QGraphicsItem
+        item : QGraphicsItem
+            The graphics item to check.
 
         Returns
         -------
-        result: bool
+        bool
             True if the item is a pipe.
         """
         return isinstance(item, Pipe)
 
     def all_pipes(self):
-        """Returns all pipe qgraphic items.
+        """Return all pipe graphics items.
 
-        Returns:
-            list[PipeItem]: instances of pipe items.
+        Returns
+        -------
+        list of PipeItem
+            Instances of pipe items in the scene.
         """
         return [i for i in self.scene().items() if self.ispipe(i)]
 
     def selected_nodes(self):
-        """Returns selected node qgraphic items.
+        """Return selected node graphics items.
 
-        Returns:
-            list[AbstractNodeItem]: instances of node items.
+        Returns
+        -------
+        list of AbstractNodeItem
+            Instances of selected node items.
         """
         return [i for i in self.scene().selectedItems() if self.isnode(i)]
 
     def selected_pipes(self):
-        """Returns selected pipe qgraphic items.
+        """Return selected pipe graphics items.
 
-        Returns:
-            list[Pipe]: pipe items.
+        Returns
+        -------
+        list of Pipe
+            Selected pipe items.
         """
         return [i for i in self.scene().selectedItems() if self.ispipe(i)]
 
     def selected_items(self):
-        """Return selected graphic items in the scene.
+        """Return selected graphics items in the scene.
 
-        Returns:
-            tuple(list[AbstractNodeItem], list[Pipe]):
-                selected (node items, pipe items).
+        Returns
+        -------
+        tuple of (list of AbstractNodeItem, list of Pipe)
+            Selected node items and pipe items.
         """
         nodes = [i for i in self.scene().selectedItems() if self.isnode(i)]
         pipes = [i for i in self.scene().selectedItems() if self.ispipe(i)]
@@ -1016,10 +1128,14 @@ class NodeViewer(QGraphicsView):
     def move_nodes(self, nodes, pos=None, offset=None):
         """Globally move specified nodes.
 
-        Args:
-            nodes (list[AbstractNodeItem]): node items.
-            pos (tuple or list): custom x, y position.
-            offset (tuple or list): x, y position offset.
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            Node items to move.
+        pos : tuple or list, optional
+            Custom x, y position.
+        offset : tuple or list, optional
+            X, y position offset.
         """
         group = self.scene().createItemGroup(nodes)
         group_rect = group.boundingRect()
@@ -1036,6 +1152,18 @@ class NodeViewer(QGraphicsView):
         self.scene().destroyItemGroup(group)
 
     def get_pipes_from_nodes(self, nodes=None):
+        """Get pipes connected between the specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem, optional
+            Nodes to get pipes from. If None, uses selected nodes.
+
+        Returns
+        -------
+        list of Pipe
+            Pipes connecting the specified nodes.
+        """
         nodes = nodes or self.selected_nodes()
         if not nodes:
             return
@@ -1059,8 +1187,10 @@ class NodeViewer(QGraphicsView):
     def center_selection(self, nodes=None):
         """Center on the given nodes or all nodes by default.
 
-        Args:
-            nodes (list[AbstractNodeItem]): a list of node items.
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem, optional
+            A list of node items. If None, uses selected nodes or all nodes.
         """
         nodes = nodes or self.selected_nodes() or self.nodes.values()
         if not nodes:
@@ -1078,8 +1208,10 @@ class NodeViewer(QGraphicsView):
     def reset_zoom(self, cent=None):
         """Reset the viewer zoom level.
 
-        Args:
-            cent (QtCore.QPoint): specified center.
+        Parameters
+        ----------
+        cent : QtCore.QPoint, optional
+            Specified center point.
         """
         self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
         if cent:
@@ -1087,10 +1219,12 @@ class NodeViewer(QGraphicsView):
         self._update_scene()
 
     def get_zoom(self):
-        """Returns the viewer zoom level.
+        """Return the viewer zoom level.
 
-        Returns:
-            float: zoom level.
+        Returns
+        -------
+        float
+            Current zoom level.
         """
         transform = self.transform()
         cur_scale = (transform.m11(), transform.m22())
@@ -1099,8 +1233,10 @@ class NodeViewer(QGraphicsView):
     def set_zoom(self, value=0.0):
         """Set the viewer zoom level.
 
-        Args:
-            value (float): zoom level
+        Parameters
+        ----------
+        value : float, optional
+            Zoom level, by default 0.0.
         """
         if value == 0.0:
             self.reset_zoom()
@@ -1121,7 +1257,15 @@ class NodeViewer(QGraphicsView):
         value = value - zoom
         self._set_viewer_zoom(value, 0.0)
 
-    def zoom_to_nodes(self, nodes):
+    def zoom_to_nodes(self, nodes=None):
+        """Zoom to fit the specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of BaseNode, optional
+            Nodes to zoom to. If None, uses all nodes in the graph.
+        """
+        nodes = nodes or list(self.nodes.values())
         self._scene_range = self._combined_rect(nodes)
         self._update_scene()
 
@@ -1129,8 +1273,10 @@ class NodeViewer(QGraphicsView):
             self.reset_zoom(self._scene_range.center())
 
     def fit_to_selection(self):
-        """Sets the zoom level to fit selected nodes.
+        """Set the zoom level to fit selected nodes.
 
+        Notes
+        -----
         If no nodes are selected then all nodes in the graph will be framed.
         """
         nodes = self.selected_nodes() or self.nodes.values()
@@ -1143,10 +1289,12 @@ class NodeViewer(QGraphicsView):
         self._update_scene()
 
     def scene_rect(self):
-        """Returns the scene rect size.
+        """Return the scene rect size.
 
-        Returns:
-            list[float]: x, y, width, height
+        Returns
+        -------
+        list of float
+            Scene rectangle as [x, y, width, height].
         """
         return [
             self._scene_range.x(),
@@ -1156,101 +1304,78 @@ class NodeViewer(QGraphicsView):
         ]
 
     def set_scene_rect(self, rect):
-        """Sets the scene rect and redraws the scene.
+        """Set the scene rect and redraw the scene.
 
-        Args:
-            rect (list[float]): x, y, width, height
+        Parameters
+        ----------
+        rect : list of float
+            Scene rectangle as [x, y, width, height].
         """
         self._scene_range = QRectF(*rect)
         self._update_scene()
 
     def scene_center(self):
-        """Get the center x,y pos from the scene.
+        """Get the center x,y position from the scene.
 
-        Returns:
-            list[float]: x, y position.
+        Returns
+        -------
+        list of float
+            Center position as [x, y].
         """
         cent = self._scene_range.center()
         return [cent.x(), cent.y()]
 
     def scene_cursor_pos(self):
-        """Returns the cursor last position mapped to the scene.
+        """Return the cursor last position mapped to the scene.
 
-        Returns:
-            QtCore.QPoint: cursor position.
+        Returns
+        -------
+        QtCore.QPoint
+            Cursor position in scene coordinates.
         """
         return self.mapToScene(self._previous_pos)
 
     def nodes_rect_center(self, nodes):
-        """Get the center x,y pos from the specified nodes.
+        """Get the center x,y position from the specified nodes.
 
-        Args:
-            nodes (list[AbstractNodeItem]): list of node qgrphics items.
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            List of node graphics items.
 
-        Returns:
-            list[float]: x, y position.
+        Returns
+        -------
+        list of float
+            Center position as [x, y].
         """
         cent = self._combined_rect(nodes).center()
         return [cent.x(), cent.y()]
 
     def use_OpenGL(self):
-        """Use QOpenGLWidget as the viewer."""
+        """Use QOpenGLWidget as the viewer.
+
+        Notes
+        -----
+        This method enables OpenGL rendering for better performance.
+        """
         if qtpy.PYQT5 or qtpy.PYSIDE2:
             from qtpy.QtWidgets import QOpenGLWidget
         else:
             from qtpy.QtOpenGLWidgets import QOpenGLWidget
         self.setViewport(QOpenGLWidget())
 
-    def node_position_scene(self, **node_kwargs):
-        node = self.node(**node_kwargs)
-        scene_pos = node.scenePos() + node.boundingRect().center()
-
-        return scene_pos
-
-    def node_position_view(self, **node_kwargs):
-        scene_pos = self.node_position_scene(**node_kwargs)
-        view_pos = self.mapFromScene(scene_pos)
-
-        return view_pos
-
-    def port_position_scene(
-        self,
-        port_type=None,
-        port_idx=None,
-        port_name=None,
-        port_id=None,
-        node_idx=None,
-        node_name=None,
-        node_id=None,
-    ):
-        node = self.node(node_idx, node_name, node_id)
-        port = node.port(port_type, port_idx, port_name, port_id)
-        scene_pos = port.scenePos() + port.boundingRect().center()
-        # Convert to float point
-        scene_pos = QPointF(scene_pos)
-
-        return scene_pos
-
-    def port_position_view(self, **port_node_kwargs):
-        scene_pos = self.port_position_scene(**port_node_kwargs)
-        view_pos = self.mapFromScene(scene_pos)
-        # Convert to float point
-        view_pos = QPointF(view_pos)
-
-        return view_pos
-
-    # --------------------------------------------------------------------------------------
-    # AutoLayout
-    # --------------------------------------------------------------------------------------
-
     @staticmethod
     def _update_node_rank(node, nodes_rank, down_stream=True):
-        """Recursive function for updating the node ranking.
+        """Update the ranking of a node and its connected nodes.
 
-        Args:
-            node (BaseNode): node to start from.
-            nodes_rank (dict): node ranking object to be updated.
-            down_stream (bool): true to rank down stram.
+        Parameters
+        ----------
+        node : BaseNode
+            The node to update ranking for.
+        nodes_rank : dict
+            Node ranking object to be updated.
+        down_stream : bool, optional
+            True to rank downstream nodes, by default True.
         """
         if down_stream:
             node_values = node.connected_output_nodes().values()
@@ -1273,12 +1398,17 @@ class NodeViewer(QGraphicsView):
     def _compute_node_rank(nodes, down_stream=True):
         """Compute the ranking of nodes.
 
-        Args:
-            nodes (list[BaseNode]): nodes to start ranking from.
-            down_stream (bool): true to compute down stream.
+        Parameters
+        ----------
+        nodes : list of BaseNode
+            Nodes to start ranking from.
+        down_stream : bool, optional
+            True to compute downstream ranking, by default True.
 
-        Returns:
-            dict: {BaseNode: node_rank, ...}
+        Returns
+        -------
+        dict
+            Mapping of BaseNode to node_rank.
         """
         nodes_rank = {}
         for node in nodes:
@@ -1289,18 +1419,16 @@ class NodeViewer(QGraphicsView):
     def auto_layout_nodes(self, nodes=None, down_stream=True, start_nodes=None):
         """Auto layout the nodes in the node graph.
 
-        Note:
-            If the node graph is acyclic then the ``start_nodes`` will need
-            to be specified.
-
-        Args:
-            nodes (list[BaseNode]): list of nodes to auto layout
-                if nodes is None then all nodes is layed out.
-            down_stream (bool): false to layout up stream.
-            start_nodes (list[BaseNode]):
-                list of nodes to start the auto layout from (Optional).
+        Parameters
+        ----------
+        nodes : list of BaseNode, optional
+            List of nodes to auto layout. If None, all nodes are laid out.
+        down_stream : bool, optional
+            False to layout upstream, by default True.
+        start_nodes : list of BaseNode, optional
+            List of nodes to start the auto layout from..
         """
-        nodes = nodes or self.nodes.values()
+        nodes = nodes or list(self.nodes.values())
 
         start_nodes = start_nodes or []
         if down_stream:
@@ -1339,7 +1467,7 @@ class NodeViewer(QGraphicsView):
                 node.setPos(current_x, current_y)
                 current_y += dy * 0.5 + 10
 
-            current_x += max_width * 0.5 + 100
+            current_x += max_width * 0.5 + 20
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]

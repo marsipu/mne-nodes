@@ -738,6 +738,8 @@ class ComboGui(Param):
                 )
         if isinstance(self.options, dict):
             alias = self.options[value]
+        else:
+            alias = value
         self.param_widget.setCurrentText(alias)
 
     def _get_widget_value(self):

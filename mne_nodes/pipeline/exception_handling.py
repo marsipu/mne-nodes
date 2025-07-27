@@ -10,7 +10,7 @@ import sys
 import traceback
 from contextlib import contextmanager
 
-from PySide6.QtCore import QObject, Signal
+from qtpy.QtCore import QObject, Signal
 
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
 
@@ -94,10 +94,7 @@ class UncaughtHook(QObject):
                 exc_value,
                 "".join(traceback.format_tb(exc_traceback)),
             )
-            logging.critical(
-                "Uncaught exception:",
-                exc_info=exc_info,
-            )
+            logging.critical("Uncaught exception:", exc_info=exc_info)
 
             # trigger showing of error-dialog
             self._exception_caught.emit(exc_str)

@@ -12,8 +12,8 @@ jobs:
       matrix:
         os: [ ubuntu, windows, macos ]
         python: [ '3.11' ]
-        # Test PyQt5 for backwards compatibility, PySide2 is left out to save runners
-        qt : [ 'PySide6' , 'PyQt6', 'PyQt5']
+        # Test PySide6 and PyQt6 (PyQt5 and PySide2 are no longer supported)
+        qt : [ 'PySide6' , 'PyQt6' ]
         include:
           - os: ubuntu
             python: '3.9'

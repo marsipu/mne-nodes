@@ -7,9 +7,9 @@ Github: https://github.com/marsipu/mne-nodes
 import io
 import sys
 
-from PySide6.QtCore import QTimer, QObject, Signal
-from PySide6.QtGui import QTextCursor
-from PySide6.QtWidgets import QPlainTextEdit
+from qtpy.QtCore import QTimer, QObject, Signal
+from qtpy.QtGui import QTextCursor
+from qtpy.QtWidgets import QPlainTextEdit
 
 
 class ConsoleWidget(QPlainTextEdit):

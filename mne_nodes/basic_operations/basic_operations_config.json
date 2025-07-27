@@ -25,11 +25,10 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                "erm",
-                "info"
+                "raw"
             ],
             "outputs": [
-                "erm_processed"
+                "raw"
             ],
             "parameters": [
                 "filter_target",
@@ -163,9 +162,8 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                "filtered",
-                "events",
-                "json"
+                "raw",
+                "events"
             ],
             "outputs": [
                 "reject_log",
@@ -1523,6 +1521,13 @@
                     ]
                 }
             }
+        },
+        "enable_cuda": {
+            "alias": "Enable CUDA",
+            "default": false,
+            "unit": null,
+            "description": "If set to True, the function will use CUDA for processing. If set to False, the function will use CPU.",
+            "gui": "BoolGui"
         }
     }
 }

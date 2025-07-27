@@ -63,9 +63,8 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, function, **kwargs):
-        super().__init__(ct, **kwargs)
+        super().__init__(ct, name=function, **kwargs)
         self.function = function
-        self.name = function
         self.func_meta = ct.function_metas[function]
         self.parameters = self.func_meta["parameters"]
 
@@ -97,14 +96,6 @@ class FunctionNode(BaseNode):
             parameter_gui = gui(data=self.ct, name=param_name, **param_kwargs)
             layout.addWidget(parameter_gui)
         self.add_widget(widget)
-
-    def to_dict(self):
-        """Override dictionary representation because of additional
-        attributes."""
-        node_dict = super().to_dict()
-        node_dict["function"] = self.function
-
-        return node_dict
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)

@@ -9,7 +9,7 @@ from collections import Counter
 from importlib import resources
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication
 from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
