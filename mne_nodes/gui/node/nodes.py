@@ -82,6 +82,7 @@ class FunctionNode(BaseNode):
         if len(self.func_meta["parameters"]) > 5:
             box_layout = QVBoxLayout(widget)
             scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
             box_layout.addWidget(scroll_area)
             scroll_widget = QWidget()
             scroll_area.setWidget(scroll_widget)
