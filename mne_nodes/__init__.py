@@ -18,8 +18,9 @@ gui_mode = True
 # Keep reference to Qt-objects without parent for tests
 # and to avoid garbage collection
 _object_refs = {
-    "welcome_window": None,
     "main_window": None,
+    "viewer": None,
+    "welcome_window": None,
     "plot_manager": None,
     "dialogs": {},
     "parameter_widgets": {},

@@ -33,6 +33,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
 )
 
+from mne_nodes import _object_refs
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.models import (
     BaseDictModel,
@@ -1268,6 +1269,7 @@ class SimpleDialog(QDialog):
         window_title=None,
         show_close_bt=True,
     ):
+        parent = parent or _object_refs["main_window"] or _object_refs["viewer"]
         super().__init__(parent)
 
         # Make sure, the dialog is deleted when closed

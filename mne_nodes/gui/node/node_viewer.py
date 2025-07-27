@@ -12,6 +12,7 @@ from qtpy.QtWidgets import (
     QGraphicsPathItem,
 )
 
+from mne_nodes import _object_refs
 from mne_nodes.gui.gui_utils import invert_rgb_color
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
@@ -49,6 +50,9 @@ class NodeViewer(QGraphicsView):
         super().__init__(parent)
         self.ct = ct
         self._debug_mode = debug_mode
+
+        # add to global object references
+        _object_refs["viewer"] = self
 
         # attributes
         self._nodes = OrderedDict()

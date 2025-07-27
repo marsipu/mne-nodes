@@ -811,10 +811,7 @@ class ListGui(Param):
     def open_dialog(self):
         """Open the dialog to edit the list."""
         dlg = SimpleDialog(
-            EditList(self.value),
-            self,
-            title=f"Setting {self.alias}",
-            window_title=self.alias,
+            EditList(self.value), title=f"Setting {self.alias}", window_title=self.alias
         )
         dlg.finished.connect(self._update_param)
 
