@@ -1086,16 +1086,12 @@ class MultiTypeGui(Param):
 
     data_type = int | float | bool | str | list | dict | tuple
 
-    def __init__(self, type_selection=False, types=None, type_kwargs=None, **kwargs):
+    def __init__(self, types=None, type_kwargs=None, **kwargs):
         """
         Parameters
         ----------
-        type_selection : bool
-            If True, the use can choose in a QComboBox which type they want
-            to enter and then use the appropriate GUI. Else, the user can
-            enter any type in a QLineEdit and the type will be inferred.
         types : list of str | None
-            If type_selection is True, the type-selection will be limited
+            The type-selection will be limited
             to the given types (type-name as string).
         type_kwargs : dict | None
             Specify keyword-arguments as a dictionary for the different GUIs
@@ -1105,7 +1101,6 @@ class MultiTypeGui(Param):
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
-        self.type_selection = type_selection
         self.types = types or [
             "int",
             "float",
@@ -1130,7 +1125,9 @@ class MultiTypeGui(Param):
             "checklist": [],
             "slider": 0.0,
         }
-        self.type_kwargs = type_kwargs or {}
+        self.type_kwargs = type_kwargs or {
+            "ComboGui": {"options": [], "editable": True}
+        }
 
         # A dictionary to map possible types with their GUI
         self.gui_types = {
@@ -1152,21 +1149,14 @@ class MultiTypeGui(Param):
         if self.param_type == "NoneType":
             self.param_type = self.types[0]
 
-        if self.type_selection:
-            self.param_widget = None
-            self.type_cmbx = QComboBox()
-            self.type_cmbx.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-            self.type_cmbx.addItems(self.types)
-            self.type_cmbx.activated.connect(self.change_type)
-            self.type_cmbx.setCurrentText(self.param_type)
-            self.type_layout.addWidget(self.type_cmbx)
-            self.add_type_gui()
-        else:
-            self.param_widget = QLineEdit()
-            self.param_widget.textEdited.connect(self._on_widget_changed)
-            self.type_display = QLabel()
-            self.type_layout.addWidget(self.param_widget)
-            self.type_layout.addWidget(self.type_display)
+        self.param_widget = None
+        self.type_cmbx = QComboBox()
+        self.type_cmbx.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.type_cmbx.addItems(self.types)
+        self.type_cmbx.activated.connect(self.change_type)
+        self.type_cmbx.setCurrentText(self.param_type)
+        self.type_layout.addWidget(self.type_cmbx)
+        self.add_type_gui()
         self.init_ui(self.type_layout)
 
     def add_type_gui(self):
@@ -1213,29 +1203,10 @@ class MultiTypeGui(Param):
         self.add_type_gui()
 
     def _set_widget_value(self, value):
-        if self.type_selection:
-            self.param_widget.value = value
-        elif value is not None:
-            self.param_widget.setText(str(value))
-            self.type_display.setText(f"Type: {type(value).__name__}")
+        self.param_widget.value = value
 
     def _get_widget_value(self):
-        if self.type_selection:
-            value = self.param_widget.value
-        else:
-            text = self.param_widget.text()
-            try:
-                value = literal_eval(text)
-                self.param_type = type(value).__name__
-            except ValueError:
-                value = text
-                self.param_type = "str"
-            except SyntaxError:
-                value = None
-                self.param_type = "error"
-            self.type_display.setText(f"Type: {self.param_type}")
-
-        return value
+        return self.param_widget.value
 
 
 class LabelPicker(mne.viz.Brain):
