@@ -41,6 +41,7 @@ gui_kwargs = {
     "unit": "ms",
     "options": {"a": "A", "b": "B", "c": "C"},
     "keys": "DictGui",
+    "editable": True,
 }
 
 

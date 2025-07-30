@@ -662,7 +662,7 @@ class ComboGui(Param):
 
     data_type = str
 
-    def __init__(self, options, raise_missing=False, **kwargs):
+    def __init__(self, options, raise_missing=False, editable=False, **kwargs):
         """
         Parameters
         ----------
@@ -673,6 +673,8 @@ class ComboGui(Param):
         raise_missing : bool
             Set to True, if an error should be raised when the value
             is not in the options.
+        editable : bool
+            Set to True, if the ComboBox should be editable.
         **kwargs
             All the parameters fo :method:`~Param.__init__` go here.
         """
@@ -681,38 +683,38 @@ class ComboGui(Param):
         self.raise_missing = raise_missing
         self._options_change = False
         self.param_widget = ComboBox(scrollable=False)
+        self.param_widget.setEditable(editable)
         self._init_options()
-        self.param_widget.currentTextChanged.connect(self._on_widget_changed)
+        self.param_widget.activated.connect(self._on_widget_changed)
+        self.param_widget.lineEdit().editingFinished.connect(self._on_edited)
         layout = QHBoxLayout()
         layout.addWidget(self.param_widget)
         if self.unit is not None:
             layout.addWidget(QLabel(self.unit))
         self.init_ui(layout)
 
-    def change_options(self, options):
-        """Change the options of the ComboBox.
+    def _on_widget_changed(self):
+        if not self._options_change:
+            super()._on_widget_changed()
 
-        Parameters
-        ----------
-        options : list | dict
-            Supply a list or a dictionary with the options to choose from.
-            If supplied a dictionary, dictionary-values are
-            taken as aliases for the keys. Only strings are allowed.
-        """
-        self.options = options
+    def _on_edited(self):
+        """Handle text changes in the editable ComboBox."""
+        text = self.param_widget.currentText()
+        if isinstance(self.options, list):
+            self.options.append(text)
+        else:
+            self.options[text] = text
         self._options_change = True
         self.param_widget.clear()
         self._init_options()
         self._options_change = False
-        self._set_widget_value(self.value)
 
     def _init_options(self):
-        if not self._options_change:
-            for option in self.options:
-                if isinstance(self.options, dict):
-                    self.param_widget.addItem(str(self.options[option]))
-                else:
-                    self.param_widget.addItem(str(option))
+        for option in self.options:
+            if isinstance(self.options, dict):
+                self.param_widget.addItem(str(self.options[option]))
+            else:
+                self.param_widget.addItem(str(option))
 
     def _set_widget_value(self, value):
         # Check if value is str
