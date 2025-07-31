@@ -228,6 +228,11 @@ def convert_pandas_meta(func_pd, param_pd):
             ]:
                 eval_dict["default"] = tuple(eval_dict["default"])
 
+            # Convert options to list if it's a dict
+            if "options" in eval_dict:
+                if isinstance(eval_dict["options"], dict):
+                    eval_dict["options"] = [k for k in eval_dict["options"]]
+
             module_dict["parameters"][param_name] = eval_dict
         configs[module_name] = module_dict
 

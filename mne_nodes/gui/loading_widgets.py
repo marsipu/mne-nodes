@@ -2163,16 +2163,16 @@ class ICASelect(QDialog):
         ica_source_data_param = ComboGui(
             data=self.parameters,
             name="ica_source_data",
-            options={
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs",
-                "epochs_eog": "Epochs (EOG)",
-                "epochs_ecg": "Epochs (ECG)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)",
-            },
+            options=[
+                "raw",
+                "raw_filtered",
+                "epochs",
+                "epochs_eog",
+                "epochs_ecg",
+                "evoked",
+                "evoked_eog",
+                "evoked_ecg",
+            ],
             default="raw_filtered",
         )
         bt_layout.addWidget(ica_source_data_param)
@@ -2184,13 +2184,7 @@ class ICASelect(QDialog):
         ica_overlay_data_param = ComboGui(
             data=self.parameters,
             name="ica_overlay_data",
-            options={
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)",
-            },
+            options=["raw", "raw_filtered", "evoked", "evoked_eog", "evoked_ecg"],
             default="raw_filtered",
         )
         bt_layout.addWidget(ica_overlay_data_param)

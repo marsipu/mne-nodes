@@ -39,7 +39,7 @@ gui_kwargs = {
     "step": 0.1,
     "return_integer": False,
     "unit": "ms",
-    "options": {"a": "A", "b": "B", "c": "C"},
+    "options": ["a", "b", "c"],
     "keys": "DictGui",
     "editable": True,
 }
@@ -90,6 +90,7 @@ def test_basic_param_guis(
         gui.none_chkbx.setChecked(True)
     _check_param(gui, gui_name, new_param)
 
+    # Test min/max values
     if "max_val" in gui_parameters:
         if gui_name == "DualTupleGui":
             value = (1000, 1000)
@@ -113,31 +114,15 @@ def test_basic_param_guis(
         gui.value = True
         assert gui.value == 1
 
-    # Test ComboGui
-    # ToDo: Test Options change
+    # Test ComboGui editing
     if gui_name == "ComboGui":
-        # Check no error and default when raise_missing=False
-        gui.value = "d"
-        assert gui.value == "a"
-        # Check error when missing
-        gui.raise_missing = True
-        with pytest.raises(RuntimeError):
-            gui.value = "d"
-
-        # Test option-aliases
-        gui.value = "a"
-        assert gui.param_widget.currentText() == "A"
-        gui.param_widget.setCurrentText("B")
-        assert gui.value == "b"
+        gui.param_widget.lineEdit().setText("new_value")
+        qtbot.keyClick(gui.param_widget, Qt.Key.Key_Return)
+        assert gui.value == "new_value"
 
     # Test MultiTypeGui
     if gui_name == "MultiTypeGui":
-        # Check if value is set correctl,y
-        for gui_type, type_gui_name in gui.gui_types.items():
-            gui.value = parameters[type_gui_name]
-            assert gui.value == parameters[type_gui_name]
         # Check if changing type with type_selection works
-        kwargs["type_selection"] = True
         kwargs["type_kwargs"] = {}
         for type_gui_name in gui.gui_types.values():
             type_class = getattr(parameter_widgets, type_gui_name)

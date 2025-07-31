@@ -807,11 +807,11 @@
             "unit": null,
             "description": "The data to fit the ICA to",
             "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs"
-            }
+            "options": [
+                "raw",
+                "raw_filtered",
+                "epochs"
+            ]
         },
         "stc_surface": {
             "alias": null,
@@ -937,16 +937,16 @@
             "unit": null,
             "description": "Which data to plot in sources-plot from ICA",
             "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs",
-                "epochs_eog": "Epochs (EOG)",
-                "epochs_ecg": "Epochs (ECG)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)"
-            }
+            "options": [
+                "raw",
+                "raw_filtered",
+                "epochs",
+                "epochs_eog",
+                "epochs_ecg",
+                "evoked",
+                "evoked_eog",
+                "evoked_ecg"
+            ]
         },
         "ica_overlay_data": {
             "alias": null,
@@ -954,13 +954,13 @@
             "unit": null,
             "description": "Which data to plot in overlay-plot from ICA",
             "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "evoked": "Evoked",
-                "evoked_eog": "Evoked (EOG)",
-                "evoked_ecg": "Evoked (ECG)"
-            }
+            "options": [
+                "raw",
+                "raw_filtered",
+                "evoked",
+                "evoked_eog",
+                "evoked_ecg"
+            ]
         },
         "plot_sensors_kind": {
             "alias": null,

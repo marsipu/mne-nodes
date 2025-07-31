@@ -1044,11 +1044,11 @@
             "unit": null,
             "description": "The data to fit the ICA to",
             "gui": "ComboGui",
-            "options": {
-                "raw": "Raw (unfiltered)",
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs"
-            }
+            "options": [
+                "raw",
+                "raw_filtered",
+                "epochs"
+            ]
         },
         "ica_apply_target": {
             "alias": "Apply ICA to:",
@@ -1056,11 +1056,11 @@
             "unit": null,
             "description": "The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from",
             "gui": "ComboGui",
-            "options": {
-                "raw_filtered": "Raw (filtered)",
-                "epochs": "Epochs",
-                "evoked": "Evoked"
-            }
+            "options": [
+                "raw_filtered",
+                "epochs",
+                "evoked"
+            ]
         },
         "n_components": {
             "alias": null,

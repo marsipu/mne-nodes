@@ -662,105 +662,60 @@ class ComboGui(Param):
 
     data_type = str
 
-    def __init__(self, options, raise_missing=False, editable=False, **kwargs):
+    def __init__(self, options, editable=False, **kwargs):
         """
         Parameters
         ----------
-        options : list | dict
-            Supply a list or a dictionary with the options to choose from.
-            If supplied a dictionary, dictionary-values are
-            taken as aliases for the keys. Only strings are allowed.
-        raise_missing : bool
-            Set to True, if an error should be raised when the value
-            is not in the options.
+        options : list
+            Supply a list with the options to choose from. Only strings are allowed.
         editable : bool
-            Set to True, if the ComboBox should be editable.
+            Set to True, if the ComboBox should be editable. New values will
+            be appended to the option list.
         **kwargs
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
         self.options = options
-        self.raise_missing = raise_missing
-        self._options_change = False
         self.param_widget = ComboBox(scrollable=False)
         self.param_widget.setEditable(editable)
-        self._init_options()
+        self.param_widget.setInsertPolicy(QComboBox.InsertPolicy.InsertAtBottom)
+        self.param_widget.setPlaceholderText("Select an option")
         self.param_widget.activated.connect(self._on_widget_changed)
-        self.param_widget.lineEdit().editingFinished.connect(self._on_edited)
+        self._init_options()
         layout = QHBoxLayout()
         layout.addWidget(self.param_widget)
         if self.unit is not None:
             layout.addWidget(QLabel(self.unit))
         self.init_ui(layout)
 
-    def _on_widget_changed(self):
-        if not self._options_change:
-            super()._on_widget_changed()
-
-    def _on_edited(self):
-        """Handle text changes in the editable ComboBox."""
-        text = self.param_widget.currentText()
-        if isinstance(self.options, list):
-            self.options.append(text)
-        else:
-            self.options[text] = text
-        self._options_change = True
-        self.param_widget.clear()
-        self._init_options()
-        self._options_change = False
-
     def _init_options(self):
+        self.param_widget.clear()
         for option in self.options:
-            if isinstance(self.options, dict):
-                self.param_widget.addItem(str(self.options[option]))
-            else:
-                self.param_widget.addItem(str(option))
+            if not isinstance(option, str):
+                raise RuntimeError(
+                    f"Options for {self.name} must be strings, "
+                    f"but got type:{type(option)} for  {option}"
+                )
+            self.param_widget.addItem(str(option))
 
     def _set_widget_value(self, value):
         # Check if value is str
         if not isinstance(value, str):
             value = str(value)
         # Check if value is in options
-        options = (
-            list(self.options.keys())
-            if isinstance(self.options, dict)
-            else self.options
-        )
-        if value not in options:
-            if self.raise_missing:
-                raise RuntimeError(f"{value} not in options for {self.name}.")
-            else:
-                old_value = value
-                if self.default in options:
-                    value = self.default
-                else:
-                    value = options[0]
-                logging.warning(
-                    f"{old_value} not in options for {self.name}, set to {value}."
-                )
-        if isinstance(self.options, dict):
-            alias = self.options[value]
-        else:
-            alias = value
-        self.param_widget.setCurrentText(alias)
+        if value not in self.options:
+            logging.info(
+                f"Value '{value}' not in options for {self.alias}. "
+                "Adding it to the options."
+            )
+            self.options.append(value)
+            self._init_options()
+        self.param_widget.setCurrentText(value)
 
     def _get_widget_value(self):
-        text = self.param_widget.currentText()
-        if isinstance(self.options, dict):
-            if text not in self.options.values():
-                if self.raise_missing:
-                    raise RuntimeError(f"{text} not in options for {self.name}.")
-                else:
-                    value = list(self.options.values())[0]
-            else:
-                value = [
-                    key
-                    for key, value in self.options.items()
-                    if value == self.param_widget.currentText()
-                ][0]
-        else:
-            value = self.param_widget.currentText()
-
+        value = self.param_widget.currentText()
+        if value not in self.options:
+            self.options.append(value)
         return value
 
 
