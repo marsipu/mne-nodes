@@ -15,7 +15,6 @@ n_jobs_config = {
     "unit": None,
     "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
     "gui": "MultiTypeGui",
-    "type_selection": True,
     "types": ["int", "combo"],
     "type_kwargs": {
         "int": {"min_val": -1, "special_value_text": "auto"},

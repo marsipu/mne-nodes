@@ -847,7 +847,6 @@
             "unit": null,
             "description": "Select the views for Source Estimate Plots",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "list"
@@ -866,7 +865,6 @@
             "unit": null,
             "description": "Colorbar Limits for Source Estimate Plots",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "dict"

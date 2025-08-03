@@ -218,6 +218,9 @@ def convert_pandas_meta(func_pd, param_pd):
             gui_args = eval_dict.pop("gui_args", {})
             if gui_args is not None:
                 for k, v in gui_args.items():
+                    # Remove deprecated type_selection kwarg for MultiTypeGui
+                    if k == "type_selection":
+                        continue
                     eval_dict[k] = v
             # Convert tuple types
             if param_name in [

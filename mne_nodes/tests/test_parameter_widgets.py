@@ -122,7 +122,7 @@ def test_basic_param_guis(
 
     # Test MultiTypeGui
     if gui_name == "MultiTypeGui":
-        # Check if changing type with type_selection works
+        # Check if changing type works
         kwargs["type_kwargs"] = {}
         for type_gui_name in gui.gui_types.values():
             type_class = getattr(parameter_widgets, type_gui_name)

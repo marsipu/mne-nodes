@@ -709,7 +709,6 @@
             "unit": null,
             "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "list"
@@ -721,7 +720,6 @@
             "unit": null,
             "description": "Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference()",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "list"
@@ -767,7 +765,6 @@
             "unit": null,
             "description": null,
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "int"
@@ -779,7 +776,6 @@
             "unit": null,
             "description": null,
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "float"
@@ -791,7 +787,6 @@
             "unit": null,
             "description": null,
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "float"
@@ -1277,7 +1272,6 @@
             "unit": null,
             "description": "Select the method for computing the Noise-Covariance",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "str",
                 "list",
@@ -1379,7 +1373,6 @@
             "unit": null,
             "description": "lower frequency/frequencies for connectivity",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "float",
                 "list"
@@ -1391,7 +1384,6 @@
             "unit": null,
             "description": "upper frequency/frequencies for connectivity",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "float",
                 "list"
@@ -1505,7 +1497,6 @@
             "unit": null,
             "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
             "gui": "MultiTypeGui",
-            "type_selection": true,
             "types": [
                 "int",
                 "combo"
