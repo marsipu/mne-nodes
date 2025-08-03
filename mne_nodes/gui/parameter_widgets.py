@@ -1083,7 +1083,8 @@ class MultiTypeGui(Param):
             "slider": 0.0,
         }
         self.type_kwargs = type_kwargs or {
-            "ComboGui": {"options": [], "editable": True}
+            "ComboGui": {"options": [], "editable": True},
+            "CheckListGui": {"options": [], "one_check": False},
         }
 
         # A dictionary to map possible types with their GUI
