@@ -24,6 +24,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import SimpleDict
+from mne_nodes.gui.gui_utils import center
 from mne_nodes.gui.parameter_widgets import Param
 from mne_nodes.tests.test_parameter_widgets import gui_mapping, gui_kwargs
 from mne_nodes.conftest import test_parameters
@@ -106,11 +107,8 @@ class ParamGuis(QWidget):
             value = literal_eval(self.set_le.text())
         except (SyntaxError, ValueError):
             value = self.set_le.text()
-        self.parameters[current_gui] = value
-        for p_gui in self.gui_dict[current_gui]:
-            p_gui.read_param()
-            p_gui._set_param()
-        print(traceback.format_exc())
+        for gui in self.gui_dict[current_gui]:
+            gui.value = value
 
     def show_parameters(self):
         dlg = QDialog(self)
@@ -124,4 +122,5 @@ if __name__ == "__main__":
     app = QApplication.instance() or QApplication(sys.argv)
     test_widget = ParamGuis()
     test_widget.show()
+    center(test_widget)
     sys.exit(app.exec())

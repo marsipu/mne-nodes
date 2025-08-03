@@ -40,6 +40,7 @@ from qtpy.QtWidgets import (
     QScrollArea,
     QMessageBox,
     QColorDialog,
+    QStackedLayout,
 )
 from vtkmodules.vtkCommonCore import vtkCommand
 from vtkmodules.vtkRenderingCore import vtkCellPicker
@@ -768,7 +769,10 @@ class ListGui(Param):
     def open_dialog(self):
         """Open the dialog to edit the list."""
         dlg = SimpleDialog(
-            EditList(self.value), title=f"Setting {self.alias}", window_title=self.alias
+            EditList(self.value),
+            self,
+            title=f"Setting {self.alias}",
+            window_title=self.alias,
         )
         dlg.finished.connect(self._update_param)
 
@@ -1100,6 +1104,7 @@ class MultiTypeGui(Param):
             "checklist": "CheckListGui",
             "slider": "SliderGui",
         }
+        self.gui_widgets = {}
         self.type_layout = QHBoxLayout()
 
         # Get current type (NoneType not allowed)
@@ -1114,53 +1119,64 @@ class MultiTypeGui(Param):
         self.type_cmbx.activated.connect(self.change_type)
         self.type_cmbx.setCurrentText(self.param_type)
         self.type_layout.addWidget(self.type_cmbx)
-        self.add_type_gui()
+        self.stack_layout = QStackedLayout()
+        self.type_layout.addLayout(self.stack_layout)
+        self._init_type_guis()
         self.init_ui(self.type_layout)
 
-    def add_type_gui(self):
-        gui_name = self.gui_types[self.param_type]
+    def _init_type_guis(self):
+        """Initialize the GUI for each type in self.types inside the stacked
+        layout."""
+        for type_name in self.types:
+            gui_name = self.gui_types[type_name]
+            # Load specifc keyword-arguments if given
+            if gui_name in self.type_kwargs:
+                kwargs = self.type_kwargs[gui_name]
+            else:
+                kwargs = {}
 
-        # Load specifc keyword-arguments if given
-        if gui_name in self.type_kwargs:
-            kwargs = self.type_kwargs[gui_name]
-        else:
-            kwargs = {}
+            # Set standard parameter-keyword-arguments as given to MultiTypeGui
+            kwargs["data"] = {}
+            kwargs["name"] = self.name
+            kwargs["alias"] = ""
+            kwargs["default"] = self.type_defaults[type_name]
+            kwargs["groupbox_layout"] = False
+            kwargs["none_select"] = False
+            kwargs["description"] = self.description
+            kwargs["unit"] = self.unit
+            kwargs["parent_widget"] = self
 
-        # Set standard parameter-keyword-arguments as given to MultiTypeGui
-        kwargs["data"] = self.data
-        kwargs["name"] = self.name
-        kwargs["alias"] = ""
-        kwargs["default"] = self.default
-        kwargs["groupbox_layout"] = False
-        kwargs["none_select"] = False
-        kwargs["description"] = self.description
-        kwargs["unit"] = self.unit
-        kwargs["parent_widget"] = self
+            gui_class = globals()[gui_name]
+            gui_instance = gui_class(**kwargs)
+            # Add (real) data later to avoid conflicts with not matching types
+            gui_instance.data = self.data
+            gui_instance.paramChanged.connect(lambda x: self.paramChanged.emit(x))
+            self.gui_widgets[type_name] = gui_instance
+            self.stack_layout.addWidget(gui_instance)
+        # Set the current widget to the one matching
+        # the current type
+        self.param_widget = self.gui_widgets[self.param_type]
+        self.stack_layout.setCurrentWidget(self.param_widget)
 
-        gui_class = globals()[gui_name]
+    def change_type(self, type_idx):
+        self.param_type = self.types[type_idx]
+        self.param_widget = self.gui_widgets[self.param_type]
+        self.stack_layout.setCurrentWidget(self.param_widget)
         # Check, if the saved value matches the new type, otherwise replace with None
-        if not isinstance(self._load_from_data(self.name), gui_class.data_type):
-            if isinstance(self.default, gui_class.data_type):
+        if not isinstance(self._load_from_data(self.name), self.param_widget.data_type):
+            if isinstance(self.default, self.param_widget.data_type):
                 self._save_to_data(self.name, self.default)
             else:
                 self._save_to_data(self.name, self.type_defaults[self.param_type])
-        self.param_widget = gui_class(**kwargs)
         if isinstance(self.value, self.param_widget.data_type):
             self.param_widget.value = self.value
-        self.type_layout.addWidget(self.param_widget)
-
-    def change_type(self, type_idx):
-        old_widget = self.type_layout.itemAt(1)
-        old_widget.widget().deleteLater()
-        self.type_layout.removeItem(old_widget)
-        self.param_widget = None
-        del old_widget
-
-        self.param_type = self.types[type_idx]
-
-        self.add_type_gui()
 
     def _set_widget_value(self, value):
+        if not isinstance(value, self.param_widget.data_type):
+            raise TypeError(
+                f"Value must be of type {self.param_widget.data_type}, "
+                f"but got {type(value)}"
+            )
         self.param_widget.value = value
 
     def _get_widget_value(self):

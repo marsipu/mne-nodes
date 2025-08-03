@@ -97,7 +97,7 @@ def parameter_values_alt():
 @pytest.fixture
 def nodeviewer(qtbot, controller):
     viewer = NodeViewer(controller, debug_mode=True)
-    viewer.resize(800, 600)
+    viewer.resize(1200, 400)
     qtbot.addWidget(viewer)
 
     # Create nodes

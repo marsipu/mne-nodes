@@ -70,6 +70,22 @@ def test_basic_param_guis(
     # Check if value is correct
     _check_param(gui, gui_name, parameters[gui_name])
 
+    # Check if paramChanged signal is emitted and value send correctly
+    def test_slot(value):
+        if gui_name == "FuncGui" and value is not None:
+            (
+                assert_allclose(value, parameters[gui_name]),
+                (f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"),
+            )
+        else:
+            assert value == parameters[gui_name], (
+                f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"
+            )
+
+    gui.paramChanged.connect(test_slot)
+    with qtbot.waitSignal(gui.paramChanged, timeout=1000):
+        gui.value = parameters[gui_name]
+
     # Check if value changes correctly
     new_param = parameter_values_alt[gui_mapping[gui_name]]
     gui.value = new_param
