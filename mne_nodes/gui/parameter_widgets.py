@@ -2174,13 +2174,13 @@ class SettingsDlg(QDialog):
             gui_kwargs = details["gui_kwargs"]
             if source_type == "QSettings":
                 gui_kwargs["data"] = Settings()
-                gui_kwargs["default"] = self.ct.default_settings["qsettings"][setting]
+                gui_kwargs["default"] = self.ct.default_config["qsettings"][setting]
             elif source_type == "Controller":
                 gui_kwargs["data"] = self.ct
                 gui_kwargs["default"] = self.ct.pd_params.loc[setting, "default"]
             else:
                 gui_kwargs["data"] = self.ct.settings
-                gui_kwargs["default"] = self.ct.default_settings["settings"][setting]
+                gui_kwargs["default"] = self.ct.default_config["settings"][setting]
             gui_kwargs["name"] = setting
             gui = gui_handle(**gui_kwargs)
             if details.get("slot"):

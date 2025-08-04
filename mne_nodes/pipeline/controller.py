@@ -56,18 +56,11 @@ class Controller:
             "config_path", defaultValue=None
         )
         self._config = {}
+        # The device dependent settings
         self.settings = Settings()
         self.data_path = data_path
         self.subjects_dir = subjects_dir
-
-        # Property attributes
-        self._modules = {}
-        self._function_metas = {}
-        self._parameter_metas = {}
-        self._input_nodes = {k: {} for k in self.input_data_types}
-        self._function_nodes = {}
-
-        self.default_settings = {
+        self.default_config = {
             "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
             "show_plots": True,
@@ -83,7 +76,15 @@ class Controller:
             "app_font_size": 10,
             "app_style": "fusion",
             "app_theme": "auto",
+            "padding": 20,
         }
+
+        # Property attributes
+        self._modules = {}
+        self._function_metas = {}
+        self._parameter_metas = {}
+        self._input_nodes = {k: {} for k in self.input_data_types}
+        self._function_nodes = {}
 
         # Initialize modules
         self.load_basic_modules()
@@ -130,6 +131,10 @@ class Controller:
         if not self._config:
             with open(self.config_path) as file:
                 self._config = json.load(file, object_hook=type_json_hook)
+        # Set defaults
+        for config_key, value in self.default_config.items():
+            if config_key not in self._config:
+                self._config[config_key] = value
         return self._config
 
     def save_config(self):
@@ -221,16 +226,6 @@ class Controller:
     @property
     def input_nodes(self):
         return self._input_nodes
-
-    def input_node(self, data_type, name=None):
-        """Get the input node for a specific data type and (group)name."""
-        if name is None:
-            name = "All"
-        if data_type not in self.input_nodes:
-            raise ValueError(f"Data type {data_type} not found in inputs.")
-        if name not in self.input_nodes[data_type]:
-            raise ValueError(f"Group {name} not found in inputs for {data_type}.")
-        return self.input_nodes[data_type][name]
 
     @property
     def selected_inputs(self):
@@ -343,19 +338,6 @@ class Controller:
         """This maps the node(s) to each function used in the project (by name
         and id)."""
         return self._function_nodes
-
-    def function_node(self, function_name, node_id=None):
-        """Get the function node for a specific function name and (optional)
-        node id."""
-        if function_name not in self.function_nodes:
-            raise KeyError(f"Function '{function_name}' not found in project.")
-        if node_id is None:
-            return self.function_nodes[function_name]
-        elif node_id not in self.function_nodes[function_name]:
-            raise KeyError(
-                f"Node with id '{node_id}' for function '{function_name}' not found."
-            )
-        return self.function_nodes[function_name][node_id]
 
     @property
     def function_metas(self):

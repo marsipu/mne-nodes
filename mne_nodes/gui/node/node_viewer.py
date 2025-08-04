@@ -246,7 +246,7 @@ class NodeViewer(QGraphicsView):
         FunctionNode
             The created function node.
         """
-        node = FunctionNode(self.ct, function=function_name, **kwargs)
+        node = FunctionNode(self.ct, name=function_name, **kwargs)
         if function_name in self.ct.function_nodes:
             self.ct.function_nodes[function_name].update({node.id: node})
         else:
@@ -317,6 +317,55 @@ class NodeViewer(QGraphicsView):
         logging.warning("No node found with the provided parameters.")
         return None
 
+    def input_node(self, data_type="raw", name=None):
+        """Get an input node by data type and name.
+
+        Parameters
+        ----------
+        data_type : str, optional
+            The type of data (e.g. raw, fsmri) for the input node, by default "raw".
+        name : str, optional
+            The name of the input node, by default None.
+
+        Returns
+        -------
+        InputNode or None
+            The input node that matches the provided data type and name.
+            If no match is found, returns None.
+        """
+        if name is None:
+            name = "All"
+        if data_type not in self.ct.input_nodes:
+            raise ValueError(f"Data type {data_type} not found in inputs.")
+        if name not in self.ct.input_nodes[data_type]:
+            raise ValueError(f"Group {name} not found in inputs for {data_type}.")
+        return self.ct.input_nodes[data_type][name]
+
+    def function_node(self, name, node_id=None):
+        """Get a function node by its name.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function node.
+        node_id : int, optional
+            Unique identifier of the function node, by default None.
+
+        Returns
+        -------
+        FunctionNode or dict or None
+            The function node that matches the provided name.
+            If no match is found, returns None.
+        """
+        if name not in self.ct.function_nodes:
+            raise KeyError(f"Function '{name}' not found in project.")
+        if node_id is None:
+            # if no node_id is given, return first node for the function
+            return next(iter(self.ct.function_nodes[name].values()), None)
+        elif node_id not in self.ct.function_nodes[name]:
+            raise KeyError(f"Node with id '{node_id}' for function '{name}' not found.")
+        return self.ct.function_nodes[name][node_id]
+
     def to_dict(self):
         """Serialize the node viewer to a dictionary.
 
@@ -376,7 +425,7 @@ class NodeViewer(QGraphicsView):
         selected functions.
         """
         for function in self.ct.pr.sel_functions:
-            node = FunctionNode(self.ct, function=function)
+            node = FunctionNode(self.ct, name=function)
             self.add_node(node)
 
         # Try making non-cyclic connections
@@ -488,9 +537,15 @@ class NodeViewer(QGraphicsView):
         QRectF
             Combined bounding rectangle.
         """
-        group = self.scene().createItemGroup(nodes)
-        rect = group.boundingRect()
-        self.scene().destroyItemGroup(group)
+        rect = QRectF()
+        for node in nodes:
+            rect = rect | node.sceneBoundingRect()
+        # Add padding
+        rect.setX(rect.x() - self.ct.config["padding"])
+        rect.setY(rect.y() - self.ct.config["padding"])
+        rect.setWidth(rect.width() + self.ct.config["padding"])
+        rect.setHeight(rect.height() + self.ct.config["padding"])
+
         return rect
 
     def _items_near(self, pos, width=20, height=20):
@@ -1368,6 +1423,48 @@ class NodeViewer(QGraphicsView):
             from qtpy.QtOpenGLWidgets import QOpenGLWidget
         self.setViewport(QOpenGLWidget())
 
+    def node_position_scene(self, **node_kwargs):
+        node = self.node(**node_kwargs)
+        scene_pos = node.scenePos() + node.boundingRect().center()
+
+        return scene_pos
+
+    def node_position_view(self, **node_kwargs):
+        scene_pos = self.node_position_scene(**node_kwargs)
+        view_pos = self.mapFromScene(scene_pos)
+
+        return view_pos
+
+    def port_position_scene(
+        self,
+        port_type=None,
+        port_idx=None,
+        port_name=None,
+        port_id=None,
+        node_idx=None,
+        node_name=None,
+        node_id=None,
+    ):
+        node = self.node(node_idx, node_name, node_id)
+        port = node.port(port_type, port_idx, port_name, port_id)
+        scene_pos = port.scenePos() + port.boundingRect().center()
+        # Convert to float point
+        scene_pos = QPointF(scene_pos)
+
+        return scene_pos
+
+    def port_position_view(self, **port_node_kwargs):
+        scene_pos = self.port_position_scene(**port_node_kwargs)
+        view_pos = self.mapFromScene(scene_pos)
+        # Convert to float point
+        view_pos = QPointF(view_pos)
+
+        return view_pos
+
+    # --------------------------------------------------------------------------------------
+    # AutoLayout
+    # --------------------------------------------------------------------------------------
+
     @staticmethod
     def _update_node_rank(node, nodes_rank, down_stream=True):
         """Update the ranking of a node and its connected nodes.
@@ -1471,7 +1568,7 @@ class NodeViewer(QGraphicsView):
                 node.setPos(current_x, current_y)
                 current_y += dy * 0.5 + 10
 
-            current_x += max_width * 0.5 + 20
+            current_x += max_width * 0.5
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]

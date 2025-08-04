@@ -27,7 +27,7 @@ class InputNode(BaseNode):
         name = f"{ct.input_data_types[data_type]} | {name}"
         super().__init__(ct, name=name, **kwargs)
 
-        # Add the output port
+        # Add the output port (if not already initialized with kwargs)
         self.add_output(self.data_type, multi_connection=True)
 
         # Initialize the main widget with the input list
@@ -58,14 +58,19 @@ class InputNode(BaseNode):
         dlg_layout.addWidget(widget)
         dlg.open()
 
+    def to_dict(self):
+        """Serialize the InputNode to a dictionary."""
+        node_dict = super().to_dict()
+        node_dict["data_type"] = self.data_type
+        return node_dict
+
 
 class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
-    def __init__(self, ct, function, **kwargs):
-        super().__init__(ct, name=function, **kwargs)
-        self.function = function
-        self.func_meta = ct.function_metas[function]
+    def __init__(self, ct, **kwargs):
+        super().__init__(ct, **kwargs)
+        self.func_meta = ct.function_metas[self.name]
         self.parameters = self.func_meta["parameters"]
 
         # Initialize inputs and outputs
@@ -100,6 +105,7 @@ class FunctionNode(BaseNode):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
+        # ToDo: CodeViewer
         # Get function
         # func_code, start, end = self.ct.get_function_code(self.function)
         # dlg = QDialog(self.viewer)

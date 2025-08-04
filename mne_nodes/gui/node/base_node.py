@@ -158,14 +158,14 @@ class BaseNode(QGraphicsItem):
 
     @property
     def inputs(self):
-        """Returns the input ports in a list (self._inputs is an OrderedDict and can be
-        accessed internally when necessary)"""
+        """Returns the input ports in a list (self._inputs is an OrderedDict
+        and can be accessed internally when necessary)"""
         return list(self._inputs.values())
 
     @property
     def outputs(self):
-        """Returns the output ports in a list (self._outputs is an OrderedDict and can
-        be accessed internally when necessary)"""
+        """Returns the output ports in a list (self._outputs is an OrderedDict
+        and can be accessed internally when necessary)"""
         return list(self._outputs.values())
 
     @property
@@ -189,8 +189,8 @@ class BaseNode(QGraphicsItem):
 
     @xy_pos.setter
     def xy_pos(self, pos=None):
-        """Set the item scene postion. ("node.pos" conflicted with "QGraphicsItem.pos()"
-        so it was refactored to "xy_pos".)
+        """Set the item scene postion. ("node.pos" conflicted with
+        "QGraphicsItem.pos()" so it was refactored to "xy_pos".)
 
         Args:
             pos (list[float]): x, y scene position.
@@ -207,12 +207,7 @@ class BaseNode(QGraphicsItem):
     # Logic methods
     # ----------------------------------------------------------------------------------
     def add_port(
-        self,
-        name,
-        port_type,
-        multi_connection=False,
-        accepted_ports=None,
-        old_id=None,
+        self, name, port_type, multi_connection=False, accepted_ports=None, old_id=None
     ):
         """Adds a Port QGraphicsItem into the node.
 
@@ -240,7 +235,10 @@ class BaseNode(QGraphicsItem):
         # port names must be unique for inputs/outputs
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
-            raise ValueError(f"Port '{name}' already exists for '{port_type}'.")
+            logging.debug(
+                f"Port '{name}' already exists for '{port_type}'. Returning existing port."
+            )
+            return self.port(port_name=name)
         # Create port
         port = Port(
             self, name, port_type, multi_connection, accepted_ports, old_id=old_id
@@ -254,55 +252,47 @@ class BaseNode(QGraphicsItem):
 
         return port
 
-    def add_input(
-        self,
-        name,
-        multi_connection=False,
-        accepted_ports=None,
-    ):
+    def add_input(self, name, **kwargs):
         """Adds a Port QGraphicsItem into the node as input.
 
         Parameters
         ----------
         name : str
             name for the port.
-        multi_connection : bool
-            allow multiple connections.
-        accepted_ports : list, None
-            list of accepted port names, if None all ports are accepted.
 
         Returns
         -------
         PortItem
             Port QGraphicsItem.
+
+        Notes
+        -----
+        Additional keyword arguments will be passed to
+        :meth:`BaseNode.add_port()`.
         """
-        port = self.add_port(name, "in", multi_connection, accepted_ports)
+        port = self.add_port(name, port_type="in", **kwargs)
 
         return port
 
-    def add_output(
-        self,
-        name,
-        multi_connection=False,
-        accepted_ports=None,
-    ):
+    def add_output(self, name, **kwargs):
         """Adds a Port QGraphicsItem into the node as output.
 
         Parameters
         ----------
         name : str
             name for the port.
-        multi_connection : bool
-            allow multiple connections.
-        accepted_ports : list, None
-            list of accepted port names, if None all ports are accepted.
 
         Returns
         -------
         PortItem
             Port QGraphicsItem.
+
+        Notes
+        -----
+        Additional keyword arguments will be passed to
+        :meth:`BaseNode.add_port()`.
         """
-        port = self.add_port(name, "out", multi_connection, accepted_ports)
+        port = self.add_port(name, port_type="out", **kwargs)
 
         return port
 
@@ -383,11 +373,11 @@ class BaseNode(QGraphicsItem):
             logging.warning("No port identifier provided.")
 
     def input(self, **port_kwargs):
-        """Get input port by the name, index, id or old id as in port()."""
+        """Get input port by the name, index, id, or old id as in port()."""
         return self.port(port_type="in", **port_kwargs)
 
     def output(self, **port_kwargs):
-        """Get output port by the name, index, id or old id as in port()."""
+        """Get output port by the name, index, id, or old id as in port()."""
         return self.port(port_type="out", **port_kwargs)
 
     def connected_input_nodes(self):

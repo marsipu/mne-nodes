@@ -17,8 +17,8 @@ n_jobs_config = {
     "gui": "MultiTypeGui",
     "types": ["int", "combo"],
     "type_kwargs": {
-        "int": {"min_val": -1, "special_value_text": "auto"},
-        "combo": {"options": ["cuda"]},
+        "IntGui": {"min_val": -1, "special_value_text": "auto"},
+        "ComboGui": {"options": ["cuda"]},
     },
 }
 

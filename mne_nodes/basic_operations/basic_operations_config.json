@@ -1502,11 +1502,11 @@
                 "combo"
             ],
             "type_kwargs": {
-                "int": {
+                "IntGui": {
                     "min_val": -1,
                     "special_value_text": "auto"
                 },
-                "combo": {
+                "ComboGui": {
                     "options": [
                         "cuda"
                     ]
