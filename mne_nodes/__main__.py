@@ -15,7 +15,7 @@ from qtpy.QtCore import QTimer, Qt
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
-from mne_nodes import ismac, islin
+from mne_nodes import islin
 from mne_nodes.gui.console import StdoutStderrStream
 from mne_nodes.gui.gui_utils import set_app_font, set_app_theme
 from mne_nodes.gui.welcome_window import WelcomeWindow
@@ -65,19 +65,8 @@ def main():
     logging.info("Starting MNE-Pipeline HD")
 
     if mne_nodes.gui_mode:
-        # Enable High-DPI
-        if hasattr(Qt.ApplicationAttribute, "AA_UseHighDpiPixmaps"):
-            QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
-        if hasattr(Qt.ApplicationAttribute, "AA_EnableHighDpiScaling"):
-            QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
-        if hasattr(Qt, "HighDpiScaleFactorRoundingPolicy"):
-            os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
-            QApplication.setHighDpiScaleFactorRoundingPolicy(
-                Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-            )
-
         app = QApplication.instance()
-        if not app:
+        if app is None:
             app = QApplication(sys.argv)
         app.setApplicationName(app_name)
         app.setOrganizationName(organization_name)
@@ -89,23 +78,11 @@ def main():
         if islin:
             app.setAttribute(Qt.AA_DontUseNativeDialogs, True)
 
-        # Mac-Workarounds
-        if ismac:
-            # Workaround for not showing with PyQt < 5.15.2
-            os.environ["QT_MAC_WANTS_LAYER"] = "1"
-
-        # ToDo: Multiprocessing
-        # # Set multiprocessing method to spawn
-        # multiprocessing.set_start_method('spawn')
-
+        # Initialize streams from stdout/stderr into Qt
         init_streams()
 
         # Show Qt-binding
-        if any([qtpy.PYQT5, qtpy.PYQT6]):
-            qt_version = qtpy.PYQT_VERSION
-        else:
-            qt_version = qtpy.PYSIDE_VERSION
-        logging.info(f"Using {qtpy.API_NAME} {qt_version}")
+        logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
 
         # Initialize Exception-Hook
         if debug_mode:

@@ -31,6 +31,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import _object_refs, ismac, iswin
+from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import (
     QuickGuide,
     RawInfo,
@@ -80,6 +81,51 @@ from mne_nodes.pipeline.settings import Settings
 
 
 class MainWindow(QMainWindow):
+    """The main Windows containing the node-viewer and the console-widget.
+
+    It also provides a menubar, toolbar and a statusbar.
+    """
+
+    def __init__(self, controller):
+        super().__init__()
+        _object_refs["main_window"] = self
+        self.ct = controller
+        self.settings = controller.settings
+        self.setWindowTitle(f"MNE-Nodes - {self.ct.name}")
+
+        # Initialize on last opened screen
+        screen_name = self.settings.value("screen_name")
+        if screen_name is not None:
+            for screen in QApplication.screens():
+                if screen.name() == screen_name:
+                    self.windowHandle().setScreen(screen)
+                    break
+
+        # Set geometry to ratio of screen-geometry
+        set_ratio_geometry(self.settings["screen_ratio"], self)
+        center(self)
+
+        # Init Node-Viewer
+        self.viewer = NodeViewer(self.ct, self)
+        self.setCentralWidget(self.viewer)
+        self.ct.init_nodes()
+        # Init Console-Widget
+        self.console = ConsoleDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console)
+        # Todo: Init Node-Palette
+        # ToDo: Init Menu
+        # ToDo: Init Toolbar
+        # ToDo: Init Infobar
+
+        self.show()
+        self.statusBar().showMessage(f"{self.ct.name} is ready.")
+
+    def closeEvent(self, event):
+        self.settings.setValue("screen_name", self.screen().name())
+        event.accept()
+
+
+class OldMainWindow(QMainWindow):
     # Define Main-Window-Signals to send into QThread
     # to control function execution
     cancel_functions = Signal(bool)
@@ -90,7 +136,7 @@ class MainWindow(QMainWindow):
         _object_refs["main_window"] = self
         self.setWindowTitle("MNE-Pipeline HD")
 
-        # Set QThread as default (ToDo: MP)
+        # Set QThread as default
         Settings().setValue("use_qthread", True)
 
         # Initiate attributes for Main-Window

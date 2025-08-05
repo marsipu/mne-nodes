@@ -21,6 +21,9 @@ class NodeTextItem(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
 
 
+# ToDo:
+# - color-coding of running and completed/error
+# - optionally show parameters (maybe even slide-out down to avoid recalculation of node-layout)
 class BaseNode(QGraphicsItem):
     """Base class for all nodes in the NodeGraph.
 

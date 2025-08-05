@@ -28,6 +28,8 @@ default_device_settings = {
     "use_qthread": 1,
     "save_ram": 1,
     "enable_cuda": 0,
+    "screen_ratio": 0.8,
+    "screen_name": None,
 }
 
 
@@ -65,8 +67,6 @@ class Settings:
     """
 
     def __init__(self):
-        super().__init__()
-
         self.default_qsettings = default_device_settings.copy()
         self.supported_types = [
             int,

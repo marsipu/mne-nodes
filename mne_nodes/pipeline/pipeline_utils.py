@@ -192,7 +192,7 @@ def change_file_section(file_path, section, new_content):
 
     Parameters
     ----------
-    file_path : str
+    file_path : Path
         The path to the file to be modified.
     section : tuple[int, int]
         A tuple indicating the start and end line indices (0-based, inclusive of

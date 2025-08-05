@@ -1,7 +1,7 @@
 # mne-nodes
 
 ### A PyQt-GUI with Node-Layout for [MNE-Python](https://mne.tools/stable/index.html)
-
+This is a GUI to facilitate offline MEG/EEG data processing with MNE-python.
 # ToDo: Show great Logo/Overview of GUI
 
 ## Installation
@@ -92,7 +92,7 @@ stackoverflow-questions/solutions.
 
 Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used and rewritten.
 
-The development was supported by Code Completion and Coding Agents like 
+The development was supported by Code Completion and Coding Agents like
 [JetBrains Junie](https://www.jetbrains.com/junie/) and
 [GitHub Copilot](https://github.com/features/copilot).
 

@@ -212,6 +212,21 @@ class Controller:
         self._config["name"] = new_name
 
     @property
+    def input_data_types(self):
+        """This holds the input data types for the project.
+
+        Keys are the data-type while values are the names/aliases of the
+        data-type
+        """
+        if "input_data_types" not in self.config:
+            self.config["input_data_types"] = {
+                "raw": "MEG/EEG",
+                "fsmri": "Freesurfer MRI",
+            }
+            self.save_config()
+        return self.config["input_data_types"]
+
+    @property
     def inputs(self):
         """This holds all data input nodes from MEEG and FSMRI data.
 
@@ -222,10 +237,6 @@ class Controller:
         if "inputs" not in self.config:
             self.config["inputs"] = {k: {} for k in self.input_data_types}
         return self.config["inputs"]
-
-    @property
-    def input_nodes(self):
-        return self._input_nodes
 
     @property
     def selected_inputs(self):
@@ -334,11 +345,22 @@ class Controller:
         return self.parameters[parameter_preset][parameter_name]
 
     @property
-    def function_nodes(self):
-        """This maps the node(s) to each function used in the project (by name
-        and id)."""
-        return self._function_nodes
+    def add_kwargs(self):
+        """This holds additional keyword arguments for the project."""
+        if "add_kwargs" not in self.config:
+            self.config["add_kwargs"] = {}
+        return self.config["add_kwargs"]
 
+    @property
+    def plot_files(self):
+        """This holds the plot file-paths for the project."""
+        if "plot_files" not in self.config:
+            self.config["plot_files"] = {}
+        return self.config["plot_files"]
+
+    ####################################################################################
+    # Modules
+    ####################################################################################
     @property
     def function_metas(self):
         """This holds the metadata for the functions used in the project.
@@ -361,44 +383,6 @@ class Controller:
             self.config["custom_module_meta"] = {}
         return self.config["custom_module_meta"]
 
-    @property
-    def add_kwargs(self):
-        """This holds additional keyword arguments for the project."""
-        if "add_kwargs" not in self.config:
-            self.config["add_kwargs"] = {}
-        return self.config["add_kwargs"]
-
-    def selected_nodes(self):
-        """This holds the selected nodes for the project (by id)."""
-        if "selected_nodes" not in self.config:
-            self.config["selected_nodes"] = []
-        return self.config["selected_nodes"]
-
-    @property
-    def plot_files(self):
-        """This holds the plot file-paths for the project."""
-        if "plot_files" not in self.config:
-            self.config["plot_files"] = {}
-        return self.config["plot_files"]
-
-    @property
-    def input_data_types(self):
-        """This holds the input data types for the project.
-
-        Keys are the data-type while values are the names/aliases of the
-        data-type
-        """
-        if "input_data_types" not in self.config:
-            self.config["input_data_types"] = {
-                "raw": "MEG/EEG",
-                "fsmri": "Freesurfer MRI",
-            }
-            self.save_config()
-        return self.config["input_data_types"]
-
-    ####################################################################################
-    # Modules
-    ####################################################################################
     def _load_module_config(self, module_name, pkg_path):
         """Load the configuration file for a module from the package path."""
         config_file_path = join(pkg_path, f"{module_name}_config.json")
@@ -461,12 +445,17 @@ class Controller:
         self.custom_module_meta[module_name] = config_file_path
         self.load_custom_modules()
 
-    def reload_modules(self):
+    def reload_modules(self, module_name=None):
         """Reload all modules in the controller.
 
-        This method reloads all modules in the controller by removing them from sys.modules
+        This method reloads the selected module or all modules in the controller by removing them from sys.modules
         and importing them again. This ensures that any changes to the module's source code
         are reflected in the controller.
+
+        Parameters
+        ----------
+        module_name : str, None, optional
+            Provide a module_name (must be unique) to be reloaded.
 
         Note:
         -----
@@ -486,7 +475,13 @@ class Controller:
         >>> updated_func = controller.modules["module_name"].some_func
         """
 
-        for module_name, module in self.modules.items():
+        if module_name is None:
+            modules = self.modules
+        else:
+            module = sys.modules[module_name]
+            modules = {module_name: module}
+
+        for module_name, module in modules.items():
             # Remove the module from sys.modules
             del sys.modules[module_name]
 
@@ -531,6 +526,22 @@ class Controller:
     ####################################################################################
     # Node Management
     ####################################################################################
+    @property
+    def input_nodes(self):
+        return self._input_nodes
+
+    @property
+    def function_nodes(self):
+        """This maps the node(s) to each function used in the project (by name
+        and id)."""
+        return self._function_nodes
+
+    def selected_nodes(self):
+        """This holds the selected nodes for the project (by id)."""
+        if "selected_nodes" not in self.config:
+            self.config["selected_nodes"] = []
+        return self.config["selected_nodes"]
+
     def init_input_nodes(self):
         """Initialize input nodes from the Project."""
         # ToDo Next: Start and add input nodes for project configuration
@@ -546,6 +557,13 @@ class Controller:
         # ToDo Next: Start and establish connections between input nodes and
         #  function nodes
         pass
+
+    def init_nodes(self):
+        """Initialize all nodes in the controller."""
+
+        self.init_input_nodes()
+        self.init_function_nodes()
+        self.init_connections()
 
     ####################################################################################
     # Legacy

@@ -1,8 +1,14 @@
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+Github: https://github.com/marsipu/mne-nodes
+"""
+
 import logging
 from os.path import isfile
 from pathlib import Path
 
-from qtpy.QtCore import QRegularExpression
+from qtpy.QtCore import QRegularExpression, Signal
 from qtpy.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
 from qtpy.QtWidgets import QPlainTextEdit, QWidget, QVBoxLayout, QPushButton
 
@@ -77,7 +83,23 @@ class PythonHighlighter(QSyntaxHighlighter):
 
 
 class CodeEditor(QPlainTextEdit):
-    def __init__(self, parent=None, file_path=None, file_section=None, read_only=False):
+    """An editor for Python code.
+
+    Parameters
+    ----------
+    file_path : Path
+        The path to a file with code.
+    parent : QWidget or None
+        The parent widget.
+    file_section : tuple[int, int] or None
+        The section of a code by first and (excluded) last line number, 0-indexed.
+    read_only : bool
+        Set to True to make the code read-only.
+    """
+
+    codeSaved = Signal(Path)
+
+    def __init__(self, file_path, parent=None, file_section=None, read_only=False):
         super().__init__(parent)
         self.setFont(QFont("Consolas", 12))
         self.highlighter = PythonHighlighter(self.document())
@@ -117,6 +139,7 @@ class CodeEditor(QPlainTextEdit):
         # Insert code into a specific section of a file if defined
         if self.file_section is not None:
             change_file_section(self.file_path, self.file_section, code)
+        self.codeSaved.emit(self.file_path)
         logging.info(f"Saved code to file: {self.file_path}")
 
 

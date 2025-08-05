@@ -7,9 +7,9 @@ Github: https://github.com/marsipu/mne-nodes
 import io
 import sys
 
-from qtpy.QtCore import QTimer, QObject, Signal
+from qtpy.QtCore import QTimer, QObject, Signal, Qt
 from qtpy.QtGui import QTextCursor
-from qtpy.QtWidgets import QPlainTextEdit
+from qtpy.QtWidgets import QPlainTextEdit, QDockWidget
 
 
 class ConsoleWidget(QPlainTextEdit):
@@ -35,7 +35,7 @@ class ConsoleWidget(QPlainTextEdit):
             cursor = self.textCursor()
             # Avoid having no break between progress and text
             # Remove last line
-            cursor.select(QTextCursor.LineUnderCursor)
+            cursor.select(QTextCursor.SelectionType.LineUnderCursor)
             cursor.removeSelectedText()
             cursor.deletePreviousChar()
             self.is_progress = False
@@ -103,6 +103,23 @@ class MainConsoleWidget(ConsoleWidget):
         # Connect custom stdout and stderr to display-function
         sys.stdout.signal.text_written.connect(self.write_stdout)
         sys.stderr.signal.text_written.connect(self.write_stderr)
+
+
+class ConsoleDock(QDockWidget):
+    """A dock widget for the main console widget."""
+
+    def __init__(self, parent=None):
+        super().__init__("Console", parent)
+        self.console_widget = MainConsoleWidget()
+        self.setWidget(self.console_widget)
+        self.setObjectName("console_dock")
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
 
 
 class StreamSignals(QObject):

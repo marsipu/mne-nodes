@@ -51,15 +51,27 @@ def center(widget):
     widget.move(qr.topLeft())
 
 
-def set_ratio_geometry(size_ratio, widget=None):
+def set_ratio_geometry(size_ratio, widget):
+    """Set the geometry of a widget based on the screen size and a ratio.
+
+    Parameters
+    ----------
+    size_ratio : tuple of float
+        Enter the ratio of the current screen size to set the widget size, e.g. (0.5, 0.5) for half the width
+        and height of the screen. If a single float is provided, it will be used for both width and height.
+    widget : QWidget
+        The widget to resize.
+    """
     if not isinstance(size_ratio, tuple):
         size_ratio = (size_ratio, size_ratio)
     wratio, hratio = size_ratio
-    desk_geometry = QApplication.primaryScreen().availableGeometry()
-    width = int(desk_geometry.width() * wratio)
-    height = int(desk_geometry.height() * hratio)
-    if widget:
-        widget.resize(width, height)
+    if widget.screen() is None:
+        geometry = QApplication.primaryScreen().availableGeometry()
+    else:
+        geometry = widget.screen().availableGeometry()
+    width = int(geometry.width() * wratio)
+    height = int(geometry.height() * hratio)
+    widget.resize(width, height)
 
     return width, height
 

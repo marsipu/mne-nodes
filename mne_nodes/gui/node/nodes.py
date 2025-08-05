@@ -8,7 +8,8 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.base_widgets import CheckList
+from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
+from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.loading_widgets import AddFilesWidget, AddMRIWidget
 from mne_nodes.gui.node.base_node import BaseNode
 
@@ -105,10 +106,11 @@ class FunctionNode(BaseNode):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
-        # ToDo: CodeViewer
+        func_code, start, end = self.ct.get_function_code(self.name)
+        editor_widget = CodeEditorWidget(self.ct, file_section=(start, end))
+        editor_widget.editor.codeSaved.connect(self.ct.reload)
+        SimpleDialog(editor_widget)
         # Get function
-        # func_code, start, end = self.ct.get_function_code(self.function)
-        # dlg = QDialog(self.viewer)
 
 
 class AssignmentNode(BaseNode):
