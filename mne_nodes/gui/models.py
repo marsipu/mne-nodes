@@ -33,14 +33,11 @@ class BaseListModel(QAbstractListModel):
         input existing list here, otherwise defaults to empty list
     show_index : bool
         Set True if you want to display the list-index in front of each value
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     """
 
-    def __init__(self, data=None, show_index=False, drag_drop=False, **kwargs):
+    def __init__(self, data=None, show_index=False, **kwargs):
         super().__init__(**kwargs)
         self.show_index = show_index
-        self.drag_drop = drag_drop
         if data is None:
             self._data = []
         else:
@@ -85,17 +82,7 @@ class BaseListModel(QAbstractListModel):
 
     def flags(self, index):
         default_flags = QAbstractListModel.flags(self, index)
-        if self.drag_drop:
-            if index.isValid():
-                return default_flags | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled
-            else:
-                return default_flags | Qt.ItemIsDropEnabled
-        else:
-            return default_flags
-
-    def supportedDragActions(self):
-        if self.drag_drop:
-            return Qt.CopyAction | Qt.MoveAction
+        return default_flags
 
 
 class EditListModel(BaseListModel):
@@ -107,12 +94,10 @@ class EditListModel(BaseListModel):
         input existing list here, otherwise defaults to empty list
     show_index: bool
         Set True if you want to display the list-index in front of each value
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     """
 
-    def __init__(self, data, show_index=False, drag_drop=False, **kwargs):
-        super().__init__(data, show_index, drag_drop, **kwargs)
+    def __init__(self, data, show_index=False, **kwargs):
+        super().__init__(data, show_index, **kwargs)
 
     def flags(self, index):
         default_flags = BaseListModel.flags(self, index)
@@ -143,20 +128,10 @@ class CheckListModel(BaseListModel):
         list which stores the checked items from data
     show_index: bool
         Set True if you want to display the list-index in front of each value
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     """
 
-    def __init__(
-        self,
-        data,
-        checked,
-        one_check=False,
-        show_index=False,
-        drag_drop=False,
-        **kwargs,
-    ):
-        super().__init__(data, show_index, drag_drop, **kwargs)
+    def __init__(self, data, checked, one_check=False, show_index=False, **kwargs):
+        super().__init__(data, show_index, **kwargs)
         self.one_check = one_check
 
         if data is None:
@@ -211,8 +186,6 @@ class CheckDictModel(BaseListModel):
         dictionary which may contain items from data as keys
     show_index: bool
         Set True if you want to display the list-index in front of each value
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     yes_bt: str
         Supply the name for a qt-standard-icon to mark the items
         existing in check_dict
@@ -227,16 +200,9 @@ class CheckDictModel(BaseListModel):
     """
 
     def __init__(
-        self,
-        data,
-        check_dict,
-        show_index=False,
-        drag_drop=False,
-        yes_bt=None,
-        no_bt=None,
-        **kwargs,
+        self, data, check_dict, show_index=False, yes_bt=None, no_bt=None, **kwargs
     ):
-        super().__init__(data, show_index, drag_drop, **kwargs)
+        super().__init__(data, show_index, **kwargs)
         self._check_dict = check_dict
 
         self.yes_bt = yes_bt or "SP_DialogApplyButton"
@@ -269,8 +235,6 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
         dictionary which may contain items from data as keys
     show_index: bool
         Set True if you want to display the list-index in front of each value
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     yes_bt: str
         Supply the name for a qt-standard-icon to mark the items
          existing in check_dict
@@ -284,16 +248,8 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
     https://doc.qt.io/qt-5/qstyle.html#StandardPixmap-enum
     """
 
-    def __init__(
-        self,
-        data,
-        check_dict,
-        show_index=False,
-        drag_drop=False,
-        yes_bt=None,
-        no_bt=None,
-    ):
-        super().__init__(data, check_dict, show_index, drag_drop, yes_bt, no_bt)
+    def __init__(self, data, check_dict, show_index=False, yes_bt=None, no_bt=None):
+        super().__init__(data, check_dict, show_index, yes_bt, no_bt)
         # EditListModel doesn't have to be initialized
         # because in __init__ of EditListModel
         # only BaseListModel is initialized which is already done
@@ -593,8 +549,16 @@ class EditPandasModel(BasePandasModel):
 
 
 class TreeItem:
-    """TreeItem as in
-    https://doc.qt.io/qt-5/qtwidgets-itemviews-simpletreemodel-example.html"""
+    """TreeItem for TreeModel.
+
+    Parameters
+    ----------
+    data : list
+        List with data for the item, first element is the key,
+        the rest are empty strings for additional columns
+    parent : TreeItem or None
+        Parent item, defaults to None for root item
+    """
 
     def __init__(self, data, parent=None):
         self._data = data
@@ -658,93 +622,130 @@ class TreeItem:
 
 
 class TreeModel(QAbstractItemModel):
-    """Tree-Model as in
-    https://doc.qt.io/qt-5/qtwidgets-itemviews-simpletreemodel-example.html"""
+    """A model for displaying hierarchical dictionary data with unlimited
+    depth.
 
-    def __init__(self, data, n_columns=1, headers=None, parent=None):
+    Parameters
+    ----------
+    data : dict
+        Dictionary with hierarchical data to be displayed
+    headers : list of str | None
+        Headers for the columns. If None, default headers will be used.
+    parent : QWidget | None
+        Parent widget
+    """
+
+    def __init__(self, data=None, headers=None, parent=None):
         super().__init__(parent)
-        self._data = data
-        self._n_columns = n_columns
+        self._data = data if data is not None else {}
+
+        # Default headers for key-value pairs
         if headers is None:
-            headers = ["" for _ in range(n_columns)]
-        elif len(headers) < n_columns:
-            headers += ["" for _ in range(n_columns - headers)]
-        elif len(headers) > n_columns:
-            headers = headers[:n_columns]
-        self._headers = headers
+            self._headers = ["Key", "Value"]
+        else:
+            self._headers = headers
+
         self._parent = parent
 
-        self.root_item = self.dict_to_items(self._data)
+        # Create the root item
+        self.root_item = self._build_tree(self._data)
 
-    def dict_to_items(self, datadict, parent=None):
-        if parent is None:
-            parent = TreeItem(self._headers)
+    def _build_tree(self, data):
+        """Build the tree structure from the hierarchical dictionary data."""
+        root = TreeItem(self._headers)
 
-        for key, value in datadict.items():
-            data = [key] + ["" for _ in range(self._n_columns - 1)]
-            tree_item = TreeItem(data, parent)
-            if isinstance(value, dict):
-                child_item = self.dict_to_items(value, tree_item)
-                tree_item._children.append(child_item)
-            parent._children.append(tree_item)
+        def add_items(parent_item, dict_data):
+            for key, value in dict_data.items():
+                # For each key-value pair, create a tree item
+                if isinstance(value, dict):
+                    # If value is a dictionary, create a branch
+                    item_data = [key, f"{len(value)} items"]
+                    child = TreeItem(item_data, parent_item)
+                    parent_item._children.append(child)
+                    # Recursively add children
+                    add_items(child, value)
+                else:
+                    # If value is not a dictionary, create a leaf
+                    item_data = [key, str(value)]
+                    child = TreeItem(item_data, parent_item)
+                    parent_item._children.append(child)
 
-        return parent
+        # Start building the tree
+        add_items(root, data)
+        return root
 
-    # noinspection PyMethodMayBeStatic
     def getData(self, index):
-        if index.isValid():
+        """Get data at the specified index.
+
+        This method is required by the Base widget class.
+        """
+        if not index.isValid():
+            return None
+
+        item = index.internalPointer()
+        return item.data(index.column())
+
+    def data(self, index, role=None):
+        if not index.isValid():
+            return None
+
+        if role == Qt.DisplayRole:
             item = index.internalPointer()
             return item.data(index.column())
 
-    def data(self, index, role=None):
-        if role == Qt.DisplayRole:
-            return self.getData(index)
+        return None
+
+    def headerData(self, section, orientation, role=None):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            if 0 <= section < len(self._headers):
+                return self._headers[section]
+        return None
 
     def index(self, row, column, parent=None, *args, **kwargs):
-        if self.hasIndex(row, column, parent):
-            if parent.isValid():
-                parent_item = parent.internalPointer()
-            else:
-                parent_item = self.root_item
+        if not self.hasIndex(row, column, parent):
+            return QModelIndex()
 
-            child_item = parent_item.child(row)
-            if child_item is not None:
-                return self.createIndex(row, column, child_item)
+        if not parent.isValid():
+            parent_item = self.root_item
+        else:
+            parent_item = parent.internalPointer()
+
+        child_item = parent_item.child(row)
+        if child_item:
+            return self.createIndex(row, column, child_item)
         return QModelIndex()
 
-    def parent(self, child=None):
-        if child.isValid():
-            child_item = child.internalPointer()
-            parent_item = child_item._parent
+    def parent(self, index=None):
+        if not index.isValid():
+            return QModelIndex()
 
-            if parent_item != self.root_item:
-                return self.createIndex(parent_item.row(), 0, parent_item)
-        return QModelIndex()
+        child_item = index.internalPointer()
+        parent_item = child_item._parent
+
+        if parent_item == self.root_item:
+            return QModelIndex()
+
+        return self.createIndex(parent_item.row(), 0, parent_item)
 
     def rowCount(self, parent=None, *args, **kwargs):
         if parent.column() > 0:
             return 0
 
-        if parent.isValid():
-            parent_item = parent.internalPointer()
-        else:
+        if not parent.isValid():
             parent_item = self.root_item
+        else:
+            parent_item = parent.internalPointer()
 
         return parent_item.childCount()
 
     def columnCount(self, parent=None, *args, **kwargs):
-        if parent.isValid():
-            return parent.internalPointer().columnCount()
-        return self.root_item.columnCount()
+        return len(self._headers)
 
     def flags(self, index):
-        if index.isValid():
-            return QAbstractItemModel.flags(self, index)
-        return Qt.NoItemFlags
+        if not index.isValid():
+            return Qt.NoItemFlags
 
-    def headerData(self, section, orientation, role=None):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            self.root_item.data(section)
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
 
 
 class AddFilesModel(BasePandasModel):
@@ -807,8 +808,8 @@ class AddFilesModel(BasePandasModel):
 
 
 class FileManagementModel(BasePandasModel):
-    """A model for the Pandas-DataFrames containing information about the existing
-    files."""
+    """A model for the Pandas-DataFrames containing information about the
+    existing files."""
 
     def __init__(self, data, **kwargs):
         super().__init__(data, **kwargs)
@@ -830,7 +831,7 @@ class FileManagementModel(BasePandasModel):
                 elif value / 1024 < 1000:
                     return f"{int(value / 1024)} KB"
                 else:
-                    return f"{int(value / (1024 ** 2))} MB"
+                    return f"{int(value / (1024**2))} MB"
 
         if role == Qt.DecorationRole:
             if pd.isna(value) or value == 0:
@@ -854,8 +855,9 @@ class FileManagementModel(BasePandasModel):
 
 
 class CustomFunctionModel(QAbstractListModel):
-    """A Model for the Pandas-DataFrames containing information about new custom
-    functions/their paramers to display only their name and if they are ready.
+    """A Model for the Pandas-DataFrames containing information about new
+    custom functions/their paramers to display only their name and if they are
+    ready.
 
     Parameters
     ----------

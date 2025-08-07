@@ -56,7 +56,7 @@ class Base(QWidget):
     selectionChanged = Signal(object)
     dataChanged = Signal(object, object)
 
-    def __init__(self, model, view, drag_drop, parent, title):
+    def __init__(self, model, view, parent, title):
         if parent:
             super().__init__(parent)
         else:
@@ -66,11 +66,6 @@ class Base(QWidget):
         self.model = model
         self.view = view
         self.view.setModel(self.model)
-
-        if drag_drop:
-            self.view.setDragEnabled(True)
-            self.view.setAcceptDrops(True)
-            self.setDropIndicatorShown(True)
 
         # Connect to custom Selection-Signal
         self.view.selectionModel().currentChanged.connect(self._current_changed)
@@ -149,16 +144,8 @@ class Base(QWidget):
 
 
 class BaseList(Base):
-    def __init__(
-        self,
-        model,
-        view,
-        extended_selection=False,
-        drag_drop=False,
-        parent=None,
-        title=None,
-    ):
-        super().__init__(model, view, drag_drop, parent, title)
+    def __init__(self, model, view, extended_selection=False, parent=None, title=None):
+        super().__init__(model, view, parent, title)
 
         if extended_selection:
             self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -185,8 +172,6 @@ class SimpleList(BaseList):
         Set True, if you want to select more than one item in the list.
     show_index: bool
         Set True if you want to display the list-index in front of each value.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -204,15 +189,13 @@ class SimpleList(BaseList):
         data=None,
         extended_selection=False,
         show_index=False,
-        drag_drop=False,
         parent=None,
         title=None,
     ):
         super().__init__(
-            model=BaseListModel(data, show_index, drag_drop),
+            model=BaseListModel(data, show_index),
             view=QListView(),
             extended_selection=extended_selection,
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
         )
@@ -232,8 +215,6 @@ class EditList(BaseList):
          'right', 'left', 'top' or 'bottom'.
     show_index: bool
         Set True if you want to display the list-index in front of each value.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -255,7 +236,6 @@ class EditList(BaseList):
         ui_button_pos="right",
         extended_selection=False,
         show_index=False,
-        drag_drop=False,
         parent=None,
         title=None,
         model=None,
@@ -264,13 +244,12 @@ class EditList(BaseList):
         self.ui_button_pos = ui_button_pos
 
         if model is None:
-            model = EditListModel(data, show_index=show_index, drag_drop=drag_drop)
+            model = EditListModel(data, show_index=show_index)
 
         super().__init__(
             model=model,
             view=QListView(),
             extended_selection=extended_selection,
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
         )
@@ -348,8 +327,6 @@ class CheckList(BaseList):
         If only one Item in the CheckList can be checked at the same time.
     show_index: bool
         Set True if you want to display the list-index in front of each value.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -372,7 +349,6 @@ class CheckList(BaseList):
         ui_button_pos="right",
         one_check=False,
         show_index=False,
-        drag_drop=False,
         parent=None,
         title=None,
     ):
@@ -380,10 +356,9 @@ class CheckList(BaseList):
         self.ui_button_pos = ui_button_pos
 
         super().__init__(
-            model=CheckListModel(data, checked, one_check, show_index, drag_drop),
+            model=CheckListModel(data, checked, one_check, show_index),
             view=QListView(),
             extended_selection=False,
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
         )
@@ -465,8 +440,6 @@ class CheckDictList(BaseList):
         A dictionary that may contain items from data as keys.
     show_index: bool
         Set True if you want to display the list-index in front of each value.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     yes_bt: str
         Supply the name for a qt-standard-icon to mark the items existing in
          check_dict.
@@ -495,19 +468,15 @@ class CheckDictList(BaseList):
         check_dict=None,
         extended_selection=False,
         show_index=False,
-        drag_drop=False,
         yes_bt=None,
         no_bt=None,
         parent=None,
         title=None,
     ):
         super().__init__(
-            model=CheckDictModel(
-                data, check_dict, show_index, drag_drop, yes_bt, no_bt
-            ),
+            model=CheckDictModel(data, check_dict, show_index, yes_bt, no_bt),
             view=QListView(),
             extended_selection=extended_selection,
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
         )
@@ -542,8 +511,6 @@ class CheckDictEditList(EditList):
     no_bt: str
         Supply the name for a qt-standard-icon to mark
         the items not existing in check_dict.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -570,7 +537,6 @@ class CheckDictEditList(EditList):
         show_index=False,
         yes_bt=None,
         no_bt=None,
-        drag_drop=False,
         parent=None,
         title=None,
     ):
@@ -583,7 +549,6 @@ class CheckDictEditList(EditList):
             ui_button_pos=ui_button_pos,
             extended_selection=extended_selection,
             show_index=show_index,
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
             model=model,
@@ -601,13 +566,12 @@ class BaseDict(Base):
         self,
         model,
         view,
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
         resize_columns=False,
     ):
-        super().__init__(model, view, drag_drop, parent, title)
+        super().__init__(model, view, parent, title)
 
         if resize_rows:
             model.layoutChanged.connect(self.view.resizeRowsToContents)
@@ -689,8 +653,6 @@ class SimpleDict(BaseDict):
     ----------
     data : dict | None
         Input a pandas DataFrame with contents to display.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -704,7 +666,6 @@ class SimpleDict(BaseDict):
     def __init__(
         self,
         data=None,
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
@@ -713,7 +674,6 @@ class SimpleDict(BaseDict):
         super().__init__(
             model=BaseDictModel(data),
             view=QTableView(),
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
             resize_rows=resize_rows,
@@ -735,8 +695,6 @@ class EditDict(BaseDict):
     ui_button_pos: str
         The side on which to show the buttons,
          'right', 'left', 'top' or 'bottom'.
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -752,7 +710,6 @@ class EditDict(BaseDict):
         data=None,
         ui_buttons=True,
         ui_button_pos="right",
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
@@ -764,7 +721,6 @@ class EditDict(BaseDict):
         super().__init__(
             model=EditDictModel(data),
             view=QTableView(),
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
             resize_rows=resize_rows,
@@ -844,15 +800,12 @@ class BasePandasTable(Base):
         self,
         model,
         view,
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
         resize_columns=False,
     ):
-        super().__init__(
-            model=model, view=view, drag_drop=drag_drop, parent=parent, title=title
-        )
+        super().__init__(model=model, view=view, parent=parent, title=title)
 
         if resize_rows:
             model.layoutChanged.connect(self.view.resizeRowsToContents)
@@ -975,8 +928,6 @@ class SimplePandasTable(BasePandasTable):
     ----------
     data : pandas.DataFrame | None
         Input a pandas DataFrame with contents to display
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent
     title : str | None
@@ -995,7 +946,6 @@ class SimplePandasTable(BasePandasTable):
     def __init__(
         self,
         data=None,
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
@@ -1004,7 +954,6 @@ class SimplePandasTable(BasePandasTable):
         super().__init__(
             model=BasePandasModel(data),
             view=QTableView(),
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
             resize_rows=resize_rows,
@@ -1024,8 +973,6 @@ class EditPandasTable(BasePandasTable):
     ui_button_pos: str
         The side on which to show the buttons,
         'right', 'left', 'top' or 'bottom'
-    drag_drop: bool
-        Set True to enable Drag&Drop.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -1046,7 +993,6 @@ class EditPandasTable(BasePandasTable):
         data=None,
         ui_buttons=True,
         ui_button_pos="right",
-        drag_drop=False,
         parent=None,
         title=None,
         resize_rows=False,
@@ -1058,7 +1004,6 @@ class EditPandasTable(BasePandasTable):
         super().__init__(
             model=EditPandasModel(data),
             view=QTableView(),
-            drag_drop=drag_drop,
             parent=parent,
             title=title,
             resize_rows=resize_rows,
@@ -1237,15 +1182,46 @@ class FilePandasTable(BasePandasTable):
         )
 
 
-class DictTree(Base):
-    def __init__(self, data, drag_drop=False, parent=None, title=None):
-        super().__init__(
-            model=TreeModel(data),
-            view=QTreeView(),
-            drag_drop=drag_drop,
-            parent=parent,
-            title=title,
-        )
+class TreeWidget(Base):
+    """A widget to display hierarchical dictionary data with unlimited depth.
+
+    This widget uses a tree view to display hierarchical data like nested dictionaries.
+    It can handle dictionaries with unlimited nesting depth.
+
+    Parameters
+    ----------
+    data : dict
+        Dictionary with hierarchical data to be displayed
+    headers : list of str | None
+        Headers for the columns. If None, default headers ["Key", "Value"] will be used.
+    parent : QWidget | None
+        Parent Widget (QWidget or inherited) or None if there is no parent.
+    title : str | None
+        An optional title.
+
+    Notes
+    -----
+    If you change the contents of data outside of this class,
+    call content_changed to update this widget.
+    If you change the reference to data, call the appropriate replace_data.
+    """
+
+    def __init__(self, data=None, headers=None, parent=None, title=None):
+        # Initialize the tree view
+        view = QTreeView()
+        view.setAlternatingRowColors(True)
+        view.setSortingEnabled(True)
+        view.setAnimated(True)
+        view.setIndentation(20)
+        view.setUniformRowHeights(True)
+
+        # Create the model
+        model = TreeModel(data, headers, parent)
+
+        super().__init__(model=model, view=view, parent=parent, title=title)
+
+        # Expand the first level by default
+        self.view.expandToDepth(0)
 
 
 class ComboBox(QComboBox):
