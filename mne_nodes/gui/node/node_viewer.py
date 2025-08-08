@@ -56,8 +56,7 @@ class NodeViewer(QGraphicsView):
 
         # attributes
         self._nodes = OrderedDict()
-        self._input_nodes = []
-        self._function_nodes = {}
+        self._input_nodes = {}
         self._function_nodes = {}
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._last_size = self.size()
@@ -141,6 +140,7 @@ class NodeViewer(QGraphicsView):
         """
         return self._nodes
 
+    @property
     def input_nodes(self):
         """Return the input nodes in the node graph.
 
@@ -151,6 +151,7 @@ class NodeViewer(QGraphicsView):
         """
         return self._input_nodes
 
+    @property
     def function_nodes(self):
         """Return the function nodes in the node graph.
 
@@ -257,6 +258,8 @@ class NodeViewer(QGraphicsView):
                 f"Invalid data_type '{data_type}'. "
                 f"Valid types are: {', '.join(self.ct.input_data_types.keys())}"
             )
+        if data_type not in self.input_nodes:
+            self.input_nodes[data_type] = {}
         self.input_nodes[data_type][name] = node
         self.add_node(node)
 
@@ -308,6 +311,21 @@ class NodeViewer(QGraphicsView):
         # Deliberately with room for KeyError to detect,
         # if nodes are not correctly added in the first place
         self.nodes.pop(node.id)
+        # Also remove from input-nodes or function-nodes
+        if isinstance(node, InputNode):
+            data_type = node.data_type
+            if data_type in self.input_nodes:
+                if node.name in self.input_nodes[data_type]:
+                    del self.input_nodes[data_type][node.name]
+                if not self.input_nodes[data_type]:
+                    del self.input_nodes[data_type]
+        elif isinstance(node, FunctionNode):
+            function_name = node.name
+            if function_name in self.function_nodes:
+                if node.id in self.function_nodes[function_name]:
+                    del self.function_nodes[function_name][node.id]
+                if not self.function_nodes[function_name]:
+                    del self.function_nodes[function_name]
 
         node.delete()
 

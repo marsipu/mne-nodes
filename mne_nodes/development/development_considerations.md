@@ -83,3 +83,12 @@ Nodes should improve usability and the representation of the pipeline by the fol
 
 - Rather use MNE Report than refine the custom plot overview (slow and interactive
   features not as refined as MNE Report)
+
+## Run from Nodes-Layout
+- Each node needs an optional run button (depending on if there is a stored input)
+- Each node needs a save-toggle to determine if the output is stored (only if save-function is available)
+
+## Running in QProcess
+- Either put the information in the main-call with very long sys.argv or create temporary run-file
+- in favour of latter since config.json should never be accessed directly from QProcess to avoid race-condition
+- in need of separation in __main__.py to forward into run-mode or gui-mode.
