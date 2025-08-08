@@ -4,11 +4,15 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import sys
+
+
 import mne_nodes
+from mne_nodes.gui.main_window import MainWindow
+from mne_nodes.pipeline.controller import Controller
 
 
 def test_headless_run():
-    import sys
     from mne_nodes.__main__ import main
 
     # Simulate command line arguments for headless run
@@ -31,3 +35,21 @@ def test_legacy_import_check(monkeypatch):
     legacy_import_check("pip-install-test")
     __import__("pip_install_test")
     uninstall_package("pip-install-test")
+
+
+def test_app_start(controller, main_window):
+    """Test the application startup process with a controller and main
+    window."""
+    # Ensure the controller is initialized correctly
+    assert isinstance(controller, Controller)
+    assert controller.name == "test"
+
+    # Ensure the main window is created and visible
+    assert isinstance(main_window, MainWindow)
+    assert main_window.isVisible()
+
+    # Verify the controller is set in the main window
+    assert main_window.controller == controller
+
+    # Clean up by closing the main window
+    main_window.close()

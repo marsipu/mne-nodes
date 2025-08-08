@@ -20,7 +20,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.base_widgets import CheckList
 from mne_nodes.gui.code_editor import CodeEditor
-from mne_nodes.gui.console import MainConsoleWidget
+from mne_nodes.gui.console import ConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
@@ -148,7 +148,7 @@ class DataTerminal(QDialog):
 
         self.layout.addLayout(bt_layout)
 
-        self.displayw = MainConsoleWidget()
+        self.displayw = ConsoleWidget()
         self.layout.addWidget(self.displayw)
 
         self.sub_layout = QGridLayout()

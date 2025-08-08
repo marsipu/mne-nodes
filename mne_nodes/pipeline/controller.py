@@ -19,8 +19,7 @@ import mne
 
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
-from mne_nodes.gui.gui_utils import get_user_input, ask_user
-from mne_nodes.pipeline.legacy import convert_pandas_meta, OldController, Project
+from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.settings import Settings
 
@@ -51,16 +50,19 @@ class Controller:
         Dictionary containing the configuration data loaded from the config-file.
     """
 
-    def __init__(self, config_path=None, data_path=None, subjects_dir=None):
+    def __init__(self, config_path=None):
+        # config will be filled when self.config is first called
+        self._config = {}
         self._config_path = config_path or Settings().value(
             "config_path", defaultValue=None
         )
-        self._config = {}
+        # If config_path is not specified (new user), invoke getter-method
+        if config_path is None:
+            _ = self.config_path
         # The device dependent settings
         self.settings = Settings()
-        self.data_path = data_path
-        self.subjects_dir = subjects_dir
         self.default_config = {
+            "data_path": None,
             "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
             "show_plots": True,
@@ -85,6 +87,7 @@ class Controller:
         self._parameter_metas = {}
         self._input_nodes = {k: {} for k in self.input_data_types}
         self._function_nodes = {}
+        self._errors = {}
 
         # Initialize modules
         self.load_basic_modules()
@@ -104,26 +107,18 @@ class Controller:
                 config_folder = get_user_input(
                     "Set the folder-path to store the config-file", "folder"
                 )
-                self.config_path = config_folder
+                config_path = join(config_folder, f"{self.name}_config.json")
+                self._config_path = config_path
                 self.save_config()
             else:
                 logging.info("Using existing config-file.")
-                self.config_path = get_user_input(
+                self._config_path = get_user_input(
                     "Please enter the path to an exisiting config-file",
                     "file",
                     file_filter="JSON files (*.json)",
                 )
 
         return self._config_path
-
-    @config_path.setter
-    def config_path(self, value):
-        if isdir(value):
-            # If the config_path is a directory, create a default config file path
-            self._config_path = join(value, f"{self.name}_config.json")
-        else:
-            # If the config_path is a filename, set it directly
-            self._config_path = value
 
     @property
     def config(self):
@@ -148,24 +143,42 @@ class Controller:
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        return self.settings.value("data_path")
+        data_path = self.config.get("data_path", None)
+        input_message = f"Please select/create a folder where the data of the project {self.name} should be stored"
+        if data_path is None:
+            data_path = get_user_input(input_message, "folder")
+            self.data_path = data_path
+        if not isdir(data_path):
+            raise_user_attention(
+                f"Path {data_path} does not exist! If you moved from another device, please select the folder where the (processed) data from project {self.name} is stored."
+            )
+            data_path = get_user_input(input_message, "folder")
+            self.data_path = data_path
+
+        return data_path
 
     @data_path.setter
     def data_path(self, value):
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            self.settings.setValue("data_path", value)
+            self.config["data_path"] = value
 
     @property
     def subjects_dir(self):
         """Path to the FreeSurfer subjects directory."""
         subjects_dir = mne.get_config("SUBJECTS_DIR", None)
+        input_message = f"Please enter the path to the FreeSurfer subjects directory for project {self.name}"
         if subjects_dir is None:
-            subjects_dir = get_user_input(
-                "Please enter the path to the FreeSurfer subjects directory", "folder"
-            )
+            subjects_dir = get_user_input(input_message, "folder")
             self.subjects_dir = subjects_dir
+        if not isdir(subjects_dir):
+            raise_user_attention(
+                f"Path {subjects_dir} does not exist! If you moved from another device, please select the folder where the FreeSurfer subjects directory for project {self.name} is stored."
+            )
+            subjects_dir = get_user_input(input_message, "folder")
+            self.subjects_dir = subjects_dir
+
         return subjects_dir
 
     @subjects_dir.setter
@@ -177,12 +190,19 @@ class Controller:
 
     @property
     def plot_path(self):
-        plot_path = self.settings.value("plot_path")
+        """Path to the directory where plots are saved."""
+        plot_path = self.settings.value("plot_path", defaultValue=None)
+        input_message = f"Please select a folder where the plots for project {self.name} should be saved"
         if plot_path is None:
-            plot_path = get_user_input(
-                "Please enter the path to store the plots", "folder"
-            )
+            plot_path = get_user_input(input_message, "folder")
             self.plot_path = plot_path
+        if not isdir(plot_path):
+            raise_user_attention(
+                f"Path {plot_path} does not exist! If you moved from another device, please select the folder where the plots for project {self.name} should be saved."
+            )
+            plot_path = get_user_input(input_message, "folder")
+            self.plot_path = plot_path
+
         return plot_path
 
     @plot_path.setter
@@ -190,7 +210,7 @@ class Controller:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            self.settings.setValue("plot_path", value)
+            self.config["plot_path"] = value
 
     @property
     def name(self):
@@ -358,6 +378,11 @@ class Controller:
             self.config["plot_files"] = {}
         return self.config["plot_files"]
 
+    @property
+    def errors(self):
+        """This holds the errors encountered during the project execution."""
+        return self._errors
+
     ####################################################################################
     # Modules
     ####################################################################################
@@ -524,48 +549,6 @@ class Controller:
         return None, None, None
 
     ####################################################################################
-    # Node Management
-    ####################################################################################
-    @property
-    def input_nodes(self):
-        return self._input_nodes
-
-    @property
-    def function_nodes(self):
-        """This maps the node(s) to each function used in the project (by name
-        and id)."""
-        return self._function_nodes
-
-    def selected_nodes(self):
-        """This holds the selected nodes for the project (by id)."""
-        if "selected_nodes" not in self.config:
-            self.config["selected_nodes"] = []
-        return self.config["selected_nodes"]
-
-    def init_input_nodes(self):
-        """Initialize input nodes from the Project."""
-        # ToDo Next: Start and add input nodes for project configuration
-        pass
-
-    def init_function_nodes(self):
-        """Initialize function nodes from the Project."""
-        # ToDo Next: Start and add function nodes for project configuration
-        pass
-
-    def init_connections(self):
-        """Initialize connections between input nodes and function nodes."""
-        # ToDo Next: Start and establish connections between input nodes and
-        #  function nodes
-        pass
-
-    def init_nodes(self):
-        """Initialize all nodes in the controller."""
-
-        self.init_input_nodes()
-        self.init_function_nodes()
-        self.init_connections()
-
-    ####################################################################################
     # Legacy
     ####################################################################################
     def load_project(self, project_name, old_controller):
@@ -578,6 +561,12 @@ class Controller:
         - Pandas DataFrames for parameter- and function-metadata
         are turned into dictionaries
         """
+        from mne_nodes.pipeline.legacy import (
+            OldController,
+            Project,
+            convert_pandas_meta,
+        )
+
         if isinstance(old_controller, str):
             ct = OldController(
                 home_path=old_controller,

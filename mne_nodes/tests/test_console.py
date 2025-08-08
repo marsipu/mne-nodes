@@ -9,20 +9,19 @@ import os
 
 import pytest
 
-from mne_nodes.__main__ import init_streams
-from mne_nodes.gui.console import MainConsoleWidget
-from mne_nodes.pipeline.pipeline_utils import init_logging
+from mne_nodes.__main__ import init_streams, init_logging
+from mne_nodes.gui.console import ConsoleWidget
 
 
 def test_logging(qtbot):
     """Test streaming and logging to GUI-Console."""
     # Enable debugging
-    os.environ["MNEPHD_DEBUG"] = "true"
+    os.environ["MNENODES_DEBUG"] = "true"
 
     init_streams()
     init_logging()
 
-    console = MainConsoleWidget()
+    console = ConsoleWidget()
     qtbot.addWidget(console)
 
     wait_time = console.buffer_time * 2

@@ -11,11 +11,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from qtpy.QtWidgets import QMessageBox
 
 from mne_nodes.__main__ import init_logging
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.io import TypedJSONEncoder
 
 # Initialize logging for tests
 init_logging(debug_mode=True)
@@ -31,7 +33,7 @@ test_parameters = {
     "tuple": (3.4, 5),
     "combo": "b",
     "list": [1, 454.33, "postcentral-lh", True],
-    "check_list": ["postcentral-lh"],
+    "check_list": ["postcentral-lh", "insula-lh"],
     "dict": {"A": "B", "C": 58.144, "D": [1, 2, 3, 4], "E": {"A": 1, "B": 2}},
     "slider": 5,
     "color": {"C": "#98765432", "3": "#97867564"},
@@ -49,7 +51,7 @@ alternative_test_parameters = {
     "tuple": (2, 55.1),
     "combo": "c",
     "list": [33, 2234.33, "precentral-lh", False],
-    "check_list": ["precentral-lh"],
+    "check_list": ["precentral-lh", "insula-rh"],
     "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
     "slider": 2,
     "color": {"A": "#12345678", "B": "#13243546"},
@@ -58,18 +60,32 @@ alternative_test_parameters = {
 
 
 @pytest.fixture
-def controller(tmp_path):
+def controller(tmp_path, monkeypatch):
     # Create a config_file, data_path and subjects_dir
     config_path = tmp_path / "test_config.json"
-    with open(config_path, "w") as f:
-        json.dump({"name": "test_controller"}, f, indent=4)
     data_path = tmp_path / "MEEG"
-
     mkdir(data_path)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
+    test_config = {
+        "name": "test_controller",
+        "data_path": data_path,
+        "subjects_dir": subjects_dir,
+    }
+    with open(config_path, "w") as f:
+        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
+    # Monkeypatching to simulate user input
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QMessageBox.question",
+        lambda x, y, z: QMessageBox.StandardButton.Yes,
+    )
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
+    )
+    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
+
     # Create Controller
-    ct = Controller(config_path, data_path, subjects_dir)
+    ct = Controller(config_path)
 
     return ct
 
@@ -190,6 +206,6 @@ def test_module(tmp_path, test_script):
     }
     test_config_path = test_script.parent / "test_config.json"
     with open(test_config_path, "w") as f:
-        json.dump(test_config, f, indent=4)
+        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 
     return test_config_path

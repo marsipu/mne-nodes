@@ -59,7 +59,7 @@ from mne_nodes.gui.gui_utils import (
     get_std_icon,
     center,
     set_app_theme,
-    set_app_font,
+    set_app_font_size,
     get_user_input,
 )
 from mne_nodes.pipeline.controller import Controller
@@ -2068,7 +2068,7 @@ class SettingsDlg(QDialog):
             "app_font": {
                 "gui_type": "ComboGui",
                 "source_type": "QSettings",
-                "slot": set_app_font,
+                "slot": set_app_font_size,
                 "gui_kwargs": {
                     "alias": "Application Font",
                     "description": "Changes default application font "
@@ -2080,7 +2080,7 @@ class SettingsDlg(QDialog):
             "app_font_size": {
                 "gui_type": "IntGui",
                 "source_type": "QSettings",
-                "slot": set_app_font,
+                "slot": set_app_font_size,
                 "gui_kwargs": {
                     "alias": "Font Size",
                     "description": "Changes default application font-size "

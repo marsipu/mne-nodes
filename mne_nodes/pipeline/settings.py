@@ -20,8 +20,6 @@ from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder
 # Default Settings/QSettings
 default_device_settings = {
     "config_path": None,
-    "data_path": None,
-    "plot_path": None,
     "log_file_path": None,
     "fs_path": None,
     "wls_mne_path": None,
@@ -30,6 +28,9 @@ default_device_settings = {
     "enable_cuda": 0,
     "screen_ratio": 0.8,
     "screen_name": None,
+    "app_theme": "auto",
+    "app_style": "fusion",
+    "app_font_size": 10,
 }
 
 

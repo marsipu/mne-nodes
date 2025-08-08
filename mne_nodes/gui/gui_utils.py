@@ -38,11 +38,6 @@ from mne_nodes import extra
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
-# Load theme colors
-theme_color_path = join(str(resources.files(extra)), "color_themes.json")
-with open(theme_color_path) as file:
-    theme_colors = json.load(file)
-
 
 def center(widget):
     qr = widget.frameGeometry()
@@ -153,7 +148,7 @@ def get_user_input(prompt, input_type="string", file_filter=None):
             user_input = compat.getexistingdirectory(parent, prompt)
             ok = user_input != ""
         elif input_type == "file":
-            user_input, ok = compat.getopenfilename(parent, prompt, filter=file_filter)
+            user_input, ok = compat.getopenfilename(parent, prompt, filters=file_filter)
         else:
             raise ValueError(type_error_message)
     # Checks for interactive terminal
@@ -189,14 +184,32 @@ def get_user_input(prompt, input_type="string", file_filter=None):
     else:
         warning_message = None
     if warning_message is not None:
-        if mne_nodes.gui_mode:
-            parent = QApplication.activeWindow()
-            QMessageBox().warning(parent, "Warning", warning_message)
-        else:
-            logging.warning(warning_message)
+        raise_user_attention(warning_message, message_type="warning")
         return get_user_input(prompt, input_type)
 
     return user_input
+
+
+def raise_user_attention(message, message_type="warning"):
+    """Raise a message to the user, either as a warning or an error."""
+    if mne_nodes.gui_mode:
+        parent = QApplication.activeWindow()
+        if message_type == "warning":
+            QMessageBox().warning(parent, "Warning", message)
+        elif message_type == "error":
+            QMessageBox().critical(parent, "Error", message)
+        elif message_type == "info":
+            QMessageBox().information(parent, "Information", message)
+        else:
+            raise ValueError(f"Unknown message type: {message_type}")
+    if message_type == "warning":
+        logging.warning(message)
+    elif message_type == "error":
+        logging.error(message)
+    elif message_type == "info":
+        logging.info(message)
+    else:
+        raise ValueError(f"Unknown message type: {message_type}")
 
 
 def invert_rgb_color(color_tuple):
@@ -273,6 +286,61 @@ def mouseDrag(widget, positions, button, modifier=None):
     mouseRelease(widget=widget, pos=positions[-1], button=button, modifier=modifier)
 
 
+########################################################################################
+# Theme & Colors
+########################################################################################
+theme_colors = {
+    "light": {
+        "foreground": "#000000",
+        "foreground_disabled": "#b8b8b8",
+        "background": "#e6e6e6",
+        "background_disabled": "#f0f0f0",
+        "alternate_background": "#dddddd",
+        "base": "#ffffff",
+        "button": "#cbcbcb",
+        "primary": "#0070b6",
+        "border_light": "#888888",
+        "border_midlight": "#aaaaaa",
+        "border_dark": "#4b4b4b",
+        "border_mid": "#666666",
+        "border_shadow": "#333333",
+        "link": "#ff00ff",
+    },
+    "dark": {
+        "foreground": "#e5e5e5",
+        "foreground_disabled": "#888888",
+        "background": "#141414",
+        "background_disabled": "#3e3e3e",
+        "alternate_background": "#262626",
+        "base": "#141414",
+        "button": "#151515",
+        "primary": "#0867cc",
+        "border_light": "#888888",
+        "border_midlight": "#aaaaaa",
+        "border_dark": "#4b4b4b",
+        "border_mid": "#666666",
+        "border_shadow": "#333333",
+        "link": "#ff00ff",
+    },
+    "high_contrast": {
+        "foreground": "#ffffff",
+        "foreground_disabled": "#A0A0A0",
+        "background": "#000000",
+        "background_disabled": "#4a4a4a",
+        "alternate_background": "#222222",
+        "base": "#0f0f0f",
+        "button": "#000000",
+        "primary": "#007ACC",
+        "border_light": "#888888",
+        "border_midlight": "#aaaaaa",
+        "border_dark": "#4b4b4b",
+        "border_mid": "#666666",
+        "border_shadow": "#333333",
+        "link": "#ff00ff",
+    },
+}
+
+
 def get_palette(theme):
     color_roles = {
         "foreground": ["WindowText", "ToolTipText", "Text"],
@@ -339,7 +407,8 @@ def _get_auto_theme():
 
 def set_app_theme():
     app = QApplication.instance()
-    app.setStyle("Fusion")
+    style = Settings().value("app_style")
+    app.setStyle(style)
     app_theme = Settings().value("app_theme")
     # Detect system theme
     if app_theme == "auto":
@@ -371,11 +440,13 @@ def set_app_theme():
     app.setWindowIcon(app_icon)
 
 
-def set_app_font():
+def set_app_font_size(font_size=None):
     app = QApplication.instance()
-    font_family = Settings().value("app_font")
-    font_size = Settings().value("app_font_size")
-    app.setFont(QFont(font_family, font_size))
+    font_size = font_size or Settings().value("app_font_size")
+    font = QFont()
+    font.setFamilies(["Segoe UI", "Noto Sans", "Open Sans", "DejaVu Sans"])
+    font.setPointSize(font_size)
+    app.setFont(font)
 
 
 class ColorTester(QDialog):
@@ -388,6 +459,7 @@ class ColorTester(QDialog):
         self.theme = theme
         self.color_display = {}
         self.init_ui()
+        self.theme_color_path = join(str(resources.files(extra)), "color_themes.json")
 
         self.show()
 
@@ -442,6 +514,6 @@ class ColorTester(QDialog):
             )
 
     def closeEvent(self, event):
-        with open(theme_color_path, "w") as file:
+        with open(self.theme_color_path, "w") as file:
             json.dump(theme_colors, file, indent=4)
         event.accept()

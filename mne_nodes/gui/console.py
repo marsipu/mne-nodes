@@ -8,8 +8,11 @@ import io
 import sys
 
 from qtpy.QtCore import QTimer, QObject, Signal, Qt
-from qtpy.QtGui import QTextCursor
-from qtpy.QtWidgets import QPlainTextEdit, QDockWidget
+from qtpy.QtGui import QTextCursor, QFont
+from qtpy.QtWidgets import QPlainTextEdit, QDockWidget, QTabWidget, QHBoxLayout, QWidget
+
+from mne_nodes.gui.base_widgets import SimpleList
+from mne_nodes.gui.code_editor import CodeEditorWidget, PythonHighlighter
 
 
 class ConsoleWidget(QPlainTextEdit):
@@ -17,6 +20,10 @@ class ConsoleWidget(QPlainTextEdit):
 
     def __init__(self):
         super().__init__()
+
+        # Connect custom stdout and stderr to display-function
+        sys.stdout.signal.text_written.connect(self.write_stdout)
+        sys.stderr.signal.text_written.connect(self.write_stderr)
 
         self.setReadOnly(True)
         self.autoscroll = True
@@ -93,25 +100,17 @@ class ConsoleWidget(QPlainTextEdit):
         event.accept()
 
 
-class MainConsoleWidget(ConsoleWidget):
-    """A subclass of ConsoleWidget which is linked to stdout/stderr of the main
-    process."""
-
-    def __init__(self):
-        super().__init__()
-
-        # Connect custom stdout and stderr to display-function
-        sys.stdout.signal.text_written.connect(self.write_stdout)
-        sys.stderr.signal.text_written.connect(self.write_stderr)
-
-
 class ConsoleDock(QDockWidget):
     """A dock widget for the main console widget."""
 
-    def __init__(self, parent=None):
+    def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
-        self.console_widget = MainConsoleWidget()
-        self.setWidget(self.console_widget)
+        self.ct = controller
+        self.tab_widget = QTabWidget()
+        self.console_widget = ConsoleWidget()
+        self.tab_widget.addTab(self.console_widget, "Console")
+
+        self.setWidget(self.tab_widget)
         self.setObjectName("console_dock")
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
@@ -148,3 +147,31 @@ class StdoutStderrStream(io.TextIOBase):
     def flush(self):
         if self.original_stream is not None:
             self.original_stream.flush()
+
+
+class ShowErrorWidget(QPlainTextEdit):
+    """A widget to display error messages in a read-only text editor."""
+
+    def __init__(self):
+        super().__init__()
+        self.setReadOnly(True)
+        self.setFont(QFont("Consolas", 12))
+        self.highlighter = PythonHighlighter(self.document())
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
+
+
+class ErrorWidget(QWidget):
+    """A widget to display error messages."""
+
+    def __init__(self, controller):
+        super().__init__()
+        self.ct = controller
+        layout = QHBoxLayout()
+        self.list_widget = SimpleList()
+        layout.addWidget(self.list_widget)
+        self.show_widget = CodeEditorWidget()
+        layout.addWidget(self.show_widget, stretch=2)
+        self.setLayout(layout)
+
+    def update_errors(self):
+        pass

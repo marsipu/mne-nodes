@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
+import sys
 from collections import Counter
 from importlib import resources
 from pathlib import Path
@@ -19,17 +20,13 @@ from qtpy.QtWidgets import (
     QSizePolicy,
     QTextEdit,
     QVBoxLayout,
-    QWidget,
-    QComboBox,
-    QMessageBox,
 )
 
 from mne_nodes import extra
-from mne_nodes.gui.base_widgets import SimpleList, SimpleDialog
+from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.pipeline.legacy import Project
 
 
 class CheckListDlg(QDialog):
@@ -93,21 +90,21 @@ class RemoveProjectsDlg(CheckListDlg):
 
 
 class SysInfoMsg(QDialog):
-    def __init__(self, main_win):
-        super().__init__(main_win)
+    def __init__(self, parent):
+        super().__init__(parent)
+        # Init layout
         layout = QVBoxLayout()
         self.show_widget = QTextEdit()
         self.show_widget.setReadOnly(True)
         layout.addWidget(self.show_widget)
-
         close_bt = QPushButton("Close")
         close_bt.clicked.connect(self.close)
         layout.addWidget(close_bt)
-
+        self.setLayout(layout)
+        # Connect to stdout
+        sys.stdout.signal.text_written.connect(self.add_text)
         # Set geometry to ratio of screen-geometry
         set_ratio_geometry(0.4, self)
-
-        self.setLayout(layout)
         self.show()
 
     def add_text(self, text):
@@ -241,109 +238,6 @@ class RawInfo(QDialog):
         self.info_label.setHtml(self.info_string)
 
 
-class CopyParamsDialog(SimpleDialog):
-    def __init__(self, main_win):
-        self.main_win = main_win
-        self.ct = main_win.ct
-        widget = QWidget()
-        layout = QGridLayout()
-        layout.addWidget(QLabel("From:"), 0, 0)
-        self.from_cmbx = QComboBox()
-        self.from_cmbx.addItems(self.ct.projects)
-        self.from_cmbx.currentTextChanged.connect(self.from_selected)
-        layout.addWidget(self.from_cmbx, 1, 0)
-        layout.addWidget(QLabel("Parameter-Preset:"), 2, 0)
-        self.from_pp_cmbx = QComboBox()
-        self.from_pp_cmbx.currentTextChanged.connect(self.from_pp_selected)
-        layout.addWidget(self.from_pp_cmbx, 3, 0)
-
-        layout.addWidget(QLabel("To:"), 0, 1)
-        self.to_cmbx = QComboBox()
-        self.to_cmbx.currentTextChanged.connect(self.to_selected)
-        layout.addWidget(self.to_cmbx, 1, 1)
-        layout.addWidget(QLabel("Parameter-Preset:"), 2, 1)
-        self.to_pp_cmbx = QComboBox()
-        self.to_pp_cmbx.setEditable(True)
-        layout.addWidget(self.to_pp_cmbx, 3, 1)
-
-        layout.addWidget(QLabel("Parameter:"), 4, 0, 1, 2)
-        self.param_cmbx = QComboBox()
-        layout.addWidget(self.param_cmbx, 5, 0, 1, 2)
-
-        copy_bt = QPushButton("Copy")
-        copy_bt.clicked.connect(self.copy_parameters)
-        layout.addWidget(copy_bt, 6, 0)
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt, 6, 1)
-
-        widget.setLayout(layout)
-        super().__init__(
-            widget,
-            parent=main_win,
-            title="Copy Parameters between Projects",
-            window_title="Copy Parameters",
-            show_close_bt=False,
-        )
-
-        # Initialize with first from-entry
-        self.from_selected(self.from_cmbx.currentText())
-
-    def _get_p_presets(self, pr_name):
-        if self.ct.pr.name == pr_name:
-            project = self.ct.pr
-        else:
-            project = Project(self.ct, pr_name)
-
-        return list(project.parameters.keys())
-
-    def from_pp_selected(self, from_pp_name):
-        if from_pp_name:
-            self.param_cmbx.clear()
-            params = list(
-                Project(self.ct, self.from_cmbx.currentText())
-                .parameters[from_pp_name]
-                .keys()
-            )
-            params.insert(0, "<all>")
-            self.param_cmbx.addItems(params)
-
-    def from_selected(self, from_name):
-        if from_name:
-            self.to_cmbx.clear()
-            self.to_cmbx.addItems([p for p in self.ct.projects if p != from_name])
-
-            self.from_pp_cmbx.clear()
-            self.from_pp_cmbx.addItems(self._get_p_presets(from_name))
-
-            self.from_pp_selected(self.from_pp_cmbx.currentText())
-
-    def to_selected(self, to_name):
-        if to_name:
-            self.to_pp_cmbx.clear()
-            self.to_pp_cmbx.addItems(self._get_p_presets(to_name))
-
-    def copy_parameters(self):
-        from_name = self.from_cmbx.currentText()
-        from_pp = self.from_pp_cmbx.currentText()
-        to_name = self.to_cmbx.currentText()
-        to_pp = self.to_pp_cmbx.currentText()
-        param = self.param_cmbx.currentText()
-        if param == "<all>":
-            param = None
-        if from_name and to_name:
-            self.ct.copy_parameters_between_projects(
-                from_name, from_pp, to_name, to_pp, param
-            )
-        if to_name == self.ct.pr.name:
-            self.main_win.parameters_dock.redraw_param_widgets()
-        QMessageBox().information(
-            self,
-            "Finished",
-            f"Copied parameter '{param}' from {from_name} to {to_name}!",
-        )
-
-
 class AboutDialog(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
@@ -390,7 +284,7 @@ class AboutDialog(QDialog):
         self.open()
 
 
-class ErrorDialog(SimpleDialog):
+class ErrorDialog(QDialog):
     def __init__(self, exception_tuple, parent=None, title=None):
         if parent:
             super().__init__(parent)

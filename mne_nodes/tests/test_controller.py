@@ -6,22 +6,12 @@ Github: https://github.com/marsipu/mne-nodes
 
 from os.path import join, isfile
 
-from qtpy.QtWidgets import QMessageBox
 
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.pipeline_utils import change_file_section
 
 
-def test_init(monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QMessageBox.question",
-        lambda x, y, z: QMessageBox.StandardButton.Yes,
-    )
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
-    )
-    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
-
+def test_init(tmp_path):
     # Initialize the controller in gui mode
     Controller()
 

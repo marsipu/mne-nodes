@@ -56,6 +56,9 @@ class NodeViewer(QGraphicsView):
 
         # attributes
         self._nodes = OrderedDict()
+        self._input_nodes = []
+        self._function_nodes = {}
+        self._function_nodes = {}
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._last_size = self.size()
         self._detached_port = None
@@ -138,6 +141,26 @@ class NodeViewer(QGraphicsView):
         """
         return self._nodes
 
+    def input_nodes(self):
+        """Return the input nodes in the node graph.
+
+        Returns
+        -------
+        list
+            List of InputNode instances.
+        """
+        return self._input_nodes
+
+    def function_nodes(self):
+        """Return the function nodes in the node graph.
+
+        Returns
+        -------
+        dict
+            Dictionary of FunctionNode instances, keyed by function name.
+        """
+        return self._function_nodes
+
     @property
     def pipe_layout(self):
         """Return the pipe layout mode.
@@ -187,7 +210,15 @@ class NodeViewer(QGraphicsView):
         """
         self.scene().addItem(node)
         self._nodes[node.id] = node
-
+        if isinstance(node, InputNode):
+            dt = node.data_type
+            if dt not in self.input_nodes:
+                self.input_nodes[dt] = {}
+            self.input_nodes[dt][node.name] = node
+        elif isinstance(node, FunctionNode):
+            if node.name not in self.function_nodes:
+                self.function_nodes[node.name] = {}
+            self.function_nodes[node.name][node.id] = node
         # draw node (necessary to redraw after it is added to the scene)
         node.draw_node()
 
@@ -216,17 +247,17 @@ class NodeViewer(QGraphicsView):
             If data_type is not in the available input data types.
         """
         if name is None:
-            if len(self.ct.input_nodes[data_type]) == 0:
+            if len(self.input_nodes) == 0:
                 name = "All"
             else:
-                name = f"{len(self.ct.input_nodes[data_type]) + 1}"
+                name = f"{len(self.input_nodes[data_type]) + 1}"
         node = InputNode(self.ct, data_type, name=name, **kwargs)
         if data_type not in self.ct.input_data_types:
             raise ValueError(
                 f"Invalid data_type '{data_type}'. "
                 f"Valid types are: {', '.join(self.ct.input_data_types.keys())}"
             )
-        self.ct.input_nodes[data_type][name] = node
+        self.input_nodes[data_type][name] = node
         self.add_node(node)
 
         return node
@@ -247,10 +278,10 @@ class NodeViewer(QGraphicsView):
             The created function node.
         """
         node = FunctionNode(self.ct, name=function_name, **kwargs)
-        if function_name in self.ct.function_nodes:
-            self.ct.function_nodes[function_name].update({node.id: node})
+        if function_name in self.function_nodes:
+            self.function_nodes[function_name].update({node.id: node})
         else:
-            self.ct.function_nodes[function_name] = {node.id: node}
+            self.function_nodes[function_name] = {node.id: node}
         self.add_node(node)
 
         return node
@@ -335,11 +366,12 @@ class NodeViewer(QGraphicsView):
         """
         if name is None:
             name = "All"
-        if data_type not in self.ct.input_nodes:
+        if data_type not in self.input_nodes:
             raise ValueError(f"Data type {data_type} not found in inputs.")
-        if name not in self.ct.input_nodes[data_type]:
+        if name not in [node.name for node in self.input_nodes]:
             raise ValueError(f"Group {name} not found in inputs for {data_type}.")
-        return self.ct.input_nodes[data_type][name]
+
+        return self.input_nodes[data_type].get(name, None)
 
     def function_node(self, name, node_id=None):
         """Get a function node by its name.
@@ -357,14 +389,14 @@ class NodeViewer(QGraphicsView):
             The function node that matches the provided name.
             If no match is found, returns None.
         """
-        if name not in self.ct.function_nodes:
+        if name not in self.function_nodes:
             raise KeyError(f"Function '{name}' not found in project.")
         if node_id is None:
             # if no node_id is given, return first node for the function
-            return next(iter(self.ct.function_nodes[name].values()), None)
-        elif node_id not in self.ct.function_nodes[name]:
+            return next(iter(self.function_nodes[name].values()), None)
+        elif node_id not in self.function_nodes[name]:
             raise KeyError(f"Node with id '{node_id}' for function '{name}' not found.")
-        return self.ct.function_nodes[name][node_id]
+        return self.function_nodes[name].get(node_id, None)
 
     def to_dict(self):
         """Serialize the node viewer to a dictionary.

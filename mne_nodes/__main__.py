@@ -17,8 +17,9 @@ from qtpy.QtWidgets import QApplication
 import mne_nodes
 from mne_nodes import islin
 from mne_nodes.gui.console import StdoutStderrStream
-from mne_nodes.gui.gui_utils import set_app_font, set_app_theme
-from mne_nodes.gui.welcome_window import WelcomeWindow
+from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
+from mne_nodes.gui.main_window import MainWindow
+from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
 from mne_nodes.pipeline.settings import Settings
@@ -39,10 +40,11 @@ def init_logging(debug_mode=False):
     logger = logging.getLogger()
     if debug_mode:
         logger.setLevel(logging.DEBUG)
+        fmt = "{asctime} [{levelname}] {module}.{funcName}: {message}"
     else:
         logger.setLevel(Settings().value("log_level", defaultValue=logging.INFO))
+        fmt = "[{levelname}] {message}"
     # Format console handler
-    fmt = "{asctime} [{levelname}] {module}.{funcName}(): {message}"
     date_fmt = "%H:%M:%S"
     formatter = logging.Formatter(fmt, date_fmt, style="{")
     console_handler = logging.StreamHandler()
@@ -59,10 +61,10 @@ def init_logging(debug_mode=False):
 
 def main():
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
-    debug_mode = os.environ.get("MNEPHD_DEBUG", False) == "true"
+    debug_mode = os.environ.get("MNENODES_DEBUG", False) == "true"
     init_logging(debug_mode)
 
-    logging.info("Starting MNE-Pipeline HD")
+    logging.info("Starting MNE-Nodes...")
 
     if mne_nodes.gui_mode:
         app = QApplication.instance()
@@ -93,10 +95,11 @@ def main():
 
         # Set style and font
         set_app_theme()
-        set_app_font()
+        set_app_font_size()
 
-        # Initiate WelcomeWindow
-        WelcomeWindow()
+        # Initialize controller and main window
+        controller = Controller()
+        MainWindow(controller)
 
         # Command-Line interrupt with Ctrl+C possible
         timer = QTimer()
