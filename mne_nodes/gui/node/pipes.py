@@ -1,4 +1,9 @@
-# -*- coding: utf-8 -*-
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+Github: https://github.com/marsipu/mne-nodes
+"""
+
 import math
 
 from mne_nodes.gui.gui_utils import format_color
@@ -350,7 +355,7 @@ class LivePipeItem(Pipe):
     """Live Pipe item used for drawing the live connection with the cursor."""
 
     def __init__(self):
-        super(LivePipeItem, self).__init__()
+        super().__init__()
         self.setZValue(4)
 
         self.color = defaults["pipes"]["active_color"]
@@ -377,8 +382,8 @@ class LivePipeItem(Pipe):
         self._idx_text.setFont(font)
 
     def hoverEnterEvent(self, event):
-        """Re-implemented back to the base default behaviour or the pipe will lose it
-        styling when another pipe is selected."""
+        """Re-implemented back to the base default behaviour or the pipe will
+        lose it styling when another pipe is selected."""
         QGraphicsPathItem.hoverEnterEvent(self, event)
 
     def draw_path(self, start_port, end_port=None, cursor_pos=None, color=None):
@@ -391,12 +396,12 @@ class LivePipeItem(Pipe):
                 will be the draw end point.
             color (list[int]): override arrow index pointer color. (r, g, b)
         """
-        super(LivePipeItem, self).draw_path(start_port, end_port, cursor_pos)
+        super().draw_path(start_port, end_port, cursor_pos)
         self.draw_index_pointer(start_port, cursor_pos, color)
 
     def draw_index_pointer(self, start_port, cursor_pos, color=None):
-        """Update the index pointer arrow position and direction when the live pipe path
-        is redrawn.
+        """Update the index pointer arrow position and direction when the live
+        pipe path is redrawn.
 
         Args:
             start_port (PortItem): start port item.
@@ -434,7 +439,7 @@ class LivePipePolygonItem(QGraphicsPolygonItem):
     """Custom live pipe polygon shape."""
 
     def __init__(self, parent):
-        super(LivePipePolygonItem, self).__init__(parent)
+        super().__init__(parent)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
 
     def paint(self, painter, option, widget):
@@ -456,7 +461,7 @@ class SlicerPipeItem(QGraphicsPathItem):
     """Base item used for drawing the pipe connection slicer."""
 
     def __init__(self):
-        super(SlicerPipeItem, self).__init__()
+        super().__init__()
         self.setZValue(5)
 
     def paint(self, painter, option, widget):

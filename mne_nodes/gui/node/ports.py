@@ -1,3 +1,9 @@
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+Github: https://github.com/marsipu/mne-nodes
+"""
+
 import logging
 from collections import OrderedDict
 
@@ -203,10 +209,7 @@ class Port(QGraphicsItem):
         # NodeViewer.port_position_scene() depends
         # on the position of boundingRect to be (0, 0).
         return QRectF(
-            0.0,
-            0.0,
-            self._width + defaults["ports"]["click_falloff"],
-            self._height,
+            0.0, 0.0, self._width + defaults["ports"]["click_falloff"], self._height
         )
 
     def setPos(self, x, y):
@@ -322,8 +325,8 @@ class Port(QGraphicsItem):
             raise ValueError("Invalid port type")
 
     def connected(self, target_port):
-        """Check if the specified port (port object, port name or port id) is connected
-        to this port."""
+        """Check if the specified port (port object, port name or port id) is
+        connected to this port."""
         if isinstance(target_port, str):
             if target_port in [port.name for port in self.connected_ports]:
                 return True

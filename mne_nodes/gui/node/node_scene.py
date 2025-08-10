@@ -1,4 +1,9 @@
-# -*- coding: utf-8 -*-
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+Github: https://github.com/marsipu/mne-nodes
+"""
+
 from mne_nodes.gui.node.node_defaults import defaults
 from qtpy.QtCore import Qt, QLineF
 from qtpy.QtGui import QColor, QPen, QPainter
@@ -7,7 +12,7 @@ from qtpy.QtWidgets import QGraphicsScene
 
 class NodeScene(QGraphicsScene):
     def __init__(self, parent=None):
-        super(NodeScene, self).__init__(parent)
+        super().__init__(parent)
         self._grid_mode = "lines"
         self._grid_size = defaults["viewer"]["grid_size"]
         self._grid_color = defaults["viewer"]["grid_color"]
@@ -114,7 +119,7 @@ class NodeScene(QGraphicsScene):
         ]
 
     def drawBackground(self, painter, rect):
-        super(NodeScene, self).drawBackground(painter, rect)
+        super().drawBackground(painter, rect)
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
@@ -142,7 +147,7 @@ class NodeScene(QGraphicsScene):
         selected_nodes = self.viewer().selected_nodes()
         if self.viewer():
             self.viewer().sceneMousePressEvent(event)
-        super(NodeScene, self).mousePressEvent(event)
+        super().mousePressEvent(event)
         keep_selection = any(
             [
                 event.button() == Qt.MouseButton.MiddleButton,
@@ -157,12 +162,12 @@ class NodeScene(QGraphicsScene):
     def mouseMoveEvent(self, event):
         if self.viewer():
             self.viewer().sceneMouseMoveEvent(event)
-        super(NodeScene, self).mouseMoveEvent(event)
+        super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         if self.viewer():
             self.viewer().sceneMouseReleaseEvent(event)
-        super(NodeScene, self).mouseReleaseEvent(event)
+        super().mouseReleaseEvent(event)
 
     def viewer(self):
         return self.views()[0] if self.views() else None
