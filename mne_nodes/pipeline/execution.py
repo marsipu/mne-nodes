@@ -385,3 +385,6 @@ class QProcessDialog(QDialog):
                 "Closing not possible!",
                 "You can't close the Dialog before this Process finished!",
             )
+
+    def convert_to_code(self, instructions):
+        """Convert from a dictionary of instructions."""

@@ -142,6 +142,9 @@ def nodeviewer_extended(nodeviewer):
     nodeviewer.input_node("raw").output(port_name="raw").connect_to(
         func_node2.input(port_name="raw")
     )
+    nodeviewer.function_node("filter_data").output(port_name="raw").connect_to(
+        func_node3.input(port_name="raw")
+    )
     func_node2.output(port_name="events").connect_to(
         func_node3.input(port_name="events")
     )

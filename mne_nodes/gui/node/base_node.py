@@ -6,7 +6,6 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 from collections import OrderedDict
-from functools import partial
 
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
@@ -110,9 +109,7 @@ class BaseNode(QGraphicsItem):
             self.start_button.setFixedSize(24, 22)
             self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(
-                partial(self.viewer.start_from_node, self)
-            )
+            self.start_button.clicked.connect(self.start)
             self.start_button_proxy = QGraphicsProxyWidget(self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
@@ -415,45 +412,87 @@ class BaseNode(QGraphicsItem):
         """Get output port by the name, index, id, or old id as in port()."""
         return self.port(port_type="out", **port_kwargs)
 
+    def connected_nodes(self, port_id=None):
+        """Returns all nodes connected to the node.
+
+        Parameters
+        ----------
+        port_id : int, None
+            If None, returns all connected nodes from all ports.
+
+        Returns
+        -------
+        dict
+            List of nodes connected to the node. If port_id is provided,
+            returns nodes connected to the specified port.
+        """
+        nodes = OrderedDict()
+        if port_id is None:
+            # Return all connected nodes from all ports
+            for port in self.inputs + self.outputs:
+                nodes[port.id] = [cp.node for cp in port.connected_ports]
+            return nodes
+        else:
+            port = self.port(port_id=port_id)
+            nodes[port.id] = [cp.node for cp in port.connected_ports]
+
+        return nodes
+
     def connected_input_nodes(self):
         """Returns all nodes connected from the input ports.
 
         Returns:
-            dict: {<input_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<input_port_id>: <node_list>}
+            Returns a dictionary with input port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.inputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
     def connected_output_nodes(self):
         """Returns all nodes connected from the output ports.
 
         Returns:
-            dict: {<output_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<output_port_id>: <node_list>}
+            Returns a dictionary with output port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.outputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
     def downstream_nodes(self):
         """Returns all nodes downstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_output_nodes():
-            nodes[port_id] = {}
+        down_dict = OrderedDict()
+        for port_id, nodes in self.connected_output_nodes().items():
+            down_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.downstream_nodes()
-        return nodes
+                down_dict[port_id][node.id] = node.downstream_nodes()
+
+        return down_dict
 
     def upstream_nodes(self):
         """Returns all nodes upstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_input_nodes():
-            nodes[port_id] = {}
+        up_dict = OrderedDict()
+        for port_id, nodes in self.connected_input_nodes().items():
+            up_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.upstream_nodes()
-        return nodes
+                up_dict[port_id][node.id] = node.upstream_nodes()
+
+        return up_dict
+
+    def start(self):
+        if not self.viewer:
+            logging.warning("NodeViewer not found. Cannot start node.")
+            return
+        self.viewer.start_from_node(self)
 
     def add_widget(self, widget):
         """Add widget to the node."""

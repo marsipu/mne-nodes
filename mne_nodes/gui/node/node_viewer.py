@@ -152,8 +152,9 @@ class NodeViewer(QGraphicsView):
 
         Returns
         -------
-        list
-            List of InputNode instances.
+        dict
+            Dictionary of InputNode instances with first key being the data-type
+            and second key being the (group)name.
         """
         return self._input_nodes
 
@@ -164,7 +165,8 @@ class NodeViewer(QGraphicsView):
         Returns
         -------
         dict
-            Dictionary of FunctionNode instances, keyed by function name.
+            Dictionary of FunctionNode instances with the function name as the
+            first key and the node id as the second key.
         """
         return self._function_nodes
 
@@ -220,11 +222,15 @@ class NodeViewer(QGraphicsView):
         if isinstance(node, InputNode):
             dt = node.data_type
             if dt not in self.input_nodes:
-                self.input_nodes[dt] = {}
+                self.input_nodes[dt] = {}  #
+            # For input nodes, the name must be unique while there can be
+            # multiple input-nodes per data-type
             self.input_nodes[dt][node.name] = node
         elif isinstance(node, FunctionNode):
             if node.name not in self.function_nodes:
                 self.function_nodes[node.name] = {}
+            # For function nodes, the name can be the same for multiple nodes but
+            # they need to be distinguishable by their id.
             self.function_nodes[node.name][node.id] = node
         # draw node (necessary to redraw after it is added to the scene)
         node.draw_node()
@@ -392,7 +398,7 @@ class NodeViewer(QGraphicsView):
             name = "All"
         if data_type not in self.input_nodes:
             raise ValueError(f"Data type {data_type} not found in inputs.")
-        if name not in [node.name for node in self.input_nodes]:
+        if name not in self.input_nodes[data_type]:
             raise ValueError(f"Group {name} not found in inputs for {data_type}.")
 
         return self.input_nodes[data_type].get(name, None)
@@ -421,6 +427,35 @@ class NodeViewer(QGraphicsView):
         elif node_id not in self.function_nodes[name]:
             raise KeyError(f"Node with id '{node_id}' for function '{name}' not found.")
         return self.function_nodes[name].get(node_id, None)
+
+    def port(self, **kwargs):
+        """Get a port from the node graph based on its properties.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments to find the port by its properties, such as
+            node_id, port_id, or old_id.
+
+        Returns
+        -------
+        Port or list of Port or None
+            The port that matches the provided properties. If multiple ports matcht the properties, a list of matching ports is returned.If no match is found,
+            returns None.
+        """
+        ports = [
+            node.port(**kwargs)
+            for node in self.nodes.values()
+            if node.port(**kwargs) is not None
+        ]
+        if len(ports) == 0:
+            logging.warning("No port found with the provided parameters.")
+            return None
+        elif len(ports) == 1:
+            return ports[0]
+        else:
+            logging.warning(f"Found {len(ports)} ports with the provided parameters.")
+            return ports
 
     def to_dict(self):
         """Serialize the node viewer to a dictionary.
@@ -472,11 +507,45 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
+    def _get_execution_from_nodes(self, exec_order, node_dict):
+        for port_id, port_info in node_dict.items():
+            port = self.port(port_id=port_id)
+            # If the port has no connected ports, skip it
+            if len(port.connected_ports) == 0:
+                continue
+            exec_order.append(port.name)
+            for node_id, node_info in port_info.items():
+                node = self.node(node_id=node_id)
+                exec_order.append(node.name)
+                if len(node.inputs) > 1:
+                    # If the node has multiple inputs, we need to ensure
+                    # that all inputs are processed before this node.
+                    other_inputs = [
+                        p for p in node.inputs if p not in port.connected_ports
+                    ]
+                    for other_input in other_inputs:
+                        for cp in other_input.connected_ports:
+                            reverse_exec_order = []
+                            up_nodes = cp.node.upstream_nodes()
+                            self._get_execution_from_nodes(reverse_exec_order, up_nodes)
+                            reverse_exec_order.reverse()
+                            reverse_exec_order.append(cp.node.name)
+                            reverse_exec_order.append(cp.name)
+                            exec_order.extend(reverse_exec_order)
+                self._get_execution_from_nodes(exec_order, node_info)
+
     def start_from_node(self, node):
         """Start the execution of functions from a specific node."""
-        if isinstance(node, InputNode):
-            node_dict = node.downstream_nodes()
-            print(node_dict)
+        if not isinstance(node, InputNode):
+            logging.error(
+                f"You can't start from {node.name} node with type {type(node)}."
+            )
+            return
+
+        node_dict = node.downstream_nodes()
+        exec_order = []
+        self._get_execution_from_nodes(exec_order, node_dict)
+        print(exec_order)
 
     def from_project(self):
         """Legacy method to load nodes from the project.

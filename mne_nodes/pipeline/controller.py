@@ -549,6 +549,23 @@ class Controller:
 
         return None, None, None
 
+    def convert_to_code(self, instructions):
+        """Convert a list of instructions to a Python code string.
+
+        Parameters
+        ----------
+        instructions : dictionary
+            A dictionary containing the instructions to be converted to code,
+             e.g. from NodeViewer.start_from_node().
+
+        Returns
+        -------
+        str
+            The generated Python code as a string.
+        """
+        code = "\n".join(instructions)
+        return code
+
     ####################################################################################
     # Legacy
     ####################################################################################

@@ -25,7 +25,7 @@ class InputNode(BaseNode):
             )
         self.data_type = data_type
         name = f"{ct.input_data_types[data_type]} | {name}"
-        super().__init__(ct, name=name, **kwargs)
+        super().__init__(ct, name=name, startable=True, **kwargs)
 
         # Add the output port (if not already initialized with kwargs)
         self.add_output(self.data_type, multi_connection=True)
@@ -64,7 +64,7 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
-        super().__init__(ct, **kwargs)
+        super().__init__(ct, checkable=True, **kwargs)
         self.func_meta = ct.function_metas[self.name]
         self.parameters = self.func_meta["parameters"]
 
