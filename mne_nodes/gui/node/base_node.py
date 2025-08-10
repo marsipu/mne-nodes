@@ -6,6 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 from collections import OrderedDict
+from functools import partial
 
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
@@ -14,7 +15,9 @@ from qtpy.QtWidgets import (
     QGraphicsTextItem,
     QGraphicsProxyWidget,
     QCheckBox,
+    QPushButton,
 )
+import qtawesome as qta
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
@@ -45,10 +48,14 @@ class BaseNode(QGraphicsItem):
     old_id : int, None, optional
         Old id for reestablishing connections.
     checkable : bool, optional
-        If True, the node can be checked in the NodeViewer. Default is True.
+        If True, the node can be checked in the NodeViewer. Default is False.
+    startable : bool, optional
+        If True, the node has a start button. Default is False.
     """
 
-    def __init__(self, ct, name=None, ports=None, old_id=None, checkable=True):
+    def __init__(
+        self, ct, name=None, ports=None, old_id=None, checkable=False, startable=False
+    ):
         self.ct = ct
         # Initialize QGraphicsItem
         super().__init__()
@@ -63,6 +70,7 @@ class BaseNode(QGraphicsItem):
         self.old_id = old_id
         self.id = id(self)
         self.checkable = checkable
+        self.startable = startable
 
         self._width = defaults["nodes"]["width"]
         self._height = defaults["nodes"]["height"]
@@ -90,8 +98,26 @@ class BaseNode(QGraphicsItem):
         # Initialize checkbox if checkable
         if self.checkable:
             self.checkbox = QCheckBox()
+            self.checkbox_proxy = QGraphicsProxyWidget(self)
+            self.checkbox_proxy.setWidget(self.checkbox)
         else:
             self.checkbox = None
+            self.checkbox_proxy = None
+
+        # Initialize play-button
+        if self.startable:
+            self.start_button = QPushButton()
+            self.start_button.setFixedSize(24, 22)
+            self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
+            self.start_button.setToolTip("Start from Node")
+            self.start_button.clicked.connect(
+                partial(self.viewer.start_from_node, self)
+            )
+            self.start_button_proxy = QGraphicsProxyWidget(self)
+            self.start_button_proxy.setWidget(self.start_button)
+        else:
+            self.start_button = None
+            self.start_button_proxy = None
 
     @property
     def name(self):
@@ -411,6 +437,24 @@ class BaseNode(QGraphicsItem):
             nodes[p] = [cp.node for cp in p.connected_ports]
         return nodes
 
+    def downstream_nodes(self):
+        """Returns all nodes downstream from the nodes."""
+        nodes = OrderedDict()
+        for port_id, nodes in self.connected_output_nodes():
+            nodes[port_id] = {}
+            for node in nodes:
+                nodes[port_id][node.id] = node.downstream_nodes()
+        return nodes
+
+    def upstream_nodes(self):
+        """Returns all nodes upstream from the nodes."""
+        nodes = OrderedDict()
+        for port_id, nodes in self.connected_input_nodes():
+            nodes[port_id] = {}
+            for node in nodes:
+                nodes[port_id][node.id] = node.upstream_nodes()
+        return nodes
+
     def add_widget(self, widget):
         """Add widget to the node."""
         proxy_widget = QGraphicsProxyWidget(self)
@@ -714,13 +758,17 @@ class BaseNode(QGraphicsItem):
             # arrange node widgets
             self.align_widgets(v_offset=height)
             # add checkbox if checkable
+            rect = self.boundingRect()
             if self.checkable:
-                rect = self.boundingRect()
-                widget = QGraphicsProxyWidget(self)
-                widget.setWidget(self.checkbox)
                 x = rect.left() + 5
                 y = rect.top() + 5
-                widget.setPos(x, y)
+                self.checkbox_proxy.setPos(x, y)
+            # add play button
+            if self.startable:
+                x = rect.right() - self.start_button_proxy.boundingRect().width() - 2
+                y = rect.top() + 2
+                self.start_button_proxy.setPos(x, y)
+            # Update the widget
             self.update()
         else:
             logging.warning("Node not in scene.")

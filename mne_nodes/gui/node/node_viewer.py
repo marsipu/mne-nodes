@@ -472,6 +472,12 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
+    def start_from_node(self, node):
+        """Start the execution of functions from a specific node."""
+        if isinstance(node, InputNode):
+            node_dict = node.downstream_nodes()
+            print(node_dict)
+
     def from_project(self):
         """Legacy method to load nodes from the project.
 
@@ -484,7 +490,7 @@ class NodeViewer(QGraphicsView):
             node = FunctionNode(self.ct, name=function)
             self.add_node(node)
 
-        # Try making non-cyclic connections
+        # ToDo: Try making non-cyclic connections
 
     def clear(self):
         """Clear the node graph.
