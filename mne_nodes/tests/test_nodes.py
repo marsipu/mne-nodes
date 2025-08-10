@@ -42,16 +42,16 @@ def test_node_serialization(nodeviewer):
     assert len(viewer_dict["nodes"]) == len(second_viewer_dict["nodes"])
 
 
-def test_show_nodeviewer(qtbot, nodeviewer):
+def test_show_nodeviewer(qtbot, nodeviewer_extended):
     """Test if NodeViewer can be shown."""
-    nodeviewer.show()
-    assert nodeviewer.isVisible()
+    nodeviewer_extended.show()
+    assert nodeviewer_extended.isVisible()
 
     # Check if the viewport is correctly set
-    assert nodeviewer.viewport() is not None
+    assert nodeviewer_extended.viewport() is not None
 
     # Check if the nodes are correctly laid out
-    assert len(nodeviewer.nodes) > 0
-    for node in nodeviewer.nodes.values():
+    assert len(nodeviewer_extended.nodes) > 0
+    for node in nodeviewer_extended.nodes.values():
         assert node.isVisible()
-    qtbot.wait(10000)
+    qtbot.wait(100000)

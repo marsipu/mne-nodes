@@ -130,6 +130,32 @@ def nodeviewer(qtbot, controller):
 
 
 @pytest.fixture
+def nodeviewer_extended(nodeviewer):
+    # ToDo: extend with fsmri-nodes and assignment nodes
+
+    # Add more function nodes
+    func_node2 = nodeviewer.add_function_node("find_events")
+    func_node3 = nodeviewer.add_function_node("epoch_raw")
+    func_node4 = nodeviewer.add_function_node("plot_epochs")
+
+    # Connect the nodes
+    nodeviewer.input_node("raw").output(port_name="raw").connect_to(
+        func_node2.input(port_name="raw")
+    )
+    func_node2.output(port_name="events").connect_to(
+        func_node3.input(port_name="events")
+    )
+    func_node3.output(port_name="epochs").connect_to(
+        func_node4.input(port_name="epochs")
+    )
+
+    nodeviewer.auto_layout_nodes()
+    nodeviewer.zoom_to_nodes()
+
+    return nodeviewer
+
+
+@pytest.fixture
 def test_code():
     """Fixture to provide a simple test code."""
     return (

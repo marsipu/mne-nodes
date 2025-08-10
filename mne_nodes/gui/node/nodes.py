@@ -4,14 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-    QDialog,
-    QScrollArea,
-    QGroupBox,
-)
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QGroupBox
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
@@ -54,16 +47,11 @@ class InputNode(BaseNode):
         self.add_widget(self.main_widget)
 
     def add_files(self):
-        # This decides, wether the dialog is rendered outside or inside the scene
-        dlg = QDialog(self.viewer)
-        dlg.setWindowTitle("Import Files")
         if self.data_type == "MEEG":
             widget = AddFilesWidget(self.ct)
         else:
             widget = AddMRIWidget(self.ct)
-        dlg_layout = QVBoxLayout(dlg)
-        dlg_layout.addWidget(widget)
-        dlg.open()
+        SimpleDialog(widget, title="Import Files")
 
     def to_dict(self):
         """Serialize the InputNode to a dictionary."""
@@ -132,3 +120,13 @@ class AssignmentNode(BaseNode):
     def __init__(self, ct, **kwargs):  # **kwargs just for demo, later not needed
         super().__init__(ct, **kwargs)
         self.name = "Assignment Node"
+
+
+class InteractionNode(BaseNode):
+    """This node provides a way to directly interact with the data."""
+
+    # ToDo:
+    # - Create a Console-like editor with inputs from input-node
+    def __init__(self, ct, **kwargs):
+        super().__init__(ct, **kwargs)
+        self.name = "Interaction Node"
