@@ -12,7 +12,7 @@ from qtpy.QtGui import QTextCursor, QFont
 from qtpy.QtWidgets import QPlainTextEdit, QDockWidget, QTabWidget, QHBoxLayout, QWidget
 
 from mne_nodes.gui.base_widgets import SimpleList
-from mne_nodes.gui.code_editor import CodeEditorWidget, PythonHighlighter
+from mne_nodes.gui.code_editor import PythonHighlighter
 
 
 class ConsoleWidget(QPlainTextEdit):
@@ -20,10 +20,9 @@ class ConsoleWidget(QPlainTextEdit):
 
     def __init__(self):
         super().__init__()
-
-        # Connect custom stdout and stderr to display-function
-        sys.stdout.signal.text_written.connect(self.write_stdout)
-        sys.stderr.signal.text_written.connect(self.write_stderr)
+        self.setFont(QFont("Consolas", 12))
+        self.highlighter = PythonHighlighter(self.document())
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
 
         self.setReadOnly(True)
         self.autoscroll = True
@@ -100,6 +99,14 @@ class ConsoleWidget(QPlainTextEdit):
         event.accept()
 
 
+class MainConsoleWidget(ConsoleWidget):
+    def __init__(self):
+        super().__init__()
+        # Connect custom stdout and stderr to display-function
+        sys.stdout.signal.text_written.connect(self.write_stdout)
+        sys.stderr.signal.text_written.connect(self.write_stderr)
+
+
 class ConsoleDock(QDockWidget):
     """A dock widget for the main console widget."""
 
@@ -111,7 +118,6 @@ class ConsoleDock(QDockWidget):
         self.tab_widget.addTab(self.console_widget, "Console")
 
         self.setWidget(self.tab_widget)
-        self.setObjectName("console_dock")
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
         )
@@ -119,6 +125,8 @@ class ConsoleDock(QDockWidget):
             QDockWidget.DockWidgetFeature.DockWidgetClosable
             | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
+        self.error_widget = ErrorWidget(self.ct)
+        self.tab_widget.addTab(self.error_widget, "Errors")
 
 
 class StreamSignals(QObject):
@@ -169,7 +177,7 @@ class ErrorWidget(QWidget):
         layout = QHBoxLayout()
         self.list_widget = SimpleList()
         layout.addWidget(self.list_widget)
-        self.show_widget = CodeEditorWidget()
+        self.show_widget = ShowErrorWidget()
         layout.addWidget(self.show_widget, stretch=2)
         self.setLayout(layout)
 

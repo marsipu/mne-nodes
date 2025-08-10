@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sys
+import tempfile
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
@@ -18,6 +19,7 @@ from typing import Any, Dict, Optional, Union
 
 import mne
 
+from mne_nodes import _object_refs
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
@@ -37,18 +39,6 @@ class Controller:
     ----------
     config_path : str or Path, optional
         Path to the config-file, if
-    data_path : str or Path, optional
-        Path to the (processed) data directory. This contatins all data, mne-nodes works with.
-    subjects_dir : str or Path, optional
-        Path to the FreeSurfer MRI data root directory, by default None.
-        Will be read and written to the mne config file.
-
-    Attributes
-    ----------
-    config_path : str or Path
-        Path to the config-file.
-    config : dict
-        Dictionary containing the configuration data loaded from the config-file.
     """
 
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
@@ -80,6 +70,7 @@ class Controller:
             "app_style": "fusion",
             "app_theme": "auto",
             "padding": 20,
+            "tab_space_count": 4,
         }
 
         # Property attributes
@@ -365,6 +356,26 @@ class Controller:
 
         return self.parameters[parameter_preset][parameter_name]
 
+    def func_parameters(self, function_name, parameter_preset=None):
+        """Get the parameters for a specific function from the project
+        parameters."""
+        parameter_preset = parameter_preset or self.parameter_preset
+        if parameter_preset not in self.parameters:
+            logging.warning(
+                f"Parameter preset '{parameter_preset}' not found in project. "
+                "Using 'Default' preset instead."
+            )
+            parameter_preset = "Default"
+        if function_name not in self.function_metas:
+            raise KeyError(f"Function '{function_name}' not found in function meta.")
+
+        func_meta = self.function_metas[function_name]
+        params = {}
+        for param_name in func_meta["parameters"]:
+            params[param_name] = self.parameter(param_name, parameter_preset)
+
+        return params
+
     @property
     def add_kwargs(self):
         """This holds additional keyword arguments for the project."""
@@ -383,6 +394,13 @@ class Controller:
     def errors(self):
         """This holds the errors encountered during the project execution."""
         return self._errors
+
+    @property
+    def tab(self):
+        """This holds the tabs for the project."""
+        return " " * self.config.get(
+            "tab_space_count", self.default_config["tab_space_count"]
+        )
 
     ####################################################################################
     # Modules
@@ -550,21 +568,64 @@ class Controller:
         return None, None, None
 
     def convert_to_code(self, instructions):
-        """Convert a list of instructions to a Python code string.
+        """Convert a list of instructions to a Python code string."""
+        code = f'ct = Controller(config_path="{self.config_path}")\n\n'
 
-        Parameters
-        ----------
-        instructions : dictionary
-            A dictionary containing the instructions to be converted to code,
-             e.g. from NodeViewer.start_from_node().
+        loaded_data = set()
+        modules = {}
+        if instructions[0][0] == "raw":
+            code += "for meeg_name in ct.inputs['raw']:\n"
+            code += self.tab + "meeg = MEEG(ct, meeg_name)\n"
+            loaded_data.add(instructions[0][0])
+        elif instructions[0][0] == "fsmri":
+            code += "for fsmri_name in ct.inputs['fsmri']:\n"
+            code += self.tab + "fsmri = FSMRI(ct, fsmri_name)\n"
+        elif instructions[0][0] == "group":
+            pass  # ToDo: Handle groups
+        else:
+            raise ValueError(f"Unknown input type: {instructions[0][0]}")
+        for name, kind in instructions:
+            if kind == "Input" and name not in loaded_data:
+                code += self.tab + f'{kind} = meeg.load(data_type="{kind}")\n'
+                loaded_data.add(name)
+            elif kind == "Function":
+                meta = self.get_meta(name)
+                if meta["module"] not in modules:
+                    modules[meta["module"]] = []
+                modules[meta["module"]].append(name)
+                code += self.tab + f"{name}(meeg, **ct.func_parameters(name))\n"
+            else:
+                logging.warning(
+                    f"Unknown instruction type '{kind}' for name '{name}'. "
+                    "Skipping this instruction."
+                )
 
-        Returns
-        -------
-        str
-            The generated Python code as a string.
-        """
-        code = "\n".join(instructions)
+        # Resolve imports
+        top_code = (
+            "# This code was generated by mne-nodes\n\n"
+            "from mne_nodes.pipeline.controller import Controller\n"
+            "from mne_nodes.pipeline.loarding import MEEG, FSMRI, Group\n\n"
+            "from mne_nodes.pipeline.io import load_data, save_data\n\n"
+        )
+        for module_name, funcs in modules.items():
+            module_str = f"from ct.modules.{module_name} import "
+            module_str += ", ".join(funcs) + "\n"
+            top_code += module_str
+        code = top_code + code
+
         return code
+
+    def start(self, instructions):
+        code = self.convert_to_code(instructions)
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=".py", prefix="mne_nodes_", mode="w"
+        ) as file:
+            file.write(code)
+            file_name = file.name
+
+        main_window = _object_refs.get("main_window", None)
+        if main_window is not None:
+            main_window.start_process(f"python {file_name}")
 
     ####################################################################################
     # Legacy

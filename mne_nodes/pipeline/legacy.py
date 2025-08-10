@@ -65,7 +65,7 @@ from mne_nodes.gui.base_widgets import (
     EditDict,
 )
 from mne_nodes.gui.code_editor import CodeEditor
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.dialogs import (
     RemoveProjectsDlg,
     RawInfo,
@@ -2339,7 +2339,7 @@ class RunDialog(QDialog):
 
         layout.addLayout(view_layout)
 
-        self.console_widget = ConsoleWidget()
+        self.console_widget = MainConsoleWidget()
         layout.addWidget(self.console_widget)
 
         self.pgbar = QProgressBar()

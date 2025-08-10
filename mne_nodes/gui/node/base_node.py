@@ -468,20 +468,28 @@ class BaseNode(QGraphicsItem):
 
         return nodes
 
-    def downstream_nodes(self):
+    def downstream_nodes(self, port_id=None):
         """Returns all nodes downstream from the nodes."""
         down_dict = OrderedDict()
-        for port_id, nodes in self.connected_output_nodes().items():
+        if port_id is None:
+            connected_nodes = self.connected_output_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
             down_dict[port_id] = {}
             for node in nodes:
                 down_dict[port_id][node.id] = node.downstream_nodes()
 
         return down_dict
 
-    def upstream_nodes(self):
+    def upstream_nodes(self, port_id=None):
         """Returns all nodes upstream from the nodes."""
         up_dict = OrderedDict()
-        for port_id, nodes in self.connected_input_nodes().items():
+        if port_id is None:
+            connected_nodes = self.connected_input_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
             up_dict[port_id] = {}
             for node in nodes:
                 up_dict[port_id][node.id] = node.upstream_nodes()

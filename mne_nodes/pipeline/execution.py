@@ -19,7 +19,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
 )
 
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple, ExceptionTuple
 
@@ -155,7 +155,7 @@ class WorkerDialog(QDialog):
         layout.addWidget(self.progress_bar)
 
         if self.show_console:
-            self.console_output = ConsoleWidget()
+            self.console_output = MainConsoleWidget()
             layout.addWidget(self.console_output)
 
         if self.show_buttons:
@@ -337,7 +337,7 @@ class QProcessDialog(QDialog):
             layout.addWidget(title_label)
 
         if self.show_console:
-            self.console_output = ConsoleWidget()
+            self.console_output = MainConsoleWidget()
             layout.addWidget(self.console_output)
 
         if self.show_buttons:

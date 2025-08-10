@@ -17,6 +17,7 @@ class InputNode(BaseNode):
     """Node for input data-types."""
 
     def __init__(self, ct, data_type="raw", name="All", **kwargs):
+        super().__init__(ct, name=name, startable=True, **kwargs)
         # Check if data_type is valid
         if data_type not in ct.input_data_types:
             raise ValueError(
@@ -24,8 +25,6 @@ class InputNode(BaseNode):
                 f"Valid types are: {','.join(ct.input_data_types.keys())}"
             )
         self.data_type = data_type
-        name = f"{ct.input_data_types[data_type]} | {name}"
-        super().__init__(ct, name=name, startable=True, **kwargs)
 
         # Add the output port (if not already initialized with kwargs)
         self.add_output(self.data_type, multi_connection=True)

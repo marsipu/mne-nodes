@@ -10,7 +10,7 @@ import os
 import pytest
 
 from mne_nodes.__main__ import init_streams, init_logging
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 
 
 def test_logging(qtbot):
@@ -21,7 +21,7 @@ def test_logging(qtbot):
     init_streams()
     init_logging()
 
-    console = ConsoleWidget()
+    console = MainConsoleWidget()
     qtbot.addWidget(console)
 
     wait_time = console.buffer_time * 2

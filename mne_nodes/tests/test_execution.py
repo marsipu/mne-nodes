@@ -5,6 +5,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 
-def test_node_start(nodeviewer_extended):
+def test_node_start(nodeviewer_extended, qtbot):
     nodeviewer_extended.show()
     nodeviewer_extended.input_node("raw").start()

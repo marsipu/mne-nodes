@@ -73,7 +73,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"MNE-Nodes - {self._controller.name}")
         self.viewer.ct = controller
         self.console.ct = controller
-        # Initialize
+
+    def start_process(self, command):
+        QProcessDialog(
+            self,
+            command,
+            show_buttons=True,
+            show_console=True,
+            close_directly=False,
+            title="Starting Process...",
+            blocking=True,
+        )
 
     def restart(self):
         self.close()

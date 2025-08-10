@@ -507,32 +507,47 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
-    def _get_execution_from_nodes(self, exec_order, node_dict):
+    def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
+        if visited is None:
+            visited = set()
         for port_id, port_info in node_dict.items():
+            if port_id in visited:
+                continue
+            visited.add(port_id)
             port = self.port(port_id=port_id)
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
                 continue
-            exec_order.append(port.name)
+            instructions.append((port.name, "Port"))
             for node_id, node_info in port_info.items():
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
                 node = self.node(node_id=node_id)
-                exec_order.append(node.name)
                 if len(node.inputs) > 1:
                     # If the node has multiple inputs, we need to ensure
                     # that all inputs are processed before this node.
-                    other_inputs = [
+                    other_ports = [
                         p for p in node.inputs if p not in port.connected_ports
                     ]
-                    for other_input in other_inputs:
-                        for cp in other_input.connected_ports:
-                            reverse_exec_order = []
-                            up_nodes = cp.node.upstream_nodes()
-                            self._get_execution_from_nodes(reverse_exec_order, up_nodes)
-                            reverse_exec_order.reverse()
-                            reverse_exec_order.append(cp.node.name)
-                            reverse_exec_order.append(cp.name)
-                            exec_order.extend(reverse_exec_order)
-                self._get_execution_from_nodes(exec_order, node_info)
+                    for oport in other_ports:
+                        reverse_exec_order = []
+                        up_nodes = node.upstream_nodes(port_id=oport.id)
+                        self._get_execution_from_nodes(
+                            reverse_exec_order, up_nodes, visited
+                        )
+                        reverse_exec_order.reverse()
+                        instructions.extend(reverse_exec_order)
+                if isinstance(node, InputNode):
+                    instructions.append((node.data_type, "Input"))
+                elif isinstance(node, FunctionNode):
+                    instructions.append((node.name, "Function"))
+                else:
+                    logging.warning(
+                        f"Node {node.name} of type {type(node)} is not a valid "
+                        "input or function node."
+                    )
+                self._get_execution_from_nodes(instructions, node_info, visited)
 
     def start_from_node(self, node):
         """Start the execution of functions from a specific node."""
@@ -543,9 +558,9 @@ class NodeViewer(QGraphicsView):
             return
 
         node_dict = node.downstream_nodes()
-        exec_order = []
-        self._get_execution_from_nodes(exec_order, node_dict)
-        print(exec_order)
+        instructions = [(node.data_type, "Input")]
+        self._get_execution_from_nodes(instructions, node_dict)
+        self.ct.start(instructions)
 
     def from_project(self):
         """Legacy method to load nodes from the project.
