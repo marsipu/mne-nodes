@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import sys
 import tempfile
 from importlib import import_module
@@ -24,6 +25,7 @@ from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.loading import MEEG
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -248,7 +250,6 @@ class Controller:
                 "raw": "MEG/EEG",
                 "fsmri": "Freesurfer MRI",
             }
-            self.save_config()
         return self.config["input_data_types"]
 
     @property
@@ -256,11 +257,11 @@ class Controller:
         """This holds all data input nodes from MEEG and FSMRI data.
 
         There can be multiple input-nodes for each data type with each
-        having a distinct name (keys in the second level of the
+        having a distinct (group)name (keys in the second level of the
         dictionary).
         """
         if "inputs" not in self.config:
-            self.config["inputs"] = {k: {} for k in self.input_data_types}
+            self.config["inputs"] = {k: {"All": []} for k in self.input_data_types}
         return self.config["inputs"]
 
     @property
@@ -277,6 +278,49 @@ class Controller:
         if "input_mapping" not in self.config:
             self.config["input_mapping"] = {}
         return self.config["input_mapping"]
+
+    def add_input(self, input, data_type, group="All", input_path=None):
+        if data_type not in self.input_data_types:
+            raise ValueError(f"{data_type} is not valid data-type.")
+        if group not in self.inputs[data_type]:
+            self.inputs[data_type][group] = []
+        if input in self.inputs[data_type][group]:
+            logging.error(f"The input {input} is already in {group} for{data_type}.")
+            return
+        self.inputs[data_type][group].append(input)
+        if input_path is not None:
+            if data_type == "raw":
+                meeg = MEEG(input, self)
+                raw = mne.io.read_raw(input_path)
+                if input not in self.bad_channels:
+                    self.bad_channels[input] = []
+                self.bad_channels[input].append(raw.info["bads"])
+                meeg.save_raw(raw)
+            elif data_type == "fsmri":
+                dst_dir = join(self.subjects_dir, input)
+                if isdir(dst_dir):
+                    logging.info(
+                        f"Removing existing directory for fsmri data for {input}."
+                    )
+                    shutil.rmtree(dst_dir)
+                logging.info(f"Copying fsmri data for {input} to:\n {dst_dir}.")
+                shutil.copytree(input_path, dst_dir)
+                logging.info(f"FSMRI data for {input} copied to:\n {dst_dir}.")
+
+    def remove_input(self, input, data_type, group="All"):
+        """Remove an input from the inputs dictionary."""
+        if data_type not in self.input_data_types:
+            raise ValueError(f"{data_type} is not valid data-type.")
+        if group not in self.inputs[data_type]:
+            logging.error(f"Group {group} does not exist for {data_type}.")
+            return
+        if input not in self.inputs[data_type][group]:
+            logging.error(f"The input {input} is not in {group} for {data_type}.")
+            return
+        self.inputs[data_type][group].remove(input)
+        if len(self.inputs[data_type][group]) == 0:
+            del self.inputs[data_type][group]
+            # ToDo Next: Finish
 
     @property
     def bad_channels(self):
@@ -340,7 +384,6 @@ class Controller:
         if value not in self.parameters:
             raise KeyError(f"Parameter preset '{value}' not found in project.")
         self.config["parameter_preset"] = value
-        self.save_config()
 
     def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
@@ -414,6 +457,19 @@ class Controller:
         return " " * self.config.get(
             "tab_space_count", self.default_config["tab_space_count"]
         )
+
+    @property
+    def node_config(self):
+        return self._config.get("node_config", {})
+
+    @node_config.setter
+    def node_config(self, value):
+        if not isinstance(value, dict):
+            raise TypeError("Node config must be a dictionary.")
+        self._config["node_config"] = value
+        viewer = _object_refs["viewer"]
+        if viewer is not None:
+            viewer.reload_config()
 
     ####################################################################################
     # Modules

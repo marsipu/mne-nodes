@@ -507,6 +507,11 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
+    def reload_config(self):
+        self.from_dict(self.ct.node_config)
+        self.auto_layout_nodes()
+        self.zoom_to_nodes()
+
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
         if visited is None:
             visited = set()

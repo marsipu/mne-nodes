@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     def __init__(self, controller):
         super().__init__()
         _object_refs["main_window"] = self
-        self._controller = None
+        self._controller = controller
         self.settings = controller.settings
 
         # Initialize on last opened screen
@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         # Init Node-Viewer
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
+        self.viewer.reload_config()
 
         # Init Console-Widget
         self.console = ConsoleDock(controller, self)
