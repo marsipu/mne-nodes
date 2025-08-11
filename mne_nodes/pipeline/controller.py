@@ -44,7 +44,7 @@ class Controller:
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
         # config will be filled when self.config is first called
         self._config = {}
-        self._config_path = config_path or Settings().value(
+        self.config_path = config_path or Settings().value(
             "config_path", defaultValue=None
         )
         # If config_path is not specified (new user), invoke getter-method
@@ -91,7 +91,12 @@ class Controller:
     @property
     def config_path(self) -> str:
         """Path to the config-file."""
-        if self._config_path is None:
+        return self._config_path
+
+    @config_path.setter
+    def config_path(self, value):
+        """Set the path to the config-file."""
+        if value is None:
             logging.warning("No config-file path set!")
             ans = ask_user("Do you want to create a new config-file?")
             if ans:
@@ -99,8 +104,7 @@ class Controller:
                 config_folder = get_user_input(
                     "Set the folder-path to store the config-file", "folder"
                 )
-                config_path = join(config_folder, f"{self.name}_config.json")
-                self._config_path = config_path
+                self._config_path = join(config_folder, f"{self.name}_config.json")
                 self.save_config()
             else:
                 logging.info("Using existing config-file.")
@@ -109,12 +113,22 @@ class Controller:
                     "file",
                     file_filter="JSON files (*.json)",
                 )
-
-        return self._config_path
+            self.load_config()
+        elif not isfile(value):
+            raise ValueError(f"Config file {value} does not exist!")
+        else:
+            self._config_path = value
+            self._config = {}
 
     @property
     def config(self) -> Dict[str, Any]:
         """Configuration dictionary loaded from the config-file."""
+        self.load_config()
+
+        return self._config
+
+    def load_config(self):
+        """Load the configuration from the config-file."""
         if not self._config:
             with open(self.config_path) as file:
                 self._config = json.load(file, object_hook=type_json_hook)
@@ -122,7 +136,6 @@ class Controller:
         for config_key, value in self.default_config.items():
             if config_key not in self._config:
                 self._config[config_key] = value
-        return self._config
 
     def save_config(self) -> None:
         with open(self._config_path, "w") as file:

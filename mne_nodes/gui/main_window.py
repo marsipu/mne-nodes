@@ -46,16 +46,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.viewer)
 
         # Init Console-Widget
-        self.console = ConsoleDock(self)
+        self.console = ConsoleDock(controller, self)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console)
 
         # Todo: Init Node-Palette
         # ToDo: Init Menu
         # ToDo: Init Toolbar
         # ToDo: Init Infobar
-
-        # Set controller amd initialize depending structures
-        self.controller = controller
 
         # Show the main window
         self.show()
