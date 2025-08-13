@@ -92,10 +92,8 @@ def controller(tmp_path, monkeypatch):
 
 @pytest.fixture
 def main_window(controller, qtbot, nodeviewer_extended):
-    mw = MainWindow(controller)
+    mw = MainWindow(controller, nodeviewer_extended)
     qtbot.addWidget(mw)
-    node_dict = nodeviewer_extended.to_dict()
-    controller.node_config = node_dict
 
     return mw
 

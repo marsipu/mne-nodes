@@ -5,6 +5,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 
-def test_node_start(nodeviewer_extended):
-    nodeviewer_extended.show()
-    nodeviewer_extended.input_node("raw").start()
+def test_node_start(main_window):
+    start_node = main_window.viewer.input_node(data_type="raw")
+    start_node.start()

@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import mne
+from PySide6.QtCore import QProcess
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
@@ -23,7 +24,7 @@ class MainWindow(QMainWindow):
     It also provides a menubar, toolbar and a statusbar.
     """
 
-    def __init__(self, controller):
+    def __init__(self, controller, viewer=None):
         super().__init__()
         _object_refs["main_window"] = self
         self._controller = controller
@@ -41,13 +42,22 @@ class MainWindow(QMainWindow):
         set_ratio_geometry(self.settings.value("screen_ratio"), self)
         center(self)
 
+        # Init Dock options
+        # ToDo: Fix floatable dock not working as expected with node-viewer as central widget.
+        self.setDockOptions(
+            QMainWindow.DockOption.AnimatedDocks
+            | QMainWindow.DockOption.AllowNestedDocks
+            | QMainWindow.DockOption.AllowTabbedDocks
+        )
+
         # Init Node-Viewer
-        self.viewer = NodeViewer(controller, self)
+        self.viewer = viewer or NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
         self.viewer.reload_config()
 
         # Init Console-Widget
         self.console = ConsoleDock(controller, self)
+        self.console.setMaximumWidth(400)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console)
 
         # Todo: Init Node-Palette
@@ -73,15 +83,8 @@ class MainWindow(QMainWindow):
         self.console.ct = controller
 
     def start_process(self, command):
-        QProcessDialog(
-            self,
-            command,
-            show_buttons=True,
-            show_console=True,
-            close_directly=False,
-            title="Starting Process...",
-            blocking=True,
-        )
+        process = QProcess()
+        process.start(command)
 
     def restart(self):
         self.close()

@@ -119,7 +119,9 @@ class ConsoleDock(QDockWidget):
 
         self.setWidget(self.tab_widget)
         self.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+            Qt.DockWidgetArea.LeftDockWidgetArea
+            | Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetClosable

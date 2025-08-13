@@ -273,10 +273,10 @@ class Controller:
 
     @property
     def input_mapping(self):
-        """This holds the mapping of input nodes to data types (like MRI or
+        """This holds the mapping of inputs to other data types (like MRI or
         Empty- Room)."""
         if "input_mapping" not in self.config:
-            self.config["input_mapping"] = {}
+            self.config["input_mapping"] = {"fsmri": {}, "erm": {}}
         return self.config["input_mapping"]
 
     def add_input(self, input, data_type, group="All", input_path=None):
@@ -320,7 +320,17 @@ class Controller:
         self.inputs[data_type][group].remove(input)
         if len(self.inputs[data_type][group]) == 0:
             del self.inputs[data_type][group]
-            # ToDo Next: Finish
+        for dt in ["fsmri", "erm"]:
+            self.input_mapping[dt].pop(input, None)
+        if input in self.selected_inputs:
+            self.selected_inputs.remove(input)
+        self.bad_channels.pop(input, None)
+        self.event_ids.pop(input, None)
+        if data_type == "fsmri":
+            data_type_dir = join(self.subjects_dir, input)
+        else:
+            data_type_dir = join(self.data_path, input)
+        shutil.rmtree(data_type_dir, ignore_errors=True)
 
     @property
     def bad_channels(self):
@@ -748,8 +758,8 @@ class Controller:
         self.config["selected_event_ids"] = pr.sel_event_id
         self.config["ica_exclude"] = pr.meeg_ica_exclude
 
-        self.config["input_mapping"].update(pr.meeg_to_erm)
-        self.config["input_mapping"].update(pr.meeg_to_fsmri)
+        self.input_mapping["erm"].update(pr.meeg_to_erm)
+        self.input_mapping["fsmri"].update(pr.meeg_to_fsmri)
 
         self.config["parameters"].update(pr.parameters)
         self.config["parameter_preset"] = pr.parameter_preset
