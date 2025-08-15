@@ -129,3 +129,13 @@ class InteractionNode(BaseNode):
     def __init__(self, ct, **kwargs):
         super().__init__(ct, **kwargs)
         self.name = "Interaction Node"
+
+
+class ExportNode(BaseNode):
+    """This node provides a way to export the data."""
+
+    # ToDo:
+    # - Create a way to export the data to a file or a database
+    def __init__(self, ct, **kwargs):
+        super().__init__(ct, **kwargs)
+        self.name = "Export Node"
