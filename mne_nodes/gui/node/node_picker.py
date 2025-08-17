@@ -4,7 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from PySide6.QtWidgets import QDockWidget, QTabWidget
+from qtpy.QtWidgets import QDockWidget, QTabWidget
 
 
 class NodePicker(QDockWidget):

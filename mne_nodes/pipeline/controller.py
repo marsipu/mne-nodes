@@ -10,7 +10,6 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
@@ -81,6 +80,7 @@ class Controller:
         self._parameter_metas = {}
         self._input_nodes = {k: {} for k in self.input_data_types}
         self._function_nodes = {}
+        self._procs = {}
         self._errors = {}
 
         # Initialize modules
@@ -237,6 +237,33 @@ class Controller:
                 os.rename(old_path, new_path)
             self._config_path = new_path
         self._config["name"] = new_name
+
+    @property
+    def local_config_path(self):
+        """Path to the local config folder."""
+        local_config_path = Path.home() / ".mne-nodes"
+        local_config_path.mkdir(parents=True, exist_ok=True)
+
+        return local_config_path
+
+    @property
+    def viewer(self):
+        """Get the viewer object from the _object_refs dictionary."""
+        viewer = _object_refs.get("viewer", None)
+        if viewer is None:
+            raise RuntimeError(
+                "Viewer is not initialized. Please initialize the viewer first."
+            )
+        return viewer
+
+    def main_window(self):
+        """Get the main window object from the _object_refs dictionary."""
+        main_window = _object_refs.get("main_window", None)
+        if main_window is None:
+            raise RuntimeError(
+                "Main window is not initialized. Please initialize the main window first."
+            )
+        return main_window
 
     @property
     def input_data_types(self):
@@ -455,6 +482,12 @@ class Controller:
         if "plot_files" not in self.config:
             self.config["plot_files"] = {}
         return self.config["plot_files"]
+
+    def process(self, idx):
+        """Get the process for a specific index."""
+        if idx not in self._procs:
+            raise KeyError(f"Process with index {idx} not found.")
+        return self._procs[idx]
 
     @property
     def errors(self):
@@ -696,15 +729,13 @@ class Controller:
 
     def start(self, instructions):
         code = self.convert_to_code(instructions)
-        with tempfile.NamedTemporaryFile(
-            delete=False, suffix=".py", prefix="mne_nodes_", mode="w"
-        ) as file:
+        run_file_path = self.local_config_path / f"{self.name}_pipeline.py"
+        with open(run_file_path, "w") as file:
             file.write(code)
-            file_name = file.name
+        proc_idx = len(self._procs)
+        self._procs[proc_idx] = {"file": run_file_path, "status": "running"}
 
-        main_window = _object_refs.get("main_window", None)
-        if main_window is not None:
-            main_window.start_process(f"python {file_name}")
+        self.main_window.start_process(proc_idx)
 
     ####################################################################################
     # Legacy

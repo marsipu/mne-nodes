@@ -89,7 +89,7 @@ class Settings:
             self.settings = None
         else:
             self.qsettings = None
-            self.settings_path = Path.home() / ".mne-nodes" / ".mne_nodes.json"
+            self.settings_path = Path.home() / ".mne-nodes" / ".mne-nodes.json"
             self.settings = None
 
     def load_settings(self) -> None:

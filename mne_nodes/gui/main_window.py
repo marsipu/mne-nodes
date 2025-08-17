@@ -4,9 +4,11 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import sys
+
 import mne
-from PySide6.QtCore import QProcess
-from qtpy.QtCore import Qt
+
+from qtpy.QtCore import Qt, QProcess
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from mne_nodes import _object_refs, iswin
@@ -29,6 +31,9 @@ class MainWindow(QMainWindow):
         _object_refs["main_window"] = self
         self._controller = controller
         self.settings = controller.settings
+
+        # Initialize properties
+        self.qprocesses = {}
 
         # Initialize on last opened screen
         screen_name = self.settings.value("screen_name")
@@ -82,9 +87,43 @@ class MainWindow(QMainWindow):
         self.viewer.ct = controller
         self.console.ct = controller
 
-    def start_process(self, command):
-        process = QProcess()
-        process.start(command)
+    def _change_process_state(self, state, process_idx):
+        """Handle changes in the process state."""
+        if state == QProcess.ProcessState.NotRunning:
+            self.controller.process(process_idx)["state"] = "finished"
+        elif state == QProcess.ProcessState.Starting:
+            self.controller.process(process_idx)["state"] = "starting"
+        elif state == QProcess.ProcessState.Running:
+            self.controller.process(process_idx)["state"] = "running"
+        else:
+            raise RuntimeError(
+                f"Unknown process state: {state} for process {process_idx}"
+            )
+
+    def _print_process_stdout(self, process_idx):
+        pass
+
+    def _print_process_stderr(self, process_idx):
+        pass
+
+    def start_process(self, process_idx):
+        process = QProcess(self)
+        self.qprocesses[process_idx] = process
+        process.setProgram(sys.executable)
+        process.setWorkingDirectory(self.controller.config["data_path"])
+        process.stateChanged.connect(
+            lambda state: self._change_process_state(state, process_idx)
+        )
+        process.readyReadStandardOutput.connect(
+            lambda: self._print_process_stdout(process_idx)
+        )
+        process.readyReadStandardError.connect(
+            lambda: self._print_process_stderr(process_idx)
+        )
+        process.finished.connect()
+        file_path = self.controller.process(process_idx)["file_path"]
+        process.setArguments([str(file_path)])
+        process.start()
 
     def restart(self):
         self.close()

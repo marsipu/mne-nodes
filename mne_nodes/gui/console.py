@@ -9,7 +9,15 @@ import sys
 
 from qtpy.QtCore import QTimer, QObject, Signal, Qt
 from qtpy.QtGui import QTextCursor, QFont
-from qtpy.QtWidgets import QPlainTextEdit, QDockWidget, QTabWidget, QHBoxLayout, QWidget
+from qtpy.QtWidgets import (
+    QPlainTextEdit,
+    QDockWidget,
+    QTabWidget,
+    QHBoxLayout,
+    QWidget,
+    QLabel,
+    QTabBar,
+)
 
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.code_editor import PythonHighlighter
@@ -107,30 +115,6 @@ class MainConsoleWidget(ConsoleWidget):
         sys.stderr.signal.text_written.connect(self.write_stderr)
 
 
-class ConsoleDock(QDockWidget):
-    """A dock widget for the main console widget."""
-
-    def __init__(self, controller, parent=None):
-        super().__init__("Console", parent)
-        self.ct = controller
-        self.tab_widget = QTabWidget()
-        self.console_widget = ConsoleWidget()
-        self.tab_widget.addTab(self.console_widget, "Console")
-
-        self.setWidget(self.tab_widget)
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea
-            | Qt.DockWidgetArea.RightDockWidgetArea
-            | Qt.DockWidgetArea.BottomDockWidgetArea
-        )
-        self.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.error_widget = ErrorWidget(self.ct)
-        self.tab_widget.addTab(self.error_widget, "Errors")
-
-
 class StreamSignals(QObject):
     text_written = Signal(str)
 
@@ -157,6 +141,131 @@ class StdoutStderrStream(io.TextIOBase):
     def flush(self):
         if self.original_stream is not None:
             self.original_stream.flush()
+
+
+class NotificationTabs(QTabWidget):
+    """A QTabWidget with notification bubbles on the right side of each tab.
+
+    Each tab can have a notification bubble that displays a count of
+    notifications. The bubble is styled to be a small red circle with
+    white text. The bubble is visible only when the count is greater
+    than 0. The bubble can be updated to show a new count or hidden if
+    the count is 0.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.bubbles = {}
+        # Allow eliding to the right to avoid collision with the bubble
+        self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
+
+    def add_tab(self, widget, tab_name, count=0):
+        bubble = QLabel(str(count))
+        bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bubble.setStyleSheet(
+            """
+            background-color: red;
+            color: white;
+            border-radius: 8px;
+            min-width: 16px;
+            min-height: 16px;
+            font-weight: bold;
+            padding: 0 4px;
+            font-size: 10pt;
+            """
+        )
+        index = self.addTab(widget, tab_name)
+        # Wrap bubble in a right-side container with a small left margin to separate it from the text
+        bubble_container = QWidget()
+        layout = QHBoxLayout(bubble_container)
+        layout.setContentsMargins(
+            8, 0, 0, 0
+        )  # add space between tab text and bubble, keep right flush
+        layout.setSpacing(0)
+        layout.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight)
+        self.tabBar().setTabButton(
+            index, QTabBar.ButtonPosition.RightSide, bubble_container
+        )
+        self.bubbles[index] = bubble
+        bubble.setVisible(count != 0)
+
+    def set_notification(self, tab_index=None, tab_name=None, count=None):
+        """Set the notification count for a specific tab. If count is None, the
+        bubble will not be updated. If count is 0, the bubble will be hidden.
+        If count is greater than 0, the bubble will be shown with the count.
+
+        Parameters
+        ----------
+        tab_index : int
+            The index of the tab to update.
+        tab_name : str
+            The name of the tab to update. If provided, it will search for the tab by name.
+            If both tab_index and tab_name are provided, tab_index will be used.
+        count : int | None
+            The notification count to set. If None, the bubble will not be updated.
+        """
+        if tab_index is None and tab_name is not None:
+            # Resolve index by name
+            for i in range(self.count()):
+                if self.tabText(i) == tab_name:
+                    tab_index = i
+                    break
+            if tab_index is None:
+                raise ValueError(f"No tab found with name '{tab_name}'")
+        elif tab_index is None and tab_name is None:
+            raise ValueError("Either tab_index or tab_name must be provided.")
+
+        bubble = self.bubbles.get(tab_index)
+        if bubble is None:
+            raise ValueError(f"No notification label found for tab index {tab_index}")
+
+        if count is not None:
+            bubble.setText(str(count))
+        bubble.setVisible(count != 0)
+
+
+class ConsoleDock(QDockWidget):
+    """A dock widget for the main console widget."""
+
+    def __init__(self, controller, parent=None):
+        super().__init__("Console", parent)
+        self.ct = controller
+        self.tab_widget = QTabWidget()
+        self.setWidget(self.tab_widget)
+
+        # Add widget for consoles
+        self.consoles_widget = ConsoleWidget()
+        self.tab_widget.addTab(self.consoles_widget, "Console")
+
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea
+            | Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+        self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.error_widget = ErrorWidget(self.ct)
+        self.tab_widget.addTab(self.error_widget, "Errors")
+
+
+class ConsoleTabs(QTabWidget):
+    """A tab widget to hold multiple console widgets."""
+
+    def __init__(self):
+        super().__init__()
+        self.setTabsClosable(True)
+        self.setMovable(False)
+        self.setDocumentMode(True)
+
+        # Add a main console tab
+        self.main_console = MainConsoleWidget()
+        self.addTab(self.main_console, "Main Console")
+
+        # Connect the close event to remove the tab
+        self.tabCloseRequested.connect(self.remove_tab)
+
+    def remove_tab(self, index):
+        if index >= 0 and index < self.count():
+            self.removeTab(index)
 
 
 class ShowErrorWidget(QPlainTextEdit):
