@@ -9,6 +9,7 @@ import multiprocessing
 import sys
 import traceback
 from contextlib import contextmanager
+from typing import Any, Optional, Tuple
 
 from qtpy.QtCore import QObject, Signal
 
@@ -16,7 +17,7 @@ from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
 
 
 class ExceptionTuple:
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         self._data = [*args]
 
     def __getitem__(self, idx):
@@ -29,7 +30,7 @@ class ExceptionTuple:
         return self._data[2]
 
 
-def get_exception_tuple(is_mp=False):
+def get_exception_tuple(is_mp: bool = False) -> ExceptionTuple:
     traceback.print_exc()
     exctype, value = sys.exc_info()[:2]
     traceback_str = traceback.format_exc(limit=-10)

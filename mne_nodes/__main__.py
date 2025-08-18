@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import qtpy
 from qtpy.QtCore import QTimer, Qt
@@ -29,13 +30,13 @@ organization_name = "marsipu"
 domain_name = "https://github.com/marsipu/mne-nodes"
 
 
-def init_streams():
+def init_streams() -> None:
     # Redirect stdout and stderr to capture it later in GUI
     sys.stdout = StdoutStderrStream("stdout")
     sys.stderr = StdoutStderrStream("stderr")
 
 
-def init_logging(debug_mode=False):
+def init_logging(debug_mode: bool = False) -> None:
     """Initialize Root Logger."""
     logger = logging.getLogger()
     if debug_mode:
@@ -59,7 +60,7 @@ def init_logging(debug_mode=False):
     logger.addHandler(file_handler)
 
 
-def main():
+def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
     debug_mode = os.environ.get("MNENODES_DEBUG", False) == "true"
     init_logging(debug_mode)

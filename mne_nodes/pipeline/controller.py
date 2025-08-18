@@ -14,6 +14,7 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 import mne
 
@@ -50,7 +51,7 @@ class Controller:
         Dictionary containing the configuration data loaded from the config-file.
     """
 
-    def __init__(self, config_path=None):
+    def __init__(self, config_path: Optional[Union[str, Path]] = None):
         # config will be filled when self.config is first called
         self._config = {}
         self._config_path = config_path or Settings().value(
@@ -97,7 +98,7 @@ class Controller:
     # Initialization and Properties
     ####################################################################################
     @property
-    def config_path(self):
+    def config_path(self) -> str:
         """Path to the config-file."""
         if self._config_path is None:
             logging.warning("No config-file path set!")
@@ -121,7 +122,7 @@ class Controller:
         return self._config_path
 
     @property
-    def config(self):
+    def config(self) -> Dict[str, Any]:
         """Configuration dictionary loaded from the config-file."""
         if not self._config:
             with open(self.config_path) as file:
@@ -132,12 +133,12 @@ class Controller:
                 self._config[config_key] = value
         return self._config
 
-    def save_config(self):
+    def save_config(self) -> None:
         with open(self._config_path, "w") as file:
             json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
-    def data_path(self):
+    def data_path(self) -> str:
         """Path to the (processed) data directory.
 
         This contatins all data, mne-nodes works with. The original data
@@ -158,7 +159,7 @@ class Controller:
         return data_path
 
     @data_path.setter
-    def data_path(self, value):
+    def data_path(self, value: Optional[Union[str, Path]]) -> None:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
@@ -337,7 +338,7 @@ class Controller:
         self.config["parameter_preset"] = value
         self.save_config()
 
-    def get_default(self, parameter_name):
+    def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
         parameter_meta = self.parameter_metas.get(parameter_name, None)
         if parameter_meta is None:
@@ -346,7 +347,7 @@ class Controller:
 
         return default_value
 
-    def parameter(self, parameter_name, parameter_preset=None):
+    def parameter(self, parameter_name: str, parameter_preset: Optional[str] = None) -> Any:
         """Get a specific parameter from the project parameters."""
         parameter_preset = parameter_preset or self.parameter_preset
         if parameter_preset not in self.parameters:
@@ -436,7 +437,7 @@ class Controller:
         # Load the config file for the basic module
         self._load_module_config(module_name, pkg_path)
 
-    def load_basic_modules(self):
+    def load_basic_modules(self) -> None:
         """Load the basic modules from the basic_operations package."""
         for module in [basic_operations, basic_plot]:
             module_name = module.__name__.split(".")[-1]  # Get the module name
@@ -444,13 +445,13 @@ class Controller:
             pkg_path = Path(module.__file__).parent
             self._load_module_config(module_name, pkg_path)
 
-    def load_custom_modules(self):
+    def load_custom_modules(self) -> None:
         """Load custom modules from their config files."""
         for module_name, config_file_path in self.custom_module_meta.items():
             pkg_path = Path(config_file_path).parent
             self._import_module(module_name, pkg_path)
 
-    def add_custom_module(self, config_file_path):
+    def add_custom_module(self, config_file_path: Union[str, Path]):
         """Add a custom module to the controller.
 
         Parameters
@@ -470,7 +471,7 @@ class Controller:
         self.custom_module_meta[module_name] = config_file_path
         self.load_custom_modules()
 
-    def reload_modules(self, module_name=None):
+    def reload_modules(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
 
         This method reloads the selected module or all modules in the controller by removing them from sys.modules
@@ -522,7 +523,7 @@ class Controller:
             # Update the module in the controller
             self._modules[module_name] = new_module
 
-    def get_meta(self, name):
+    def get_meta(self, name: str) -> Dict[str, Any]:
         """Get the metadata for a specific parameter or function."""
         if name in self.parameter_metas:
             return self.parameter_metas[name]
@@ -531,7 +532,7 @@ class Controller:
         else:
             raise KeyError(f"Metadata for '{name}' not found in project.")
 
-    def get_function_code(self, function_name):
+    def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
         module_name = self.get_meta(function_name)["module"]
         module = self.modules[module_name]

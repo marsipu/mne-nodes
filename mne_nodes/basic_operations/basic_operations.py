@@ -15,6 +15,7 @@ from functools import reduce
 from itertools import combinations
 from os import environ
 from os.path import isdir, isfile, join
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import autoreject as ar
 import mne
@@ -23,7 +24,7 @@ import numpy as np
 from mne.preprocessing import ICA, find_bad_channels_maxwell
 from mne_connectivity import SpectralConnectivity
 
-from mne_nodes.pipeline.loading import MEEG, FSMRI
+from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 from mne_nodes.pipeline.pipeline_utils import check_kwargs, compare_filep, get_n_jobs
 from mne_nodes import ismac, iswin
 
@@ -32,7 +33,7 @@ from mne_nodes import ismac, iswin
 # =============================================================================
 # PREPROCESSING AND GETTING TO EVOKED AND TFR
 # =============================================================================
-def find_bads(meeg, n_jobs, **kwargs):
+def find_bads(meeg: "MEEG", n_jobs: int, **kwargs) -> None:
     raw = meeg.load_raw()
 
     if raw.info["dev_head_t"] is None:
@@ -53,25 +54,25 @@ def find_bads(meeg, n_jobs, **kwargs):
 
 
 def filter_data(
-    meeg,
-    filter_target,
-    highpass,
-    lowpass,
-    filter_length,
-    l_trans_bandwidth,
-    h_trans_bandwidth,
-    filter_method,
-    iir_params,
-    fir_phase,
-    fir_window,
-    fir_design,
-    skip_by_annotation,
-    fir_pad,
-    n_jobs,
-    enable_cuda,
-    erm_t_limit,
-    bad_interpolation,
-):
+    meeg: "MEEG",
+    filter_target: str,
+    highpass: Optional[float],
+    lowpass: Optional[float],
+    filter_length: str,
+    l_trans_bandwidth: str,
+    h_trans_bandwidth: str,
+    filter_method: str,
+    iir_params: Optional[Dict[str, Any]],
+    fir_phase: str,
+    fir_window: str,
+    fir_design: str,
+    skip_by_annotation: List[str],
+    fir_pad: str,
+    n_jobs: int,
+    enable_cuda: bool,
+    erm_t_limit: float,
+    bad_interpolation: str,
+) -> None:
     # ToDo: Make Parameter comparison a default feature for all functions
     # Compare Parameters from last run
     filtered_path = meeg.io_dict[filter_target]["path"]
@@ -189,14 +190,14 @@ def filter_data(
         print("no erm_file assigned")
 
 
-def notch_filter(meeg, notch_frequencies, n_jobs):
+def notch_filter(meeg: "MEEG", notch_frequencies: Union[float, List[float]], n_jobs: int) -> None:
     raw_filtered = meeg.load_filtered()
 
     raw_filtered = raw_filtered.notch_filter(notch_frequencies, n_jobs=1)
     meeg.save_filtered(raw_filtered)
 
 
-def interpolate_bads(meeg, bad_interpolation):
+def interpolate_bads(meeg: "MEEG", bad_interpolation: str) -> None:
     data = meeg.load(bad_interpolation)
 
     if bad_interpolation == "evoked":
@@ -213,8 +214,15 @@ def interpolate_bads(meeg, bad_interpolation):
 
 
 def add_erm_ssp(
-    meeg, erm_ssp_duration, erm_n_grad, erm_n_mag, erm_n_eeg, n_jobs, show_plots
-):
+    meeg: "MEEG", erm_ssp_duration: float, erm_n_grad: int, erm_n_mag: int, 
+    meeg: "MEEG",
+    erm_ssp_duration: float,
+    erm_n_grad: int,
+    erm_n_mag: int,
+    erm_n_eeg: int,
+    n_jobs: int,
+    show_plots: bool,
+) -> None:
     raw_filtered = meeg.load_filtered()
     erm_filtered = meeg.load_erm_processed()
 
@@ -242,7 +250,7 @@ def add_erm_ssp(
     meeg.plot_save("ssp_erm", matplotlib_figure=fig)
 
 
-def eeg_reference_raw(meeg, ref_channels):
+def eeg_reference_raw(meeg: "MEEG", ref_channels: Union[str, List[str]]) -> None:
     raw_filtered = meeg.load_filtered()
 
     if ref_channels == "REST":
@@ -262,8 +270,9 @@ def eeg_reference_raw(meeg, ref_channels):
 
 
 def find_events(
-    meeg, stim_channels, min_duration, shortest_event, adjust_timeline_by_msec
-):
+    meeg: "MEEG", stim_channels: Union[str, List[str]], min_duration: float, 
+    shortest_event: int, adjust_timeline_by_msec: float
+) -> None:
     raw = meeg.load_raw()  # No copy to consume less memory
 
     events = mne.find_events(
@@ -288,7 +297,7 @@ def find_events(
         print("No events found")
 
 
-def find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_by_msec):
+def find_6ch_binary_events(meeg: "MEEG", min_duration: float, shortest_event: int, adjust_timeline_by_msec: float) -> None:
     raw = meeg.load_raw()  # No copy to consume less memory
 
     # Binary Coding of 6 Stim Channels in Biomagenetism Lab Heidelberg
@@ -484,23 +493,23 @@ def find_6ch_binary_events(meeg, min_duration, shortest_event, adjust_timeline_b
 
 
 def epoch_raw(
-    meeg,
-    ch_types,
-    ch_names,
-    t_epoch,
-    baseline,
-    apply_proj,
-    reject,
-    flat,
-    reject_by_annotation,
-    bad_interpolation,
-    use_autoreject,
-    consensus_percs,
-    n_interpolates,
-    overwrite_ar,
-    decim,
-    n_jobs,
-):
+    meeg: "MEEG",
+    ch_types: List[str],
+    ch_names: Union[str, List[str]],
+    t_epoch: Tuple[float, float],
+    baseline: Optional[Tuple[float, float]],
+    apply_proj: bool,
+    reject: Optional[Dict[str, float]],
+    flat: Optional[Dict[str, float]],
+    reject_by_annotation: List[str],
+    bad_interpolation: Optional[str],
+    use_autoreject: bool,
+    consensus_percs: Optional[List[float]],
+    n_interpolates: Optional[List[int]],
+    overwrite_ar: bool,
+    decim: int,
+    n_jobs: int,
+) -> None:
     raw_filtered = meeg.load_filtered()
     events = meeg.load_events()
 
@@ -584,24 +593,24 @@ def epoch_raw(
 
 
 def run_ica(
-    meeg,
-    ica_method,
-    ica_fitto,
-    n_components,
-    ica_noise_cov,
-    ica_remove_proj,
-    ica_reject,
-    ica_autoreject,
-    overwrite_ar,
-    ch_types,
-    ch_names,
-    reject_by_annotation,
-    ica_eog,
-    eog_channel,
-    ica_ecg,
-    ecg_channel,
-    **kwargs,
-):
+    meeg: "MEEG",
+    ica_method: str,
+    ica_fitto: str,
+    n_components: Optional[int],
+    ica_noise_cov: bool,
+    ica_remove_proj: bool,
+    ica_reject: Optional[Dict[str, float]],
+    ica_autoreject: bool,
+    overwrite_ar: bool,
+    ch_types: List[str],
+    ch_names: Union[str, List[str]],
+    reject_by_annotation: List[str],
+    ica_eog: bool,
+    eog_channel: Union[str, List[str]],
+    ica_ecg: bool,
+    ecg_channel: Union[str, List[str]],
+    **kwargs: Any,
+) -> None:
     data = meeg.load(ica_fitto)
     # Bad-Channels and Channel-Types are already picked in epochs
     if ica_fitto != "epochs":
@@ -755,7 +764,7 @@ def run_ica(
     meeg.pr.meeg_ica_exclude[meeg.name] = ica.exclude
 
 
-def apply_ica(meeg, ica_apply_target, n_pca_components):
+def apply_ica(meeg: "MEEG", ica_apply_target: str, n_pca_components: Optional[int]) -> None:
     # Check file-parameters to make sure,
     # that ica is not applied twice in a row
 
@@ -786,7 +795,7 @@ def apply_ica(meeg, ica_apply_target, n_pca_components):
                 meeg.save_erm_processed(erm_data)
 
 
-def get_evokeds(meeg, detrend_order):
+def get_evokeds(meeg: "MEEG", detrend_order: Optional[int]) -> None:
     meeg.load_epochs()
     evokeds = []
     for trial, epoch in meeg.get_trial_epochs():
@@ -803,7 +812,7 @@ def get_evokeds(meeg, detrend_order):
     meeg.save_evokeds(evokeds)
 
 
-def calculate_gfp(evoked):
+def calculate_gfp(evoked: Any) -> np.ndarray:
     ch_types = evoked.get_channel_types(unique=True, only_data_chs=True)
     gfp_dict = {}
     for ch_type in ch_types:
@@ -814,7 +823,7 @@ def calculate_gfp(evoked):
     return gfp_dict
 
 
-def grand_avg_evokeds(group, ga_interpolate_bads, ga_drop_bads):
+def grand_avg_evokeds(group: "Group", ga_interpolate_bads: bool, ga_drop_bads: bool) -> None:
     trial_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
@@ -853,7 +862,7 @@ def grand_avg_evokeds(group, ga_interpolate_bads, ga_drop_bads):
     group.save_ga_evokeds(ga_evokeds)
 
 
-def compute_psd_raw(meeg, psd_method, n_jobs, **kwargs):
+def compute_psd_raw(meeg: "MEEG", psd_method: str, n_jobs: int, **kwargs: Any) -> None:
     raw = meeg.load_filtered()
     psd_raw = raw.compute_psd(
         method=psd_method, fmax=raw.info["lowpass"], n_jobs=n_jobs, **kwargs
@@ -861,7 +870,7 @@ def compute_psd_raw(meeg, psd_method, n_jobs, **kwargs):
     meeg.save_psd_raw(psd_raw)
 
 
-def compute_psd_epochs(meeg, psd_method, n_jobs, **kwargs):
+def compute_psd_epochs(meeg: "MEEG", psd_method: str, n_jobs: int, **kwargs: Any) -> None:
     epochs = meeg.load_epochs()
     psd_epochs = epochs.compute_psd(
         method=psd_method, fmax=epochs.info["lowpass"], n_jobs=n_jobs, **kwargs
@@ -870,19 +879,19 @@ def compute_psd_epochs(meeg, psd_method, n_jobs, **kwargs):
 
 
 def tfr(
-    meeg,
-    tfr_freqs,
-    tfr_n_cycles,
-    tfr_average,
-    tfr_use_fft,
-    tfr_baseline,
-    tfr_baseline_mode,
-    tfr_method,
-    multitaper_bandwidth,
-    stockwell_width,
-    n_jobs,
-    **kwargs,
-):
+    meeg: "MEEG",
+    tfr_freqs: List[float],
+    tfr_n_cycles: Union[float, List[float]],
+    tfr_average: bool,
+    tfr_use_fft: bool,
+    tfr_baseline: Optional[Tuple[float, float]],
+    tfr_baseline_mode: str,
+    tfr_method: str,
+    multitaper_bandwidth: Optional[float],
+    stockwell_width: float,
+    n_jobs: int,
+    **kwargs: Any,
+) -> None:
     powers = []
     itcs = []
 
@@ -963,7 +972,7 @@ def tfr(
         meeg.save_itc_tfr_average(itcs_ave)
 
 
-def grand_avg_tfr(group):
+def grand_avg_tfr(group: Group) -> None:
     trial_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
@@ -1006,7 +1015,7 @@ def grand_avg_tfr(group):
 # ==============================================================================
 # These functions do not work on Windows
 # local function used in the bash commands below
-def run_freesurfer_subprocess(command, subjects_dir, fs_path, mne_path=None):
+def run_freesurfer_subprocess(command: List[str], subjects_dir: str, fs_path: str, mne_path: Optional[str] = None) -> None:
     # Several experiments with subprocess showed,
     # that it seems impossible to run commands like "source" from
     # a subprocess to get SetUpFreeSurfer.sh into the environment.
@@ -1072,7 +1081,7 @@ def run_freesurfer_subprocess(command, subjects_dir, fs_path, mne_path=None):
             sys.stdout.write(stdout_line)
 
 
-def apply_watershed(fsmri):
+def apply_watershed(fsmri: "FSMRI") -> None:
     print(
         "Running Watershed algorithm for: "
         + fsmri.name
@@ -1110,7 +1119,7 @@ def apply_watershed(fsmri):
             print(f"{dst} was created")
 
 
-def make_dense_scalp_surfaces(fsmri):
+def make_dense_scalp_surfaces(fsmri: "FSMRI") -> None:
     print(
         "Making dense scalp surfacing easing co-registration for "
         + "subject: "
@@ -1138,7 +1147,7 @@ def make_dense_scalp_surfaces(fsmri):
 # ==============================================================================
 
 
-def setup_src(fsmri, src_spacing, surface, n_jobs):
+def setup_src(fsmri: "FSMRI", src_spacing: str, surface: str, n_jobs: int) -> None:
     src = mne.setup_source_space(
         fsmri.name,
         spacing=src_spacing,
@@ -1150,7 +1159,7 @@ def setup_src(fsmri, src_spacing, surface, n_jobs):
     fsmri.save_source_space(src)
 
 
-def setup_vol_src(fsmri, vol_src_spacing):
+def setup_vol_src(fsmri: "FSMRI", vol_src_spacing: float) -> None:
     bem = fsmri.load_bem_solution()
     vol_src = mne.setup_volume_source_space(
         fsmri.name, pos=vol_src_spacing, bem=bem, subjects_dir=fsmri.subjects_dir
@@ -1158,13 +1167,13 @@ def setup_vol_src(fsmri, vol_src_spacing):
     fsmri.save_volume_source_space(vol_src)
 
 
-def compute_src_distances(fsmri, n_jobs):
+def compute_src_distances(fsmri: "FSMRI", n_jobs: int) -> None:
     src = fsmri.load_source_space()
     src_computed = mne.add_source_space_distances(src, n_jobs=n_jobs)
     fsmri.save_source_space(src_computed)
 
 
-def prepare_bem(fsmri, bem_spacing, bem_conductivity):
+def prepare_bem(fsmri: "FSMRI", bem_spacing: str, bem_conductivity: List[float]) -> None:
     bem_model = mne.make_bem_model(
         fsmri.name,
         subjects_dir=fsmri.subjects_dir,
@@ -1177,7 +1186,7 @@ def prepare_bem(fsmri, bem_spacing, bem_conductivity):
     fsmri.save_bem_solution(bem_solution)
 
 
-def morph_fsmri(meeg, morph_to):
+def morph_fsmri(meeg: "MEEG", morph_to: str) -> None:
     if meeg.fsmri.name != morph_to:
         forward = meeg.load_forward()
         fsmri_to = FSMRI(morph_to, meeg.ct)
@@ -1197,7 +1206,7 @@ def morph_fsmri(meeg, morph_to):
         )
 
 
-def morph_labels_from_fsaverage(fsmri):
+def morph_labels_from_fsaverage(fsmri: "FSMRI") -> None:
     parcellations = ["aparc_sub", "HCPMMP1_combined", "HCPMMP1"]
     if not isfile(
         join(fsmri.subjects_dir, "fsaverage/label", "lh." + parcellations[0] + ".annot")
@@ -1236,7 +1245,7 @@ def morph_labels_from_fsaverage(fsmri):
         print(f"{parcellations} already exist")
 
 
-def create_forward_solution(meeg, n_jobs, ch_types):
+def create_forward_solution(meeg: "MEEG", n_jobs: int, ch_types: List[str]) -> None:
     info = meeg.load_info()
     trans = meeg.load_transformation()
     bem = meeg.fsmri.load_bem_solution()
@@ -1253,8 +1262,14 @@ def create_forward_solution(meeg, n_jobs, ch_types):
 
 
 def estimate_noise_covariance(
-    meeg, baseline, n_jobs, noise_cov_mode, noise_cov_method, **kwargs
-):
+    meeg: "MEEG", baseline: Tuple[float, float], n_jobs: int, noise_cov_mode: str, 
+    meeg: "MEEG",
+    baseline: Tuple[float, float],
+    n_jobs: int,
+    noise_cov_mode: str,
+    noise_cov_method: str,
+    **kwargs: Any,
+) -> None:
     # ToDo: method='factor_analysis' can only be used with rank='full'
     if noise_cov_mode == "epochs" or meeg.erm is None:
         print("Noise Covariance on epochs-Baseline")
@@ -1285,7 +1300,7 @@ def estimate_noise_covariance(
         meeg.save_noise_covariance(noise_covariance)
 
 
-def create_inverse_operator(meeg):
+def create_inverse_operator(meeg: "MEEG") -> None:
     info = meeg.load_info()
     noise_covariance = meeg.load_noise_covariance()
     forward = meeg.load_forward()
@@ -1296,7 +1311,7 @@ def create_inverse_operator(meeg):
     meeg.save_inverse_operator(inverse_operator)
 
 
-def source_estimate(meeg, inverse_method, pick_ori, lambda2):
+def source_estimate(meeg: "MEEG", inverse_method: str, pick_ori: Optional[str], lambda2: float) -> None:
     inverse_operator = meeg.load_inverse_operator()
     evokeds = meeg.load_evokeds()
 
@@ -1310,7 +1325,7 @@ def source_estimate(meeg, inverse_method, pick_ori, lambda2):
     meeg.save_source_estimates(stcs)
 
 
-def label_time_course(meeg, target_labels, extract_mode):
+def label_time_course(meeg: "MEEG", target_labels: List[str], extract_mode: str) -> None:
     if len(target_labels) == 0:
         raise RuntimeError(
             "No labels selected for label time course extraction. "
@@ -1342,7 +1357,7 @@ def label_time_course(meeg, target_labels, extract_mode):
 # Todo: Make mixed-norm more customizable
 
 
-def mixed_norm_estimate(meeg, pick_ori, inverse_method):
+def mixed_norm_estimate(meeg: "MEEG", pick_ori: Optional[str], inverse_method: str) -> None:
     evokeds = meeg.load_evokeds()
     forward = meeg.load_forward()
     noise_cov = meeg.load_noise_covariance()
@@ -1410,7 +1425,7 @@ def mixed_norm_estimate(meeg, pick_ori, inverse_method):
 #  (better responsivness of GUI during fit, when running in QThread)
 
 
-def ecd_fit(meeg, ecd_times, ecd_positions, ecd_orientations, t_epoch):
+def ecd_fit(meeg: "MEEG", ecd_times: List[float], ecd_positions: Optional[List[List[float]]], ecd_orientations: Optional[List[List[float]]], t_epoch: Tuple[float, float]) -> None:
     try:
         ecd_time = ecd_times[meeg.name]
     except KeyError:
@@ -1469,7 +1484,7 @@ def ecd_fit(meeg, ecd_times, ecd_positions, ecd_orientations, t_epoch):
     meeg.save_ecd(ecd_dips)
 
 
-def apply_morph(meeg, morph_to):
+def apply_morph(meeg: "MEEG", morph_to: str) -> None:
     if meeg.fsmri.name != morph_to:
         stcs = meeg.load_source_estimates()
         morph = meeg.load_source_morph()
@@ -1485,16 +1500,16 @@ def apply_morph(meeg, morph_to):
 
 
 def src_connectivity(
-    meeg,
-    target_labels,
-    inverse_method,
-    lambda2,
-    con_methods,
-    con_fmin,
-    con_fmax,
-    con_time_window,
-    n_jobs,
-):
+    meeg: "MEEG",
+    target_labels: List[str],
+    inverse_method: str,
+    lambda2: float,
+    con_methods: List[str],
+    con_fmin: float,
+    con_fmax: float,
+    con_time_window: Optional[Tuple[float, float]],
+    n_jobs: int,
+) -> None:
     if len(target_labels) == 0:
         raise RuntimeError(
             "No labels selected for connectivity estimation. "
@@ -1565,7 +1580,7 @@ def src_connectivity(
     meeg.save_connectivity(con_dict)
 
 
-def grand_avg_morphed(group, morph_to):
+def grand_avg_morphed(group: Group, morph_to: str) -> None:
     # for less memory only import data from stcs and add it to one
     # stc in the end!!!
     n_chunks = 8
@@ -1624,7 +1639,7 @@ def grand_avg_morphed(group, morph_to):
     group.save_ga_stc(ga_stcs)
 
 
-def grand_avg_ltc(group):
+def grand_avg_ltc(group: Group) -> None:
     ltc_average_dict = {}
     times = None
     for name in group.group_list:
@@ -1658,7 +1673,7 @@ def grand_avg_ltc(group):
     group.save_ga_ltc(ga_ltc)
 
 
-def grand_avg_connect(group):
+def grand_avg_connect(group: Group) -> None:
     # Prepare the Average-Dict
     con_average_dict = {}
     for name in group.group_list:
@@ -1695,7 +1710,7 @@ def grand_avg_connect(group):
     group.save_ga_con(ga_con_dict)
 
 
-def print_info(meeg):
+def print_info(meeg: "MEEG") -> None:
     print(meeg.load_info())
     for n in range(20):
         print(f"\r{n}", end="")
