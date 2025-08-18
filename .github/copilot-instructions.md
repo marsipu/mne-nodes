@@ -82,17 +82,12 @@ pytest mne_nodes/tests/test_nodes.py
 mne_nodes
 # OR: python -m mne_nodes
 
-# Headless mode (no GUI)
-mne_nodes --nogui
-# OR: python -m mne_nodes --nogui
-
 # Debug mode (set environment variable)
 MNENODES_DEBUG=true mne_nodes
 ```
 
 **Application Notes:**
 - GUI mode requires Qt backend and display
-- Headless mode is for scripting/automation
 - Debug mode enables detailed logging
 - Application supports both PyQt6 and PySide6 backends
 
@@ -155,12 +150,6 @@ print(f'Package loaded, GUI mode: {mne_nodes.gui_mode}')
 print(f'Platform: Linux={mne_nodes.islin}, Mac={mne_nodes.ismac}, Win={mne_nodes.iswin}')
 "
 
-# Test syntax compilation
-python -m py_compile mne_nodes/__main__.py
-
-# Compile all Python files
-find mne_nodes -name "*.py" -exec python -m py_compile {} \;
-
 # Note: Full functionality requires Qt backend installation
 # After installing PySide6/PyQt6, test with: python -c "import mne_nodes.__main__"
 ```
@@ -169,9 +158,6 @@ find mne_nodes -name "*.py" -exec python -m py_compile {} \;
 ```bash
 # Test application help
 python -m mne_nodes --help
-
-# Test headless mode startup
-timeout 30 python -m mne_nodes --nogui
 ```
 
 ### Development Workflow Testing
