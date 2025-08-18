@@ -22,7 +22,7 @@ Outdated instructions can lead to development workflow issues and should be upda
 
 Install development environment:
 ```bash
-# Install Qt backend first (choose one)
+# Install exactly one Qt backend (required dependency)
 pip install PySide6  # Recommended
 # OR: pip install PyQt6
 
