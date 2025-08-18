@@ -12,6 +12,7 @@ from os import mkdir
 from os.path import isfile, isdir
 from pathlib import Path
 from types import NoneType
+from typing import Any, Dict, List, Optional, Union
 
 from mne_nodes import gui_mode
 from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder
@@ -67,7 +68,7 @@ class Settings:
     The class is independent of PyQt/PySide.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.default_qsettings = default_device_settings.copy()
         self.supported_types = [
             int,
@@ -91,7 +92,7 @@ class Settings:
             self.settings_path = Path.home() / ".mne-nodes" / ".mne_nodes.json"
             self.settings = None
 
-    def load_settings(self):
+    def load_settings(self) -> None:
         """Load settings from the JSON file if Qt is not available."""
         if not hasattr(self, "settings"):
             self.settings = deepcopy(self.default_qsettings)
@@ -101,20 +102,20 @@ class Settings:
         else:
             self.settings = deepcopy(self.default_qsettings)
 
-    def write_settings(self):
+    def write_settings(self) -> None:
         """Write settings to the JSON file if Qt is not available."""
         if not isdir(self.settings_path.parent):
             mkdir(self.settings_path.parent)
         with open(self.settings_path, "w") as file:
             json.dump(self.settings, file, indent=4, cls=TypedJSONEncoder)
 
-    def get_default(self, name):
+    def get_default(self, name: str) -> Any:
         if name in self.default_qsettings:
             return self.default_qsettings[name]
         logging.warning(f"Setting '{name}' not found in default settings.")
         return None
 
-    def value(self, setting, defaultValue=None):
+    def value(self, setting: str, defaultValue: Any = None) -> Any:
         if gui_mode:
             loaded_value = self.qsettings.value(
                 setting,
@@ -143,7 +144,7 @@ class Settings:
             else:
                 return defaultValue
 
-    def setValue(self, setting, value):
+    def setValue(self, setting: str, value: Any) -> None:
         if not any(isinstance(value, t) for t in self.supported_types):
             raise TypeError(
                 f"Unsupported type {type(value)} for setting '{setting}'. "
@@ -163,21 +164,21 @@ class Settings:
             self.settings[setting] = value
             self.write_settings()
 
-    def sync(self):
+    def sync(self) -> None:
         if gui_mode:
             self.qsettings.sync()
         else:
             self.write_settings()
             self.load_settings()
 
-    def childKeys(self):
+    def childKeys(self) -> List[str]:
         if gui_mode:
             return self.qsettings.childKeys()
         else:
             self.load_settings()
             return self.settings.keys()
 
-    def remove(self, setting):
+    def remove(self, setting: str) -> None:
         if gui_mode:
             self.qsettings.remove(setting)
         else:

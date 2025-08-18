@@ -15,6 +15,7 @@ from functools import reduce
 from itertools import combinations
 from os import environ
 from os.path import isdir, isfile, join
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import autoreject as ar
 import mne
@@ -32,7 +33,7 @@ from mne_nodes import ismac, iswin
 # =============================================================================
 # PREPROCESSING AND GETTING TO EVOKED AND TFR
 # =============================================================================
-def find_bads(meeg, n_jobs, **kwargs):
+def find_bads(meeg: "MEEG", n_jobs: int, **kwargs) -> None:
     raw = meeg.load_raw()
 
     if raw.info["dev_head_t"] is None:
@@ -189,14 +190,14 @@ def filter_data(
         print("no erm_file assigned")
 
 
-def notch_filter(meeg, notch_frequencies, n_jobs):
+def notch_filter(meeg: "MEEG", notch_frequencies: Union[float, List[float]], n_jobs: int) -> None:
     raw_filtered = meeg.load_filtered()
 
     raw_filtered = raw_filtered.notch_filter(notch_frequencies, n_jobs=1)
     meeg.save_filtered(raw_filtered)
 
 
-def interpolate_bads(meeg, bad_interpolation):
+def interpolate_bads(meeg: "MEEG", bad_interpolation: str) -> None:
     data = meeg.load(bad_interpolation)
 
     if bad_interpolation == "evoked":

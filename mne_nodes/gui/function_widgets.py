@@ -35,7 +35,7 @@ from mne_nodes.pipeline.exception_handling import get_exception_tuple
 
 
 class EditGuiArgsDlg(QDialog):
-    def __init__(self, cf_dialog):
+    def __init__(self, cf_dialog) -> None:
         super().__init__(cf_dialog)
         self.cf = cf_dialog
         self.gui_args = {}
@@ -104,7 +104,7 @@ class EditGuiArgsDlg(QDialog):
 
 
 class ChooseOptions(QDialog):
-    def __init__(self, cf_dialog, gui_type, options):
+    def __init__(self, cf_dialog, gui_type: str, options: List[str]) -> None:
         super().__init__(cf_dialog)
         self.cf = cf_dialog
         self.gui_type = gui_type
@@ -142,7 +142,7 @@ class ChooseOptions(QDialog):
 
 
 class ImportFuncs(QDialog):
-    def __init__(self, cf_dialog, edit_existing=False):
+    def __init__(self, cf_dialog, edit_existing: bool = False) -> None:
         super().__init__(cf_dialog)
         self.cf = cf_dialog
         self.edit_existing = edit_existing
