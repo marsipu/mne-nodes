@@ -134,7 +134,7 @@ make html
 
 # View documentation locally
 make view
-# OR: python -c "import webbrowser; webbrowser.open_new_tab('file://$(pwd)/build/html/index.html')"
+# OR: python -c "import webbrowser, os; webbrowser.open_new_tab(f'file://{os.getcwd()}/build/html/index.html')"
 
 # Clean build
 make clean
