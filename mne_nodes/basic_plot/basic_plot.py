@@ -7,6 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import itertools
 from functools import partial
 from os.path import join
+from typing import Any, Callable, Optional
 
 import matplotlib.pyplot as plt
 import mne
@@ -27,14 +28,14 @@ from mne_nodes.basic_operations import basic_operations as op
 # ==============================================================================
 # PLOTTING FUNCTIONS
 # ==============================================================================
-def _save_raw_on_close(_, meeg, raw, raw_type):
+def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
     # Save bad-channels
     meeg.set_bad_channels(raw.info["bads"])
     # Save raw for annotations
     meeg.save(raw_type, raw)
 
 
-def plot_raw(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
+def plot_raw(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_raw_on_close, **kwargs) -> None:
     raw = meeg.load_raw()
 
     try:
