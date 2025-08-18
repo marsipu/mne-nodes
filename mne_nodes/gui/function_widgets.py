@@ -12,6 +12,7 @@ from importlib import util
 from os import mkdir
 from os.path import isdir, isfile, join
 from types import FunctionType
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from qtpy.QtCore import Qt

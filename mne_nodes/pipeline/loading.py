@@ -16,6 +16,7 @@ from datetime import datetime
 from os import listdir, makedirs
 from os.path import exists, getsize, isdir, isfile, join
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import mne
@@ -36,7 +37,7 @@ from mne_nodes.pipeline.settings import Settings
 # - bids-apps/freesurfer might be also interesting
 
 
-def _get_data_type_from_func(self, func, method):
+def _get_data_type_from_func(self, func, method: str) -> str:
     # Get matching data-type from IO-Dict
     func_name = func.__name__
     data_type = None
@@ -154,7 +155,7 @@ class BaseLoading:
     """Base-Class for Sub (The current File/MRI-File/Grand-Average-Group, which
     is executed)"""
 
-    def __init__(self, name, controller):
+    def __init__(self, name: Optional[str], controller):
         # Basic Attributes (partly taking parameters or main-win-attributes
         # for easier access)
         self.name = name
@@ -282,7 +283,7 @@ class BaseLoading:
 
         self.save_file_parameter_file()
 
-    def clean_file_parameters(self):
+    def clean_file_parameters(self) -> None:
         remove_files = []
         n_remove_params = 0
         for file_name in self.file_parameters:
@@ -465,20 +466,20 @@ class BaseLoading:
             logging.info('Not saving plots; set "save_plots" to "True" to save')
 
     # ToDo: Should have load-decorator!
-    def load(self, data_type, **kwargs):
+    def load(self, data_type: str, **kwargs) -> Any:
         """General load function with data_type as parameter."""
         load_func = self.io_dict[data_type]["load"]
         if load_func is not None:
             return load_func(**kwargs)
 
     # Should have save-decorator!
-    def save(self, data_type, data, **kwargs):
+    def save(self, data_type: str, data: Any, **kwargs) -> None:
         """General save function with data_type as parameter."""
         save_func = self.io_dict[data_type]["save"]
         if save_func is not None:
             save_func(data, **kwargs)
 
-    def load_json(self, file_name, default=None):
+    def load_json(self, file_name: str, default: Any = None) -> Any:
         file_path = join(self.save_dir, f"{self.name}_{self.p_preset}_{file_name}.json")
         try:
             with open(file_path) as file:
@@ -492,7 +493,7 @@ class BaseLoading:
 
         return data
 
-    def save_json(self, file_name, data):
+    def save_json(self, file_name: str, data: Any) -> None:
         # If file-ending is supplied, remove it to avoid doubling
         if file_name[-5:] == ".json":
             file_name = file_name[:-5]
@@ -1658,7 +1659,7 @@ class FSMRI(BaseLoading):
 
 
 class Group(BaseLoading):
-    def __init__(self, name, controller, suppress_warnings=True):
+    def __init__(self, name: str, controller, suppress_warnings: bool = True):
         self.suppress_warnings = suppress_warnings
         super().__init__(name, controller)
 

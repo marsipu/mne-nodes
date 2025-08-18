@@ -12,6 +12,7 @@ import sys
 from collections import OrderedDict
 from importlib import import_module
 from multiprocessing import Pipe
+from typing import Any, Dict, List, Optional, Tuple
 
 from matplotlib import pyplot as plt
 from qtpy.QtCore import QThreadPool, QRunnable, Slot, QObject, Signal
@@ -164,7 +165,7 @@ class RunController:
 
         self.init_lists()
 
-    def init_lists(self):
+    def init_lists(self) -> None:
         # Lists dividing the
         self.meeg_funcs = self.ct.pd_funcs[self.ct.pd_funcs["target"] == "MEEG"]
         self.fsmri_funcs = self.ct.pd_funcs[self.ct.pd_funcs["target"] == "FSMRI"]
@@ -237,7 +238,7 @@ class RunController:
             status
         )
 
-    def get_object(self):
+    def get_object(self) -> None:
         self.current_type = self.all_objects[self.current_obj_name]["type"]
 
         # Load object if the preceding object is not the same

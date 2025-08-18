@@ -7,11 +7,12 @@ Github: https://github.com/marsipu/mne-nodes
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, Generator, List, Union
 
 import numpy as np
 
 
-def encode_tuples(input_dict):
+def encode_tuples(input_dict: Dict[str, Any]) -> Dict[str, Any]:
     """Encode tuples in a dictionary, because JSON does not recognize them."""
     encoded_dict = input_dict.copy()
     for key, value in input_dict.items():
@@ -31,7 +32,7 @@ class TypedJSONEncoder(json.JSONEncoder):
     """Custom JSON Encoder to handle specific types like numpy arrays,
     datetime, etc. Dictionaries are expected to have string-keys."""
 
-    def default(self, o):
+    def default(self, o: Any) -> Any:
         if isinstance(o, np.integer):
             return int(o)
         elif isinstance(o, np.floating):
@@ -48,18 +49,18 @@ class TypedJSONEncoder(json.JSONEncoder):
         else:
             return super().default(o)
 
-    def encode(self, o):
+    def encode(self, o: Any) -> str:
         # Also encode tuples (not captured by default())
         new_o = encode_tuples(o)
         return super().encode(new_o)
 
-    def iterencode(self, o, _one_shot=False):
+    def iterencode(self, o: Any, _one_shot: bool = False) -> Generator[str, None, None]:
         # Also encode tuples (not captured by default())
         new_o = encode_tuples(o)
         return super().iterencode(new_o, _one_shot=_one_shot)
 
 
-def type_json_hook(obj):
+def type_json_hook(obj: Dict[str, Any]) -> Any:
     if "numpy_int" in obj.keys():
         return obj["numpy_int"]
     elif "numpy_float" in obj.keys():
