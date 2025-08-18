@@ -730,7 +730,13 @@ def plot_animated_stc(
 
 def plot_labels(
     fsmri: "FSMRI", target_labels: List[str], label_colors: Dict[str, Any], 
-    stc_hemi: str, stc_surface: str, stc_views: List[str], backend_3d: str
+    fsmri: "FSMRI",
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_hemi: str,
+    stc_surface: str,
+    stc_views: List[str],
+    backend_3d: str,
 ) -> None:
     with mne.viz.use_3d_backend(backend_3d):
         Brain = mne.viz.get_brain_class()

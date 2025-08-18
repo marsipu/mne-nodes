@@ -215,7 +215,13 @@ def interpolate_bads(meeg: "MEEG", bad_interpolation: str) -> None:
 
 def add_erm_ssp(
     meeg: "MEEG", erm_ssp_duration: float, erm_n_grad: int, erm_n_mag: int, 
-    erm_n_eeg: int, n_jobs: int, show_plots: bool
+    meeg: "MEEG",
+    erm_ssp_duration: float,
+    erm_n_grad: int,
+    erm_n_mag: int,
+    erm_n_eeg: int,
+    n_jobs: int,
+    show_plots: bool,
 ) -> None:
     raw_filtered = meeg.load_filtered()
     erm_filtered = meeg.load_erm_processed()
@@ -1257,7 +1263,12 @@ def create_forward_solution(meeg: "MEEG", n_jobs: int, ch_types: List[str]) -> N
 
 def estimate_noise_covariance(
     meeg: "MEEG", baseline: Tuple[float, float], n_jobs: int, noise_cov_mode: str, 
-    noise_cov_method: str, **kwargs: Any
+    meeg: "MEEG",
+    baseline: Tuple[float, float],
+    n_jobs: int,
+    noise_cov_mode: str,
+    noise_cov_method: str,
+    **kwargs: Any,
 ) -> None:
     # ToDo: method='factor_analysis' can only be used with rank='full'
     if noise_cov_mode == "epochs" or meeg.erm is None:
