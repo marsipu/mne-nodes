@@ -4,6 +4,17 @@ MNE-Nodes is a PyQt6/PySide6 GUI application for MEG/EEG neurophysiology data pr
 
 **Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.**
 
+## Maintenance Notice
+
+**IMPORTANT: These instructions must be kept updated whenever there are significant infrastructure changes** such as:
+- Changes to build systems, CI/CD pipelines, or deployment processes
+- Updates to core dependencies (Qt versions, MNE-Python major versions, Python versions)
+- Modifications to testing frameworks or development tooling
+- Changes to package structure or installation procedures
+- Updates to documentation build processes
+
+Outdated instructions can lead to development workflow issues and should be updated promptly when infrastructure changes occur.
+
 ## Working Effectively
 
 ### Installation and Setup
