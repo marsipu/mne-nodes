@@ -36,7 +36,7 @@ class InputNode(BaseNode):
         import_bt.clicked.connect(self.add_files)
         layout.addWidget(import_bt)
         input_list = CheckList(
-            ct.inputs[data_type],
+            ct.inputs[data_type][name],
             ct.selected_inputs,
             ui_button_pos="bottom",
             show_index=True,

@@ -14,8 +14,8 @@ import pytest
 from qtpy.QtWidgets import QMessageBox
 
 from mne_nodes.__main__ import init_logging
-from mne_nodes.gui.main_window import MainWindow
-from mne_nodes.gui.node.node_viewer import NodeViewer
+
+# Defer GUI-heavy imports to fixtures to avoid optional dependency errors in tests that don't need them
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 
@@ -92,6 +92,9 @@ def controller(tmp_path, monkeypatch):
 
 @pytest.fixture
 def main_window(controller, qtbot, nodeviewer_extended):
+    # Lazy import to avoid optional dependency issues when this fixture is unused
+    from mne_nodes.gui.main_window import MainWindow
+
     mw = MainWindow(controller, nodeviewer_extended)
     qtbot.addWidget(mw)
 
@@ -112,6 +115,9 @@ def parameter_values_alt():
 
 @pytest.fixture
 def nodeviewer(qtbot, controller):
+    # Lazy import to avoid optional dependency issues when this fixture is unused
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
     viewer = NodeViewer(controller, debug_mode=True)
     viewer.resize(1600, 600)
     qtbot.addWidget(viewer)

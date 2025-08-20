@@ -29,7 +29,7 @@ class BaseListModel(QAbstractListModel):
 
     Parameters
     ----------
-    data : []
+    data : list | None
         input existing list here, otherwise defaults to empty list
     show_index : bool
         Set True if you want to display the list-index in front of each value
@@ -41,22 +41,38 @@ class BaseListModel(QAbstractListModel):
         if data is None:
             self._data = []
         else:
-            self._data = data
+            # Only lists are supported; warn on wrong types
+            if not isinstance(data, list):
+                logging.warning(
+                    "BaseListModel expects a list for 'data', got %s. Initializing empty list.",
+                    type(data).__name__,
+                )
+                self._data = []
+            else:
+                self._data = data
 
     def getData(self, index):
+        if not index or not index.isValid():
+            logging.debug("Invalid model index")
+            return None
         if len(self._data) == 0:
             logging.debug("List is empty")
             return None
-        return self._data[index.row()]
+        row = index.row()
+        if row < 0 or row >= len(self._data):
+            logging.debug("Row %s out of range (size=%s)", row, len(self._data))
+            return None
+        return self._data[row]
 
     def data(self, index, role=None):
+        val = self.getData(index)
         if role == Qt.DisplayRole:
             if self.show_index:
-                return f"{index.row()}: {self.getData(index)}"
+                return f"{index.row()}: {val}" if val is not None else ""
             else:
-                return str(self.getData(index))
+                return "" if val is None else str(val)
         elif role == Qt.EditRole:
-            return str(self.getData(index))
+            return "" if val is None else str(val)
 
     def rowCount(self, *args, **kwargs):
         return len(self._data)
@@ -75,7 +91,9 @@ class BaseListModel(QAbstractListModel):
 
     def removeRows(self, row, count, parent=None, *args, **kwargs):
         self.beginRemoveRows(parent, row, row + count - 1)
-        for item in [self._data[i] for i in range(row, row + count)]:
+        for item in [
+            self._data[i] for i in range(row, row + count) if 0 <= i < len(self._data)
+        ]:
             self._data.remove(item)
         self.endRemoveRows()
         return True
@@ -90,7 +108,7 @@ class EditListModel(BaseListModel):
 
     Parameters
     ----------
-    data : []
+    data : list
         input existing list here, otherwise defaults to empty list
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -107,7 +125,7 @@ class EditListModel(BaseListModel):
             return default_flags
 
     def setData(self, index, value, role=None):
-        if role == Qt.EditRole:
+        if role == Qt.EditRole and index and index.isValid():
             try:
                 self._data[index.row()] = literal_eval(value)
             except (ValueError, SyntaxError):
@@ -122,9 +140,9 @@ class CheckListModel(BaseListModel):
 
     Parameters
     ----------
-    data : []
+    data : list | None
         list with content to be displayed, defaults to empty list
-    checked : []
+    checked : list | None
         list which stores the checked items from data
     show_index: bool
         Set True if you want to display the list-index in front of each value
@@ -134,39 +152,56 @@ class CheckListModel(BaseListModel):
         super().__init__(data, show_index, **kwargs)
         self.one_check = one_check
 
+        # Enforce list types for data and checked
         if data is None:
+            self._data = []
+        elif not isinstance(data, list):
+            logging.warning(
+                "CheckListModel expects a list for 'data', got %s. Initializing empty list.",
+                type(data).__name__,
+            )
             self._data = []
         else:
             self._data = data
 
         if checked is None:
             self._checked = []
+        elif not isinstance(checked, list):
+            logging.warning(
+                "CheckListModel expects a list for 'checked', got %s. Initializing empty list.",
+                type(checked).__name__,
+            )
+            self._checked = []
         else:
             self._checked = checked
 
     def data(self, index, role=None):
+        val = self.getData(index)
         if role == Qt.DisplayRole:
             if self.show_index:
-                return f"{index.row()}: {self.getData(index)}"
+                return f"{index.row()}: {val}" if val is not None else ""
             else:
-                return str(self.getData(index))
+                return "" if val is None else str(val)
 
         if role == Qt.CheckStateRole:
-            if self.getData(index) in self._checked:
-                return Qt.Checked
-            else:
-                return Qt.Unchecked
+            if val is None:
+                return None
+            return Qt.Checked if val in self._checked else Qt.Unchecked
 
     def setData(self, index, value, role=None):
-        if role == Qt.CheckStateRole:
+        if role == Qt.CheckStateRole and index and index.isValid():
+            val = self.getData(index)
+            if val is None:
+                return False
             # In PyQt5 value is an integer, in PySide6 it is a Qt.CheckState
             if value in [Qt.Checked, 2]:
                 if self.one_check:
                     self._checked.clear()
-                self._checked.append(self.getData(index))
+                if val not in self._checked:
+                    self._checked.append(val)
             else:
-                if self.getData(index) in self._checked:
-                    self._checked.remove(self.getData(index))
+                if val in self._checked:
+                    self._checked.remove(val)
             self.dataChanged.emit(index, index)
             return True
         return False
@@ -203,22 +238,46 @@ class CheckDictModel(BaseListModel):
         self, data, check_dict, show_index=False, yes_bt=None, no_bt=None, **kwargs
     ):
         super().__init__(data, show_index, **kwargs)
-        self._check_dict = check_dict
+        # Enforce list for data and dict for check_dict
+        if data is None:
+            self._data = []
+        elif not isinstance(data, list):
+            logging.warning(
+                "CheckDictModel expects a list for 'data', got %s. Initializing empty list.",
+                type(data).__name__,
+            )
+            self._data = []
+        else:
+            self._data = data
+
+        if check_dict is None:
+            self._check_dict = {}
+        elif not isinstance(check_dict, dict):
+            logging.warning(
+                "CheckDictModel expects a dict for 'check_dict', got %s. Initializing empty dict.",
+                type(check_dict).__name__,
+            )
+            self._check_dict = {}
+        else:
+            self._check_dict = check_dict
 
         self.yes_bt = yes_bt or "SP_DialogApplyButton"
         self.no_bt = no_bt or "SP_DialogCancelButton"
 
     def data(self, index, role=None):
+        val = self.getData(index)
         if role == Qt.DisplayRole:
             if self.show_index:
-                return f"{index.row()}: {self.getData(index)}"
+                return f"{index.row()}: {val}" if val is not None else ""
             else:
-                return str(self.getData(index))
+                return "" if val is None else str(val)
         elif role == Qt.EditRole:
-            return str(self.getData(index))
+            return "" if val is None else str(val)
 
         elif role == Qt.DecorationRole:
-            if self.getData(index) in self._check_dict:
+            if val is None:
+                return None
+            if val in self._check_dict:
                 return get_std_icon(self.yes_bt)
             else:
                 return get_std_icon(self.no_bt)
@@ -274,6 +333,12 @@ class BaseDictModel(QAbstractTableModel):
     def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
         if data is None:
+            self._data = {}
+        elif not isinstance(data, dict):
+            logging.warning(
+                "BaseDictModel expects a dict for 'data', got %s. Initializing empty dict.",
+                type(data).__name__,
+            )
             self._data = {}
         else:
             self._data = data
@@ -395,6 +460,12 @@ class BasePandasModel(QAbstractTableModel):
     def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
         if data is None:
+            self._data = pd.DataFrame([])
+        elif not isinstance(data, pd.DataFrame):
+            logging.warning(
+                "BasePandasModel expects a pandas DataFrame for 'data', got %s. Initializing empty DataFrame.",
+                type(data).__name__,
+            )
             self._data = pd.DataFrame([])
         else:
             self._data = data
@@ -637,7 +708,16 @@ class TreeModel(QAbstractItemModel):
 
     def __init__(self, data=None, headers=None, parent=None):
         super().__init__(parent)
-        self._data = data if data is not None else {}
+        if data is None:
+            self._data = {}
+        elif not isinstance(data, dict):
+            logging.warning(
+                "TreeModel expects a dict for 'data', got %s. Initializing empty dict.",
+                type(data).__name__,
+            )
+            self._data = {}
+        else:
+            self._data = data
 
         # Default headers for key-value pairs
         if headers is None:
@@ -867,7 +947,18 @@ class CustomFunctionModel(QAbstractListModel):
 
     def __init__(self, data, **kwargs):
         super().__init__(**kwargs)
-        self._data = data
+        if not isinstance(data, pd.DataFrame):
+            logging.warning(
+                "CustomFunctionModel expects a pandas DataFrame for 'data', got %s. Initializing empty DataFrame.",
+                type(data).__name__,
+            )
+            self._data = pd.DataFrame([])
+        else:
+            self._data = data
+        if not self._data.empty and "ready" not in self._data.columns:
+            logging.warning(
+                "CustomFunctionModel expects a 'ready' column in DataFrame to decorate items. Column missing."
+            )
 
     def getData(self, index):
         return self._data.index[index.row()]
@@ -895,7 +986,14 @@ class RunModel(QAbstractListModel):
 
     def __init__(self, data, mode, **kwargs):
         super().__init__(**kwargs)
-        self._data = data
+        if not isinstance(data, dict):
+            logging.warning(
+                "RunModel expects a dict for 'data', got %s. Initializing empty dict.",
+                type(data).__name__,
+            )
+            self._data = {}
+        else:
+            self._data = data
         self.mode = mode
 
     def getKey(self, index):

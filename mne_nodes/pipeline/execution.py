@@ -369,8 +369,15 @@ class QProcessDialog(QDialog):
     def start_process(self):
         self.process_worker = QProcessWorker(self.commands)
         if self.show_console:
-            self.process_worker.stdoutSignal.connect(self.console_output.write_stdout)
-            self.process_worker.stderrSignal.connect(self.console_output.write_stderr)
+            # Ensure streams exist and forward text into them
+            self.console_output.add_stream("stdout")
+            self.console_output.add_stream("stderr")
+            self.process_worker.stdoutSignal.connect(
+                lambda text: self.console_output.get_stream("stdout").push(text)
+            )
+            self.process_worker.stderrSignal.connect(
+                lambda text: self.console_output.get_stream("stderr").push(text)
+            )
         self.process_worker.finished.connect(self.process_finished)
         self.process_worker.start()
 

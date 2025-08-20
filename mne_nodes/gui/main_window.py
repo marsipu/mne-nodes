@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
 
         # Initialize properties
         self.qprocesses = {}
+        # Console/Error management moved into ConsoleDock
 
         # Initialize on last opened screen
         screen_name = self.settings.value("screen_name")
@@ -60,10 +61,10 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.viewer)
         self.viewer.reload_config()
 
-        # Init Console-Widget
-        self.console = ConsoleDock(controller, self)
-        self.console.setMaximumWidth(400)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console)
+        # Init Console-Widget (manages per-process consoles & errors)
+        self.console_dock = ConsoleDock(controller, self)
+        self.console_dock.setMaximumWidth(400)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
 
         # Todo: Init Node-Palette
         # ToDo: Init Menu
@@ -85,9 +86,9 @@ class MainWindow(QMainWindow):
         self._controller = controller
         self.setWindowTitle(f"MNE-Nodes - {self._controller.name}")
         self.viewer.ct = controller
-        self.console.ct = controller
+        self.console_dock.ct = controller
 
-    def _change_process_state(self, state, process_idx):
+    def _change_process_state(self, process_idx, state):
         """Handle changes in the process state."""
         if state == QProcess.ProcessState.NotRunning:
             self.controller.process(process_idx)["state"] = "finished"
@@ -100,27 +101,40 @@ class MainWindow(QMainWindow):
                 f"Unknown process state: {state} for process {process_idx}"
             )
 
-    def _print_process_stdout(self, process_idx):
-        pass
+    def _handle_stdout(self, process_idx):
+        process = self.qprocesses[process_idx]
+        data = bytes(process.readAllStandardOutput())
+        # Forward to ConsoleDock-managed console
+        self.console_dock.push_stdout(process_idx, data)
 
-    def _print_process_stderr(self, process_idx):
-        pass
+    def _handle_stderr(self, process_idx):
+        process = self.qprocesses[process_idx]
+        data = bytes(process.readAllStandardError())
+        # Forward to ConsoleDock-managed console and track error
+        self.console_dock.push_stderr(process_idx, data)
+
+    def _process_finished(self, process_idx, code, status):
+        print(f"Process {process_idx} finished with code {code} and status {status}")
+        self.console_dock.process_finished(process_idx)
 
     def start_process(self, process_idx):
+        # Prepare per-process UI in the dock
+        self.console_dock.add_process(process_idx)
+        # Prepare process
         process = QProcess(self)
         self.qprocesses[process_idx] = process
         process.setProgram(sys.executable)
         process.setWorkingDirectory(self.controller.config["data_path"])
         process.stateChanged.connect(
-            lambda state: self._change_process_state(state, process_idx)
+            lambda state: self._change_process_state(process_idx, state)
         )
         process.readyReadStandardOutput.connect(
-            lambda: self._print_process_stdout(process_idx)
+            lambda: self._handle_stdout(process_idx)
         )
-        process.readyReadStandardError.connect(
-            lambda: self._print_process_stderr(process_idx)
+        process.readyReadStandardError.connect(lambda: self._handle_stderr(process_idx))
+        process.finished.connect(
+            lambda code, status: self._process_finished(process_idx, code, status)
         )
-        process.finished.connect()
         file_path = self.controller.process(process_idx)["file_path"]
         process.setArguments([str(file_path)])
         process.start()
@@ -188,5 +202,28 @@ class MainWindow(QMainWindow):
         mne.sys_info()
 
     def closeEvent(self, event):
+        # Persist screen info
         self.settings.setValue("screen_name", self.screen().name())
+        # Stop any running processes and workers
+        for idx, proc in list(self.qprocesses.items()):
+            try:
+                proc.finished.disconnect()
+            except Exception:
+                pass
+            try:
+                proc.readyReadStandardOutput.disconnect()
+            except Exception:
+                pass
+            try:
+                proc.readyReadStandardError.disconnect()
+            except Exception:
+                pass
+            if proc.state() != QProcess.ProcessState.NotRunning:
+                proc.kill()
+                proc.waitForFinished(2000)
+        # Stop and clear console workers
+        self.console_dock.stop_all()
+        self.qprocesses.clear()
+        # Clear global reference for tests/GC
+        _object_refs["main_window"] = None
         event.accept()

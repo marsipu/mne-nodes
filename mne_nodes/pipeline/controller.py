@@ -682,7 +682,7 @@ class Controller:
     def convert_to_code(self, instructions):
         """Convert a list of instructions to a Python code string."""
         code = f'ct = Controller(config_path="{self.config_path}")\n\n'
-
+        # ToDo: Put into try-except block to catch errors of multiple subjects
         loaded_data = set()
         modules = {}
         if instructions[0][0] == "raw":
