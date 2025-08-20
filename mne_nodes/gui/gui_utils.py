@@ -75,23 +75,42 @@ def get_std_icon(icon_name):
     return QApplication.instance().style().standardIcon(getattr(QStyle, icon_name))
 
 
-# ToDo: Make PyQt-independent with tqdm
+def ask_user(prompt, cancel_allowed=True):
+    """Ask the user a yes or no question.
 
-
-# ToDo: WIP
-
-
-def ask_user(prompt):
-    """Ask the user a question and return the answer (yes or no)."""
+    The answer is returned as a boolean. If the user cancels the
+    operation, None is returned.
+    """
     if mne_nodes.gui_mode:
         parent = QApplication.activeWindow()
-        ans = QMessageBox.question(parent, "Question", prompt)
+        if cancel_allowed:
+            buttons = (
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel
+            )
+        else:
+            buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ans = QMessageBox.question(parent, "Question", prompt, buttons=buttons)
         ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
+        cancel = ans == QMessageBox.StandardButton.Cancel
         ans = ans == QMessageBox.StandardButton.Yes
+        if cancel and cancel_allowed:
+            logging.debug("User cancelled the operation.")
+            return None
     elif is_test() or sys.stdin.isatty():
+        if cancel_allowed:
+            prompt += " (yes/no/cancel): "
+        else:
+            prompt += " (yes/no): "
+        # Use input() for terminal interaction
         ans = input(f"{prompt} (yes/no): ")
         ok = ans in ["yes", "y", "no", "n"]
+        cancel = ans in ["cancel", "c"]
         ans = ans.strip().lower() in ["yes", "y"]
+        if cancel_allowed and cancel:
+            logging.info("User cancelled the operation.")
+            return None
     else:
         raise RuntimeError(
             "Input is not available in this environment. "

@@ -508,6 +508,8 @@ class ConsoleDock(QDockWidget):
             "error": err,
         }
         self._process_tab_indexes[process_idx] = idx
+        if not self.isVisible():
+            self.setVisible(True)
 
     def _update_process_notification(self, process_idx, count):
         idx = self._process_tab_indexes.get(process_idx)

@@ -510,6 +510,7 @@ class NodeViewer(QGraphicsView):
     def reload_config(self):
         if self.ct.node_config:
             self.from_dict(self.ct.node_config)
+            # If nodes are loaded, we need to re-layout them
             self.auto_layout_nodes()
             self.zoom_to_nodes()
 

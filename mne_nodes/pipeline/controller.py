@@ -43,16 +43,10 @@ class Controller:
     """
 
     def __init__(self, config_path: Optional[Union[str, Path]] = None):
-        # config will be filled when self.config is first called
-        self._config = {}
-        self.config_path = config_path or Settings().value(
-            "config_path", defaultValue=None
-        )
-        # If config_path is not specified (new user), invoke getter-method
-        if config_path is None:
-            _ = self.config_path
         # The device dependent settings
         self.settings = Settings()
+        # config will be filled when self.config is first called
+        self._config = {}
         self.default_config = {
             "data_path": None,
             "selected_modules": ["basic_operations", "basic_plot"],
@@ -73,7 +67,12 @@ class Controller:
             "padding": 20,
             "tab_space_count": 4,
         }
-
+        self.config_path = config_path or Settings().value(
+            "config_path", defaultValue=None
+        )
+        # If config_path is not specified (new user), invoke getter-method
+        if config_path is None:
+            _ = self.config_path
         # Property attributes
         self._modules = {}
         self._function_metas = {}
@@ -82,7 +81,6 @@ class Controller:
         self._function_nodes = {}
         self._procs = {}
         self._errors = {}
-
         # Initialize modules
         self.load_basic_modules()
         self.load_custom_modules()
@@ -98,29 +96,39 @@ class Controller:
     @config_path.setter
     def config_path(self, value):
         """Set the path to the config-file."""
+        # If the value is None, ask the user for a config-file path
         if value is None:
             logging.warning("No config-file path set!")
-            ans = ask_user("Do you want to create a new config-file?")
-            if ans:
+            ans = ask_user(
+                "Do you want to create a new config-file? (or use an existing one)"
+            )
+            # When the user cancels, the app is closed
+            if ans is None:
+                logging.info("User canceled, closing app.")
+                sys.exit(0)
+            elif ans:
                 logging.info("Creating new config-file.")
                 config_folder = get_user_input(
                     "Set the folder-path to store the config-file", "folder"
                 )
-                self._config_path = join(config_folder, f"{self.name}_config.json")
+                value = join(config_folder, f"{self.name}_config.json")
+                self._config = {}
                 self.save_config()
             else:
                 logging.info("Using existing config-file.")
-                self._config_path = get_user_input(
+                value = get_user_input(
                     "Please enter the path to an exisiting config-file",
                     "file",
                     file_filter="JSON files (*.json)",
                 )
-            self.load_config()
-        elif not isfile(value):
+        # Check if the path is a valid file
+        if not isfile(value):
             raise ValueError(f"Config file {value} does not exist!")
-        else:
-            self._config_path = value
-            self._config = {}
+        # Set the config path and load the config
+        self._config_path = value
+        self.load_config()
+        # Store the config path in the settings
+        self.settings.setValue("config_path", value)
 
     @property
     def config(self) -> Dict[str, Any]:

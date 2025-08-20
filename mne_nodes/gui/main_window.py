@@ -36,14 +36,6 @@ class MainWindow(QMainWindow):
         self.qprocesses = {}
         # Console/Error management moved into ConsoleDock
 
-        # Initialize on last opened screen
-        screen_name = self.settings.value("screen_name")
-        if screen_name is not None:
-            for screen in QApplication.screens():
-                if screen.name() == screen_name:
-                    self.windowHandle().setScreen(screen)
-                    break
-
         # Set geometry to ratio of screen-geometry
         set_ratio_geometry(self.settings.value("screen_ratio"), self)
         center(self)
@@ -63,16 +55,25 @@ class MainWindow(QMainWindow):
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
-        self.console_dock.setMaximumWidth(400)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
+        self.console_dock.hide()
 
-        # Todo: Init Node-Palette
+        # Todo: Init Node-Picker
         # ToDo: Init Menu
         # ToDo: Init Toolbar
         # ToDo: Init Infobar
 
         # Show the main window
         self.show()
+
+        # Initialize on last opened screen
+        screen_name = self.settings.value("screen_name")
+        if screen_name is not None:
+            for screen in QApplication.screens():
+                if screen.name() == screen_name:
+                    self.windowHandle().setScreen(screen)
+                    break
+
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
     @property
@@ -200,6 +201,14 @@ class MainWindow(QMainWindow):
     def show_sys_info(self):
         SysInfoMsg(self)
         mne.sys_info()
+
+    def keyPressEvent(self, event):
+        """Handle key press events."""
+        if event.key() == Qt.Key.Key_C:
+            # Toggle visibility of the console dock
+            self.console_dock.setVisible(not self.console_dock.isVisible())
+        else:
+            super().keyPressEvent(event)
 
     def closeEvent(self, event):
         # Persist screen info
