@@ -16,6 +16,7 @@ from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
 from mne_nodes.gui.node.node_viewer import NodeViewer
+from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.pipeline.execution import QProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 
@@ -52,13 +53,17 @@ class MainWindow(QMainWindow):
         self.viewer = viewer or NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
         self.viewer.reload_config()
+        self.viewer.DataDropped.connect(self._on_viewer_drop)
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
-        # Todo: Init Node-Picker
+        # Init Node-Picker dock
+        self.node_picker = NodePicker(controller, self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.node_picker)
+
         # ToDo: Init Menu
         # ToDo: Init Toolbar
         # ToDo: Init Infobar
@@ -88,6 +93,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"MNE-Nodes - {self._controller.name}")
         self.viewer.ct = controller
         self.console_dock.ct = controller
+        # Also update picker/controller link if present
+        if hasattr(self, "node_picker") and self.node_picker is not None:
+            self.node_picker.ct = controller
 
     def _change_process_state(self, process_idx, state):
         """Handle changes in the process state."""
@@ -236,3 +244,40 @@ class MainWindow(QMainWindow):
         # Clear global reference for tests/GC
         _object_refs["main_window"] = None
         event.accept()
+
+    # --------------------- Drag & Drop integration -------------------------
+    def _on_viewer_drop(self, mime, pos):
+        """Create nodes on drop from NodePicker.
+
+        Expected mime text payloads:
+        - "mne-nodes/function:<function_name>"
+        - "mne-nodes/input:<data_type>:<group>"
+        """
+        try:
+            text = mime.text() if hasattr(mime, "text") else ""
+        except Exception:
+            text = ""
+        if not text:
+            return
+        try:
+            if text.startswith("mne-nodes/function:"):
+                fname = text[len("mne-nodes/function:") :]
+                if not fname:
+                    return
+                node = self.viewer.add_function_node(fname)
+                node.xy_pos = (pos.x(), pos.y())
+            elif text.startswith("mne-nodes/input:"):
+                payload = text[len("mne-nodes/input:") :]
+                parts = payload.split(":")
+                if len(parts) >= 2:
+                    dt, group = parts[0], parts[1]
+                else:
+                    return
+                node = self.viewer.add_input_node(data_type=dt, name=group)
+                node.xy_pos = (pos.x(), pos.y())
+            else:
+                # ignore unsupported payloads
+                return
+        except Exception:
+            # Silently ignore creation errors in UI handler
+            return

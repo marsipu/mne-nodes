@@ -89,6 +89,8 @@ class NodeViewer(QGraphicsView):
             QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing
         )
         self.setAcceptDrops(True)
+        # Also set on the viewport where Qt delivers drag/drop events.
+        self.viewport().setAcceptDrops(True)
 
         # set initial range
         self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
@@ -944,29 +946,48 @@ class NodeViewer(QGraphicsView):
         # 3. Drag a pipeline-config-file to load a pipeline
 
         pos = self.mapToScene(event.pos())
+        # enforce copy action for external drops
         event.setDropAction(Qt.DropAction.CopyAction)
+        print(
+            "[NodeViewer] dropEvent received. hasText=",
+            event.mimeData().hasText(),
+            "text=",
+            event.mimeData().text(),
+        )
         self.DataDropped.emit(event.mimeData(), QPointF(pos.x(), pos.y()))
+        event.accept()
 
     def dragEnterEvent(self, event):
-        is_acceptable = any(
-            [
-                event.mimeData().hasFormat(i)
-                for i in ["nodegraphqt/nodes", "text/plain", "text/uri-list"]
-            ]
+        # Accept common payloads including text and model default datalist
+        acceptable_formats = [
+            "nodegraphqt/nodes",
+            "text/plain",
+            "text/uri-list",
+            "application/x-qabstractitemmodeldatalist",
+        ]
+        is_acceptable = (
+            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
+            or event.mimeData().hasText()
         )
         if is_acceptable:
+            event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        is_acceptable = any(
-            [
-                event.mimeData().hasFormat(i)
-                for i in ["nodegraphqt/nodes", "text/plain", "text/uri-list"]
-            ]
+        acceptable_formats = [
+            "nodegraphqt/nodes",
+            "text/plain",
+            "text/uri-list",
+            "application/x-qabstractitemmodeldatalist",
+        ]
+        is_acceptable = (
+            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
+            or event.mimeData().hasText()
         )
         if is_acceptable:
+            event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
         else:
             event.ignore()

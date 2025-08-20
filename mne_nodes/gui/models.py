@@ -934,6 +934,146 @@ class FileManagementModel(BasePandasModel):
                 return QBrush(Qt.darkYellow)
 
 
+# ------------------------ NodePicker Models -------------------------------
+class FunctionPickerModel(BasePandasModel):
+    """Draggable model for functions list used in NodePicker.
+
+    Index: function name; Columns: inputs, outputs.
+    Tooltips include alias, group, module, parameters count, plot, thread-safe.
+    """
+
+    def __init__(self, metas: dict, **kwargs):
+        # Build dataframe with only inputs/outputs columns
+        rows = []
+        for fname, meta in (metas or {}).items():
+            rows.append(
+                {
+                    "name": fname,
+                    "inputs": ", ".join(meta.get("inputs", [])),
+                    "outputs": ", ".join(meta.get("outputs", [])),
+                    "__meta__": meta,
+                }
+            )
+        df = (
+            pd.DataFrame(rows)
+            if rows
+            else pd.DataFrame([], columns=["name", "inputs", "outputs", "__meta__"])
+        )
+        if not df.empty:
+            df = df.set_index("name")
+        super().__init__(
+            df[[c for c in ["inputs", "outputs"] if c in df.columns]], **kwargs
+        )
+        self._metas = metas or {}
+
+    def flags(self, index):
+        return (
+            QAbstractItemModel.flags(self, index)
+            | Qt.ItemFlag.ItemIsDragEnabled
+            | Qt.ItemFlag.ItemIsSelectable
+        )
+
+    def mimeTypes(self):
+        return ["text/plain"]
+
+    def supportedDragActions(self):
+        return Qt.DropAction.CopyAction
+
+    def mimeData(self, indexes):
+        mime = super().mimeData(indexes)
+        # Use first index row
+        if len(indexes) == 0:
+            return mime
+        row = indexes[0].row()
+        fname = self._data.index[row]
+        from qtpy.QtCore import QMimeData
+
+        md = QMimeData()
+        md.setText(f"mne-nodes/function:{fname}")
+        return md
+
+    def data(self, index, role=None):
+        if role == Qt.ToolTipRole:
+            try:
+                fname = self._data.index[index.row()]
+                meta = self._metas.get(fname, {})
+                alias = meta.get("alias")
+                group = meta.get("group")
+                module = meta.get("module")
+                nparams = len(meta.get("parameters", []))
+                plot = meta.get("plot", False)
+                tsafe = meta.get("thread-safe", False)
+                return (
+                    f"{fname} ({alias})\nGroup: {group}\nModule: {module}\n"
+                    f"Inputs: {', '.join(meta.get('inputs', []))}\n"
+                    f"Outputs: {', '.join(meta.get('outputs', []))}\n"
+                    f"Parameters: {nparams}\nPlot: {plot}  Thread-safe: {tsafe}"
+                )
+            except Exception:
+                return None
+        return super().data(index, role)
+
+
+class InputPickerModel(BasePandasModel):
+    """Draggable model for input nodes used in NodePicker.
+
+    Columns: data_type, group; Index: label (data_type:group) for reference.
+    """
+
+    def __init__(self, inputs_dict: dict, **kwargs):
+        rows = []
+        for dt, groups in (inputs_dict or {}).items():
+            for group in groups.keys():
+                rows.append({"label": f"{dt}:{group}", "data_type": dt, "group": group})
+        df = (
+            pd.DataFrame(rows)
+            if rows
+            else pd.DataFrame([], columns=["label", "data_type", "group"])
+        )
+        if not df.empty:
+            df = df.set_index("label")
+        super().__init__(
+            df[[c for c in ["data_type", "group"] if c in df.columns]], **kwargs
+        )
+        self._inputs_dict = inputs_dict or {}
+        self._labels = list(df.index) if not df.empty else []
+
+    def flags(self, index):
+        return QAbstractItemModel.flags(self, index) | Qt.ItemIsDragEnabled
+
+    def mimeTypes(self):
+        return ["text/plain"]
+
+    def supportedDragActions(self):
+        return Qt.CopyAction
+
+    def mimeData(self, indexes):
+        mime = super().mimeData(indexes)
+        if len(indexes) == 0:
+            return mime
+        row = indexes[0].row()
+        try:
+            dt = self._data.iloc[row]["data_type"]
+            group = self._data.iloc[row]["group"]
+        except Exception:
+            return mime
+        from qtpy.QtCore import QMimeData
+
+        md = QMimeData()
+        md.setText(f"mne-nodes/input:{dt}:{group}")
+        return md
+
+    def data(self, index, role=None):
+        if role == Qt.ToolTipRole:
+            try:
+                dt = self._data.iloc[index.row()]["data_type"]
+                group = self._data.iloc[index.row()]["group"]
+                return f"Input node for data_type '{dt}', group '{group}'"
+            except Exception:
+                return None
+        return super().data(index, role)
+
+
 class CustomFunctionModel(QAbstractListModel):
     """A Model for the Pandas-DataFrames containing information about new
     custom functions/their paramers to display only their name and if they are

@@ -25,6 +25,7 @@ from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.loading import MEEG
+from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -123,12 +124,15 @@ class Controller:
                 )
         # Check if the path is a valid file
         if not isfile(value):
-            raise ValueError(f"Config file {value} does not exist!")
+            logging.error(f"Config file {value} does not exist!")
+            self.config_path = None
         # Set the config path and load the config
         self._config_path = value
         self.load_config()
         # Store the config path in the settings
-        self.settings.setValue("config_path", value)
+        if not is_test():
+            # Only set the config path in settings if not in test mode
+            self.settings.setValue("config_path", value)
 
     @property
     def config(self) -> Dict[str, Any]:

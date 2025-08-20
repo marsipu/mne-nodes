@@ -14,7 +14,7 @@ from os.path import join
 
 import darkdetect
 from qtpy import compat
-from qtpy.QtCore import Qt, QEvent
+from qtpy.QtCore import Qt, QEvent, QPoint
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -279,7 +279,6 @@ def mouseMove(widget=None, pos=None, button=None, modifier=None):
         button = Qt.MouseButton.NoButton
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
-    from qtpy.QtCore import QPoint
 
     if isinstance(pos, QPoint):
         pass
@@ -303,6 +302,39 @@ def mouseDrag(widget, positions, button, modifier=None):
     # For some reason moeve again to last position
     mouseMove(widget=widget, pos=positions[-1], button=button, modifier=modifier)
     mouseRelease(widget=widget, pos=positions[-1], button=button, modifier=modifier)
+
+
+def mouseDragBetween(
+    widget_from,
+    pos_from,
+    widget_to,
+    pos_to,
+    button=Qt.MouseButton.LeftButton,
+    modifier=None,
+):
+    """Drag from one widget to another using low-level mouse events.
+
+    Sends MousePress on source, several MouseMove events with button
+    held to trigger startDrag, then moves into target and releases.
+    """
+    if modifier is None:
+        modifier = Qt.KeyboardModifier.NoModifier
+    QTest.qWaitForWindowExposed(widget_from.window())
+    QTest.qWaitForWindowExposed(widget_to.window())
+    # Press on source
+    mousePress(widget=widget_from, pos=pos_from, button=button, modifier=modifier)
+    # Move within source to exceed drag threshold
+    mouseMove(
+        widget=widget_from,
+        pos=QPoint(pos_from.x() + 30, pos_from.y()),
+        button=button,
+        modifier=modifier,
+    )
+    QTest.qWait(10)
+    # Move into target widget while holding button
+    mouseMove(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
+    QTest.qWait(10)
+    mouseRelease(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
 
 
 ########################################################################################
