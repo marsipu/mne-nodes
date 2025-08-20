@@ -418,15 +418,12 @@ class ErrorWidget(QWidget):
     def last_data(self, data):
         self._last_data = data
         # Append to the display and update notification count
-        try:
-            if isinstance(data, (bytes, bytearray)):
-                text = data.decode("utf-8", errors="replace")
-            else:
-                text = str(data)
-            if text:
-                self.show_widget.appendPlainText(text)
-        except Exception:
-            pass
+        if isinstance(data, (bytes, bytearray)):
+            text = data.decode("utf-8", errors="replace")
+        else:
+            text = str(data)
+        if text:
+            self.show_widget.appendPlainText(text)
         self._count += 1
         self.notification_count_changed.emit(self._count)
 
@@ -515,30 +512,22 @@ class ConsoleDock(QDockWidget):
         idx = self._process_tab_indexes.get(process_idx)
         if idx is None:
             return
-        try:
-            self.tab_widget.set_notification(tab_index=idx, count=count)
-        except Exception:
-            # Try to recover index by tab text
-            title = f"Process {process_idx}"
-            try:
-                idx2 = self.tab_widget._resolve_tab_index(tab_name=title)
-                self._process_tab_indexes[process_idx] = idx2
-                self.tab_widget.set_notification(tab_index=idx2, count=count)
-            except Exception:
-                pass
+        self.tab_widget.set_notification(tab_index=idx, count=count)
+        # Try to recover index by tab text
+        title = f"Process {process_idx}"
+        idx2 = self.tab_widget._resolve_tab_index(tab_name=title)
+        self._process_tab_indexes[process_idx] = idx2
+        self.tab_widget.set_notification(tab_index=idx2, count=count)
 
     def _maybe_reset_errors(
         self, idx, tabs: QTabWidget, err_widget: "ErrorWidget", process_idx
     ):
         # If the Errors tab is selected for this process, reset its notification count
-        try:
-            if tabs.tabText(idx) == "Errors":
-                err_widget.reset_count()
-                # also clear inner Errors tab bubble explicitly
-                if isinstance(tabs, NotificationTabs):
-                    tabs.set_notification(tab_name="Errors", count=0)
-        except Exception:
-            pass
+        if tabs.tabText(idx) == "Errors":
+            err_widget.reset_count()
+            # also clear inner Errors tab bubble explicitly
+            if isinstance(tabs, NotificationTabs):
+                tabs.set_notification(tab_name="Errors", count=0)
 
     def push_stdout(self, process_idx, data):
         proc = self.process_tabs.get(process_idx)
@@ -565,10 +554,7 @@ class ConsoleDock(QDockWidget):
 
     def stop_all(self):
         for proc in list(self.process_tabs.values()):
-            try:
-                proc["console"].stop_streams()
-            except Exception:
-                pass
+            proc["console"].stop_streams()
 
     def _close_process_tab(self, tab_index):
         # Find process by stored index
@@ -583,10 +569,7 @@ class ConsoleDock(QDockWidget):
             proc = self.process_tabs.pop(pid, None)
             self._process_tab_indexes.pop(pid, None)
             if proc is not None:
-                try:
-                    proc["console"].stop_streams()
-                except Exception:
-                    pass
+                proc["console"].stop_streams()
         # Shift stored indices above the removed index
         for k, v in list(self._process_tab_indexes.items()):
             if v > tab_index:

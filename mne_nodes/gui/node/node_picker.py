@@ -4,50 +4,10 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from PySide6.QtCore import QMimeData
-from PySide6.QtGui import QPixmap, QPainter, QDrag
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import (
-    QDockWidget,
-    QTabWidget,
-    QTableView,
-    QAbstractItemView,
-    QHeaderView,
-)
+from qtpy.QtWidgets import QDockWidget, QTabWidget, QTableView, QAbstractItemView
 
 from mne_nodes.gui.models import FunctionPickerModel, InputPickerModel
-
-
-class DraggableTableHeader(QHeaderView):
-    def __init__(self, parent):
-        super().__init__(Qt.Orientation.Vertical, parent=parent)
-
-    def mousePressEvent(self, event):
-        self._pressed_index = self.logicalIndexAt(event.pos())
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if event.buttons() & Qt.LeftButton and self._pressed_index is not None:
-            drag = QDrag(self)
-            mime = QMimeData()
-            mime.setText(f"Row {self._pressed_index}")
-            drag.setMimeData(mime)
-
-            # Optional: visual preview
-            pixmap = QPixmap(80, 30)
-            pixmap.fill(Qt.lightGray)
-            painter = QPainter(pixmap)
-            painter.drawText(
-                pixmap.rect(), Qt.AlignCenter, f"Row {self._pressed_index}"
-            )
-            painter.end()
-            drag.setPixmap(pixmap)
-            drag.setHotSpot(event.pos())
-
-            drag.exec_(Qt.CopyAction)
-            self._pressed_index = None
-        else:
-            super().mouseMoveEvent(event)
 
 
 class DraggableTableView(QTableView):
@@ -60,10 +20,9 @@ class DraggableTableView(QTableView):
         self.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setAlternatingRowColors(True)
-        self.horizontalHeader().setStretchLastSection(True)
-        # ToDo Next: Just don't show the vertical header but show names instead
-        header = DraggableTableHeader(self)
-        self.setVerticalHeader(header)
+        self.setWordWrap(True)
+        self.setSortingEnabled(True)
+        self.verticalHeader().setVisible(False)
 
 
 class FunctionTable(DraggableTableView):

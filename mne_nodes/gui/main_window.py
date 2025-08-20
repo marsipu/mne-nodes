@@ -4,6 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 import sys
 
 import mne
@@ -223,18 +224,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue("screen_name", self.screen().name())
         # Stop any running processes and workers
         for idx, proc in list(self.qprocesses.items()):
-            try:
-                proc.finished.disconnect()
-            except Exception:
-                pass
-            try:
-                proc.readyReadStandardOutput.disconnect()
-            except Exception:
-                pass
-            try:
-                proc.readyReadStandardError.disconnect()
-            except Exception:
-                pass
+            proc.finished.disconnect()
+            proc.readyReadStandardOutput.disconnect()
+            proc.readyReadStandardError.disconnect()
             if proc.state() != QProcess.ProcessState.NotRunning:
                 proc.kill()
                 proc.waitForFinished(2000)
@@ -253,31 +245,25 @@ class MainWindow(QMainWindow):
         - "mne-nodes/function:<function_name>"
         - "mne-nodes/input:<data_type>:<group>"
         """
-        try:
-            text = mime.text() if hasattr(mime, "text") else ""
-        except Exception:
-            text = ""
-        if not text:
+        text = mime.text() if hasattr(mime, "text") else ""
+        if text is None:
+            logging.debug("No text payload in drop event, ignoring.")
             return
-        try:
-            if text.startswith("mne-nodes/function:"):
-                fname = text[len("mne-nodes/function:") :]
-                if not fname:
-                    return
-                node = self.viewer.add_function_node(fname)
-                node.xy_pos = (pos.x(), pos.y())
-            elif text.startswith("mne-nodes/input:"):
-                payload = text[len("mne-nodes/input:") :]
-                parts = payload.split(":")
-                if len(parts) >= 2:
-                    dt, group = parts[0], parts[1]
-                else:
-                    return
-                node = self.viewer.add_input_node(data_type=dt, name=group)
-                node.xy_pos = (pos.x(), pos.y())
-            else:
-                # ignore unsupported payloads
+        if text.startswith("mne-nodes/function:"):
+            fname = text[len("mne-nodes/function:") :]
+            if not fname:
                 return
-        except Exception:
-            # Silently ignore creation errors in UI handler
+            node = self.viewer.add_function_node(fname)
+            node.xy_pos = (pos.x(), pos.y())
+        elif text.startswith("mne-nodes/input:"):
+            payload = text[len("mne-nodes/input:") :]
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                dt, group = parts[0], parts[1]
+            else:
+                return
+            node = self.viewer.add_input_node(data_type=dt, name=group)
+            node.xy_pos = (pos.x(), pos.y())
+        else:
+            # ignore unsupported payloads
             return

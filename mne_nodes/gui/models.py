@@ -15,6 +15,7 @@ from qtpy.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     Qt,
+    QMimeData,
 )
 from qtpy.QtGui import QBrush, QFont
 
@@ -948,22 +949,13 @@ class FunctionPickerModel(BasePandasModel):
         for fname, meta in (metas or {}).items():
             rows.append(
                 {
-                    "name": fname,
+                    "name": meta["alias"] or fname,
                     "inputs": ", ".join(meta.get("inputs", [])),
                     "outputs": ", ".join(meta.get("outputs", [])),
-                    "__meta__": meta,
                 }
             )
-        df = (
-            pd.DataFrame(rows)
-            if rows
-            else pd.DataFrame([], columns=["name", "inputs", "outputs", "__meta__"])
-        )
-        if not df.empty:
-            df = df.set_index("name")
-        super().__init__(
-            df[[c for c in ["inputs", "outputs"] if c in df.columns]], **kwargs
-        )
+        df = pd.DataFrame(rows)
+        super().__init__(df, **kwargs)
         self._metas = metas or {}
 
     def flags(self, index):
@@ -986,31 +978,27 @@ class FunctionPickerModel(BasePandasModel):
             return mime
         row = indexes[0].row()
         fname = self._data.index[row]
-        from qtpy.QtCore import QMimeData
 
         md = QMimeData()
         md.setText(f"mne-nodes/function:{fname}")
         return md
 
     def data(self, index, role=None):
-        if role == Qt.ToolTipRole:
-            try:
-                fname = self._data.index[index.row()]
-                meta = self._metas.get(fname, {})
-                alias = meta.get("alias")
-                group = meta.get("group")
-                module = meta.get("module")
-                nparams = len(meta.get("parameters", []))
-                plot = meta.get("plot", False)
-                tsafe = meta.get("thread-safe", False)
-                return (
-                    f"{fname} ({alias})\nGroup: {group}\nModule: {module}\n"
-                    f"Inputs: {', '.join(meta.get('inputs', []))}\n"
-                    f"Outputs: {', '.join(meta.get('outputs', []))}\n"
-                    f"Parameters: {nparams}\nPlot: {plot}  Thread-safe: {tsafe}"
-                )
-            except Exception:
-                return None
+        if role == Qt.ItemDataRole.ToolTipRole:
+            fname = self._data.index[index.row()]
+            meta = self._metas.get(fname, {})
+            alias = meta.get("alias")
+            group = meta.get("group")
+            module = meta.get("module")
+            nparams = len(meta.get("parameters", []))
+            plot = meta.get("plot", False)
+            tsafe = meta.get("thread-safe", False)
+            return (
+                f"{fname} ({alias})\nGroup: {group}\nModule: {module}\n"
+                f"Inputs: {', '.join(meta.get('inputs', []))}\n"
+                f"Outputs: {', '.join(meta.get('outputs', []))}\n"
+                f"Parameters: {nparams}\nPlot: {plot}  Thread-safe: {tsafe}"
+            )
         return super().data(index, role)
 
 
@@ -1039,38 +1027,30 @@ class InputPickerModel(BasePandasModel):
         self._labels = list(df.index) if not df.empty else []
 
     def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | Qt.ItemIsDragEnabled
+        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsDragEnabled
 
     def mimeTypes(self):
         return ["text/plain"]
 
     def supportedDragActions(self):
-        return Qt.CopyAction
+        return Qt.DropAction.CopyAction
 
     def mimeData(self, indexes):
         mime = super().mimeData(indexes)
         if len(indexes) == 0:
             return mime
         row = indexes[0].row()
-        try:
-            dt = self._data.iloc[row]["data_type"]
-            group = self._data.iloc[row]["group"]
-        except Exception:
-            return mime
-        from qtpy.QtCore import QMimeData
-
+        dt = self._data.iloc[row]["data_type"]
+        group = self._data.iloc[row]["group"]
         md = QMimeData()
         md.setText(f"mne-nodes/input:{dt}:{group}")
         return md
 
     def data(self, index, role=None):
         if role == Qt.ToolTipRole:
-            try:
-                dt = self._data.iloc[index.row()]["data_type"]
-                group = self._data.iloc[index.row()]["group"]
-                return f"Input node for data_type '{dt}', group '{group}'"
-            except Exception:
-                return None
+            dt = self._data.iloc[index.row()]["data_type"]
+            group = self._data.iloc[index.row()]["group"]
+            return f"Input node for data_type '{dt}', group '{group}'"
         return super().data(index, role)
 
 

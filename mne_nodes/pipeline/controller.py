@@ -68,7 +68,7 @@ class Controller:
             "padding": 20,
             "tab_space_count": 4,
         }
-        self.config_path = config_path or Settings().value(
+        self.config_path = config_path or self.settings.value(
             "config_path", defaultValue=None
         )
         # If config_path is not specified (new user), invoke getter-method
