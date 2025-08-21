@@ -936,34 +936,22 @@ class FileManagementModel(BasePandasModel):
 
 
 # ------------------------ NodePicker Models -------------------------------
-class FunctionPickerModel(BasePandasModel):
-    """Draggable model for functions list used in NodePicker.
+class PickerModel(BasePandasModel):
+    """Base model for NodePicker with common functionality.
 
-    Index: function name; Columns: inputs, outputs.
-    Tooltips include alias, group, module, parameters count, plot, thread-safe.
+    Parameters
+    ----------
+    data : pandas.DataFrame | None
+        DataFrame with contents to be displayed, defaults to empty DataFrame.
     """
 
-    def __init__(self, metas: dict, **kwargs):
-        # Build dataframe with only inputs/outputs columns
-        rows = []
-        for fname, meta in (metas or {}).items():
-            rows.append(
-                {
-                    "name": meta["alias"] or fname,
-                    "inputs": ", ".join(meta.get("inputs", [])),
-                    "outputs": ", ".join(meta.get("outputs", [])),
-                }
-            )
-        df = pd.DataFrame(rows)
-        super().__init__(df, **kwargs)
-        self._metas = metas or {}
+    def __init__(self, data=None, **kwargs):
+        if data is None:
+            data = pd.DataFrame([])
+        super().__init__(data, **kwargs)
 
     def flags(self, index):
-        return (
-            QAbstractItemModel.flags(self, index)
-            | Qt.ItemFlag.ItemIsDragEnabled
-            | Qt.ItemFlag.ItemIsSelectable
-        )
+        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsDragEnabled
 
     def mimeTypes(self):
         return ["text/plain"]
@@ -971,13 +959,51 @@ class FunctionPickerModel(BasePandasModel):
     def supportedDragActions(self):
         return Qt.DropAction.CopyAction
 
+    def sort(self, column: int, order: Qt.SortOrder):
+        self.layoutAboutToBeChanged.emit()
+        self._data.sort_values(
+            self._data.columns[column],
+            axis=0,
+            inplace=True,
+            ascending=order == Qt.SortOrder.AscendingOrder,
+        )
+        self.layoutChanged.emit()
+
+
+class FunctionPickerModel(PickerModel):
+    """Draggable model for functions list used in NodePicker.
+
+    Parameters
+    ----------
+    function_meta : dict
+        Dictionary with function metadata, where keys are function names
+    """
+
+    def __init__(self, function_meta: dict, **kwargs):
+        # Build dataframe with only inputs/outputs columns
+        rows = []
+        self.alias_dict = {
+            meta.get("alias", k) or k: k for k, meta in function_meta.items()
+        }
+        for fname, meta in (function_meta or {}).items():
+            rows.append(
+                {
+                    "name": meta.get("alias", None) or fname,
+                    "inputs": ", ".join(meta.get("inputs", [])),
+                    "outputs": ", ".join(meta.get("outputs", [])),
+                }
+            )
+        df = pd.DataFrame(rows)
+        super().__init__(df, **kwargs)
+        self._metas = function_meta or {}
+
     def mimeData(self, indexes):
         mime = super().mimeData(indexes)
         # Use first index row
         if len(indexes) == 0:
             return mime
         row = indexes[0].row()
-        fname = self._data.index[row]
+        fname = self.alias_dict[self._data.iloc[row, 0]]
 
         md = QMimeData()
         md.setText(f"mne-nodes/function:{fname}")
@@ -1002,7 +1028,7 @@ class FunctionPickerModel(BasePandasModel):
         return super().data(index, role)
 
 
-class InputPickerModel(BasePandasModel):
+class InputPickerModel(PickerModel):
     """Draggable model for input nodes used in NodePicker.
 
     Columns: data_type, group; Index: label (data_type:group) for reference.
@@ -1025,15 +1051,6 @@ class InputPickerModel(BasePandasModel):
         )
         self._inputs_dict = inputs_dict or {}
         self._labels = list(df.index) if not df.empty else []
-
-    def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsDragEnabled
-
-    def mimeTypes(self):
-        return ["text/plain"]
-
-    def supportedDragActions(self):
-        return Qt.DropAction.CopyAction
 
     def mimeData(self, indexes):
         mime = super().mimeData(indexes)

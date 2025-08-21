@@ -346,7 +346,6 @@
             ]
         },
         "apply_watershed": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -356,7 +355,6 @@
             "parameters": []
         },
         "prepare_bem": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -372,7 +370,6 @@
             ]
         },
         "setup_src": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -388,7 +385,6 @@
             ]
         },
         "compute_src_distances": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -404,7 +400,6 @@
             ]
         },
         "make_dense_scalp_surfaces": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -414,7 +409,6 @@
             "parameters": []
         },
         "setup_vol_src": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -430,7 +424,6 @@
             ]
         },
         "create_forward_solution": {
-            "alias": null,
             "group": "Forward",
             "module": "basic_operations",
             "thread-safe": true,
@@ -448,7 +441,6 @@
             ]
         },
         "morph_fsmri": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -464,7 +456,6 @@
             ]
         },
         "morph_labels_from_fsaverage": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_operations",
             "thread-safe": true,
@@ -474,7 +465,6 @@
             "parameters": []
         },
         "create_inverse_operator": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -490,7 +480,6 @@
             "parameters": []
         },
         "source_estimate": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -509,7 +498,6 @@
             ]
         },
         "apply_morph": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -526,7 +514,6 @@
             ]
         },
         "label_time_course": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -543,7 +530,6 @@
             ]
         },
         "ecd_fit": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_operations",
             "thread-safe": true,
@@ -564,7 +550,6 @@
             ]
         },
         "src_connectivity": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_operations",
             "thread-safe": true,
@@ -588,7 +573,6 @@
             ]
         },
         "grand_avg_evokeds": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_operations",
             "thread-safe": true,
@@ -603,7 +587,6 @@
             ]
         },
         "grand_avg_tfr": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_operations",
             "thread-safe": true,
@@ -615,7 +598,6 @@
             "parameters": []
         },
         "grand_avg_morphed": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_operations",
             "thread-safe": true,
@@ -629,7 +611,6 @@
             ]
         },
         "grand_avg_ltc": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_operations",
             "thread-safe": true,
@@ -641,7 +622,6 @@
             "parameters": []
         },
         "grand_avg_connect": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_operations",
             "thread-safe": true,

@@ -13,6 +13,7 @@ from typing import Any, Optional, Tuple
 
 from qtpy.QtCore import QObject, Signal
 
+from mne_nodes import debug_mode
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
 
 
@@ -99,3 +100,6 @@ class UncaughtHook(QObject):
 
             # trigger showing of error-dialog
             self._exception_caught.emit(exc_str)
+
+            if debug_mode:
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)

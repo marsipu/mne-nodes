@@ -4,6 +4,8 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
+
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QGroupBox
 
 from mne_nodes.gui import parameter_widgets
@@ -46,7 +48,7 @@ class InputNode(BaseNode):
         self.add_widget(self.main_widget)
 
     def add_files(self):
-        if self.data_type == "MEEG":
+        if self.data_type == "raw":
             widget = AddFilesWidget(self.ct)
         else:
             widget = AddMRIWidget(self.ct)
@@ -89,12 +91,18 @@ class FunctionNode(BaseNode):
         else:
             layout = QVBoxLayout(widget)
         for param_name in self.func_meta["parameters"]:
-            param_kwargs = self.ct.parameter_metas[param_name].copy()
-            param_kwargs["groupbox_layout"] = False
-            gui_name = param_kwargs.pop("gui")
-            gui = getattr(parameter_widgets, gui_name)
-            parameter_gui = gui(data=self.ct, name=param_name, **param_kwargs)
-            layout.addWidget(parameter_gui)
+            param_kwargs = self.ct.parameter_metas.get(param_name)
+            if param_kwargs is not None:
+                param_kwargs = param_kwargs.copy()
+                param_kwargs["groupbox_layout"] = False
+                gui_name = param_kwargs.pop("gui")
+                gui = getattr(parameter_widgets, gui_name)
+                parameter_gui = gui(data=self.ct, name=param_name, **param_kwargs)
+                layout.addWidget(parameter_gui)
+            else:
+                logging.warning(
+                    f"Parameter '{param_name}' not found in parameter metas."
+                )
         self.add_widget(widget)
 
     def mouseDoubleClickEvent(self, event):

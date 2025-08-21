@@ -71,9 +71,6 @@ class Controller:
         self.config_path = config_path or self.settings.value(
             "config_path", defaultValue=None
         )
-        # If config_path is not specified (new user), invoke getter-method
-        if config_path is None:
-            _ = self.config_path
         # Property attributes
         self._modules = {}
         self._function_metas = {}
@@ -101,7 +98,8 @@ class Controller:
         if value is None:
             logging.warning("No config-file path set!")
             ans = ask_user(
-                "Do you want to create a new config-file? (or use an existing one)"
+                "Do you want to create a new config-file? (or use an existing one)",
+                close_on_cancel=True,
             )
             # When the user cancels, the app is closed
             if ans is None:
@@ -110,17 +108,21 @@ class Controller:
             elif ans:
                 logging.info("Creating new config-file.")
                 config_folder = get_user_input(
-                    "Set the folder-path to store the config-file", "folder"
+                    "Set the folder-path to store the config-file",
+                    "folder",
+                    close_on_cancel=True,
                 )
                 value = join(config_folder, f"{self.name}_config.json")
-                self._config = {}
-                self.save_config()
+                # Write empty config_file
+                with open(value, "w") as file:
+                    json.dump(self.default_config, file, indent=4, cls=TypedJSONEncoder)
             else:
                 logging.info("Using existing config-file.")
                 value = get_user_input(
                     "Please enter the path to an exisiting config-file",
                     "file",
                     file_filter="JSON files (*.json)",
+                    close_on_cancel=True,
                 )
         # Check if the path is a valid file
         if not isfile(value):
@@ -128,6 +130,7 @@ class Controller:
             self.config_path = None
         # Set the config path and load the config
         self._config_path = value
+        self._config.clear()
         self.load_config()
         # Store the config path in the settings
         if not is_test():
@@ -143,7 +146,7 @@ class Controller:
 
     def load_config(self):
         """Load the configuration from the config-file."""
-        if not self._config:
+        if len(self._config) == 0:
             with open(self.config_path) as file:
                 self._config = json.load(file, object_hook=type_json_hook)
         # Set defaults
@@ -182,6 +185,7 @@ class Controller:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
             self.config["data_path"] = value
+            self.save_config()
 
     @property
     def subjects_dir(self):
@@ -230,18 +234,21 @@ class Controller:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
             self.config["plot_path"] = value
+            self.save_config()
 
     @property
     def name(self):
         if "name" not in self._config:
-            self.name = get_user_input("Please enter a name for this project", "string")
+            self._config["name"] = get_user_input(
+                "Please enter a name for this project", "string"
+            )
 
         return self._config["name"]
 
     @name.setter
     def name(self, new_name):
-        old_name = self._config.get("name", None)
-        if old_name is not None and old_name != new_name:
+        old_name = self._config.get("name")
+        if old_name != new_name:
             # Rename the config file if the name changes
             old_path = self._config_path
             new_path = join(os.path.dirname(old_path), f"{new_name}_config.json")
@@ -249,6 +256,7 @@ class Controller:
                 os.rename(old_path, new_path)
             self._config_path = new_path
         self._config["name"] = new_name
+        self.save_config()
 
     @property
     def local_config_path(self):
@@ -268,6 +276,7 @@ class Controller:
             )
         return viewer
 
+    @property
     def main_window(self):
         """Get the main window object from the _object_refs dictionary."""
         main_window = _object_refs.get("main_window", None)
@@ -433,6 +442,7 @@ class Controller:
         if value not in self.parameters:
             raise KeyError(f"Parameter preset '{value}' not found in project.")
         self.config["parameter_preset"] = value
+        self.save_config()
 
     def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
@@ -515,16 +525,19 @@ class Controller:
 
     @property
     def node_config(self):
-        return self._config.get("node_config", {})
+        return self._config.get("node_config", {"nodes": {}, "connections": {}})
 
     @node_config.setter
     def node_config(self, value):
         if not isinstance(value, dict):
             raise TypeError("Node config must be a dictionary.")
-        self._config["node_config"] = value
-        viewer = _object_refs["viewer"]
-        if viewer is not None:
-            viewer.reload_config()
+        self.viewer.load_config(value)
+        self.save_node_config(value)
+
+    def save_node_config(self, node_config):
+        # set to dict directly to avoid calling setter again
+        self._config["node_config"] = node_config
+        self.save_config()
 
     ####################################################################################
     # Modules
@@ -693,7 +706,16 @@ class Controller:
 
     def convert_to_code(self, instructions):
         """Convert a list of instructions to a Python code string."""
-        code = f'ct = Controller(config_path="{self.config_path}")\n\n'
+        # Resolve imports
+        code = (
+            "# This code was generated by mne-nodes\n\n"
+            "from mne_nodes.pipeline.controller import Controller\n"
+            "from mne_nodes.pipeline.loading import MEEG, FSMRI, Group\n\n"
+            "# Load controller\n"
+            f"ct = Controller(config_path='{self.config_path}')\n\n"
+            "# Inject modules into global namespace\n"
+            "globals().update(ct.modules)\n\n"
+        )
         # ToDo: Put into try-except block to catch errors of multiple subjects
         loaded_data = set()
         modules = {}
@@ -717,25 +739,12 @@ class Controller:
                 if meta["module"] not in modules:
                     modules[meta["module"]] = []
                 modules[meta["module"]].append(name)
-                code += self.tab + f"{name}(meeg, **ct.func_parameters(name))\n"
+                code += self.tab + f"{name}(meeg, **ct.func_parameters({name}))\n"
             else:
                 logging.warning(
                     f"Unknown instruction type '{kind}' for name '{name}'. "
                     "Skipping this instruction."
                 )
-
-        # Resolve imports
-        top_code = (
-            "# This code was generated by mne-nodes\n\n"
-            "from mne_nodes.pipeline.controller import Controller\n"
-            "from mne_nodes.pipeline.loarding import MEEG, FSMRI, Group\n\n"
-            "from mne_nodes.pipeline.io import load_data, save_data\n\n"
-        )
-        for module_name, funcs in modules.items():
-            module_str = f"from ct.modules.{module_name} import "
-            module_str += ", ".join(funcs) + "\n"
-            top_code += module_str
-        code = top_code + code
 
         return code
 

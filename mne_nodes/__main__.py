@@ -6,7 +6,6 @@ Github: https://github.com/marsipu/mne-nodes
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -16,7 +15,6 @@ from qtpy.QtCore import QTimer, Qt
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
-from mne_nodes import islin
 from mne_nodes.gui.console import StdoutStderrStream
 from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
 from mne_nodes.gui.main_window import MainWindow
@@ -62,8 +60,7 @@ def init_logging(debug_mode: bool = False) -> None:
 
 def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
-    debug_mode = os.environ.get("MNENODES_DEBUG", False) == "true"
-    init_logging(debug_mode)
+    init_logging(mne_nodes.debug_mode)
 
     logging.info("Starting MNE-Nodes...")
 
@@ -78,8 +75,8 @@ def main() -> None:
         app.lastWindowClosed.connect(app.quit)
 
         # Avoid file-dialog-problems with custom file-managers in linux
-        if islin:
-            app.setAttribute(Qt.AA_DontUseNativeDialogs, True)
+        if mne_nodes.islin:
+            app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
 
         # Initialize streams from stdout/stderr into Qt
         init_streams()
@@ -88,7 +85,7 @@ def main() -> None:
         logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
 
         # Initialize Exception-Hook
-        if debug_mode:
+        if mne_nodes.debug_mode:
             logging.info("Debug-Mode is activated")
         else:
             qt_exception_hook = UncaughtHook()

@@ -3,7 +3,6 @@
     "module_alias": "basic_plot",
     "functions": {
         "plot_src": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_plot",
             "thread-safe": false,
@@ -17,7 +16,6 @@
             ]
         },
         "plot_bem": {
-            "alias": null,
             "group": "MRI-Preprocessing",
             "module": "basic_plot",
             "thread-safe": true,
@@ -32,7 +30,6 @@
             ]
         },
         "plot_noise_covariance": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": true,
@@ -47,7 +44,6 @@
             ]
         },
         "plot_transformation": {
-            "alias": null,
             "group": "Forward",
             "module": "basic_plot",
             "thread-safe": false,
@@ -62,7 +58,6 @@
             ]
         },
         "plot_sensitivity_maps": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": false,
@@ -76,7 +71,6 @@
             ]
         },
         "plot_sensors": {
-            "alias": null,
             "group": "Forward",
             "module": "basic_plot",
             "thread-safe": true,
@@ -92,7 +86,6 @@
             ]
         },
         "plot_raw": {
-            "alias": null,
             "group": "Raw",
             "module": "basic_plot",
             "thread-safe": true,
@@ -108,7 +101,6 @@
             ]
         },
         "plot_filtered": {
-            "alias": null,
             "group": "Raw",
             "module": "basic_plot",
             "thread-safe": true,
@@ -124,7 +116,6 @@
             ]
         },
         "plot_events": {
-            "alias": null,
             "group": "events",
             "module": "basic_plot",
             "thread-safe": true,
@@ -138,7 +129,6 @@
             ]
         },
         "plot_power_spectra": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -152,7 +142,6 @@
             ]
         },
         "plot_power_spectra_topomap": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -167,7 +156,6 @@
             ]
         },
         "plot_power_spectra_epochs": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -181,7 +169,6 @@
             ]
         },
         "plot_power_spectra_epochs_topomap": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -196,7 +183,6 @@
             ]
         },
         "plot_tfr": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -211,7 +197,6 @@
             ]
         },
         "plot_epochs": {
-            "alias": null,
             "group": "Epochs",
             "module": "basic_plot",
             "thread-safe": true,
@@ -225,7 +210,6 @@
             ]
         },
         "plot_epochs_image": {
-            "alias": null,
             "group": "Epochs",
             "module": "basic_plot",
             "thread-safe": true,
@@ -239,7 +223,6 @@
             ]
         },
         "plot_epochs_topo": {
-            "alias": null,
             "group": "Epochs",
             "module": "basic_plot",
             "thread-safe": true,
@@ -253,7 +236,6 @@
             ]
         },
         "plot_epochs_drop_log": {
-            "alias": null,
             "group": "Epochs",
             "module": "basic_plot",
             "thread-safe": true,
@@ -267,7 +249,6 @@
             ]
         },
         "plot_autoreject_log": {
-            "alias": null,
             "group": "Epochs",
             "module": "basic_plot",
             "thread-safe": true,
@@ -282,7 +263,6 @@
             ]
         },
         "plot_evoked_topo": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -296,7 +276,6 @@
             ]
         },
         "plot_evoked_topomap": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -310,7 +289,6 @@
             ]
         },
         "plot_evoked_butterfly": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -325,7 +303,6 @@
             ]
         },
         "plot_evoked_joint": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -339,7 +316,6 @@
             ]
         },
         "plot_evoked_white": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -354,7 +330,6 @@
             ]
         },
         "plot_evoked_image": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -368,7 +343,6 @@
             ]
         },
         "plot_compare_evokeds": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -382,7 +356,6 @@
             ]
         },
         "plot_gfp": {
-            "alias": null,
             "group": "Evoked",
             "module": "basic_plot",
             "thread-safe": true,
@@ -420,7 +393,6 @@
             ]
         },
         "plot_stc_interactive": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": false,
@@ -442,7 +414,6 @@
             ]
         },
         "plot_labels": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": false,
@@ -485,7 +456,6 @@
             ]
         },
         "plot_snr": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": true,
@@ -500,7 +470,6 @@
             ]
         },
         "plot_label_time_course": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": true,
@@ -515,7 +484,6 @@
             ]
         },
         "plot_ecd": {
-            "alias": null,
             "group": "Inverse",
             "module": "basic_plot",
             "thread-safe": false,
@@ -528,7 +496,6 @@
             "parameters": []
         },
         "plot_src_connectivity": {
-            "alias": null,
             "group": "Time-Frequency",
             "module": "basic_plot",
             "thread-safe": true,
@@ -543,7 +510,6 @@
             ]
         },
         "plot_grand_avg_evokeds": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": true,
@@ -557,7 +523,6 @@
             ]
         },
         "plot_grand_avg_tfr": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": true,
@@ -571,7 +536,6 @@
             ]
         },
         "plot_grand_avg_stc": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": false,
@@ -595,7 +559,6 @@
             ]
         },
         "plot_grand_avg_stc_anim": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": false,
@@ -621,7 +584,6 @@
             ]
         },
         "plot_grand_average_stc_interactive": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": false,
@@ -644,7 +606,6 @@
             ]
         },
         "plot_grand_avg_ltc": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": true,
@@ -659,7 +620,6 @@
             ]
         },
         "plot_grand_avg_connect": {
-            "alias": null,
             "group": "Grand-Average",
             "module": "basic_plot",
             "thread-safe": true,

@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import json
+from ast import literal_eval
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Union
@@ -76,5 +77,12 @@ def type_json_hook(obj: Dict[str, Any]) -> Any:
         return set(obj["set_type"])
     elif "path_type" in obj.keys():
         return Path(obj["path_type"])
-    else:
-        return obj
+    # Convert keys if converted to string by json
+    new_obj = {}
+    for key, value in obj.items():
+        try:
+            literal_key = literal_eval(key)
+        except (SyntaxError, ValueError):
+            literal_key = key
+        new_obj[literal_key] = value
+    return new_obj

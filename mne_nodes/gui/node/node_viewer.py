@@ -509,12 +509,11 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
-    def reload_config(self):
-        if self.ct.node_config:
-            self.from_dict(self.ct.node_config)
-            # If nodes are loaded, we need to re-layout them
-            self.auto_layout_nodes()
-            self.zoom_to_nodes()
+    def load_config(self, config: dict):
+        self.from_dict(config)
+        # If nodes are loaded, we need to re-layout them
+        self.auto_layout_nodes()
+        self.zoom_to_nodes()
 
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
         if visited is None:
@@ -954,17 +953,43 @@ class NodeViewer(QGraphicsView):
             "text=",
             event.mimeData().text(),
         )
-        self.DataDropped.emit(event.mimeData(), QPointF(pos.x(), pos.y()))
+        mime = event.mimeData()
+        self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
+
+        # Handle drop from NodePicker
+        text = mime.text() if hasattr(mime, "text") else ""
+        if text is None:
+            logging.debug("No text payload in drop event, ignoring.")
+            return
+        if text.startswith("mne-nodes/function:"):
+            fname = text[len("mne-nodes/function:") :]
+            if not fname:
+                return
+            node = self.add_function_node(fname)
+            node.xy_pos = (pos.x(), pos.y())
+        elif text.startswith("mne-nodes/input:"):
+            payload = text[len("mne-nodes/input:") :]
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                dt, group = parts[0], parts[1]
+            else:
+                return
+            node = self.add_input_node(data_type=dt, name=group)
+            node.xy_pos = (pos.x(), pos.y())
+        self.zoom_to_nodes()
+
         event.accept()
 
-    def dragEnterEvent(self, event):
-        # Accept common payloads including text and model default datalist
-        acceptable_formats = [
-            "nodegraphqt/nodes",
-            "text/plain",
-            "text/uri-list",
-            "application/x-qabstractitemmodeldatalist",
-        ]
+    def _on_viewer_drop(self, mime, pos):
+        """Create nodes on drop from NodePicker.
+
+        Expected mime text payloads:
+        - "mne-nodes/function:<function_name>"
+        - "mne-nodes/input:<data_type>:<group>"
+        """
+
+    def _check_drag_event(self, event):
+        acceptable_formats = ["text/plain"]
         is_acceptable = (
             any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
             or event.mimeData().hasText()
@@ -975,27 +1000,22 @@ class NodeViewer(QGraphicsView):
         else:
             event.ignore()
 
+    def dragEnterEvent(self, event):
+        self._check_drag_event(event)
+
     def dragMoveEvent(self, event):
-        acceptable_formats = [
-            "nodegraphqt/nodes",
-            "text/plain",
-            "text/uri-list",
-            "application/x-qabstractitemmodeldatalist",
-        ]
-        is_acceptable = (
-            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
-            or event.mimeData().hasText()
-        )
-        if is_acceptable:
-            event.setDropAction(Qt.DropAction.CopyAction)
-            event.accept()
-        else:
-            event.ignore()
+        self._check_drag_event(event)
 
     def dragLeaveEvent(self, event):
         event.ignore()
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            # delete selected nodes and pipes
+            for node in self.selected_nodes():
+                self.remove_node(node)
+            return
+
         if self._LIVE_PIPE.isVisible():
             super().keyPressEvent(event)
             return

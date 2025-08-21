@@ -62,30 +62,24 @@ alternative_test_parameters = {
 @pytest.fixture
 def controller(tmp_path, monkeypatch):
     # Create a config_file, data_path and subjects_dir
-    config_path = tmp_path / "test_config.json"
+    controller_name = "test"
     data_path = tmp_path / "MEEG"
     mkdir(data_path)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
-    test_config = {
-        "name": "test_controller",
-        "data_path": data_path,
-        "subjects_dir": subjects_dir,
-    }
-    with open(config_path, "w") as f:
-        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
     # Monkeypatching to simulate user input
     monkeypatch.setattr(
         "qtpy.QtWidgets.QMessageBox.question",
-        lambda x, y, z: QMessageBox.StandardButton.Yes,
+        lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
     )
     monkeypatch.setattr(
-        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
+        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: (controller_name, True)
     )
     monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
-
     # Create Controller
-    ct = Controller(config_path)
+    ct = Controller()
+    ct.data_path = data_path
+    ct.subjects_dir = subjects_dir
 
     return ct
 

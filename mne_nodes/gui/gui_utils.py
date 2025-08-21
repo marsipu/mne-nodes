@@ -51,7 +51,7 @@ def set_ratio_geometry(size_ratio, widget):
 
     Parameters
     ----------
-    size_ratio : tuple of float
+    size_ratio : float or tuple of float
         Enter the ratio of the current screen size to set the widget size, e.g. (0.5, 0.5) for half the width
         and height of the screen. If a single float is provided, it will be used for both width and height.
     widget : QWidget
@@ -75,7 +75,7 @@ def get_std_icon(icon_name):
     return QApplication.instance().style().standardIcon(getattr(QStyle, icon_name))
 
 
-def ask_user(prompt, cancel_allowed=True):
+def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
     """Ask the user a yes or no question.
 
     The answer is returned as a boolean. If the user cancels the
@@ -95,9 +95,6 @@ def ask_user(prompt, cancel_allowed=True):
         ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
         cancel = ans == QMessageBox.StandardButton.Cancel
         ans = ans == QMessageBox.StandardButton.Yes
-        if cancel and cancel_allowed:
-            logging.debug("User cancelled the operation.")
-            return None
     elif is_test() or sys.stdin.isatty():
         if cancel_allowed:
             prompt += " (yes/no/cancel): "
@@ -108,14 +105,18 @@ def ask_user(prompt, cancel_allowed=True):
         ok = ans in ["yes", "y", "no", "n"]
         cancel = ans in ["cancel", "c"]
         ans = ans.strip().lower() in ["yes", "y"]
-        if cancel_allowed and cancel:
-            logging.info("User cancelled the operation.")
-            return None
     else:
         raise RuntimeError(
             "Input is not available in this environment. "
             "Please run the script in a terminal/command prompt or start the GUI."
         )
+    if cancel and cancel_allowed:
+        if close_on_cancel:
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        else:
+            logging.info("User cancelled the operation.")
+            return None
     if not ok or ans is None:
         warning_message = (
             "You need to provide an appropriate input to proceed (yes/n or no/n)!"
@@ -133,7 +134,13 @@ def ask_user(prompt, cancel_allowed=True):
     return ans
 
 
-def get_user_input(prompt, input_type="string", file_filter=None):
+def get_user_input(
+    prompt,
+    input_type="string",
+    file_filter=None,
+    cancel_allowed=True,
+    close_on_cancel=False,
+):
     """Get user input either via GUI or terminal, supporting string and path
     input.
 
@@ -145,6 +152,8 @@ def get_user_input(prompt, input_type="string", file_filter=None):
         The type of input to request: "string", "folder" or "file".
     file_filter : str, optional
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
+    cancel_allowed : bool, optional
+        If True, allows the user to cancel the input operation. Defaults to True.
 
     Returns
     -------
@@ -173,16 +182,19 @@ def get_user_input(prompt, input_type="string", file_filter=None):
     # Checks for interactive terminal
     elif sys.stdin.isatty():
         if input_type == "path":
-            ans = input("Do you want to use the current directory? (y/n): ")
+            ans = input("Do you want to use the current directory? (y/n/cancel): ")
             if ans.lower() in ["y", "yes"]:
                 user_input = os.getcwd()
                 ok = True
+            elif ans.lower() in ["c", "cancel"]:
+                user_input = None
+                ok = False
             else:
                 user_input = input(f"{prompt}: ")
                 ok = True
         elif input_type == "string":
             user_input = input(f"{prompt}: ")
-            ok = True
+            ok = user_input.lower() not in ["cancel", "c"]
         else:
             raise ValueError(type_error_message)
     else:
@@ -190,7 +202,13 @@ def get_user_input(prompt, input_type="string", file_filter=None):
             "Input is not available in this environment. "
             "Please run the script in a terminal/command prompt or start the GUI."
         )
-
+    if cancel_allowed and not ok:
+        if close_on_cancel:
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        else:
+            logging.debug("User cancelled the input operation.")
+            return None
     # Check user input
     if not ok or user_input is None:
         warning_message = "You need to provide an appropriate input to proceed!"

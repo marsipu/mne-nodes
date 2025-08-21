@@ -4,26 +4,14 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from os.path import join, isfile
-
-
-from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.pipeline_utils import change_file_section
 
 
-def test_init(tmp_path):
-    # Initialize the controller in gui mode
-    Controller()
-
-    # Initialize another controller with the new config-file
-    controller = Controller(config_path=join(tmp_path, "test_config.json"))
-
+def test_init(controller):
+    assert controller.name == "test"
     # Test renaming the controller
     controller.name = "test2"
     assert controller.name == "test2", "Controller name should be updated to 'test2'"
-    assert isfile(tmp_path / "test2_config.json"), "Config file should be renamed"
-
-    # ToDo: Test initialization of the controller in headless mode
 
 
 def test_module_import(tmp_path, controller, test_module, test_script):

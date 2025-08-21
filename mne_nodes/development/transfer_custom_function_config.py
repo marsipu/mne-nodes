@@ -68,4 +68,6 @@ for module_name, module_dict in configs.items():
     print(print_msg)
     with open(config_file, "w") as f:
         json.dump(module_dict, f, indent=4, cls=TypedJSONEncoder)
+        # Add empty line at the end of the file
+        f.write("\n")
     print(success_msg)

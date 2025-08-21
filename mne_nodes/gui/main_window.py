@@ -4,7 +4,6 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import sys
 
 import mne
@@ -53,8 +52,7 @@ class MainWindow(QMainWindow):
         # Init Node-Viewer
         self.viewer = viewer or NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.reload_config()
-        self.viewer.DataDropped.connect(self._on_viewer_drop)
+        self.viewer.load_config(controller.node_config)
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -145,7 +143,7 @@ class MainWindow(QMainWindow):
         process.finished.connect(
             lambda code, status: self._process_finished(process_idx, code, status)
         )
-        file_path = self.controller.process(process_idx)["file_path"]
+        file_path = self.controller.process(process_idx)["file"]
         process.setArguments([str(file_path)])
         process.start()
 
@@ -153,7 +151,7 @@ class MainWindow(QMainWindow):
         self.close()
         restart_program()
 
-    def update_pipeline(self, version):
+    def update_app(self, version):
         if version == "stable":
             command = "pip install --upgrade mne_nodes"
         else:
@@ -183,7 +181,7 @@ class MainWindow(QMainWindow):
                 "to apply the changes from the Update!",
             )
 
-            if answer == QMessageBox.Yes:
+            if answer == QMessageBox.StandardButton.Yes:
                 self.restart()
 
     def update_mne(self):
@@ -204,7 +202,7 @@ class MainWindow(QMainWindow):
             "Please restart the Pipeline-Program to apply the changes from the Update!",
         )
 
-        if answer == QMessageBox.Yes:
+        if answer == QMessageBox.StandardButton.Yes:
             self.restart()
 
     def show_sys_info(self):
@@ -235,35 +233,7 @@ class MainWindow(QMainWindow):
         self.qprocesses.clear()
         # Clear global reference for tests/GC
         _object_refs["main_window"] = None
+        # Save node configuration
+        self.controller.save_node_config(self.viewer.to_dict())
+        # Close the main window
         event.accept()
-
-    # --------------------- Drag & Drop integration -------------------------
-    def _on_viewer_drop(self, mime, pos):
-        """Create nodes on drop from NodePicker.
-
-        Expected mime text payloads:
-        - "mne-nodes/function:<function_name>"
-        - "mne-nodes/input:<data_type>:<group>"
-        """
-        text = mime.text() if hasattr(mime, "text") else ""
-        if text is None:
-            logging.debug("No text payload in drop event, ignoring.")
-            return
-        if text.startswith("mne-nodes/function:"):
-            fname = text[len("mne-nodes/function:") :]
-            if not fname:
-                return
-            node = self.viewer.add_function_node(fname)
-            node.xy_pos = (pos.x(), pos.y())
-        elif text.startswith("mne-nodes/input:"):
-            payload = text[len("mne-nodes/input:") :]
-            parts = payload.split(":")
-            if len(parts) >= 2:
-                dt, group = parts[0], parts[1]
-            else:
-                return
-            node = self.viewer.add_input_node(data_type=dt, name=group)
-            node.xy_pos = (pos.x(), pos.y())
-        else:
-            # ignore unsupported payloads
-            return

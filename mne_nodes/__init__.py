@@ -4,6 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import os
 import sys
 
 # Global variables to check the platform
@@ -15,12 +16,14 @@ islin = not ismac and not iswin
 # but accessed via mne_nodes.gui_mode
 gui_mode = True
 
+# Check if running in debug mode
+debug_mode = os.environ.get("MNENODES_DEBUG", False) == "true"
+
 # Keep reference to Qt-objects without parent for tests
 # and to avoid garbage collection
 _object_refs = {
     "main_window": None,
     "viewer": None,
-    "welcome_window": None,
     "plot_manager": None,
     "dialogs": {},
     "parameter_widgets": {},

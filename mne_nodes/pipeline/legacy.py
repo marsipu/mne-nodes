@@ -228,6 +228,29 @@ def transfer_file_params_to_single_subject(ct):
         print("Done!")
 
 
+def check_none(value):
+    """Check if a value is None or NaN and return None."""
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    if isinstance(value, list) and len(value) == 0:
+        return True
+    if isinstance(value, dict) and len(value) == 0:
+        return True
+    if isinstance(value, tuple) and len(value) == 0:
+        return True
+    if isinstance(value, set) and len(value) == 0:
+        return True
+    if isinstance(value, Path) and not value.exists():
+        return True
+    if isinstance(value, np.ndarray) and value.size == 0:
+        return True
+    return False
+
+
 def convert_pandas_meta(func_pd, param_pd):
     """Convert pandas DataFrames to a dictionary structure for function and
     parameter configuration."""
@@ -264,10 +287,15 @@ def convert_pandas_meta(func_pd, param_pd):
                 "pkg_name",
             ]:
                 row_dict.pop(pop_key)
-
-            params = row_dict.pop("func_args").split(",")
+            if func_name == "plot_grand_avg_connect":
+                pass
+            # Make sure alias, unit and description are removed when None
+            for key in ["alias", "unit", "description"]:
+                if check_none(row_dict[key]):
+                    row_dict.pop(key)
 
             # Get inputs/outputs and parameters
+            params = row_dict.pop("func_args").split(",")
             input = params.pop(0)
             func = getattr(module, func_name)
             code = getsource(func)
