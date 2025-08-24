@@ -7,7 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import itertools
 from functools import partial
 from os.path import join
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import mne
@@ -35,7 +35,12 @@ def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
     meeg.save(raw_type, raw)
 
 
-def plot_raw(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_raw_on_close, **kwargs) -> None:
+def plot_raw(
+    meeg: "MEEG",
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_raw_on_close,
+    **kwargs,
+) -> None:
     raw = meeg.load_raw()
 
     try:
@@ -65,7 +70,12 @@ def plot_raw(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _s
         )
 
 
-def plot_filtered(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_raw_on_close, **kwargs: Any) -> None:
+def plot_filtered(
+    meeg: "MEEG",
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_raw_on_close,
+    **kwargs: Any,
+) -> None:
     raw = meeg.load_filtered()
 
     try:
@@ -78,14 +88,16 @@ def plot_filtered(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable]
         events=events,
         bad_color="red",
         scalings="auto",
-        title=f"{meeg.name} highpass={meeg.pa['highpass']} "
-        f"lowpass={meeg.pa['lowpass']}",
+        title=f"{meeg.name} highpass={meeg.params['highpass']} "
+        f"lowpass={meeg.params['lowpass']}",
         show=show_plots,
         **kwargs,
     )
 
 
-def plot_sensors(meeg: "MEEG", plot_sensors_kind: str, ch_types: List[str], show_plots: bool) -> None:
+def plot_sensors(
+    meeg: "MEEG", plot_sensors_kind: str, ch_types: List[str], show_plots: bool
+) -> None:
     loaded_info = meeg.load_info()
     if len(ch_types) > 1:
         ch_types = "all"
@@ -127,7 +139,9 @@ def plot_power_spectra(meeg: "MEEG", show_plots: bool) -> None:
     meeg.plot_save("power_spectra", subfolder="raw", matplotlib_figure=fig)
 
 
-def plot_power_spectra_topomap(meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool) -> None:
+def plot_power_spectra_topomap(
+    meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool
+) -> None:
     psd = meeg.load_psd_raw()
     fig = psd.plot_topomap(badns=psd_topomap_bands, show=show_plots)
     fig.suptitle(f"Raw: {meeg.name}", x=0.3)
@@ -145,7 +159,9 @@ def plot_power_spectra_epochs(meeg: "MEEG", show_plots: bool) -> None:
         )
 
 
-def plot_power_spectra_epochs_topomap(meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool) -> None:
+def plot_power_spectra_epochs_topomap(
+    meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool
+) -> None:
     psd = meeg.load_psd_epochs()
     for trial in meeg.sel_trials:
         fig = psd[trial].plot_topomap(bands=psd_topomap_bands, show=show_plots)
@@ -396,7 +412,9 @@ def _save_ica_on_close(_, meeg: "MEEG", ica: Any) -> None:
     meeg.save_ica(ica)
 
 
-def plot_ica_components(meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_ica_on_close) -> None:
+def plot_ica_components(
+    meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_ica_on_close
+) -> None:
     ica = meeg.load_ica()
     figs = ica.plot_components(title=meeg.name, show=show_plots)
     if not isinstance(figs, list):
@@ -405,7 +423,12 @@ def plot_ica_components(meeg: "MEEG", show_plots: bool, close_func: Optional[Cal
     meeg.plot_save("ica", subfolder="components", matplotlib_figure=figs)
 
 
-def plot_ica_sources(meeg: "MEEG", ica_source_data: str, show_plots: bool, close_func: Optional[Callable] = _save_ica_on_close) -> None:
+def plot_ica_sources(
+    meeg: "MEEG",
+    ica_source_data: str,
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_ica_on_close,
+) -> None:
     ica = meeg.load_ica()
     data = meeg.load(ica_source_data)
 
@@ -446,7 +469,7 @@ def plot_ica_properties(meeg: "MEEG", ica_fitto: str, show_plots: bool) -> None:
 
     eog_indices = meeg.load_json("eog_indices", default=[])
     ecg_indices = meeg.load_json("ecg_indices", default=[])
-    psd_args = {"fmax": meeg.pa["lowpass"]}
+    psd_args = {"fmax": meeg.params["lowpass"]}
 
     if len(eog_indices) > 0:
         eog_epochs = meeg.load_eog_epochs()
@@ -729,7 +752,6 @@ def plot_animated_stc(
 
 
 def plot_labels(
-    fsmri: "FSMRI", target_labels: List[str], label_colors: Dict[str, Any], 
     fsmri: "FSMRI",
     target_labels: List[str],
     label_colors: Dict[str, Any],
@@ -789,7 +811,7 @@ def plot_ecd(meeg: "MEEG") -> None:
             )
 
             save_path_anat = join(
-                meeg.obj.figures_path,
+                meeg.plot_path,
                 meeg.p_preset,
                 "ECD",
                 dipole,
@@ -828,11 +850,15 @@ def plot_snr(meeg: "MEEG", show_plots: bool) -> None:
         meeg.plot_save("snr", trial=trial, matplotlib_figure=fig)
 
 
-def plot_label_time_course(meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool) -> None:
+def plot_label_time_course(
+    meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     ltcs = meeg.load_ltc()
     for trial in ltcs:
         plt.figure()
-        plt.title(f"{meeg.name}-{trial}\nExtraction-Mode: {meeg.pa['extract_mode']}")
+        plt.title(
+            f"{meeg.name}-{trial}\nExtraction-Mode: {meeg.params['extract_mode']}"
+        )
         plt.xlabel("Time in s")
         plt.ylabel("Source amplitude")
         for label_name, data in ltcs[trial].items():
@@ -857,7 +883,9 @@ def _get_n_subplots(n_items: int) -> Tuple[int, int]:
     return nrows, ncols, ax_idxs
 
 
-def _plot_connectivity(obj: Any, con_dict: Dict[str, Any], label_colors: Dict[str, Any], show_plots: bool) -> None:
+def _plot_connectivity(
+    obj: Any, con_dict: Dict[str, Any], label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     for trial in con_dict:
         for con_method, con in con_dict[trial].items():
             labels = obj.fsmri.get_labels(con.names)
@@ -942,7 +970,9 @@ def _plot_connectivity(obj: Any, con_dict: Dict[str, Any], label_colors: Dict[st
             )
 
 
-def plot_src_connectivity(meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool) -> None:
+def plot_src_connectivity(
+    meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     con_dict = meeg.load_connectivity()
     _plot_connectivity(meeg, con_dict, label_colors, show_plots)
 
@@ -1088,13 +1118,15 @@ def plot_grand_avg_stc_anim(
     )
 
 
-def plot_grand_avg_ltc(group: Group, label_colors: Dict[str, Any], show_plots: bool) -> None:
+def plot_grand_avg_ltc(
+    group: Group, label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     ga_ltc = group.load_ga_ltc()
     for trial in ga_ltc:
         plt.figure()
         plt.title(
             f"Label-Time-Course for {group.name}-{trial}\n"
-            f"with Extraction-Mode: {group.pa['extract_mode']}"
+            f"with Extraction-Mode: {group.params['extract_mode']}"
         )
         plt.xlabel("Time in ms")
         plt.ylabel("Source amplitude")
@@ -1108,6 +1140,8 @@ def plot_grand_avg_ltc(group: Group, label_colors: Dict[str, Any], show_plots: b
         group.plot_save("ga_label-time-course", trial=trial)
 
 
-def plot_grand_avg_connect(group: Group, label_colors: Dict[str, Any], show_plots: bool) -> None:
+def plot_grand_avg_connect(
+    group: Group, label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     con_dict = group.load_ga_con()
     _plot_connectivity(group, con_dict, label_colors, show_plots)

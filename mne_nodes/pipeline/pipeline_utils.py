@@ -70,11 +70,11 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
         function = None
 
     if not target_parameters:
-        target_parameters = obj.pa.keys()
+        target_parameters = obj.params.keys()
     for param in target_parameters:
         try:
             previous_value = obj.file_parameters[file_name][param]
-            current_value = obj.pa[param]
+            current_value = obj.params[param]
 
             if str(previous_value) == str(current_value):
                 result_dict[param] = "equal"

@@ -237,6 +237,13 @@ class Controller:
             self.save_config()
 
     @property
+    def plot_files(self):
+        """This holds the plot file-paths for the project."""
+        if "plot_files" not in self.config:
+            self.config["plot_files"] = {}
+        return self.config["plot_files"]
+
+    @property
     def name(self):
         if "name" not in self._config:
             self._config["name"] = get_user_input(
@@ -453,7 +460,9 @@ class Controller:
 
         return default_value
 
-    def parameter(self, parameter_name: str, parameter_preset: Optional[str] = None) -> Any:
+    def parameter(
+        self, parameter_name: str, parameter_preset: Optional[str] = None
+    ) -> Any:
         """Get a specific parameter from the project parameters."""
         parameter_preset = parameter_preset or self.parameter_preset
         if parameter_preset not in self.parameters:
@@ -497,13 +506,6 @@ class Controller:
         if "add_kwargs" not in self.config:
             self.config["add_kwargs"] = {}
         return self.config["add_kwargs"]
-
-    @property
-    def plot_files(self):
-        """This holds the plot file-paths for the project."""
-        if "plot_files" not in self.config:
-            self.config["plot_files"] = {}
-        return self.config["plot_files"]
 
     def process(self, idx):
         """Get the process for a specific index."""
@@ -721,11 +723,11 @@ class Controller:
         modules = {}
         if instructions[0][0] == "raw":
             code += "for meeg_name in ct.inputs['raw']:\n"
-            code += self.tab + "meeg = MEEG(ct, meeg_name)\n"
+            code += self.tab + "meeg = MEEG(meeg_name, ct)\n"
             loaded_data.add(instructions[0][0])
         elif instructions[0][0] == "fsmri":
             code += "for fsmri_name in ct.inputs['fsmri']:\n"
-            code += self.tab + "fsmri = FSMRI(ct, fsmri_name)\n"
+            code += self.tab + "fsmri = FSMRI(fsmri_name, ct)\n"
         elif instructions[0][0] == "group":
             pass  # ToDo: Handle groups
         else:

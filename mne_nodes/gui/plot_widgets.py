@@ -111,9 +111,7 @@ class PlotManager(QMainWindow):
             elif isinstance(subplot, Figure3D):
                 plot_widget = subplot
             else:
-                logging.error(
-                    f'Unrecognized type "{type(subplot)}" ' f'for "{func_name}"'
-                )
+                logging.error(f'Unrecognized type "{type(subplot)}" for "{func_name}"')
                 plot_widget = QWidget()
 
             self.plots[name][func_name].append(plot_widget)
@@ -238,7 +236,8 @@ class PlotViewSelection(QDialog):
         self.obj_select.replace_data(self.objects)
 
     def func_selected(self, func):
-        """Get selected function and adjust contents of Object-Selection to target."""
+        """Get selected function and adjust contents of Object-Selection to
+        target."""
         self.selected_func = func
         self.target = self.ct.pd_funcs.loc[func, "target"]
         self.update_objects()
@@ -327,13 +326,13 @@ class PlotViewSelection(QDialog):
                     else:
                         try:
                             image_paths = [
-                                join(obj.figures_path, p)
+                                join(obj.plot_path, p)
                                 for p in obj.plot_files[self.selected_func]
                             ]
                         except KeyError as ke:
-                            self.all_images[p_preset][
-                                obj_name
-                            ] = f"{ke} not found for {obj_name}"
+                            self.all_images[p_preset][obj_name] = (
+                                f"{ke} not found for {obj_name}"
+                            )
                             self.thread_finished(None)
                         else:
                             # Load pixmaps from Image-Paths
@@ -348,10 +347,7 @@ class PlotViewSelection(QDialog):
 
                             self.thread_finished(None)
 
-    def thread_finished(
-        self,
-        _,
-    ):
+    def thread_finished(self, _):
         self.prog_cnt += 1
         self.prog_dlg.setValue(self.prog_cnt)
 

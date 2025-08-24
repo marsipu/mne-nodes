@@ -12,7 +12,6 @@ import sys
 from collections import OrderedDict
 from importlib import import_module
 from multiprocessing import Pipe
-from typing import Any, Dict, List, Optional, Tuple
 
 from matplotlib import pyplot as plt
 from qtpy.QtCore import QThreadPool, QRunnable, Slot, QObject, Signal
@@ -120,8 +119,8 @@ def get_arguments(func, obj):
 
     # Get the values for parameter-names
     for arg_name in arguments:
-        if arg_name in obj.pa:
-            arguments[arg_name] = obj.pa[arg_name]
+        if arg_name in obj.params:
+            arguments[arg_name] = obj.params[arg_name]
         elif arg_name in obj.ct.settings:
             arguments[arg_name] = obj.ct.settings[arg_name]
         elif arg_name in Settings().childKeys():

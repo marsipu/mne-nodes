@@ -190,7 +190,9 @@ def filter_data(
         print("no erm_file assigned")
 
 
-def notch_filter(meeg: "MEEG", notch_frequencies: Union[float, List[float]], n_jobs: int) -> None:
+def notch_filter(
+    meeg: "MEEG", notch_frequencies: Union[float, List[float]], n_jobs: int
+) -> None:
     raw_filtered = meeg.load_filtered()
 
     raw_filtered = raw_filtered.notch_filter(notch_frequencies, n_jobs=1)
@@ -214,7 +216,6 @@ def interpolate_bads(meeg: "MEEG", bad_interpolation: str) -> None:
 
 
 def add_erm_ssp(
-    meeg: "MEEG", erm_ssp_duration: float, erm_n_grad: int, erm_n_mag: int, 
     meeg: "MEEG",
     erm_ssp_duration: float,
     erm_n_grad: int,
@@ -270,8 +271,11 @@ def eeg_reference_raw(meeg: "MEEG", ref_channels: Union[str, List[str]]) -> None
 
 
 def find_events(
-    meeg: "MEEG", stim_channels: Union[str, List[str]], min_duration: float, 
-    shortest_event: int, adjust_timeline_by_msec: float
+    meeg: "MEEG",
+    stim_channels: Union[str, List[str]],
+    min_duration: float,
+    shortest_event: int,
+    adjust_timeline_by_msec: float,
 ) -> None:
     raw = meeg.load_raw()  # No copy to consume less memory
 
@@ -297,7 +301,12 @@ def find_events(
         print("No events found")
 
 
-def find_6ch_binary_events(meeg: "MEEG", min_duration: float, shortest_event: int, adjust_timeline_by_msec: float) -> None:
+def find_6ch_binary_events(
+    meeg: "MEEG",
+    min_duration: float,
+    shortest_event: int,
+    adjust_timeline_by_msec: float,
+) -> None:
     raw = meeg.load_raw()  # No copy to consume less memory
 
     # Binary Coding of 6 Stim Channels in Biomagenetism Lab Heidelberg
@@ -764,7 +773,9 @@ def run_ica(
     meeg.pr.meeg_ica_exclude[meeg.name] = ica.exclude
 
 
-def apply_ica(meeg: "MEEG", ica_apply_target: str, n_pca_components: Optional[int]) -> None:
+def apply_ica(
+    meeg: "MEEG", ica_apply_target: str, n_pca_components: Optional[int]
+) -> None:
     # Check file-parameters to make sure,
     # that ica is not applied twice in a row
 
@@ -823,7 +834,9 @@ def calculate_gfp(evoked: Any) -> np.ndarray:
     return gfp_dict
 
 
-def grand_avg_evokeds(group: "Group", ga_interpolate_bads: bool, ga_drop_bads: bool) -> None:
+def grand_avg_evokeds(
+    group: "Group", ga_interpolate_bads: bool, ga_drop_bads: bool
+) -> None:
     trial_dict = {}
     for name in group.group_list:
         meeg = MEEG(name, group.ct)
@@ -870,7 +883,9 @@ def compute_psd_raw(meeg: "MEEG", psd_method: str, n_jobs: int, **kwargs: Any) -
     meeg.save_psd_raw(psd_raw)
 
 
-def compute_psd_epochs(meeg: "MEEG", psd_method: str, n_jobs: int, **kwargs: Any) -> None:
+def compute_psd_epochs(
+    meeg: "MEEG", psd_method: str, n_jobs: int, **kwargs: Any
+) -> None:
     epochs = meeg.load_epochs()
     psd_epochs = epochs.compute_psd(
         method=psd_method, fmax=epochs.info["lowpass"], n_jobs=n_jobs, **kwargs
@@ -1015,7 +1030,9 @@ def grand_avg_tfr(group: Group) -> None:
 # ==============================================================================
 # These functions do not work on Windows
 # local function used in the bash commands below
-def run_freesurfer_subprocess(command: List[str], subjects_dir: str, fs_path: str, mne_path: Optional[str] = None) -> None:
+def run_freesurfer_subprocess(
+    command: List[str], subjects_dir: str, fs_path: str, mne_path: Optional[str] = None
+) -> None:
     # Several experiments with subprocess showed,
     # that it seems impossible to run commands like "source" from
     # a subprocess to get SetUpFreeSurfer.sh into the environment.
@@ -1173,7 +1190,9 @@ def compute_src_distances(fsmri: "FSMRI", n_jobs: int) -> None:
     fsmri.save_source_space(src_computed)
 
 
-def prepare_bem(fsmri: "FSMRI", bem_spacing: str, bem_conductivity: List[float]) -> None:
+def prepare_bem(
+    fsmri: "FSMRI", bem_spacing: str, bem_conductivity: List[float]
+) -> None:
     bem_model = mne.make_bem_model(
         fsmri.name,
         subjects_dir=fsmri.subjects_dir,
@@ -1262,7 +1281,6 @@ def create_forward_solution(meeg: "MEEG", n_jobs: int, ch_types: List[str]) -> N
 
 
 def estimate_noise_covariance(
-    meeg: "MEEG", baseline: Tuple[float, float], n_jobs: int, noise_cov_mode: str, 
     meeg: "MEEG",
     baseline: Tuple[float, float],
     n_jobs: int,
@@ -1311,7 +1329,9 @@ def create_inverse_operator(meeg: "MEEG") -> None:
     meeg.save_inverse_operator(inverse_operator)
 
 
-def source_estimate(meeg: "MEEG", inverse_method: str, pick_ori: Optional[str], lambda2: float) -> None:
+def source_estimate(
+    meeg: "MEEG", inverse_method: str, pick_ori: Optional[str], lambda2: float
+) -> None:
     inverse_operator = meeg.load_inverse_operator()
     evokeds = meeg.load_evokeds()
 
@@ -1325,7 +1345,9 @@ def source_estimate(meeg: "MEEG", inverse_method: str, pick_ori: Optional[str], 
     meeg.save_source_estimates(stcs)
 
 
-def label_time_course(meeg: "MEEG", target_labels: List[str], extract_mode: str) -> None:
+def label_time_course(
+    meeg: "MEEG", target_labels: List[str], extract_mode: str
+) -> None:
     if len(target_labels) == 0:
         raise RuntimeError(
             "No labels selected for label time course extraction. "
@@ -1357,7 +1379,9 @@ def label_time_course(meeg: "MEEG", target_labels: List[str], extract_mode: str)
 # Todo: Make mixed-norm more customizable
 
 
-def mixed_norm_estimate(meeg: "MEEG", pick_ori: Optional[str], inverse_method: str) -> None:
+def mixed_norm_estimate(
+    meeg: "MEEG", pick_ori: Optional[str], inverse_method: str
+) -> None:
     evokeds = meeg.load_evokeds()
     forward = meeg.load_forward()
     noise_cov = meeg.load_noise_covariance()
@@ -1425,7 +1449,13 @@ def mixed_norm_estimate(meeg: "MEEG", pick_ori: Optional[str], inverse_method: s
 #  (better responsivness of GUI during fit, when running in QThread)
 
 
-def ecd_fit(meeg: "MEEG", ecd_times: List[float], ecd_positions: Optional[List[List[float]]], ecd_orientations: Optional[List[List[float]]], t_epoch: Tuple[float, float]) -> None:
+def ecd_fit(
+    meeg: "MEEG",
+    ecd_times: List[float],
+    ecd_positions: Optional[List[List[float]]],
+    ecd_orientations: Optional[List[List[float]]],
+    t_epoch: Tuple[float, float],
+) -> None:
     try:
         ecd_time = ecd_times[meeg.name]
     except KeyError:
