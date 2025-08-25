@@ -55,6 +55,7 @@ class NodeViewer(QGraphicsView):
     def __init__(self, ct, parent=None, debug_mode=False):
         super().__init__(parent)
         self.ct = ct
+        # honor both explicit flag (tests) and global env flag
         self._debug_mode = debug_mode
 
         # add to global object references
@@ -91,6 +92,35 @@ class NodeViewer(QGraphicsView):
         self.setAcceptDrops(True)
         # Also set on the viewport where Qt delivers drag/drop events.
         self.viewport().setAcceptDrops(True)
+
+        # initialize debug coordinate system (grid + axes)
+        self._coord_grid = QGraphicsPathItem()
+        self._coord_grid.setZValue(-6)
+        grid_pen = self._coord_grid.pen()
+        grid_pen.setColor(QColor(0, 200, 0, 50))
+        grid_pen.setWidth(0)
+        self._coord_grid.setPen(grid_pen)
+        self._coord_grid.setPath(QPainterPath())
+        self._coord_grid.setVisible(False)
+        self._coord_grid.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_grid.setFlag(
+            self._coord_grid.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_grid)
+
+        self._coord_axes = QGraphicsPathItem()
+        self._coord_axes.setZValue(-5)
+        axes_pen = self._coord_axes.pen()
+        axes_pen.setColor(QColor(0, 200, 0, 160))
+        axes_pen.setWidth(0)
+        self._coord_axes.setPen(axes_pen)
+        self._coord_axes.setPath(QPainterPath())
+        self._coord_axes.setVisible(False)
+        self._coord_axes.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_axes.setFlag(
+            self._coord_axes.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_axes)
 
         # set initial range
         self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
@@ -133,6 +163,11 @@ class NodeViewer(QGraphicsView):
         self._debug_path.setPen(pen)
         self._debug_path.setPath(QPainterPath())
         self.scene().addItem(self._debug_path)
+
+        # show immediately if in debug mode
+        if self._debug_mode:
+            self._update_coord_axes()
+            self._set_grid_visible(True)
 
     ####################################################################################
     # Properties
@@ -678,6 +713,13 @@ class NodeViewer(QGraphicsView):
         self.setSceneRect(self._scene_range)
         self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
 
+        # Update debug coordinate system (grid + axes)
+        if self._debug_mode:
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+
     def _combined_rect(self, nodes):
         """Return a QRectF with the combined size of the provided node items.
 
@@ -724,6 +766,13 @@ class NodeViewer(QGraphicsView):
         rect = QRectF(x, y, width, height)
         items = []
         excl = [self._LIVE_PIPE, self._SLICER_PIPE]
+        # exclude debug helpers from hit-tests
+        if hasattr(self, "_coord_grid"):
+            excl.append(self._coord_grid)
+        if hasattr(self, "_coord_axes"):
+            excl.append(self._coord_axes)
+        if hasattr(self, "_debug_path"):
+            excl.append(self._debug_path)
         for item in self.scene().items(rect):
             if item in excl:
                 continue
@@ -1751,7 +1800,8 @@ class NodeViewer(QGraphicsView):
 
         current_x = 0
         node_height = 120
-        for rank in sorted(range(len(rank_map)), reverse=not down_stream):
+        # Iterate over actual rank keys to handle non-contiguous ranks correctly
+        for rank in sorted(rank_map.keys(), reverse=not down_stream):
             ranked_nodes = rank_map[rank]
             max_width = max([node.width for node in ranked_nodes])
             current_x += max_width
@@ -1768,3 +1818,91 @@ class NodeViewer(QGraphicsView):
         dx = nodes_center_0[0] - nodes_center_1[0]
         dy = nodes_center_0[1] - nodes_center_1[1]
         [n.setPos(n.x() + dx, n.y() + dy) for n in nodes]
+
+    def _update_coord_axes(self):
+        """Update the debug coordinate system (grid + axes) in the scene."""
+        if not self._debug_mode:
+            self._set_grid_visible(False)
+            return
+
+        rect = self._scene_range
+        left, right = rect.left(), rect.right()
+        top, bottom = rect.top(), rect.bottom()
+
+        # Build grid path
+        grid_path = QPainterPath()
+        step = 100.0
+
+        # vertical grid lines
+        start_x = math.floor(left / step) * step
+        x = start_x
+        while x <= right:
+            grid_path.moveTo(x, top)
+            grid_path.lineTo(x, bottom)
+            x += step
+
+        # horizontal grid lines
+        start_y = math.floor(top / step) * step
+        y = start_y
+        while y <= bottom:
+            grid_path.moveTo(left, y)
+            grid_path.lineTo(right, y)
+            y += step
+
+        self._coord_grid.setPath(grid_path)
+
+        # Build axes path (x=0 and y=0) if within current rect
+        axes_path = QPainterPath()
+        if left <= 0.0 <= right:
+            axes_path.moveTo(0.0, top)
+            axes_path.lineTo(0.0, bottom)
+        if top <= 0.0 <= bottom:
+            axes_path.moveTo(left, 0.0)
+            axes_path.lineTo(right, 0.0)
+        self._coord_axes.setPath(axes_path)
+
+    def _set_grid_visible(self, visible):
+        """Show/hide the debug grid and axes."""
+        self._coord_grid.setVisible(bool(visible))
+        self._coord_axes.setVisible(bool(visible))
+
+    def set_debug_mode(self, mode=True):
+        """Enable or disable debug mode."""
+        self._debug_mode = bool(mode)
+        if self._debug_mode:
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+
+    def is_debug_mode(self):
+        """Check if debug mode is enabled."""
+        return self._debug_mode
+
+    def debug_info(self):
+        """Print debug information about the viewer state."""
+        print(f"NodeViewer (debug mode={self._debug_mode})")
+        print(f"  Nodes: {len(self.nodes)}")
+        print(f"  Input Nodes: {len(self.input_nodes)}")
+        print(f"  Function Nodes: {len(self.function_nodes)}")
+        print(f"  Pipes: {len(self.all_pipes())}")
+        print(f"  Scene Rect: {self.scene_rect()}")
+        print(f"  Zoom: {self.get_zoom():.2f}")
+        print(f"  Pan: {self._scene_range.topLeft()}")
+
+    def clear_debug_info(self):
+        """Clear the debug information (grid + axes) from the scene."""
+        self._coord_grid.setPath(QPainterPath())
+        self._coord_axes.setPath(QPainterPath())
+
+    def update_debug_info(self):
+        """Update the debug information (grid + axes) in the scene."""
+        if not self._debug_mode:
+            self._set_grid_visible(False)
+            return
+        self._update_coord_axes()
+
+    def reset_debug_info(self):
+        """Reset the debug information (grid + axes) to default state."""
+        self.clear_debug_info()
+        self.set_debug_mode(False)

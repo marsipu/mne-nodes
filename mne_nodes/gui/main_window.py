@@ -25,9 +25,13 @@ class MainWindow(QMainWindow):
     """The main Windows containing the node-viewer and the console-widget.
 
     It also provides a menubar, toolbar and a statusbar.
+    Parameters
+    ----------
+    controller : Controller
+        The controller managing the pipeline.
     """
 
-    def __init__(self, controller, viewer=None):
+    def __init__(self, controller):
         super().__init__()
         _object_refs["main_window"] = self
         self._controller = controller
@@ -50,7 +54,7 @@ class MainWindow(QMainWindow):
         )
 
         # Init Node-Viewer
-        self.viewer = viewer or NodeViewer(controller, self)
+        self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
         self.viewer.load_config(controller.node_config)
 

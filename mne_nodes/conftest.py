@@ -85,11 +85,11 @@ def controller(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def main_window(controller, qtbot, nodeviewer_extended):
+def main_window(controller, qtbot):
     # Lazy import to avoid optional dependency issues when this fixture is unused
     from mne_nodes.gui.main_window import MainWindow
 
-    mw = MainWindow(controller, nodeviewer_extended)
+    mw = MainWindow(controller)
     qtbot.addWidget(mw)
 
     return mw
