@@ -10,6 +10,7 @@ import mne
 
 from qtpy.QtCore import Qt, QProcess
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
+from qtpy.QtGui import QAction, QKeySequence
 
 from mne_nodes import _object_refs, iswin
 from mne_nodes.gui.console import ConsoleDock
@@ -67,8 +68,36 @@ class MainWindow(QMainWindow):
         self.node_picker = NodePicker(controller, self)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.node_picker)
 
+        # Init QActions
+        self.actions = {}
+        # General actions
+        load_help = "Load another project with a new configuration file."
+        self.actions["load"] = QAction(
+            "&Load Configuration",
+            parent=self,
+            toolTip="Load Configuration",
+            statusTip=load_help,
+            whatsThis=load_help,
+            shortcut=QKeySequence("Ctrl+O"),
+        )
+        self.actions["save"] = QAction("&Save Configuration", parent=self)
+        self.actions["exit"] = QAction("&Exit", parent=self)
+        # Viewer actions
+        autolayout_help = "Automatically arrange all nodes in the viewer."
+        self.actions["autolayout"] = QAction(
+            "&Auto-Layout Nodes",
+            parent=self,
+            toolTip="Auto-Layout Nodes",
+            statusTip=autolayout_help,
+            whatsThis=autolayout_help,
+            shortcut=QKeySequence("Ctrl+L"),
+        )
+        self.actions["autolayout"].triggered.connect(self.viewer.auto_layout_nodes)
+
         # ToDo: Init Menu
         # ToDo: Init Toolbar
+        self.toolbar = self.addToolBar("Main Toolbar")
+        self.toolbar.addAction(self.actions["autolayout"])
         # ToDo: Init Infobar
 
         # Show the main window

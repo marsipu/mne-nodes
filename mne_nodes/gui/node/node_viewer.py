@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QGraphicsPathItem,
 )
 
-from mne_nodes import _object_refs
+from mne_nodes import _object_refs, debug_mode
 from mne_nodes.gui.gui_utils import invert_rgb_color
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
@@ -52,11 +52,9 @@ class NodeViewer(QGraphicsView):
     InsertNode = Signal(object, str, dict)
     NodeNameChanged = Signal(str, str)
 
-    def __init__(self, ct, parent=None, debug_mode=False):
+    def __init__(self, ct, parent=None):
         super().__init__(parent)
         self.ct = ct
-        # honor both explicit flag (tests) and global env flag
-        self._debug_mode = debug_mode
 
         # add to global object references
         _object_refs["viewer"] = self
@@ -122,6 +120,9 @@ class NodeViewer(QGraphicsView):
         )
         self.scene().addItem(self._coord_axes)
 
+        # tick label items for debug grid
+        self._coord_tick_labels = []
+
         # set initial range
         self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
         self._update_scene()
@@ -165,7 +166,7 @@ class NodeViewer(QGraphicsView):
         self.scene().addItem(self._debug_path)
 
         # show immediately if in debug mode
-        if self._debug_mode:
+        if debug_mode:
             self._update_coord_axes()
             self._set_grid_visible(True)
 
@@ -714,7 +715,7 @@ class NodeViewer(QGraphicsView):
         self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
 
         # Update debug coordinate system (grid + axes)
-        if self._debug_mode:
+        if debug_mode:
             self._update_coord_axes()
             self._set_grid_visible(True)
         else:
@@ -811,7 +812,7 @@ class NodeViewer(QGraphicsView):
         map_pos = self.mapToScene(event.pos())
 
         # debug path
-        if self._debug_mode:
+        if debug_mode:
             if self.LMB_state:
                 path = self._debug_path.path()
                 path.moveTo(map_pos)
@@ -903,7 +904,7 @@ class NodeViewer(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
-        if self._debug_mode:
+        if debug_mode:
             # Debug mouse
             if self.LMB_state:
                 to_pos = self.mapToScene(event.pos())
@@ -1804,15 +1805,13 @@ class NodeViewer(QGraphicsView):
         for rank in sorted(rank_map.keys(), reverse=not down_stream):
             ranked_nodes = rank_map[rank]
             max_width = max([node.width for node in ranked_nodes])
-            current_x += max_width
             current_y = 0
             for idx, node in enumerate(ranked_nodes):
                 dy = max(node_height, node.height)
-                current_y += 0 if idx == 0 else dy
                 node.setPos(current_x, current_y)
-                current_y += dy * 0.5 + 10
+                current_y += dy + 50
 
-            current_x += max_width * 0.5
+            current_x += max_width + 200
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]
@@ -1821,13 +1820,14 @@ class NodeViewer(QGraphicsView):
 
     def _update_coord_axes(self):
         """Update the debug coordinate system (grid + axes) in the scene."""
-        if not self._debug_mode:
+        if not debug_mode:
             self._set_grid_visible(False)
             return
 
-        rect = self._scene_range
-        left, right = rect.left(), rect.right()
-        top, bottom = rect.top(), rect.bottom()
+        # Use the current visible viewport in scene coordinates to cover full view
+        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        left, right = visible_rect.left(), visible_rect.right()
+        top, bottom = visible_rect.top(), visible_rect.bottom()
 
         # Build grid path
         grid_path = QPainterPath()
@@ -1861,43 +1861,111 @@ class NodeViewer(QGraphicsView):
             axes_path.lineTo(right, 0.0)
         self._coord_axes.setPath(axes_path)
 
+        # Update numeric tick labels (top and left edges)
+        # Clear old labels
+        if self._coord_tick_labels:
+            for t in self._coord_tick_labels:
+                try:
+                    self.scene().removeItem(t)
+                except Exception:
+                    pass
+            self._coord_tick_labels = []
+
+        # Color and font for ticks
+        tick_color = QColor(0, 200, 0, 160)
+        # Offsets in scene units approximating a few pixels
+        # Convert a 10px vertical and 6px horizontal offset to scene units
+        dy_scene = (
+            self.mapToScene(QPoint(0, 10)).y() - self.mapToScene(QPoint(0, 0)).y()
+        )
+        dx_scene = self.mapToScene(QPoint(6, 0)).x() - self.mapToScene(QPoint(0, 0)).x()
+
+        # X ticks along the top
+        x = start_x
+        while x <= right:
+            txt = QGraphicsTextItem(f"{int(x)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            # Keep text a constant size regardless of zoom
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(x + 2 * dx_scene, top + dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            x += step
+
+        # Y ticks along the left
+        y = start_y
+        while y <= bottom:
+            txt = QGraphicsTextItem(f"{int(y)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(left + dx_scene, y + 0.2 * dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            y += step
+
     def _set_grid_visible(self, visible):
         """Show/hide the debug grid and axes."""
         self._coord_grid.setVisible(bool(visible))
         self._coord_axes.setVisible(bool(visible))
+        # toggle tick labels
+        for t in getattr(self, "_coord_tick_labels", []) or []:
+            t.setVisible(bool(visible))
 
     def set_debug_mode(self, mode=True):
         """Enable or disable debug mode."""
-        self._debug_mode = bool(mode)
-        if self._debug_mode:
+        global debug_mode
+        debug_mode = bool(mode)
+        if debug_mode:
             self._update_coord_axes()
             self._set_grid_visible(True)
         else:
             self._set_grid_visible(False)
+            # also clear labels to avoid stale items
+            for t in getattr(self, "_coord_tick_labels", []) or []:
+                try:
+                    self.scene().removeItem(t)
+                except Exception:
+                    pass
+            self._coord_tick_labels = []
 
     def is_debug_mode(self):
         """Check if debug mode is enabled."""
-        return self._debug_mode
+        return debug_mode
 
     def debug_info(self):
         """Print debug information about the viewer state."""
-        print(f"NodeViewer (debug mode={self._debug_mode})")
-        print(f"  Nodes: {len(self.nodes)}")
-        print(f"  Input Nodes: {len(self.input_nodes)}")
-        print(f"  Function Nodes: {len(self.function_nodes)}")
-        print(f"  Pipes: {len(self.all_pipes())}")
-        print(f"  Scene Rect: {self.scene_rect()}")
-        print(f"  Zoom: {self.get_zoom():.2f}")
-        print(f"  Pan: {self._scene_range.topLeft()}")
+        print(
+            f"NodeViewer (debug mode={debug_mode})\n"
+            f"  Nodes: {len(self.nodes)}\n"
+            f"  Input Nodes: {len(self.input_nodes)}\n"
+            f"  Function Nodes: {len(self.function_nodes)}\n"
+            f"  Pipes: {len(self.all_pipes())}\n"
+            f"  Scene Rect: {self.scene_rect()}\n"
+            f"  Zoom: {self.get_zoom():.2f}\n"
+            f"  Pan: {self._scene_range.topLeft()}\n"
+        )
 
     def clear_debug_info(self):
         """Clear the debug information (grid + axes) from the scene."""
         self._coord_grid.setPath(QPainterPath())
         self._coord_axes.setPath(QPainterPath())
+        # remove tick labels
+        for t in getattr(self, "_coord_tick_labels", []) or []:
+            try:
+                self.scene().removeItem(t)
+            except Exception:
+                pass
+        self._coord_tick_labels = []
 
     def update_debug_info(self):
         """Update the debug information (grid + axes) in the scene."""
-        if not self._debug_mode:
+        if not debug_mode:
             self._set_grid_visible(False)
             return
         self._update_coord_axes()

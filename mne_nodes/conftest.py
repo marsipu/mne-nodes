@@ -107,15 +107,7 @@ def parameter_values_alt():
     return alternative_test_parameters
 
 
-@pytest.fixture
-def nodeviewer(qtbot, controller):
-    # Lazy import to avoid optional dependency issues when this fixture is unused
-    from mne_nodes.gui.node.node_viewer import NodeViewer
-
-    viewer = NodeViewer(controller, debug_mode=True)
-    viewer.resize(1600, 600)
-    qtbot.addWidget(viewer)
-
+def _add_basic_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node("raw")
     func_node = viewer.add_function_node("filter_data")
@@ -123,26 +115,21 @@ def nodeviewer(qtbot, controller):
     # Establish connection
     in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
 
-    viewer.auto_layout_nodes()
-    viewer.zoom_to_nodes()
 
-    return viewer
-
-
-@pytest.fixture
-def nodeviewer_extended(nodeviewer):
-    # ToDo: extend with fsmri-nodes and assignment nodes
+def _add_advanced_nodes(viewer):
+    # Add basic nodes
+    _add_basic_nodes(viewer)
 
     # Add more function nodes
-    func_node2 = nodeviewer.add_function_node("find_events")
-    func_node3 = nodeviewer.add_function_node("epoch_raw")
-    func_node4 = nodeviewer.add_function_node("plot_epochs")
+    func_node2 = viewer.add_function_node("find_events")
+    func_node3 = viewer.add_function_node("epoch_raw")
+    func_node4 = viewer.add_function_node("plot_epochs")
 
     # Connect the nodes
-    nodeviewer.input_node("raw").output(port_name="raw").connect_to(
+    viewer.input_node("raw").output(port_name="raw").connect_to(
         func_node2.input(port_name="raw")
     )
-    nodeviewer.function_node("filter_data").output(port_name="raw").connect_to(
+    viewer.function_node("filter_data").output(port_name="raw").connect_to(
         func_node3.input(port_name="raw")
     )
     func_node2.output(port_name="events").connect_to(
@@ -151,6 +138,24 @@ def nodeviewer_extended(nodeviewer):
     func_node3.output(port_name="epochs").connect_to(
         func_node4.input(port_name="epochs")
     )
+
+
+@pytest.fixture
+def nodeviewer(qtbot, controller):
+    # Lazy import to avoid optional dependency issues when this fixture is unused
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(controller)
+    viewer.resize(1600, 600)
+    qtbot.addWidget(viewer)
+
+    return viewer
+
+
+@pytest.fixture
+def nodeviewer_extended(nodeviewer):
+    # ToDo: extend with fsmri-nodes and assignment nodes
+    _add_advanced_nodes(nodeviewer)
 
     nodeviewer.auto_layout_nodes()
     nodeviewer.zoom_to_nodes()

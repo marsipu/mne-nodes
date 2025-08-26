@@ -374,9 +374,9 @@ class BaseNode(QGraphicsItem):
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
             port_names = [p for p in port_list if p.name == port_name]
-            if len(port_names) > 1:
+            if len(port_names) > 2:
                 logging.warning(
-                    "More than one port with the same name. This should not be allowed."
+                    "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
                 logging.warning(f"{port_type} port {port_name} not found.")

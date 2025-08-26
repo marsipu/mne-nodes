@@ -474,9 +474,11 @@ class Controller:
         if parameter_name not in self.parameters[parameter_preset]:
             logging.warning(
                 f"Parameter '{parameter_name}' not found in preset '{parameter_preset}'. "
-                "Returning default value."
+                "Setting and returning default value."
             )
-            return self.get_default(parameter_name)
+            self.parameters[parameter_preset][parameter_name] = self.get_default(
+                parameter_name
+            )
 
         return self.parameters[parameter_preset][parameter_name]
 

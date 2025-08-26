@@ -52,13 +52,14 @@ Prerequisites: You need a [GitHub-Account](https://github.com/) and [git](https:
 5. Install your forked version including development dependencies with pip: `pip install -e .[test,docs]`
 6. Install the pre-commit hooks with: `pre-commit install`
 
+**Alternative:** You can use [mne-dev-setup](https://github.com/marsipu/mne-dev-setup) for the setup of a development environment.
+
 ### Workflow for contributing
 1. Create a branch for changes: `git checkout -b <branch-name>`
 2. Commit changes: `git commit -am "<your commit message>"`
 3. Push changes to your forked repository on GitHub: `git push`
 4. Make a new _pull request_ from your new feature branch
 5. After review, your changes can be merged into the main-branch
-
 
 ## Acknowledgments
 - This application serves as a GUI for [MNE-Python](https://mne.tools/stable/index.html)
