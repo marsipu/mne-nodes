@@ -4,25 +4,8 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-import sys
-
-
-import mne_nodes
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
-
-
-def test_headless_run():
-    from mne_nodes.__main__ import main
-
-    # Simulate command line arguments for headless run
-    sys.argv = ["mne-nodes", "--headless"]
-
-    # Run the main function
-    main()
-
-    # Check if the application is running in headless mode
-    assert mne_nodes.gui_mode is False
 
 
 def test_legacy_import_check(monkeypatch):

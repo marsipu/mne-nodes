@@ -48,7 +48,7 @@ pre-commit install
 # For Ubuntu/Debian systems
 sudo apt update
 sudo apt-get install -y xvfb x11-xserver-utils herbstluftwm
-sudo apt-get install -y libgl1 libegl1 libopengl0 libxcb-cursor0 libxcb-icccm4 
+sudo apt-get install -y libgl1 libegl1 libopengl0 libxcb-cursor0 libxcb-icccm4
 sudo apt-get install -y libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0
 sudo apt-get install -y libxcb-shape0 libxcb-xfixes0 libxcb-xinerama0 libxcb-xinput0
 sudo apt-get install -y libxkbcommon-x11-0 mesa-utils
@@ -76,7 +76,6 @@ pytest -v
 
 # Run tests for specific components
 pytest mne_nodes/tests/test_controller.py
-pytest mne_nodes/tests/test_main_window.py
 pytest mne_nodes/tests/test_nodes.py
 ```
 
@@ -225,7 +224,7 @@ ruff format --check mne_nodes/
 - **Qt backend not found**: Ensure PySide6 or PyQt6 installed first before main package
 - **Dependency resolution timeout**: Try installing packages individually: `pip install numpy scipy matplotlib` then `pip install -e .`
 
-### GUI/Display Issues  
+### GUI/Display Issues
 - **GUI tests fail**: Verify headless display setup (Xvfb, herbstluftwm)
 - **Application won't start**: Check Qt backend installation
 - **Import errors**: Ensure package installed in development mode

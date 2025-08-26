@@ -55,4 +55,3 @@ def test_show_nodeviewer(qtbot, nodeviewer_extended):
     assert len(nodeviewer.nodes) > 0
     for node in nodeviewer.nodes.values():
         assert node.isVisible()
-    qtbot.wait(100000)
