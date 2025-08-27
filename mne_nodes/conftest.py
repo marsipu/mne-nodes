@@ -85,17 +85,6 @@ def controller(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def main_window(controller, qtbot):
-    # Lazy import to avoid optional dependency issues when this fixture is unused
-    from mne_nodes.gui.main_window import MainWindow
-
-    mw = MainWindow(controller)
-    qtbot.addWidget(mw)
-
-    return mw
-
-
-@pytest.fixture
 def parameter_values():
     """Fixture to provide a dictionary of parameter values."""
     return test_parameters
@@ -107,18 +96,13 @@ def parameter_values_alt():
     return alternative_test_parameters
 
 
-def _add_basic_nodes(viewer):
+def _add_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node("raw")
     func_node = viewer.add_function_node("filter_data")
 
     # Establish connection
     in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
-
-
-def _add_advanced_nodes(viewer):
-    # Add basic nodes
-    _add_basic_nodes(viewer)
 
     # Add more function nodes
     func_node2 = viewer.add_function_node("find_events")
@@ -138,6 +122,9 @@ def _add_advanced_nodes(viewer):
     func_node3.output(port_name="epochs").connect_to(
         func_node4.input(port_name="epochs")
     )
+    # ToDo: extend with fsmri-nodes and assignment nodes
+    viewer.auto_layout_nodes()
+    viewer.zoom_to_nodes()
 
 
 @pytest.fixture
@@ -146,21 +133,22 @@ def nodeviewer(qtbot, controller):
     from mne_nodes.gui.node.node_viewer import NodeViewer
 
     viewer = NodeViewer(controller)
-    viewer.resize(1600, 600)
+    _add_nodes(viewer)
     qtbot.addWidget(viewer)
 
     return viewer
 
 
 @pytest.fixture
-def nodeviewer_extended(nodeviewer):
-    # ToDo: extend with fsmri-nodes and assignment nodes
-    _add_advanced_nodes(nodeviewer)
+def main_window(controller, qtbot):
+    # Lazy import to avoid optional dependency issues when this fixture is unused
+    from mne_nodes.gui.main_window import MainWindow
 
-    nodeviewer.auto_layout_nodes()
-    nodeviewer.zoom_to_nodes()
+    mw = MainWindow(controller)
+    _add_nodes(mw.viewer)
+    qtbot.addWidget(mw)
 
-    return nodeviewer
+    return mw
 
 
 @pytest.fixture

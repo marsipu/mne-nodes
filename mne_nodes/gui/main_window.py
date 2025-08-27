@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         process = QProcess(self)
         self.qprocesses[process_idx] = process
         process.setProgram(sys.executable)
-        process.setWorkingDirectory(self.controller.config["data_path"])
+        process.setWorkingDirectory(str(self.controller.config["data_path"]))
         process.stateChanged.connect(
             lambda state: self._change_process_state(process_idx, state)
         )

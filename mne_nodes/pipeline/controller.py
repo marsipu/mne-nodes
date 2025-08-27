@@ -447,13 +447,14 @@ class Controller:
     def parameter_preset(self, value):
         """Set the current parameter preset for the project."""
         if value not in self.parameters:
-            raise KeyError(f"Parameter preset '{value}' not found in project.")
+            logging.info(f"Creating new parameter preset '{value}'.")
+            self.parameters[value] = {}
         self.config["parameter_preset"] = value
         self.save_config()
 
     def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
-        parameter_meta = self.parameter_metas.get(parameter_name, None)
+        parameter_meta = self.parameter_metas.get(parameter_name)
         if parameter_meta is None:
             raise KeyError(f"Parameter '{parameter_name}' not found in Parameter-Meta.")
         default_value = parameter_meta["default"]
