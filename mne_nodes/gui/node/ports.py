@@ -7,12 +7,13 @@ Github: https://github.com/marsipu/mne-nodes
 import logging
 from collections import OrderedDict
 
-from mne_nodes.gui.gui_utils import format_color
-from mne_nodes.gui.node.node_defaults import defaults
-from mne_nodes.gui.node.pipes import Pipe
 from qtpy.QtCore import QRectF
 from qtpy.QtGui import QColor, QPen
 from qtpy.QtWidgets import QGraphicsItem, QGraphicsTextItem
+
+from mne_nodes.gui.gui_utils import format_color
+from mne_nodes.gui.node.node_defaults import defaults
+from mne_nodes.gui.node.pipes import Pipe
 
 
 class PortText(QGraphicsTextItem):

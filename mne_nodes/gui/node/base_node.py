@@ -7,6 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import logging
 from collections import OrderedDict
 
+import qtawesome as qta
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
 from qtpy.QtWidgets import (
@@ -16,7 +17,6 @@ from qtpy.QtWidgets import (
     QCheckBox,
     QPushButton,
 )
-import qtawesome as qta
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults

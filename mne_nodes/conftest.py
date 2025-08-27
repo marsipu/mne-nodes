@@ -34,9 +34,9 @@ test_parameters = {
     "combo": "b",
     "list": [1, 454.33, "postcentral-lh", True],
     "check_list": ["postcentral-lh", "insula-lh"],
-    "dict": {"A": "B", "C": 58.144, "D": [1, 2, 3, 4], "E": {"A": 1, "B": 2}},
+    "dict": {"A": "B", "C": 58.144, "D": [1, 2, 3, 4], "E": {"A": 1, "B": 2}, 1: 123},
     "slider": 5,
-    "color": {"C": "#98765432", "3": "#97867564"},
+    "color": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
 }
 
@@ -52,7 +52,7 @@ alternative_test_parameters = {
     "combo": "c",
     "list": [33, 2234.33, "precentral-lh", False],
     "check_list": ["precentral-lh", "insula-rh"],
-    "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}},
+    "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}, 2: 456},
     "slider": 2,
     "color": {"A": "#12345678", "B": "#13243546"},
     "path": Path().home() / "test_path",

@@ -166,7 +166,7 @@ class NodeViewer(QGraphicsView):
         self.scene().addItem(self._debug_path)
 
         # show immediately if in debug mode
-        if debug_mode:
+        if debug_mode():
             self._update_coord_axes()
             self._set_grid_visible(True)
 
@@ -715,7 +715,7 @@ class NodeViewer(QGraphicsView):
         self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
 
         # Update debug coordinate system (grid + axes)
-        if debug_mode:
+        if debug_mode():
             self._update_coord_axes()
             self._set_grid_visible(True)
         else:
@@ -812,7 +812,7 @@ class NodeViewer(QGraphicsView):
         map_pos = self.mapToScene(event.pos())
 
         # debug path
-        if debug_mode:
+        if debug_mode():
             if self.LMB_state:
                 path = self._debug_path.path()
                 path.moveTo(map_pos)
@@ -904,7 +904,7 @@ class NodeViewer(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
-        if debug_mode:
+        if debug_mode():
             # Debug mouse
             if self.LMB_state:
                 to_pos = self.mapToScene(event.pos())
@@ -1820,7 +1820,7 @@ class NodeViewer(QGraphicsView):
 
     def _update_coord_axes(self):
         """Update the debug coordinate system (grid + axes) in the scene."""
-        if not debug_mode:
+        if not debug_mode():
             self._set_grid_visible(False)
             return
 
@@ -1917,11 +1917,9 @@ class NodeViewer(QGraphicsView):
         for t in getattr(self, "_coord_tick_labels", []) or []:
             t.setVisible(bool(visible))
 
-    def set_debug_mode(self, mode=True):
+    def update_debug_grid(self):
         """Enable or disable debug mode."""
-        global debug_mode
-        debug_mode = bool(mode)
-        if debug_mode:
+        if debug_mode():
             self._update_coord_axes()
             self._set_grid_visible(True)
         else:
@@ -1933,44 +1931,3 @@ class NodeViewer(QGraphicsView):
                 except Exception:
                     pass
             self._coord_tick_labels = []
-
-    def is_debug_mode(self):
-        """Check if debug mode is enabled."""
-        return debug_mode
-
-    def debug_info(self):
-        """Print debug information about the viewer state."""
-        print(
-            f"NodeViewer (debug mode={debug_mode})\n"
-            f"  Nodes: {len(self.nodes)}\n"
-            f"  Input Nodes: {len(self.input_nodes)}\n"
-            f"  Function Nodes: {len(self.function_nodes)}\n"
-            f"  Pipes: {len(self.all_pipes())}\n"
-            f"  Scene Rect: {self.scene_rect()}\n"
-            f"  Zoom: {self.get_zoom():.2f}\n"
-            f"  Pan: {self._scene_range.topLeft()}\n"
-        )
-
-    def clear_debug_info(self):
-        """Clear the debug information (grid + axes) from the scene."""
-        self._coord_grid.setPath(QPainterPath())
-        self._coord_axes.setPath(QPainterPath())
-        # remove tick labels
-        for t in getattr(self, "_coord_tick_labels", []) or []:
-            try:
-                self.scene().removeItem(t)
-            except Exception:
-                pass
-        self._coord_tick_labels = []
-
-    def update_debug_info(self):
-        """Update the debug information (grid + axes) in the scene."""
-        if not debug_mode:
-            self._set_grid_visible(False)
-            return
-        self._update_coord_axes()
-
-    def reset_debug_info(self):
-        """Reset the debug information (grid + axes) to default state."""
-        self.clear_debug_info()
-        self.set_debug_mode(False)

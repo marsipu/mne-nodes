@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import json
+from datetime import datetime
 
 import numpy as np
 import pytest
@@ -17,6 +18,14 @@ from mne_nodes.pipeline.settings import Settings
 
 def test_json_serialization(parameter_values):
     """Test if JSON serialization works as expected."""
+    # Add nested dict with possible extra types
+    # ToDo: Add ParameterGuis for array (nested TableView) and datetime
+    parameter_values.update(
+        {
+            "array": np.array([[1, 2, 3], [4, 5, 6]]),
+            "datetime": datetime(2000, 1, 1, 12, 0, 0),
+        }
+    )
     serialized = json.dumps(parameter_values, indent=4, cls=TypedJSONEncoder)
     deserialized = json.loads(serialized, object_hook=type_json_hook)
     # Check if the deserialized values match the original ones
@@ -39,11 +48,11 @@ def test_settings(qtbot, parameter_values):
 
     qtbot is needed to initialize the QApplication.
     """
-
     for mode in ["gui", "headless"]:
         mne_nodes.gui_mode = mode == "gui"
 
         if mode == "gui":
+            qtbot.wait(100)
             app = QApplication.instance()
             app.setApplicationName("test_app")
             app.setOrganizationName("test_org")

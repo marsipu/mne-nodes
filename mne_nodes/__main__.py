@@ -8,7 +8,6 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 import qtpy
 from qtpy.QtCore import QTimer, Qt
@@ -60,7 +59,7 @@ def init_logging(debug_mode: bool = False) -> None:
 
 def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
-    init_logging(mne_nodes.debug_mode)
+    init_logging(mne_nodes.debug_mode())
 
     logging.info("Starting MNE-Nodes...")
 
@@ -85,7 +84,7 @@ def main() -> None:
         logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
 
         # Initialize Exception-Hook
-        if mne_nodes.debug_mode:
+        if mne_nodes.debug_mode():
             logging.info("Debug-Mode is activated")
         else:
             qt_exception_hook = UncaughtHook()

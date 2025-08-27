@@ -6,8 +6,6 @@ Github: https://github.com/marsipu/mne-nodes
 
 import math
 
-from mne_nodes.gui.gui_utils import format_color
-from mne_nodes.gui.node.node_defaults import defaults
 from qtpy.QtCore import QPointF, Qt, QLineF, QRectF
 from qtpy.QtGui import QPolygonF, QColor, QPainterPath, QBrush, QTransform, QPen
 from qtpy.QtWidgets import (
@@ -16,6 +14,9 @@ from qtpy.QtWidgets import (
     QGraphicsPolygonItem,
     QGraphicsTextItem,
 )
+
+from mne_nodes.gui.gui_utils import format_color
+from mne_nodes.gui.node.node_defaults import defaults
 
 
 class Pipe(QGraphicsPathItem):

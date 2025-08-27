@@ -26,6 +26,7 @@ from pathlib import Path
 import mne
 import numpy as np
 import pandas as pd
+from qtpy import compat
 from qtpy.QtCore import Signal, Qt, QSize
 from qtpy.QtGui import QAction, QFont, QTextDocument
 from qtpy.QtWidgets import (
@@ -51,7 +52,6 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QButtonGroup,
 )
-from qtpy import compat
 
 from mne_nodes import extra, _object_refs, ismac, iswin
 from mne_nodes.basic_operations import basic_operations
@@ -112,13 +112,13 @@ from mne_nodes.gui.tools import DataTerminal
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.execution import WorkerDialog, QProcessDialog
 from mne_nodes.pipeline.function_utils import close_all, QRunController
+from mne_nodes.pipeline.io import encode_tuples, TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 from mne_nodes.pipeline.pipeline_utils import (
     count_dict_keys,
     restart_program,
     _run_from_script,
 )
-from mne_nodes.pipeline.io import encode_tuples, TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.settings import Settings
 
 renamed_parameters = {

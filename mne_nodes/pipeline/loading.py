@@ -24,8 +24,8 @@ import mne_connectivity
 import numpy as np
 from tqdm import tqdm
 
-from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -259,16 +259,6 @@ class BaseLoading:
             # above when running in pipeline)
             function = inspect.stack()[2][3]
             self.file_parameters[file_name]["FUNCTION"] = function
-
-            if function in self.ct.pd_funcs.index:
-                critical_params_str = self.ct.pd_funcs.loc[function, "func_args"]
-                # Make sure there are no spaces left
-                critical_params_str = critical_params_str.replace(" ", "")
-                critical_params = critical_params_str.split(",")
-
-                # Add critical parameters
-                for p_name in [p for p in self.params if p in critical_params]:
-                    self.file_parameters[file_name][p_name] = self.params[p_name]
 
             self.file_parameters[file_name]["NAME"] = self.name
 
@@ -590,18 +580,6 @@ class BaseLoading:
                 logging.warning(f"{p} was removed")
 
 
-sample_paths = {
-    "raw": "sample_audvis_raw.fif",
-    "erm": "ernoise_raw.fif",
-    "events": "sample_audvis_raw-eve.fif",
-    "evoked": "sample_audvis-ave.fif",
-    "noise_cov": "sample_audvis-cov.fif",
-    "forward": "sample_audvis-meg-eeg-oct-6-fwd.fif",
-    "inverse": "sample_audvis-meg-eeg-oct-6-meg-eeg-inv.fif",
-    "stcs": "sample_audvis-meg-eeg",
-}
-
-
 # ToDo: Currently there is duplication with attribute for Path and io_dict['path'].
 #  In the future there should be only one,
 #  favor io_dict (better than attribute since easier to set from config-files)
@@ -612,9 +590,6 @@ class MEEG(BaseLoading):
         self.fsmri = fsmri
         self.suppress_warnings = suppress_warnings
         super().__init__(name, controller)
-
-        if name == "_sample_":
-            self.init_sample()
 
     def init_attributes(self):
         """Initialize additional attributes for MEEG."""
@@ -753,21 +728,22 @@ class MEEG(BaseLoading):
         self.psd_epochs_path = join(
             self.save_dir, f"{self.name}_{self.ct.parameter_preset}-epo-psd.h5"
         )
+        tfr_method = self.params.get("tfr_method", self.ct.get_default("tfr_method"))
         self.power_tfr_epochs_path = join(
             self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_#{self.params['tfr_method']}-epo-pw-tfr.h5",
+            f"{self.name}_{self.ct.parameter_preset}_#{tfr_method}-epo-pw-tfr.h5",
         )
         self.itc_tfr_epochs_path = join(
             self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{self.params['tfr_method']}-epo-itc-tfr.h5",
+            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-epo-itc-tfr.h5",
         )
         self.power_tfr_average_path = join(
             self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{self.params['tfr_method']}-ave-pw-tfr.h5",
+            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-ave-pw-tfr.h5",
         )
         self.itc_tfr_average_path = join(
             self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{self.params['tfr_method']}-ave-itc-tfr.h5",
+            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-ave-itc-tfr.h5",
         )
         self.trans_path = join(self.save_dir, f"{self.fsmri.name}-trans.fif")
         self.forward_path = join(
@@ -775,7 +751,7 @@ class MEEG(BaseLoading):
         )
         self.source_morph_path = join(
             self.save_dir,
-            f"{self.name}--to--{self.params['morph_to']}_{self.params['src_spacing']}-morph.h5",
+            f"{self.name}--to--{self.params.get('morph_to', self.ct.get_default('morph_to'))}_{self.params.get('src_spacing', self.ct.get_default('src_spacing'))}-morph.h5",
         )
         self.calm_cov_path = join(
             self.save_dir, f"{self.name}_{self.ct.parameter_preset}-calm-cov.fif"
@@ -808,7 +784,9 @@ class MEEG(BaseLoading):
                     "ecd_dipoles",
                     f"{self.name}_{trial}_{self.ct.parameter_preset}_{dip}-ecd-dip.dip",
                 )
-                for dip in self.params["ecd_times"]
+                for dip in self.params.get(
+                    "ecd_times", self.ct.get_default("ecd_times")
+                )
             }
             for trial in self.sel_trials
         }
@@ -819,7 +797,9 @@ class MEEG(BaseLoading):
                     "label_time_course",
                     f"{self.name}_{trial}_{self.ct.parameter_preset}_{label}-ltc.npy",
                 )
-                for label in self.params["target_labels"]
+                for label in self.params.get(
+                    "target_labels", self.ct.get_default("target_labels")
+                )
             }
             for trial in self.sel_trials
         }
@@ -830,7 +810,9 @@ class MEEG(BaseLoading):
                     "connectivity",
                     f"{self.name}_{trial}_{self.ct.parameter_preset}_{con_method}-con.nc",
                 )
-                for con_method in self.params["con_methods"]
+                for con_method in self.params.get(
+                    "con_methods", self.ct.get_default("con_methods")
+                )
             }
             for trial in self.sel_trials
         }
@@ -983,63 +965,10 @@ class MEEG(BaseLoading):
         }
 
     def init_sample(self):
-        # Add _sample_ to project and update attributes
-        self.ct.all_erm.append("ernoise")
-        self.erm = "ernoise"
-        self.ct.input_mapping["erm"][self.name] = self.erm
+        self._init_dataset()
 
-        self.ct.input_mapping["fsmri"][self.name] = "fsaverage"
-        self.fsmri = FSMRI("fsaverage", self.ct)
-
-        # Add event_id
-        if self.name not in self.ct.event_ids:
-            self.event_id = {
-                "auditory/left": 1,
-                "auditory/right": 2,
-                "visual/left": 3,
-                "visual/right": 4,
-                "face": 5,
-                "buttonpress": 32,
-            }
-            self.ct.event_ids[self.name] = self.event_id
-        else:
-            self.event_id = self.ct.event_ids[self.name]
-
-        # ToDo: Here is problem, since there is no way
-        #  to select "auditory/left" from the gui.
-        if self.name not in self.ct.selected_event_ids:
-            self.sel_trials = {"auditory": None}
-            self.ct.selected_event_ids[self.name] = self.sel_trials
-        else:
-            self.sel_trials = self.ct.selected_event_ids[self.name]
-
-        # init paths again
-        self.init_paths()
-
-        # Load sample
-        test_data_folder = join(mne.datasets.sample.data_path(), "MEG", "sample")
-
-        for data_type in sample_paths:
-            test_file_name = sample_paths[data_type]
-            test_file_path = join(test_data_folder, test_file_name)
-            file_path = self.io_dict[data_type]["path"]
-            if data_type == "stcs":
-                file_path = file_path["auditory"]
-                if not isfile(file_path + "-lh.stc"):
-                    logging.debug(f"Copying {data_type} from sample-dataset...")
-                    stcs = mne.source_estimate.read_source_estimate(test_file_path)
-                    stcs.save(file_path)
-            elif isfile(test_file_path) and not isfile(file_path):
-                logging.debug(f"Copying {data_type} from sample-dataset...")
-                folder = Path(file_path).parent
-                if not isdir(folder):
-                    os.mkdir(folder)
-                shutil.copy2(test_file_path, file_path)
-                logging.debug("Done!")
-
-        # Add bad_channels
-        self.bad_channels = self.load_info()["bads"]
-        self.ct.bad_channels[self.name] = self.bad_channels
+    def init_test(self):
+        self._init_dataset(sample=False)
 
     def rename(self, new_name):
         # Stor old name
@@ -1519,7 +1448,7 @@ class FSMRI(BaseLoading):
                 "path": join(
                     self.save_dir,
                     "bem",
-                    f"{self.name}_{self.ct.parameter_preset}_{self.params['src_spacing']}-src.fif",
+                    f"{self.name}_{self.ct.parameter_preset}_{self.ct.parameter('src_spacing')}-src.fif",
                 ),
                 "load": self.load_source_space,
                 "save": self.save_source_space,
@@ -1557,7 +1486,7 @@ class FSMRI(BaseLoading):
             "src": join(
                 self.save_dir,
                 "bem",
-                f"{self.name}_{self.params['src_spacing']}-src.fif",
+                f"{self.name}_{self.ct.parameter('src_spacing')}-src.fif",
             ),
             "bem_model": join(self.save_dir, "bem", f"{self.name}-bem.fif"),
             "bem_solution": join(self.save_dir, "bem", f"{self.name}-bem-sol.fif"),

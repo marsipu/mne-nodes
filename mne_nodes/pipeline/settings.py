@@ -12,7 +12,7 @@ from os import mkdir
 from os.path import isfile, isdir
 from pathlib import Path
 from types import NoneType
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List
 
 from mne_nodes import gui_mode
 from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder

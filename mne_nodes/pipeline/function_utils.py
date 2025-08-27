@@ -17,12 +17,12 @@ from matplotlib import pyplot as plt
 from qtpy.QtCore import QThreadPool, QRunnable, Slot, QObject, Signal
 from qtpy.QtWidgets import QAbstractItemView
 
+from mne_nodes import ismac
 from mne_nodes.gui.base_widgets import TimedMessageBox
 from mne_nodes.pipeline.exception_handling import ExceptionTuple, get_exception_tuple
 from mne_nodes.pipeline.execution import Worker
 from mne_nodes.pipeline.loading import BaseLoading, FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import shutdown
-from mne_nodes import ismac
 from mne_nodes.pipeline.settings import Settings
 
 

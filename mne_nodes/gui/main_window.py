@@ -7,17 +7,16 @@ Github: https://github.com/marsipu/mne-nodes
 import sys
 
 import mne
-
 from qtpy.QtCore import Qt, QProcess
-from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 from qtpy.QtGui import QAction, QKeySequence
+from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from mne_nodes import _object_refs, iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
-from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.node.node_picker import NodePicker
+from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.execution import QProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 

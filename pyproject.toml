@@ -9,7 +9,7 @@ authors = [
 ]
 description = "A PyQt-GUI with Node-Layout for MNE-Python"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [
@@ -73,7 +73,7 @@ raw-options = { version_scheme = "release-branch-semver" }
 line-length = 88
 fix = true
 show-fixes = true
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 quote-style = "double"

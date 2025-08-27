@@ -7,13 +7,12 @@ Github: https://github.com/marsipu/mne-nodes
 import inspect
 
 import pytest
-from qtpy.QtCore import Qt
 from numpy.testing import assert_allclose
+from qtpy.QtCore import Qt
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.parameter_widgets import Param, LabelGui
 from mne_nodes.tests._test_utils import toggle_checked_list_model
-
 
 gui_mapping = {
     "IntGui": "int",

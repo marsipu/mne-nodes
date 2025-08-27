@@ -1,5 +1,6 @@
-from mne_nodes.gui.gui_utils import mouseDrag
 from qtpy.QtCore import Qt, QPointF
+
+from mne_nodes.gui.gui_utils import mouseDrag
 
 
 def test_nodes_basic_interaction(nodeviewer):

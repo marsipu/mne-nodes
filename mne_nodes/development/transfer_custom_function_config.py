@@ -2,8 +2,8 @@ import json
 
 import pandas as pd
 
-from mne_nodes.pipeline.legacy import convert_pandas_meta
 from mne_nodes.pipeline.io import TypedJSONEncoder
+from mne_nodes.pipeline.legacy import convert_pandas_meta
 
 func_pd = pd.read_csv("../extra/functions.csv", sep=";", index_col=0)
 param_pd = pd.read_csv("../extra/parameters.csv", sep=";", index_col=0)

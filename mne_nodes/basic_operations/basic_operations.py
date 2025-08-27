@@ -24,9 +24,9 @@ import numpy as np
 from mne.preprocessing import ICA, find_bad_channels_maxwell
 from mne_connectivity import SpectralConnectivity
 
+from mne_nodes import ismac, iswin
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 from mne_nodes.pipeline.pipeline_utils import check_kwargs, compare_filep, get_n_jobs
-from mne_nodes import ismac, iswin
 
 
 # Todo: Create docstrings for each function

@@ -15,6 +15,7 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
+from types import NoneType
 from typing import Any, Dict, Optional, Union
 
 import mne
@@ -24,7 +25,6 @@ from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
-from mne_nodes.pipeline.loading import MEEG
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
@@ -87,9 +87,9 @@ class Controller:
     # Initialization and Properties
     ####################################################################################
     @property
-    def config_path(self) -> str:
+    def config_path(self) -> Path:
         """Path to the config-file."""
-        return self._config_path
+        return Path(self._config_path)
 
     @config_path.setter
     def config_path(self, value):
@@ -159,7 +159,7 @@ class Controller:
             json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
-    def data_path(self) -> str:
+    def data_path(self) -> Path:
         """Path to the (processed) data directory.
 
         This contatins all data, mne-nodes works with. The original data
@@ -177,7 +177,7 @@ class Controller:
             data_path = get_user_input(input_message, "folder")
             self.data_path = data_path
 
-        return data_path
+        return Path(data_path)
 
     @data_path.setter
     def data_path(self, value: Optional[Union[str, Path]]) -> None:
@@ -188,7 +188,7 @@ class Controller:
             self.save_config()
 
     @property
-    def subjects_dir(self):
+    def subjects_dir(self) -> Path:
         """Path to the FreeSurfer subjects directory."""
         subjects_dir = mne.get_config("SUBJECTS_DIR", None)
         input_message = f"Please enter the path to the FreeSurfer subjects directory for project {self.name}"
@@ -202,7 +202,7 @@ class Controller:
             subjects_dir = get_user_input(input_message, "folder")
             self.subjects_dir = subjects_dir
 
-        return subjects_dir
+        return Path(subjects_dir)
 
     @subjects_dir.setter
     def subjects_dir(self, value):
@@ -302,8 +302,8 @@ class Controller:
         """
         if "input_data_types" not in self.config:
             self.config["input_data_types"] = {
-                "raw": "MEG/EEG",
-                "fsmri": "Freesurfer MRI",
+                "raw": {"alias": "MEG/EEG", "import": "import_raw"},
+                "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
             }
         return self.config["input_data_types"]
 
@@ -334,57 +334,68 @@ class Controller:
             self.config["input_mapping"] = {"fsmri": {}, "erm": {}}
         return self.config["input_mapping"]
 
-    def add_input(self, input, data_type, group="All", input_path=None):
+    def add_data(
+        self,
+        name: str,
+        data_type: str,
+        group: str = "All",
+        input_path: Path | str | NoneType = None,
+    ) -> None:
+        """Add an input to the inputs dictionary.
+
+        Parameters
+        ----------
+        name : str
+            Name of the input (e.g., subject name or ID).
+        data_type : str
+            Type of the input data. Must be one of the keys in
+            self.input_data_types (e.g., "raw", "fsmri").
+        group : str, optional
+            Group name for the input. Default is "All".
+        input_path : Path or str or NoneType, optional
+            Path to the input data file or directory. If provided,
+            the data will be imported using the appropriate import function.
+            Default is None.
+        """
         if data_type not in self.input_data_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         if group not in self.inputs[data_type]:
             self.inputs[data_type][group] = []
-        if input in self.inputs[data_type][group]:
-            logging.error(f"The input {input} is already in {group} for{data_type}.")
+        if name in self.inputs[data_type][group]:
+            logging.error(f"The input {name} is already in {group} for{data_type}.")
             return
-        self.inputs[data_type][group].append(input)
+        self.inputs[data_type][group].append(name)
         if input_path is not None:
-            if data_type == "raw":
-                meeg = MEEG(input, self)
-                raw = mne.io.read_raw(input_path)
-                if input not in self.bad_channels:
-                    self.bad_channels[input] = []
-                self.bad_channels[input].append(raw.info["bads"])
-                meeg.save_raw(raw)
-            elif data_type == "fsmri":
-                dst_dir = join(self.subjects_dir, input)
-                if isdir(dst_dir):
-                    logging.info(
-                        f"Removing existing directory for fsmri data for {input}."
-                    )
-                    shutil.rmtree(dst_dir)
-                logging.info(f"Copying fsmri data for {input} to:\n {dst_dir}.")
-                shutil.copytree(input_path, dst_dir)
-                logging.info(f"FSMRI data for {input} copied to:\n {dst_dir}.")
+            # ToDo: Implement import functions for other data types
+            data_import = import_module("mne_nodes.pipeline.data_import")
+            import_func = getattr(
+                data_import, self.input_data_types[data_type]["import"]
+            )
+            import_func(name=name, import_path=input_path, controller=self)
 
-    def remove_input(self, input, data_type, group="All"):
+    def remove_data(self, name, data_type, group="All"):
         """Remove an input from the inputs dictionary."""
         if data_type not in self.input_data_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         if group not in self.inputs[data_type]:
             logging.error(f"Group {group} does not exist for {data_type}.")
             return
-        if input not in self.inputs[data_type][group]:
-            logging.error(f"The input {input} is not in {group} for {data_type}.")
+        if name not in self.inputs[data_type][group]:
+            logging.error(f"The input {name} is not in {group} for {data_type}.")
             return
-        self.inputs[data_type][group].remove(input)
+        self.inputs[data_type][group].remove(name)
         if len(self.inputs[data_type][group]) == 0:
             del self.inputs[data_type][group]
         for dt in ["fsmri", "erm"]:
-            self.input_mapping[dt].pop(input, None)
-        if input in self.selected_inputs:
-            self.selected_inputs.remove(input)
-        self.bad_channels.pop(input, None)
-        self.event_ids.pop(input, None)
+            self.input_mapping[dt].pop(name, None)
+        if name in self.selected_inputs:
+            self.selected_inputs.remove(name)
+        self.bad_channels.pop(name, None)
+        self.event_ids.pop(name, None)
         if data_type == "fsmri":
-            data_type_dir = join(self.subjects_dir, input)
+            data_type_dir = join(self.subjects_dir, name)
         else:
-            data_type_dir = join(self.data_path, input)
+            data_type_dir = join(self.data_path, name)
         shutil.rmtree(data_type_dir, ignore_errors=True)
 
     @property

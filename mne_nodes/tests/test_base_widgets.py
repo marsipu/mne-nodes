@@ -9,7 +9,6 @@ import pytest
 
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
-
 # Define widget groups for parameterized testing
 list_widgets = [
     ("SimpleList", "list"),
