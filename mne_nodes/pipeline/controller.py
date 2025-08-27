@@ -95,8 +95,11 @@ class Controller:
     def config_path(self, value):
         """Set the path to the config-file."""
         # If the value is None, ask the user for a config-file path
-        if value is None:
-            logging.warning("No config-file path set!")
+        if value is None or not isfile(value):
+            if value is None:
+                logging.warning("No config-file path set!")
+            else:
+                logging.warning(f"Config file {value} does not exist!")
             ans = ask_user(
                 "Do you want to create a new config-file? (or use an existing one)",
                 close_on_cancel=True,
@@ -124,10 +127,6 @@ class Controller:
                     file_filter="JSON files (*.json)",
                     close_on_cancel=True,
                 )
-        # Check if the path is a valid file
-        if not isfile(value):
-            logging.error(f"Config file {value} does not exist!")
-            self.config_path = None
         # Set the config path and load the config
         self._config_path = value
         self._config.clear()
@@ -249,6 +248,7 @@ class Controller:
             self._config["name"] = get_user_input(
                 "Please enter a name for this project", "string"
             )
+            self.save_config()
 
         return self._config["name"]
 

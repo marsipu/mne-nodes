@@ -13,6 +13,7 @@ from pathlib import Path
 import mne
 
 from mne_nodes.pipeline.loading import MEEG, FSMRI
+from mne_nodes.pipeline.pipeline_utils import is_test
 
 
 def import_raw(name, import_path, controller):
@@ -74,11 +75,11 @@ def import_dataset(controller, dataset="testing", group="All"):
     test_data_folder = info["load"]() / "MEG" / "sample"
     controller.add_data(name=dataset, data_type="raw", group=group)
     # Add dataset to project and update attributes
-    meeg = MEEG(dataset, controller)
     erm_path = test_data_folder / info["io_mapping"]["erm"]
     controller.add_data("ermnoise", data_type="raw", input_path=erm_path)
     controller.input_mapping["erm"][dataset] = "ermnoise"
     controller.input_mapping["fsmri"][dataset] = "fsaverage"
+    meeg = MEEG(dataset, controller)
     meeg.fsmri = FSMRI("fsaverage", controller)
     # Add event_id
     if dataset not in controller.event_ids:
@@ -122,3 +123,18 @@ def import_dataset(controller, dataset="testing", group="All"):
             logging.debug("Done!")
 
     return meeg
+
+
+def import_fsaverage(controller):
+    logging.info("Downloading fsaverage...")
+    if is_test():
+        orig = mne.datasets.testing.data_path() / "subjects" / "fsaverage"
+        dest = controller.subjects_dir / "fsaverage"
+        if not isdir(dest):
+            shutil.copytree(orig, dest)
+    else:
+        mne.datasets.fetch_fsaverage()
+
+    fsmri = FSMRI("fsaverage", controller)
+
+    return fsmri

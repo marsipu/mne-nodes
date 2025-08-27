@@ -31,7 +31,8 @@ def test_meeg(controller):
 
 
 def test_fsmri(controller):
-    from mne_nodes.pipeline.loading import FSMRI, fsaverage_paths
+    from mne_nodes.pipeline.loading import FSMRI
+    from mne_nodes.pipeline.data_import import fsaverage_paths
 
     controller.pr.add_fsmri("fsaverage")
     fsmri = FSMRI("fsaverage", controller)

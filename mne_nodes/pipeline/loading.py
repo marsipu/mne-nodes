@@ -25,7 +25,6 @@ import numpy as np
 from tqdm import tqdm
 
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
-from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -677,7 +676,7 @@ class MEEG(BaseLoading):
         selected)"""
 
         # Main save directory
-        self.save_dir = join(self.ct.data_path, self.name)
+        self.save_dir = self.ct.data_path / self.name
         if not isdir(self.save_dir):
             os.mkdir(self.save_dir)
 
@@ -1408,21 +1407,10 @@ class MEEG(BaseLoading):
                 con.save(self.con_paths[trial][con_method])
 
 
-fsaverage_paths = {
-    "src": "bem/fsaverage-ico-5-src.fif",
-    "bem_model": "bem/fsaverage-5120-5120-5120-bem.fif",
-    "bem_solution": "bem/fsaverage-5120-5120-5120-bem-sol.fif",
-    "volume_src": "bem/fsaverage-vol-5-src.fif",
-}
-
-
 class FSMRI(BaseLoading):
     def __init__(self, name, controller, load_labels=False):
         self.load_labels = load_labels
         super().__init__(name, controller)
-
-        if name == "fsaverage":
-            self.init_fsaverage()
 
     def init_attributes(self):
         """Initialize additional attributes for FSMRI."""
@@ -1439,7 +1427,7 @@ class FSMRI(BaseLoading):
 
     def init_paths(self):
         # Main Path
-        self.save_dir = join(self.ct.subjects_dir, self.name)
+        self.save_dir = self.ct.subjects_dir / self.name
 
         # This dictionary contains entries for each data-type
         # which is loaded to/saved from disk
@@ -1492,28 +1480,6 @@ class FSMRI(BaseLoading):
             "bem_solution": join(self.save_dir, "bem", f"{self.name}-bem-sol.fif"),
             "volume_src": join(self.save_dir, "bem", f"{self.name}-vol-src.fif"),
         }
-
-    def init_fsaverage(self):
-        # Set SUBJECTS_DIR in config to None for test case,
-        # so fsaverage will be downloaded to "~/mne_data/MNE-fsaverage-data,
-        # which often is already cached"
-        if is_test():
-            mne.set_config("SUBJECTS_DIR", None)
-        logging.info("Downloading fsaverage...")
-        fsaverage_dir = mne.datasets.fetch_fsaverage(subjects_dir=None)
-        if is_test():
-            mne.set_config("SUBJECTS_DIR", self.ct.subjects_dir)
-            new_dir = join(self.ct.subjects_dir, "fsaverage")
-            if not isdir(new_dir):
-                shutil.copytree(fsaverage_dir, new_dir)
-
-        # Rename files to match naming convention
-        for data_type, from_path in fsaverage_paths.items():
-            from_path = join(self.save_dir, from_path)
-            to_path = self.io_dict[data_type]["path"]
-            if not isfile(to_path):
-                os.rename(from_path, to_path)
-                logging.info(f"Renamed {from_path} to {to_path}")
 
     def _get_available_parc(self):
         annot_dir = join(self.ct.subjects_dir, self.name, "label")
