@@ -68,13 +68,16 @@ def controller(tmp_path, monkeypatch):
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
     # Monkeypatching to simulate user input
+    # Create a new config-file with answering yes
     monkeypatch.setattr(
         "qtpy.QtWidgets.QMessageBox.question",
         lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
     )
+    # Set the controller name
     monkeypatch.setattr(
         "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: (controller_name, True)
     )
+    # set the directory where to save the config-file
     monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
     # Create Controller
     ct = Controller()
@@ -186,7 +189,7 @@ def test_module(tmp_path, test_script):
         "module_name": "test_module",
         "module_alias": "test_module",
         "functions": {
-            "test_func": {
+            "test_func1": {
                 "alias": "test_func1",
                 "group": "Test",
                 "module": "test_module",

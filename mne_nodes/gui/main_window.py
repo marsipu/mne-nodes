@@ -4,10 +4,11 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 import sys
 
 import mne
-from qtpy.QtCore import Qt, QProcess
+from qtpy.QtCore import Qt, QProcess, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
@@ -30,6 +31,8 @@ class MainWindow(QMainWindow):
     controller : Controller
         The controller managing the pipeline.
     """
+
+    processFinished = Signal(int, int, QProcess.ExitStatus)
 
     def __init__(self, controller):
         super().__init__()
@@ -154,7 +157,10 @@ class MainWindow(QMainWindow):
         self.console_dock.push_stderr(process_idx, data)
 
     def _process_finished(self, process_idx, code, status):
-        print(f"Process {process_idx} finished with code {code} and status {status}")
+        logging.info(
+            f"Process {process_idx} finished with code {code} and status {status}"
+        )
+        self.processFinished.emit(process_idx, code, status)
         self.console_dock.process_finished(process_idx)
 
     def start_process(self, process_idx):

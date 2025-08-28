@@ -48,6 +48,12 @@ class Controller:
         self.settings = Settings()
         # config will be filled when self.config is first called
         self._config = {}
+        self._config_path = None
+        self._modules = {}
+        self._function_metas = {}
+        self._parameter_metas = {}
+        self._procs = {}
+        self._errors = {}
         self.default_config = {
             "data_path": None,
             "selected_modules": ["basic_operations", "basic_plot"],
@@ -71,14 +77,6 @@ class Controller:
         self.config_path = config_path or self.settings.value(
             "config_path", defaultValue=None
         )
-        # Property attributes
-        self._modules = {}
-        self._function_metas = {}
-        self._parameter_metas = {}
-        self._input_nodes = {k: {} for k in self.input_data_types}
-        self._function_nodes = {}
-        self._procs = {}
-        self._errors = {}
         # Initialize modules
         self.load_basic_modules()
         self.load_custom_modules()
@@ -87,13 +85,30 @@ class Controller:
     # Initialization and Properties
     ####################################################################################
     @property
-    def config_path(self) -> Path:
+    def config_path(self) -> Path | None:
         """Path to the config-file."""
-        return Path(self._config_path)
+        if self._config_path is not None:
+            return Path(self._config_path)
+        return None
+
+    def _clear_attributes(self):
+        """Clear all attributes that depend on the config.
+
+        This is called when the config_path is changed to ensure that
+        all attributes are re-initialized.
+        """
+        self._config.clear()
+        self._function_metas.clear()
+        self._parameter_metas.clear()
+        self._procs.clear()
+        self._errors.clear()
 
     @config_path.setter
     def config_path(self, value):
         """Set the path to the config-file."""
+        # Clear existing config
+        self.save_config()
+        self._clear_attributes()
         # If the value is None, ask the user for a config-file path
         if value is None or not isfile(value):
             if value is None:
@@ -129,7 +144,6 @@ class Controller:
                 )
         # Set the config path and load the config
         self._config_path = value
-        self._config.clear()
         self.load_config()
         # Store the config path in the settings
         if not is_test():
@@ -139,8 +153,6 @@ class Controller:
     @property
     def config(self) -> Dict[str, Any]:
         """Configuration dictionary loaded from the config-file."""
-        self.load_config()
-
         return self._config
 
     def load_config(self):
@@ -154,8 +166,9 @@ class Controller:
                 self._config[config_key] = value
 
     def save_config(self) -> None:
-        with open(self._config_path, "w") as file:
-            json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
+        if self._config_path is not None:
+            with open(self._config_path, "w") as file:
+                json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
     def data_path(self) -> Path:
@@ -248,7 +261,6 @@ class Controller:
             self._config["name"] = get_user_input(
                 "Please enter a name for this project", "string"
             )
-            self.save_config()
 
         return self._config["name"]
 
@@ -493,6 +505,24 @@ class Controller:
             )
 
         return self.parameters[parameter_preset][parameter_name]
+
+    def set_parameter(
+        self, parameter_name: str, value: Any, parameter_preset: Optional[str] = None
+    ) -> None:
+        """Set a specific parameter in the project parameters."""
+        parameter_preset = parameter_preset or self.parameter_preset
+        if parameter_preset not in self.parameters:
+            logging.warning(
+                f"Parameter preset '{parameter_preset}' not found in project. "
+                "Using 'Default' preset instead."
+            )
+            parameter_preset = "Default"
+        if parameter_name not in self.parameters[parameter_preset]:
+            logging.warning(
+                "You should not create a new parameter with controller.set_parameter. Add the parameter to the parameter-meta first. This function should only be used to modify existing parameters."
+            )
+        self.parameters[parameter_preset][parameter_name] = value
+        self.save_config()
 
     def func_parameters(self, function_name, parameter_preset=None):
         """Get the parameters for a specific function from the project

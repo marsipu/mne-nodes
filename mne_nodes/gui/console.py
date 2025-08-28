@@ -167,7 +167,8 @@ class StreamWorker(QRunnable):
             self._mutex.unlock()
 
     # Formatting helpers (run in worker thread)
-    def _escape_and_convert(self, text: str) -> str:
+    @staticmethod
+    def _escape_and_convert(text: str) -> str:
         text = text.replace("<", "&lt;")
         text = text.replace(">", "&gt;")
         text = text.replace("\x1b", "")
@@ -479,10 +480,7 @@ class ConsoleDock(QDockWidget):
         inner_tabs.add_tab(console, "Console", count=0)  # no bubble usage
         inner_tabs.add_tab(err, "Errors", count=0)  # bubble updates here
         inner_tabs.currentChanged.connect(
-            lambda idx,
-            tabs=inner_tabs,
-            e=err,
-            pid=process_idx: self._maybe_reset_errors(idx, tabs, e, pid)
+            lambda idx, tabs=inner_tabs, e=err: self.reset_errors(idx, tabs, e)
         )
 
         # Wire error count -> process tab bubble and inner Errors tab bubble
@@ -519,9 +517,7 @@ class ConsoleDock(QDockWidget):
         self._process_tab_indexes[process_idx] = idx2
         self.tab_widget.set_notification(tab_index=idx2, count=count)
 
-    def _maybe_reset_errors(
-        self, idx, tabs: QTabWidget, err_widget: "ErrorWidget", process_idx
-    ):
+    def reset_errors(self, idx, tabs: QTabWidget, err_widget: "ErrorWidget"):
         # If the Errors tab is selected for this process, reset its notification count
         if tabs.tabText(idx) == "Errors":
             err_widget.reset_count()
@@ -566,8 +562,8 @@ class ConsoleDock(QDockWidget):
         # Remove the tab and reindex bubbles
         self.tab_widget.remove_tab(tab_index=tab_index)
         if pid is not None:
-            proc = self.process_tabs.pop(pid, None)
-            self._process_tab_indexes.pop(pid, None)
+            proc = self.process_tabs.pop(pid)
+            self._process_tab_indexes.pop(pid)
             if proc is not None:
                 proc["console"].stop_streams()
         # Shift stored indices above the removed index
