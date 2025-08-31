@@ -172,10 +172,10 @@ def test_code():
 @pytest.fixture
 def test_script(tmp_path, test_code):
     """Fixture to create a temporary Python script with test code."""
-    test_module_path = tmp_path / "test_module"
+    test_module_path = tmp_path / "test_package"
     if not isdir(test_module_path):
         mkdir(test_module_path)
-    test_script_path = test_module_path / "test.py"
+    test_script_path = test_module_path / "test_module.py"
     with open(test_script_path, "w") as f:
         f.write(test_code)
 
@@ -183,7 +183,7 @@ def test_script(tmp_path, test_code):
 
 
 @pytest.fixture
-def test_module(tmp_path, test_script):
+def test_module_config(tmp_path, test_script):
     # Generate test configuration file
     test_config = {
         "module_name": "test_module",
@@ -229,7 +229,7 @@ def test_module(tmp_path, test_script):
             },
         },
     }
-    test_config_path = test_script.parent / "test_config.json"
+    test_config_path = test_script.parent / "test_module_config.json"
     with open(test_config_path, "w") as f:
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 

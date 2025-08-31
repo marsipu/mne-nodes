@@ -4,10 +4,10 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import ast
 import json
 import logging
 import os
-import re
 import shutil
 import sys
 from importlib import import_module
@@ -660,7 +660,13 @@ class Controller:
         config_file_path : str or Path
             Path to the configuration file for the custom module.
         """
-        module_name = Path(config_file_path).stem.replace("_config", "")
+        with open(config_file_path) as file:
+            config_data = json.load(file, object_hook=type_json_hook)
+        module_name = config_data.get("module_name", None)
+        if module_name is None:
+            raise ValueError(
+                f"Config file {config_file_path} does not contain a 'module_name' entry."
+            )
         if not isfile(config_file_path):
             raise FileNotFoundError(f"Config file {config_file_path} does not exist.")
         module_path = Path(config_file_path).parent / f"{module_name}.py"
@@ -733,6 +739,25 @@ class Controller:
         else:
             raise KeyError(f"Metadata for '{name}' not found in project.")
 
+    @staticmethod
+    def _get_func_start_end(function_name, module_code):
+        tree = ast.parse(module_code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                start_line = node.lineno
+                # Python 3.8+ includes `end_lineno` in AST nodes
+                end_line = getattr(node, "end_lineno", None)
+                if end_line is None:
+                    # Fallback: estimate end line manually
+                    end_line = max(
+                        child.lineno
+                        for child in ast.walk(node)
+                        if hasattr(child, "lineno")
+                    )
+                return start_line, end_line
+
+        return None, None
+
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
         module_name = self.get_meta(function_name)["module"]
@@ -742,11 +767,9 @@ class Controller:
             raise KeyError(
                 f"Function '{function_name}' not found in module '{module_name}'."
             )
-        code = getsource(function)
         module_code = getsource(module)
         # ToDo: Get start/end lines of the function code in module
-        re.search(code, module_code)
-        pass
+        self._get_func_start_end(function_name, module_code)
 
         return None, None, None
 

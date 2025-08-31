@@ -19,17 +19,17 @@ def test_init(controller):
     assert controller.name == "test2", "Controller name should be updated to 'test2'"
 
 
-def test_module_import(tmp_path, controller, test_module, test_script):
+def test_module_import(tmp_path, controller, test_module_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic modules are imported
     assert list(controller.modules.keys()) == ["basic_operations", "basic_plot"]
 
     # Add a custom module
-    controller.add_custom_module(test_module)
-    assert "test" in controller._modules, "Custom module should be imported"
+    controller.add_custom_module(test_module_config)
+    assert "test_module" in controller._modules, "Custom module should be imported"
 
-    # Test custom module reload
-    original_func = controller.modules["test"].test_func1
+    # Test custom module reloadw
+    original_func = controller.modules["test_module"].test_func1
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
@@ -42,7 +42,7 @@ def test_module_import(tmp_path, controller, test_module, test_script):
     controller.reload_modules()
 
     # Get a new reference to the function
-    new_func = controller.modules["test"].test_func1
+    new_func = controller.modules["test_module"].test_func1
     print(f"New function: {new_func} at {id(new_func)}")
     assert new_func(2) == 8, "New function reference should return updated value"
 
@@ -79,7 +79,7 @@ def test_config_change(tmp_path, controller, monkeypatch):
     assert controller.parameter("new_param") == 42, "New parameter should be set"
     # Add some stuff to other attributes
     for attr in ["function_metas", "parameter_metas", "errors", "_procs"]:
-        getattr(controller, attr)["test"] = {}
+        getattr(controller, attr)["test_module"] = {}
     controller.save_config()
     # Change back to other controller
     controller.config_path = old_config_path

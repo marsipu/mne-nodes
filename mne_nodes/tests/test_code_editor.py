@@ -27,7 +27,7 @@ def test_load_save(qtbot, tmp_path, test_script):
     assert saved_content == original_code + new_code
 
 
-def test_insert_code(qtbot, tmp_path, test_code, test_module, test_script):
+def test_insert_code(qtbot, tmp_path, test_code, test_module_config, test_script):
     # Test insertion of code into a specific section
     code_func1 = "\n".join(test_code.split("\n")[:4])
     code_func2 = "\n".join(test_code.split("\n")[4:])
