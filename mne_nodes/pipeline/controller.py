@@ -78,8 +78,18 @@ class Controller:
             "config_path", defaultValue=None
         )
         # Initialize modules
-        self.load_basic_modules()
-        self.load_custom_modules()
+        # Legacy: Add basic modules until separated
+        self.module_meta["basic_operations"] = {
+            "module": Path(basic_operations.__file__),
+            "config": Path(basic_operations.__file__).with_name(
+                "basic_operations_config.json"
+            ),
+        }
+        self.module_meta["basic_plot"] = {
+            "module": Path(basic_plot.__file__),
+            "config": Path(basic_plot.__file__).with_name("basic_plot_config.json"),
+        }
+        self.load_modules()
 
     ####################################################################################
     # Initialization and Properties
@@ -163,7 +173,7 @@ class Controller:
         # Set defaults
         for config_key, value in self.default_config.items():
             if config_key not in self._config:
-                self._config[config_key] = value
+                self.config[config_key] = value
 
     def save_config(self) -> None:
         if self._config_path is not None:
@@ -258,11 +268,11 @@ class Controller:
     @property
     def name(self):
         if "name" not in self._config:
-            self._config["name"] = get_user_input(
+            self.config["name"] = get_user_input(
                 "Please enter a name for this project", "string"
             )
 
-        return self._config["name"]
+        return self.config["name"]
 
     @name.setter
     def name(self, new_name):
@@ -274,7 +284,7 @@ class Controller:
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
             self._config_path = new_path
-        self._config["name"] = new_name
+        self.config["name"] = new_name
         self.save_config()
 
     @property
@@ -565,7 +575,7 @@ class Controller:
     @property
     def tab(self):
         """This holds the tabs for the project."""
-        return " " * self.config.get(
+        return " " * self._config.get(
             "tab_space_count", self.default_config["tab_space_count"]
         )
 
@@ -582,7 +592,7 @@ class Controller:
 
     def save_node_config(self, node_config):
         # set to dict directly to avoid calling setter again
-        self._config["node_config"] = node_config
+        self.config["node_config"] = node_config
         self.save_config()
 
     ####################################################################################
@@ -603,16 +613,16 @@ class Controller:
         return self._modules
 
     @property
-    def custom_module_meta(self):
+    def module_meta(self):
         """This holds the custom modules used in the project, stored by name
         and path to the config-file."""
-        if "custom_module_meta" not in self.config:
-            self.config["custom_module_meta"] = {}
-        return self.config["custom_module_meta"]
+        if "module_meta" not in self.config:
+            self.config["module_meta"] = {}
+        return self.config["module_meta"]
 
-    def _load_module_config(self, module_name, pkg_path):
+    def _load_module_config(self, module_name):
         """Load the configuration file for a module from the package path."""
-        config_file_path = join(pkg_path, f"{module_name}_config.json")
+        config_file_path = self.module_meta[module_name]["config"]
         if not isfile(config_file_path):
             raise RuntimeError(
                 f"Config file for {module_name} not found at {config_file_path}."
@@ -622,8 +632,9 @@ class Controller:
         self.function_metas.update(config_data["functions"])
         self.parameter_metas.update(config_data["parameters"])
 
-    def _import_module(self, module_name, pkg_path):
+    def _import_module(self, module_name):
         """Import a module from the given package path."""
+        pkg_path = self.module_meta[module_name]["module"].parent
         # Add the package path to sys.path if not already present
         if pkg_path not in sys.path:
             sys.path.insert(0, str(pkg_path))
@@ -636,21 +647,12 @@ class Controller:
         else:
             self._modules[module_name] = module
         # Load the config file for the basic module
-        self._load_module_config(module_name, pkg_path)
+        self._load_module_config(module_name)
 
-    def load_basic_modules(self) -> None:
-        """Load the basic modules from the basic_operations package."""
-        for module in [basic_operations, basic_plot]:
-            module_name = module.__name__.split(".")[-1]  # Get the module name
-            self._modules[module_name] = module
-            pkg_path = Path(module.__file__).parent
-            self._load_module_config(module_name, pkg_path)
-
-    def load_custom_modules(self) -> None:
+    def load_modules(self) -> None:
         """Load custom modules from their config files."""
-        for module_name, config_file_path in self.custom_module_meta.items():
-            pkg_path = Path(config_file_path).parent
-            self._import_module(module_name, pkg_path)
+        for module_name in self.module_meta:
+            self._import_module(module_name)
 
     def add_custom_module(self, config_file_path: Union[str, Path]):
         """Add a custom module to the controller.
@@ -675,8 +677,11 @@ class Controller:
                 f"Module file {module_path} does not exist. The module file has to have the exact name of the module and the config file has to be named <module_name>_config.json."
             )
 
-        self.custom_module_meta[module_name] = config_file_path
-        self.load_custom_modules()
+        self.module_meta[module_name] = {
+            "config": config_file_path,
+            "module": Path(config_file_path).parent / f"{module_name}.py",
+        }
+        self.load_modules()
 
     def reload_modules(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
@@ -744,18 +749,12 @@ class Controller:
         tree = ast.parse(module_code)
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == function_name:
-                start_line = node.lineno
-                # Python 3.8+ includes `end_lineno` in AST nodes
-                end_line = getattr(node, "end_lineno", None)
-                if end_line is None:
-                    # Fallback: estimate end line manually
-                    end_line = max(
-                        child.lineno
-                        for child in ast.walk(node)
-                        if hasattr(child, "lineno")
-                    )
-                return start_line, end_line
+                # lineno and end_lineno are 1-based
+                start_line = node.lineno - 1
+                end_line = node.end_lineno - 1
 
+                return start_line, end_line
+        logging.warning("Could not find function in module code.")
         return None, None
 
     def get_function_code(self, function_name: str):
@@ -768,10 +767,10 @@ class Controller:
                 f"Function '{function_name}' not found in module '{module_name}'."
             )
         module_code = getsource(module)
-        # ToDo: Get start/end lines of the function code in module
-        self._get_func_start_end(function_name, module_code)
+        func_code = getsource(function)
+        start, end = self._get_func_start_end(function_name, module_code)
 
-        return None, None, None
+        return func_code, start, end
 
     def convert_to_code(self, instructions):
         """Convert a list of instructions to a Python code string."""

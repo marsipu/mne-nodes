@@ -6,7 +6,14 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QGroupBox
+from qtpy.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QScrollArea,
+    QGroupBox,
+    QApplication,
+)
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
@@ -108,7 +115,11 @@ class FunctionNode(BaseNode):
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
-        editor_widget = CodeEditorWidget(self.ct, file_section=(start, end))
+        func_meta = self.ct.get_meta(self.name)
+        file_path = self.ct.module_meta[func_meta["module"]]["module_path"]
+        editor_widget = CodeEditorWidget(
+            QApplication.activeWindow(), file_section=(start, end), file_path=file_path
+        )
         editor_widget.editor.codeSaved.connect(self.ct.reload)
         SimpleDialog(editor_widget)
         # Get function
