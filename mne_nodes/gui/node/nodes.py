@@ -116,11 +116,11 @@ class FunctionNode(BaseNode):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
         func_meta = self.ct.get_meta(self.name)
-        file_path = self.ct.module_meta[func_meta["module"]]["module_path"]
+        file_path = self.ct.module_meta[func_meta["module"]]["module"]
         editor_widget = CodeEditorWidget(
             QApplication.activeWindow(), file_section=(start, end), file_path=file_path
         )
-        editor_widget.editor.codeSaved.connect(self.ct.reload)
+        editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
         SimpleDialog(editor_widget)
         # Get function
 
