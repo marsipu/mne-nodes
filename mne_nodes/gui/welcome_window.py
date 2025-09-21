@@ -21,7 +21,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes import _object_refs, extra
+from mne_nodes import _widgets, extra
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import center, get_user_input
 from mne_nodes.gui.main_window import MainWindow
@@ -33,7 +33,7 @@ from mne_nodes.pipeline.settings import Settings
 class WelcomeWindow(QWidget):
     def __init__(self, controller=None):
         super().__init__()
-        _object_refs["welcome_window"] = self
+        _widgets["welcome_window"] = self
         if controller is None:
             try:
                 self.ct = Controller()
@@ -188,5 +188,5 @@ class WelcomeWindow(QWidget):
             Settings().setValue("education", 1)
         else:
             Settings().setValue("education", 0)
-        _object_refs["welcom_window"] = None
+        _widgets["welcom_window"] = None
         event.accept()

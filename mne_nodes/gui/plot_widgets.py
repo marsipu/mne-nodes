@@ -39,7 +39,7 @@ try:
     from mne.viz import Figure3D
 except ImportError:
     Figure3D = None
-from mne_nodes import _object_refs
+from mne_nodes import _widgets
 from mne_nodes.gui.base_widgets import SimpleList, CheckList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.execution import Worker
@@ -123,16 +123,16 @@ class PlotManager(QMainWindow):
                 self.update_plots(only_add=True)
 
     def closeEvent(self, event):
-        _object_refs["plot_manager"] = None
+        _widgets["plot_manager"] = None
         event.accept()
 
 
 def show_plot_manager():
-    if _object_refs["plot_manager"] is None:
+    if _widgets["plot_manager"] is None:
         plot_manager = PlotManager()
-        _object_refs["plot_manager"] = plot_manager
+        _widgets["plot_manager"] = plot_manager
 
-    return _object_refs["plot_manager"]
+    return _widgets["plot_manager"]
 
 
 class PlotViewSelection(QDialog):

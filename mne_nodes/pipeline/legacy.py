@@ -53,7 +53,7 @@ from qtpy.QtWidgets import (
     QButtonGroup,
 )
 
-from mne_nodes import extra, _object_refs, ismac, iswin
+from mne_nodes import extra, _widgets, ismac, iswin
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui import parameter_widgets
@@ -1388,7 +1388,7 @@ class OldMainWindow(QMainWindow):
 
     def __init__(self, controller):
         super().__init__()
-        _object_refs["main_window"] = self
+        _widgets["main_window"] = self
         self.setWindowTitle("MNE-Pipeline HD")
 
         # Set QThread as default
@@ -1461,7 +1461,7 @@ class OldMainWindow(QMainWindow):
                     self.pr = new_controller.change_project(new_project)
 
                 self.ct = new_controller
-                welcome_window = _object_refs["welcome_window"]
+                welcome_window = _widgets["welcome_window"]
                 if welcome_window is not None:
                     welcome_window.ct = new_controller
                 self.statusBar().showMessage(
@@ -2192,7 +2192,7 @@ class OldMainWindow(QMainWindow):
         mne.sys_info()
 
     def closeEvent(self, event):
-        welcome_window = _object_refs["welcome_window"]
+        welcome_window = _widgets["welcome_window"]
         if self.restarting or welcome_window is None:
             answer = QMessageBox.No
         else:
@@ -2209,7 +2209,7 @@ class OldMainWindow(QMainWindow):
             if self.edu_tour:
                 self.edu_tour.close()
             event.accept()
-            _object_refs["main_window"] = None
+            _widgets["main_window"] = None
 
             if welcome_window is not None:
                 if answer == QMessageBox.Yes:

@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional, Union
 
 import mne
 
-from mne_nodes import _object_refs
+from mne_nodes import _widgets
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
@@ -138,7 +138,7 @@ class Controller:
                 config_folder = get_user_input(
                     "Set the folder-path to store the config-file",
                     "folder",
-                    close_on_cancel=True,
+                    exit_on_cancel=True,
                 )
                 value = join(config_folder, f"{self.name}_config.json")
                 # Write empty config_file
@@ -150,7 +150,7 @@ class Controller:
                     "Please enter the path to an exisiting config-file",
                     "file",
                     file_filter="JSON files (*.json)",
-                    close_on_cancel=True,
+                    exit_on_cancel=True,
                 )
         # Set the config path and load the config
         self._config_path = value
@@ -297,8 +297,8 @@ class Controller:
 
     @property
     def viewer(self):
-        """Get the viewer object from the _object_refs dictionary."""
-        viewer = _object_refs.get("viewer", None)
+        """Get the viewer object from the _widgets dictionary."""
+        viewer = _widgets.get("viewer", None)
         if viewer is None:
             raise RuntimeError(
                 "Viewer is not initialized. Please initialize the viewer first."
@@ -307,8 +307,8 @@ class Controller:
 
     @property
     def main_window(self):
-        """Get the main window object from the _object_refs dictionary."""
-        main_window = _object_refs.get("main_window", None)
+        """Get the main window object from the _widgets dictionary."""
+        main_window = _widgets.get("main_window", None)
         if main_window is None:
             raise RuntimeError(
                 "Main window is not initialized. Please initialize the main window first."
@@ -780,7 +780,7 @@ class Controller:
             "from mne_nodes.pipeline.controller import Controller\n"
             "from mne_nodes.pipeline.loading import MEEG, FSMRI, Group\n\n"
             "# Load controller\n"
-            f"ct = Controller(config_path='{self.config_path}')\n\n"
+            f"ct = Controller(config_path='{self.config_path.as_posix()}')\n\n"
             "# Inject modules into global namespace\n"
             "globals().update(ct.modules)\n\n"
         )
@@ -807,7 +807,7 @@ class Controller:
                 if meta["module"] not in modules:
                     modules[meta["module"]] = []
                 modules[meta["module"]].append(name)
-                code += self.tab + f"{name}(meeg, **ct.func_parameters({name}))\n"
+                code += self.tab + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
             else:
                 logging.warning(
                     f"Unknown instruction type '{kind}' for name '{name}'. "

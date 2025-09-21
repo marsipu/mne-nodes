@@ -12,7 +12,7 @@ from qtpy.QtCore import Qt, QProcess, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
-from mne_nodes import _object_refs, iswin
+from mne_nodes import _widgets, iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
@@ -36,7 +36,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, controller):
         super().__init__()
-        _object_refs["main_window"] = self
+        _widgets["main_window"] = self
         self._controller = controller
         self.settings = controller.settings
 
@@ -270,7 +270,7 @@ class MainWindow(QMainWindow):
         self.console_dock.stop_all()
         self.qprocesses.clear()
         # Clear global reference for tests/GC
-        _object_refs["main_window"] = None
+        _widgets["main_window"] = None
         # Save node configuration
         self.controller.save_node_config(self.viewer.to_dict())
         # Close the main window

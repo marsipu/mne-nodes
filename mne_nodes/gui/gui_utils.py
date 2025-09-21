@@ -33,9 +33,8 @@ from qtpy.QtWidgets import (
 )
 
 import mne_nodes
-from mne_nodes import _object_refs
+from mne_nodes import _widgets, main_widget
 from mne_nodes import extra
-from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -82,7 +81,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
     operation, None is returned.
     """
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
+        parent = main_widget()
         if cancel_allowed:
             buttons = (
                 QMessageBox.StandardButton.Yes
@@ -95,7 +94,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
         ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
         cancel = ans == QMessageBox.StandardButton.Cancel
         ans = ans == QMessageBox.StandardButton.Yes
-    elif is_test() or sys.stdin.isatty():
+    else:
         if cancel_allowed:
             prompt += " (yes/no/cancel): "
         else:
@@ -105,11 +104,6 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
         ok = ans in ["yes", "y", "no", "n"]
         cancel = ans in ["cancel", "c"]
         ans = ans.strip().lower() in ["yes", "y"]
-    else:
-        raise RuntimeError(
-            "Input is not available in this environment. "
-            "Please run the script in a terminal/command prompt or start the GUI."
-        )
     if cancel and cancel_allowed:
         if close_on_cancel:
             logging.info("User canceled, closing app.")
@@ -125,7 +119,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
         warning_message = None
     if warning_message is not None:
         if mne_nodes.gui_mode:
-            parent = QApplication.activeWindow()
+            parent = main_widget()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
             logging.warning(warning_message)
@@ -139,7 +133,7 @@ def get_user_input(
     input_type="string",
     file_filter=None,
     cancel_allowed=True,
-    close_on_cancel=False,
+    exit_on_cancel=False,
 ):
     """Get user input either via GUI or terminal, supporting string and path
     input.
@@ -154,6 +148,8 @@ def get_user_input(
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
     cancel_allowed : bool, optional
         If True, allows the user to cancel the input operation. Defaults to True.
+    exit_on_cancel : bool, optional
+        If True, the app exits after cancel. Defaults to False.
 
     Returns
     -------
@@ -167,9 +163,11 @@ def get_user_input(
     ValueError
         If `input_type` is not "string" or "path".
     """
-    type_error_message = f"input_type must be 'string' or 'path', not '{input_type}'"
+    type_error_message = (
+        f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
+    )
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
+        parent = main_widget()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
         elif input_type == "folder":
@@ -179,31 +177,26 @@ def get_user_input(
             user_input, ok = compat.getopenfilename(parent, prompt, filters=file_filter)
         else:
             raise ValueError(type_error_message)
-    # Checks for interactive terminal
-    elif sys.stdin.isatty():
-        if input_type == "path":
-            ans = input("Do you want to use the current directory? (y/n/cancel): ")
+    else:
+        if input_type == "string":
+            user_input = input(f"{prompt}: ")
+        elif input_type == "folder":
+            ans = input("Do you want to use the current directory? (y/n/c/cancel): ")
             if ans.lower() in ["y", "yes"]:
                 user_input = os.getcwd()
-                ok = True
             elif ans.lower() in ["c", "cancel"]:
                 user_input = None
-                ok = False
             else:
                 user_input = input(f"{prompt}: ")
-                ok = True
-        elif input_type == "string":
-            user_input = input(f"{prompt}: ")
-            ok = user_input.lower() not in ["cancel", "c"]
+        elif input_type == "file":
+            user_input = input(
+                f"{prompt} | Please enter the full path to the file (c/cancel): "
+            )
         else:
             raise ValueError(type_error_message)
-    else:
-        raise RuntimeError(
-            "Input is not available in this environment. "
-            "Please run the script in a terminal/command prompt or start the GUI."
-        )
+        ok = user_input.lower() not in ["cancel", "c"]
     if cancel_allowed and not ok:
-        if close_on_cancel:
+        if exit_on_cancel:
             logging.info("User canceled, closing app.")
             sys.exit(0)
         else:
@@ -230,7 +223,7 @@ def get_user_input(
 def raise_user_attention(message, message_type="warning"):
     """Raise a message to the user, either as a warning or an error."""
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
+        parent = main_widget()
         if message_type == "warning":
             QMessageBox().warning(parent, "Warning", message)
         elif message_type == "error":
@@ -489,7 +482,7 @@ def set_app_theme():
     else:
         icon_name = "mne_pipeline_icon_dark.png"
     # Set func-button color
-    mw = _object_refs["main_window"]
+    mw = main_widget()
     if mw is not None:
         for func_button in mw.bt_dict.values():
             if app_theme == "light":
@@ -521,7 +514,7 @@ def set_app_font_size(font_size=None):
 class ColorTester(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        _object_refs["color_tester"] = self
+        _widgets["color_tester"] = self
         theme = Settings().value("app_theme")
         if theme == "auto":
             theme = _get_auto_theme()

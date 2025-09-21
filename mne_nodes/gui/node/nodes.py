@@ -6,20 +6,16 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 
-from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-    QScrollArea,
-    QGroupBox,
-    QApplication,
-)
+from PySide6.QtWidgets import QHBoxLayout
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QGroupBox
 
+from mne_nodes import main_widget
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.loading_widgets import AddFilesWidget, AddMRIWidget
 from mne_nodes.gui.node.base_node import BaseNode
+from mne_nodes.pipeline.data_import import import_dataset
 
 
 class InputNode(BaseNode):
@@ -41,9 +37,14 @@ class InputNode(BaseNode):
         # Initialize the main widget with the input list
         self.main_widget = QWidget()
         layout = QVBoxLayout(self.main_widget)
+        bt_layout = QHBoxLayout()
         import_bt = QPushButton("Import")
         import_bt.clicked.connect(self.add_files)
-        layout.addWidget(import_bt)
+        bt_layout.addWidget(import_bt)
+        sample_bt = QPushButton("Sample-Data")
+        sample_bt.clicked.connect(self.load_sample)
+        bt_layout.addWidget(sample_bt)
+        layout.addLayout(bt_layout)
         input_list = CheckList(
             ct.inputs[data_type][name],
             ct.selected_inputs,
@@ -66,6 +67,12 @@ class InputNode(BaseNode):
         node_dict = super().to_dict()
         node_dict["data_type"] = self.data_type
         return node_dict
+
+    def load_sample(self):
+        import_dataset(self.ct, dataset="sample", group="All")
+        # WorkerDialog(parent=main_widget(), function=import_dataset,
+        #              controller=self.ct, dataset="sample",
+        #              show_console=True, close_directly=False)
 
 
 class FunctionNode(BaseNode):
@@ -118,7 +125,7 @@ class FunctionNode(BaseNode):
         func_meta = self.ct.get_meta(self.name)
         file_path = self.ct.module_meta[func_meta["module"]]["module"]
         editor_widget = CodeEditorWidget(
-            QApplication.activeWindow(), file_section=(start, end), file_path=file_path
+            main_widget(), file_section=(start, end), file_path=file_path
         )
         editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
         SimpleDialog(editor_widget)
