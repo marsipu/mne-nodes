@@ -289,10 +289,8 @@ def convert_pandas_meta(func_pd, param_pd):
                 row_dict.pop(pop_key)
             if func_name == "plot_grand_avg_connect":
                 pass
-            # Make sure alias, unit and description are removed when None
-            for key in ["alias", "unit", "description"]:
-                if check_none(row_dict[key]):
-                    row_dict.pop(key)
+            if check_none(row_dict["alias"]):
+                row_dict.pop("alias")
 
             # Get inputs/outputs and parameters
             params = row_dict.pop("func_args").split(",")
@@ -314,6 +312,10 @@ def convert_pandas_meta(func_pd, param_pd):
             if param_name not in param_set:
                 continue
             row_dict = row.to_dict()
+            # Make sure alias, unit and description are removed when None
+            for key in ["alias", "unit", "description", "gui_args"]:
+                if check_none(row_dict[key]):
+                    row_dict.pop(key)
             eval_dict = {}
             for key, value in row_dict.items():
                 if key in ["default", "gui_args"]:
@@ -453,7 +455,7 @@ class OldController:
 
         # Check Project
         if selected_project is None:
-            selected_project = self.settings["selected_project"]
+            selected_project = self.settings.value("selected_project")
 
         if selected_project is None:
             if len(self.projects) > 0:

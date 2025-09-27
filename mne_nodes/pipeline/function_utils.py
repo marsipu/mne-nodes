@@ -122,7 +122,7 @@ def get_arguments(func, obj):
         if arg_name in obj.params:
             arguments[arg_name] = obj.params[arg_name]
         elif arg_name in obj.ct.settings:
-            arguments[arg_name] = obj.ct.settings[arg_name]
+            arguments[arg_name] = obj.ct.settings.value(arg_name)
         elif arg_name in Settings().childKeys():
             arguments[arg_name] = Settings().value(arg_name)
 

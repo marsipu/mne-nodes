@@ -55,22 +55,18 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
     file_name = Path(path).name
     # Try to get the parameters relevant for the last function,
     # which altered the data at path
-    try:
-        # The last entry in FUNCTION should be the most recent
-        function = obj.file_parameters[file_name]["FUNCTION"]
-        critical_params_str = obj.ct.pd_funcs.loc[function, "func_args"]
-        # Make sure there are no spaces left
-        critical_params_str = critical_params_str.replace(" ", "")
-        if "," in critical_params_str:
-            critical_params = critical_params_str.split(",")
-        else:
-            critical_params = [critical_params_str]
-    except KeyError:
-        critical_params = []
-        function = None
-
+    # The last entry in FUNCTION should be the most recent
     if not target_parameters:
         target_parameters = obj.params.keys()
+    function_dict = obj.file_parameters.get(file_name, None)
+    if function_dict is None:
+        return {param: "missing" for param in target_parameters}
+    function = function_dict["FUNCTION"]
+    try:
+        func_meta = obj.ct.get_meta(function)
+    except KeyError:
+        return {param: "missing" for param in target_parameters}
+    critical_params = func_meta["parameters"]
     for param in target_parameters:
         try:
             previous_value = obj.file_parameters[file_name][param]
@@ -101,7 +97,7 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
             if verbose:
                 logging.warning(f"{param} is missing in records for {file_name}")
 
-    if obj.ct.settings["overwrite"]:
+    if obj.ct.settings.value("overwrite"):
         result_dict[param] = "overwrite"
         if verbose:
             logging.info(

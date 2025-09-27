@@ -605,7 +605,7 @@ class SavePkgDialog(QDialog):
             self.cf_dialog.clear_param_items()
 
             # Add to selected modules
-            self.cf_dialog.ct.settings["selected_modules"].append(
+            self.cf_dialog.ct.settings.value("selected_modules").append(
                 self.cf_dialog.file_path.stem
             )
             self.cf_dialog.ct.save_settings()

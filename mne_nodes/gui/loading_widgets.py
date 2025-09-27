@@ -13,6 +13,7 @@ from collections import Counter
 from functools import partial
 from os.path import exists, isfile, join
 from pathlib import Path
+from typing import Optional, Callable
 
 import mne
 import numpy as np
@@ -54,7 +55,6 @@ from mne_nodes.basic_plot.basic_plot import (
     plot_ica_sources,
     plot_ica_overlay,
     plot_ica_properties,
-    plot_raw,
 )
 from mne_nodes.gui.base_widgets import (
     AssignWidget,
@@ -76,6 +76,48 @@ from mne_nodes.pipeline.execution import Worker, WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import compare_filep
 from mne_nodes.pipeline.settings import Settings
+
+
+def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
+    # Save bad-channels
+    meeg.set_bad_channels(raw.info["bads"])
+    # Save raw for annotations
+    meeg.save(raw_type, raw)
+
+
+def plot_raw(
+    meeg: "MEEG",
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_raw_on_close,
+    **kwargs,
+) -> None:
+    raw = meeg.load_raw()
+
+    try:
+        events = meeg.load_events()
+    except FileNotFoundError:
+        events = None
+        print("No events found")
+
+    fig = raw.plot(
+        events=events,
+        bad_color="red",
+        scalings="auto",
+        title=f"{meeg.name}",
+        show=show_plots,
+        **kwargs,
+    )
+
+    if hasattr(fig, "canvas"):
+        # Connect to closing of Matplotlib-Figure
+        fig.canvas.mpl_connect(
+            "close_event", partial(close_func, meeg=meeg, raw=raw, raw_type="raw")
+        )
+    else:
+        # Connect to closing of PyQt-Figure
+        fig.gotClosed.connect(
+            partial(close_func, None, meeg=meeg, raw=raw, raw_type="raw")
+        )
 
 
 def index_parser(index, all_items, groups=None):

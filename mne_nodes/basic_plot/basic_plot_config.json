@@ -96,8 +96,7 @@
             ],
             "outputs": [],
             "parameters": [
-                "show_plots",
-                "close_func"
+                "show_plots"
             ]
         },
         "plot_filtered": {
@@ -727,7 +726,6 @@
                 "eog",
                 "ecg"
             ],
-            "unit": null,
             "description": "Specify Channel-Types used in data",
             "gui": "CheckListGui",
             "options": [
@@ -757,14 +755,12 @@
         "apply_proj": {
             "alias": "Apply Projections",
             "default": true,
-            "unit": null,
             "description": "If to apply the projections (if present)",
             "gui": "BoolGui"
         },
         "ica_fitto": {
             "alias": "Fit ICA to:",
             "default": "raw_filtered",
-            "unit": null,
             "description": "The data to fit the ICA to",
             "gui": "ComboGui",
             "options": [
@@ -774,9 +770,7 @@
             ]
         },
         "stc_surface": {
-            "alias": null,
             "default": "inflated",
-            "unit": null,
             "description": "Select the surface type for Source Estimate Plots",
             "gui": "ComboGui",
             "options": [
@@ -786,9 +780,7 @@
             ]
         },
         "stc_hemi": {
-            "alias": null,
             "default": "split",
-            "unit": null,
             "description": "Select the hemispheres for Source Estimate Plots",
             "gui": "ComboGui",
             "options": [
@@ -799,12 +791,10 @@
             ]
         },
         "stc_views": {
-            "alias": null,
             "default": [
                 "med",
                 "lat"
             ],
-            "unit": null,
             "description": "Select the views for Source Estimate Plots",
             "gui": "MultiTypeGui",
             "types": [
@@ -813,16 +803,12 @@
             ]
         },
         "stc_time": {
-            "alias": null,
             "default": 0,
-            "unit": null,
             "description": "Initial time for Source Estimate Plots",
             "gui": "FloatGui"
         },
         "stc_clim": {
-            "alias": null,
             "default": "auto",
-            "unit": null,
             "description": "Colorbar Limits for Source Estimate Plots",
             "gui": "MultiTypeGui",
             "types": [
@@ -831,31 +817,24 @@
             ]
         },
         "stc_roll": {
-            "alias": null,
             "default": 0,
-            "unit": null,
             "description": "Roll for view in for Source Estimate Plots",
             "gui": "IntGui",
             "max_val": 360
         },
         "stc_azimuth": {
-            "alias": null,
             "default": 70,
-            "unit": null,
             "description": "Azimuth for view for Source Estimate Plots",
             "gui": "IntGui",
             "max_val": 360
         },
         "stc_elevation": {
-            "alias": null,
             "default": 60,
-            "unit": null,
             "description": "Elevation for view for Source Estimate Plots",
             "gui": "IntGui",
             "max_val": 360
         },
         "stc_animation_span": {
-            "alias": null,
             "default": {
                 "tuple_type": [
                     0,
@@ -867,32 +846,24 @@
             "gui": "DualTupleGui"
         },
         "stc_animation_dilat": {
-            "alias": null,
             "default": 20,
-            "unit": null,
             "description": "time-dilation for stc-animation",
             "gui": "IntGui"
         },
         "target_labels": {
             "alias": "Target Labels",
             "default": [],
-            "unit": null,
-            "description": null,
             "gui": "LabelGui"
         },
         "label_colors": {
-            "alias": null,
             "default": {},
-            "unit": null,
             "description": "Set custom colors for labels.",
             "gui": "ColorGui",
             "keys": "target_labels",
             "none_select": true
         },
         "ica_source_data": {
-            "alias": null,
             "default": "raw_filtered",
-            "unit": null,
             "description": "Which data to plot in sources-plot from ICA",
             "gui": "ComboGui",
             "options": [
@@ -907,9 +878,7 @@
             ]
         },
         "ica_overlay_data": {
-            "alias": null,
             "default": "evoked",
-            "unit": null,
             "description": "Which data to plot in overlay-plot from ICA",
             "gui": "ComboGui",
             "options": [
@@ -921,9 +890,7 @@
             ]
         },
         "plot_sensors_kind": {
-            "alias": null,
             "default": "topomap",
-            "unit": null,
             "description": "The kind of plot for plot_sensors",
             "gui": "ComboGui",
             "options": [
@@ -933,9 +900,7 @@
             ]
         },
         "psd_topomap_bands": {
-            "alias": null,
             "default": null,
-            "unit": null,
             "description": "The frequency bands for the topomap-plot",
             "gui": "DictGui",
             "none_select": true
@@ -943,7 +908,6 @@
         "backend_3d": {
             "alias": "3D-Backend",
             "default": "pyvistaqt",
-            "unit": null,
             "description": "Choose the 3D-Backend for Brain-plots.",
             "gui": "ComboGui",
             "options": [

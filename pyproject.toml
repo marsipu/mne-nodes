@@ -38,6 +38,7 @@ dependencies = [
     "pyobjc-framework-Cocoa; sys_platform == 'Darwin'",
     # Other
     "psutil",
+    "tqdm",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]

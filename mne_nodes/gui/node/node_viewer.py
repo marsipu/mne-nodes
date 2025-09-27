@@ -604,7 +604,7 @@ class NodeViewer(QGraphicsView):
         node_dict = node.downstream_nodes()
         instructions = [(node.data_type, "Input")]
         self._get_execution_from_nodes(instructions, node_dict)
-        self.ct.start(instructions)
+        self.ct.start(instructions, start_name=node.name)
 
     def from_project(self):
         """Legacy method to load nodes from the project.

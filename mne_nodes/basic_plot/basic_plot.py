@@ -28,19 +28,7 @@ from mne_nodes.basic_operations import basic_operations as op
 # ==============================================================================
 # PLOTTING FUNCTIONS
 # ==============================================================================
-def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
-    # Save bad-channels
-    meeg.set_bad_channels(raw.info["bads"])
-    # Save raw for annotations
-    meeg.save(raw_type, raw)
-
-
-def plot_raw(
-    meeg: "MEEG",
-    show_plots: bool,
-    close_func: Optional[Callable] = _save_raw_on_close,
-    **kwargs,
-) -> None:
+def plot_raw(meeg: "MEEG", show_plots: bool, **kwargs) -> None:
     raw = meeg.load_raw()
 
     try:
@@ -49,33 +37,18 @@ def plot_raw(
         events = None
         print("No events found")
 
-    fig = raw.plot(
+    raw.plot(
         events=events,
         bad_color="red",
         scalings="auto",
         title=f"{meeg.name}",
         show=show_plots,
+        block=show_plots,
         **kwargs,
     )
 
-    if hasattr(fig, "canvas"):
-        # Connect to closing of Matplotlib-Figure
-        fig.canvas.mpl_connect(
-            "close_event", partial(close_func, meeg=meeg, raw=raw, raw_type="raw")
-        )
-    else:
-        # Connect to closing of PyQt-Figure
-        fig.gotClosed.connect(
-            partial(close_func, None, meeg=meeg, raw=raw, raw_type="raw")
-        )
 
-
-def plot_filtered(
-    meeg: "MEEG",
-    show_plots: bool,
-    close_func: Optional[Callable] = _save_raw_on_close,
-    **kwargs: Any,
-) -> None:
+def plot_filtered(meeg: "MEEG", show_plots: bool, **kwargs: Any) -> None:
     raw = meeg.load_filtered()
 
     try:
@@ -648,7 +621,7 @@ def _brain_plot(
                 img_format=img_format,
             )
 
-            if not meeg.ct.settings["show_plots"]:
+            if not meeg.ct.settings.value("show_plots"):
                 brain.close()
 
 

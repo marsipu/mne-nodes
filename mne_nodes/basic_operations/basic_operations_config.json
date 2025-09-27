@@ -656,7 +656,6 @@
                 "eog",
                 "ecg"
             ],
-            "unit": null,
             "description": "Specify Channel-Types used in data",
             "gui": "CheckListGui",
             "options": [
@@ -686,7 +685,6 @@
         "ch_names": {
             "alias": "Channel-Names",
             "default": "all",
-            "unit": null,
             "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
             "gui": "MultiTypeGui",
             "types": [
@@ -695,9 +693,7 @@
             ]
         },
         "ref_channels": {
-            "alias": null,
             "default": "average",
-            "unit": null,
             "description": "Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference()",
             "gui": "MultiTypeGui",
             "types": [
@@ -728,9 +724,7 @@
             "none_select": true
         },
         "filter_target": {
-            "alias": null,
             "default": "raw",
-            "unit": null,
             "description": "The target for Filtering (experimental when other than raw)",
             "gui": "ComboGui",
             "options": [
@@ -740,10 +734,7 @@
             ]
         },
         "filter_length": {
-            "alias": null,
             "default": "auto",
-            "unit": null,
-            "description": null,
             "gui": "MultiTypeGui",
             "types": [
                 "str",
@@ -751,10 +742,7 @@
             ]
         },
         "l_trans_bandwidth": {
-            "alias": null,
             "default": "auto",
-            "unit": null,
-            "description": null,
             "gui": "MultiTypeGui",
             "types": [
                 "str",
@@ -762,10 +750,7 @@
             ]
         },
         "h_trans_bandwidth": {
-            "alias": null,
             "default": "auto",
-            "unit": null,
-            "description": null,
             "gui": "MultiTypeGui",
             "types": [
                 "str",
@@ -773,60 +758,38 @@
             ]
         },
         "filter_method": {
-            "alias": null,
             "default": "fir",
-            "unit": null,
-            "description": null,
             "gui": "StringGui"
         },
         "iir_params": {
-            "alias": null,
             "default": null,
-            "unit": null,
-            "description": null,
             "gui": "DictGui",
             "none_select": true
         },
         "fir_phase": {
-            "alias": null,
             "default": "zero",
-            "unit": null,
-            "description": null,
             "gui": "StringGui"
         },
         "fir_window": {
-            "alias": null,
             "default": "hamming",
-            "unit": null,
-            "description": null,
             "gui": "StringGui"
         },
         "fir_design": {
-            "alias": null,
             "default": "firwin",
-            "unit": null,
-            "description": null,
             "gui": "StringGui"
         },
         "skip_by_annotation": {
-            "alias": null,
             "default": [
                 "edge",
                 "bad_acq_skip"
             ],
-            "unit": null,
-            "description": null,
             "gui": "ListGui"
         },
         "fir_pad": {
-            "alias": null,
             "default": "reflect_limited",
-            "unit": null,
-            "description": null,
             "gui": "StringGui"
         },
         "erm_t_limit": {
-            "alias": null,
             "default": 300,
             "unit": "s",
             "description": "Limits Empty-Room-Measurement-Length[s]",
@@ -840,7 +803,6 @@
             "default": [
                 "STI 001"
             ],
-            "unit": null,
             "description": "Stimulation Channel(s)",
             "gui": "ListGui"
         },
@@ -898,9 +860,7 @@
             "none_select": true
         },
         "detrend_order": {
-            "alias": null,
             "default": null,
-            "unit": null,
             "description": "The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.",
             "gui": "ComboGui",
             "none_select": true,
@@ -912,14 +872,12 @@
         "apply_proj": {
             "alias": "Apply Projections",
             "default": true,
-            "unit": null,
             "description": "If to apply the projections (if present)",
             "gui": "BoolGui"
         },
         "bad_interpolation": {
             "alias": "Bad-Channel-Interpolation",
             "default": null,
-            "unit": null,
             "description": "Choose where to apply bad-channels-interpolation",
             "gui": "ComboGui",
             "none_select": true,
@@ -930,16 +888,13 @@
             ]
         },
         "reject_by_annotation": {
-            "alias": null,
             "default": true,
-            "unit": null,
             "description": "If to reject by Annotations",
             "gui": "BoolGui"
         },
         "use_autoreject": {
             "alias": "Autoreject",
             "default": null,
-            "unit": null,
             "description": "If to use autoreject and if to use it for getting the reject-threshold or for interpolating the epochs",
             "gui": "ComboGui",
             "none_select": true,
@@ -949,62 +904,50 @@
             ]
         },
         "n_interpolates": {
-            "alias": null,
             "default": "np.array([1, 4, 32])",
-            "unit": null,
             "description": "p-values for autoreject",
             "gui": "FuncGui"
         },
         "consensus_percs": {
-            "alias": null,
             "default": "np.linspace(0, 1.0, 11)",
-            "unit": null,
             "description": "k-values for autoreject",
             "gui": "FuncGui"
         },
         "overwrite_ar": {
             "alias": "Overwrite Autoreject(Threshold)",
             "default": false,
-            "unit": null,
             "description": "if to calculate new threshold or use the previously calculated",
             "gui": "BoolGui"
         },
         "reject": {
-            "alias": null,
             "default": {
                 "mag": 3e-12,
                 "grad": 3e-10,
                 "eeg": 0.0001,
                 "eog": 0.0002
             },
-            "unit": null,
             "description": "Chose reject-thresholds if not reject with autoreject_threshold",
             "gui": "DictGui",
             "none_select": true
         },
         "flat": {
-            "alias": null,
             "default": {
                 "mag": 1e-15,
                 "grad": 1e-13,
                 "eeg": 1e-06
             },
-            "unit": null,
             "description": "Chose flat-thresholds",
             "gui": "DictGui",
             "none_select": true
         },
         "decim": {
-            "alias": null,
             "default": 1,
-            "unit": null,
             "description": "Downsampling-Factor for epochs",
             "gui": "IntGui"
         },
         "ica_method": {
             "alias": "ICA-Method",
             "default": "fastica",
-            "unit": null,
             "description": "The method for calculating ICA",
             "gui": "ComboGui",
             "options": [
@@ -1016,7 +959,6 @@
         "ica_fitto": {
             "alias": "Fit ICA to:",
             "default": "raw_filtered",
-            "unit": null,
             "description": "The data to fit the ICA to",
             "gui": "ComboGui",
             "options": [
@@ -1028,7 +970,6 @@
         "ica_apply_target": {
             "alias": "Apply ICA to:",
             "default": "raw_filtered",
-            "unit": null,
             "description": "The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from",
             "gui": "ComboGui",
             "options": [
@@ -1038,31 +979,24 @@
             ]
         },
         "n_components": {
-            "alias": null,
             "default": 25,
-            "unit": null,
             "description": "The number of components for ICA",
             "gui": "IntGui"
         },
         "n_pca_components": {
-            "alias": null,
             "default": null,
-            "unit": null,
-            "description": null,
             "gui": "IntGui",
             "none_select": true
         },
         "ica_noise_cov": {
             "alias": "Use Noise-Covariance",
             "default": false,
-            "unit": null,
             "description": "If to use a noise-covariance for pre-whitening",
             "gui": "BoolGui"
         },
         "ica_remove_proj": {
             "alias": "Remove projections",
             "default": false,
-            "unit": null,
             "description": "If to remove projections from the data before fitting",
             "gui": "BoolGui"
         },
@@ -1074,7 +1008,6 @@
                 "eeg": 0.0001,
                 "eog": 0.0002
             },
-            "unit": null,
             "description": "Reject-Parameters for ICA",
             "gui": "DictGui",
             "none_select": true
@@ -1082,50 +1015,40 @@
         "ica_autoreject": {
             "alias": "Autoreject",
             "default": false,
-            "unit": null,
             "description": "If to use Autoreject for ICA",
             "gui": "BoolGui"
         },
         "ica_eog": {
             "alias": "Use EOG",
             "default": false,
-            "unit": null,
             "description": "If to use EOG-Channels for automatic selection of components",
             "gui": "BoolGui"
         },
         "eog_channel": {
-            "alias": null,
             "default": null,
-            "unit": null,
             "description": "Set Vertical EOG-Channel",
             "gui": "StringGui"
         },
         "ica_ecg": {
             "alias": "Use ECG",
             "default": false,
-            "unit": null,
             "description": "If to use automatic ECG-detection either by ECG-Channel (if provided) or by an artificial ECG-Channel",
             "gui": "BoolGui"
         },
         "ecg_channel": {
-            "alias": null,
             "default": null,
-            "unit": null,
             "description": "Set ECG-Channel",
             "gui": "StringGui",
             "none_select": true
         },
         "tfr_freqs": {
-            "alias": null,
             "default": "np.arange(7,40,3)",
             "unit": "Hz",
             "description": "Select the frequencies of interest (Array/List)",
             "gui": "FuncGui"
         },
         "tfr_method": {
-            "alias": null,
             "default": "morlet",
-            "unit": null,
             "description": "Choose the method to calculate Time-Frequency-Data",
             "gui": "ComboGui",
             "options": [
@@ -1137,36 +1060,28 @@
         "tfr_n_cycles": {
             "alias": "n_cycles",
             "default": "np.arange(7,40,3) / 2",
-            "unit": null,
             "description": "Select the number of cycles for each frequency",
             "gui": "FuncGui"
         },
         "tfr_average": {
-            "alias": null,
             "default": true,
-            "unit": null,
             "description": "If to take the average of the Time-Frequency across observations",
             "gui": "BoolGui"
         },
         "tfr_use_fft": {
             "alias": "use_fft",
             "default": false,
-            "unit": null,
             "description": "If to use fft based convolution",
             "gui": "BoolGui"
         },
         "tfr_baseline": {
-            "alias": null,
             "default": null,
-            "unit": null,
             "description": "Check to apply the entered baseline",
             "gui": "DualTupleGui",
             "none_select": true
         },
         "tfr_baseline_mode": {
-            "alias": null,
             "default": "mean",
-            "unit": null,
             "description": "Select the mode for baseline-application (if enabled)",
             "gui": "ComboGui",
             "options": [
@@ -1179,23 +1094,15 @@
             ]
         },
         "multitaper_bandwidth": {
-            "alias": null,
             "default": 4.0,
-            "unit": null,
-            "description": null,
             "gui": "FloatGui"
         },
         "stockwell_width": {
-            "alias": null,
             "default": 1.0,
-            "unit": null,
-            "description": null,
             "gui": "FloatGui"
         },
         "bem_spacing": {
-            "alias": null,
             "default": 4,
-            "unit": null,
             "description": "See the MNE-Documentation for further details",
             "gui": "IntGui"
         },
@@ -1206,28 +1113,21 @@
                 0.006,
                 0.3
             ],
-            "unit": null,
             "description": "The conductivities for each shell of the bem-model, contain only one element for a one-layer model and three elements for a three-layer model",
             "gui": "ListGui"
         },
         "src_spacing": {
-            "alias": null,
             "default": "ico5",
-            "unit": null,
             "description": "See the MNE-Documentation for further details",
             "gui": "StringGui"
         },
         "vol_src_spacing": {
-            "alias": null,
             "default": 5.0,
-            "unit": null,
             "description": "Spacing between sources in 3D-Grid",
             "gui": "FloatGui"
         },
         "surface": {
-            "alias": null,
             "default": "white",
-            "unit": null,
             "description": "Surface for computing the Source-Space",
             "gui": "ComboGui",
             "options": [
@@ -1238,7 +1138,6 @@
         "noise_cov_mode": {
             "alias": "Noise-Covariance Mode",
             "default": "Empty-Room",
-            "unit": null,
             "description": "Select the origin of the Noise-Covariance",
             "gui": "ComboGui",
             "options": [
@@ -1249,7 +1148,6 @@
         "noise_cov_method": {
             "alias": "Noise-Covariance Method",
             "default": "auto",
-            "unit": null,
             "description": "Select the method for computing the Noise-Covariance",
             "gui": "MultiTypeGui",
             "types": [
@@ -1276,7 +1174,6 @@
         "inverse_method": {
             "alias": "Inverse-Method",
             "default": "MNE",
-            "unit": null,
             "description": "Choose the Inverse-Method for Source-Estimate",
             "gui": "ComboGui",
             "options": [
@@ -1289,7 +1186,6 @@
         "pick_ori": {
             "alias": "Dipole-Orientation",
             "default": null,
-            "unit": null,
             "description": "Choose the Dipole-Orientation for Source-Estimate",
             "gui": "ComboGui",
             "options": [
@@ -1299,23 +1195,18 @@
             ]
         },
         "lambda2": {
-            "alias": null,
             "default": "1.0 / 3.0 ** 2",
-            "unit": null,
             "description": "lambda2 for Source-Estimate",
             "gui": "FuncGui"
         },
         "target_labels": {
             "alias": "Target Labels",
             "default": [],
-            "unit": null,
-            "description": null,
             "gui": "LabelGui"
         },
         "extract_mode": {
             "alias": "Label-Extraction-Mode",
             "default": "mean",
-            "unit": null,
             "description": "mode for extracting label-time-course from Source-Estimate",
             "gui": "ComboGui",
             "options": [
@@ -1327,11 +1218,9 @@
             ]
         },
         "con_methods": {
-            "alias": null,
             "default": [
                 "coh"
             ],
-            "unit": null,
             "description": "methods for connectivity",
             "gui": "CheckListGui",
             "options": [
@@ -1348,9 +1237,7 @@
             ]
         },
         "con_fmin": {
-            "alias": null,
             "default": 30,
-            "unit": null,
             "description": "lower frequency/frequencies for connectivity",
             "gui": "MultiTypeGui",
             "types": [
@@ -1359,9 +1246,7 @@
             ]
         },
         "con_fmax": {
-            "alias": null,
             "default": 80,
-            "unit": null,
             "description": "upper frequency/frequencies for connectivity",
             "gui": "MultiTypeGui",
             "types": [
@@ -1370,93 +1255,67 @@
             ]
         },
         "con_time_window": {
-            "alias": null,
             "default": {
                 "tuple_type": [
                     0,
                     0.5
                 ]
             },
-            "unit": null,
             "description": "time-window for connectivity",
             "gui": "DualTupleGui",
             "none_select": true,
             "step": 0.001
         },
         "ecd_times": {
-            "alias": null,
             "default": {},
-            "unit": null,
-            "description": null,
             "gui": "DictGui"
         },
         "ecd_positions": {
-            "alias": null,
             "default": {},
-            "unit": null,
-            "description": null,
             "gui": "DictGui"
         },
         "ecd_orientations": {
-            "alias": null,
             "default": {},
-            "unit": null,
-            "description": null,
             "gui": "DictGui"
         },
         "morph_to": {
-            "alias": null,
             "default": "fsaverage",
-            "unit": null,
             "description": "name of the freesurfer subject to be morphed to",
             "gui": "StringGui"
         },
         "erm_ssp_duration": {
-            "alias": null,
             "default": 1,
             "unit": "s",
             "description": "The time-chunk to use for ssp",
             "gui": "IntGui"
         },
         "erm_n_grad": {
-            "alias": null,
             "default": 2,
-            "unit": null,
             "description": "The number of projections for Gradiometer",
             "gui": "IntGui"
         },
         "erm_n_mag": {
-            "alias": null,
             "default": 2,
-            "unit": null,
             "description": "The number of projections for Magnetometer",
             "gui": "IntGui"
         },
         "erm_n_eeg": {
-            "alias": null,
             "default": 0,
-            "unit": null,
             "description": "The number of projections for EEG",
             "gui": "IntGui"
         },
         "ga_interpolate_bads": {
-            "alias": null,
             "default": true,
-            "unit": null,
             "description": "If to interpolate bad channels for the Grand-Average",
             "gui": "BoolGui"
         },
         "ga_drop_bads": {
-            "alias": null,
             "default": true,
-            "unit": null,
             "description": "If to drop bad channels for the Grand-Average",
             "gui": "BoolGui"
         },
         "psd_method": {
-            "alias": null,
             "default": "welch",
-            "unit": null,
             "description": "The method for spectral estimation",
             "gui": "ComboGui",
             "options": [
@@ -1465,9 +1324,7 @@
             ]
         },
         "notch_frequencies": {
-            "alias": null,
             "default": 50,
-            "unit": null,
             "description": "Set frequencies for Notch filtering",
             "gui": "FuncGui"
         },

@@ -87,7 +87,7 @@ def load_decorator(load_func):
                         # Remove deprecated path
                         os.remove(dp)
 
-                    elif self.controller.parameter_preset != "Default":
+                    elif self.ct.parameter_preset != "Default":
                         logging.info(
                             f"No File for {data_type} from {self.name}"
                             f" with Parameter-Preset={self.ct.parameter_preset} found,"
@@ -95,12 +95,12 @@ def load_decorator(load_func):
                         )
 
                         actual_parameter_preset = self.ct.parameter_preset
-                        self.controller.parameter_preset = "Default"
+                        self.ct.parameter_preset = "Default"
                         self.init_paths()
 
                         data = load_func(self, *args, **kwargs)
 
-                        self.controller.parameter_preset = actual_parameter_preset
+                        self.ct.parameter_preset = actual_parameter_preset
                         self.init_paths()
                     else:
                         raise err
@@ -460,14 +460,12 @@ class BaseLoading:
         else:
             logging.info('Not saving plots; set "save_plots" to "True" to save')
 
-    @load_decorator
     def load(self, data_type: str, **kwargs) -> Any:
         """General load function with data_type as parameter."""
         load_func = self.io_dict[data_type]["load"]
         if load_func is not None:
             return load_func(**kwargs)
 
-    @save_decorator
     def save(self, data_type: str, data: Any, **kwargs) -> None:
         """General save function with data_type as parameter."""
         save_func = self.io_dict[data_type]["save"]
