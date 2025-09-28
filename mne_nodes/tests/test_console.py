@@ -164,3 +164,59 @@ def test_console_stress_batching_and_timing(qtbot):
     print(
         f"appendHtml(~{lines} lines) took {t_append:.3f}s; decode+format took {t_decode:.3f}s"
     )
+
+
+def test_console_progress_pinning(qtbot):
+    """Test that progress lines stay pinned at bottom until finalized.
+
+    Scenario:
+    1. Emit several progress updates (carriage return prefixed) -> only one line (last) updates.
+    2. Emit first normal line after progress -> it appears ABOVE the progress line which remains last.
+    3. Emit second normal line -> progress line is finalized (moves up) and the new line becomes last.
+    """
+    console = ConsoleWidget()
+    qtbot.addWidget(console)
+    flush_ms = 20
+    console.add_stream("stdout", flush_interval_ms=flush_ms)
+    stream = console.get_stream("stdout")
+
+    def wait_for_substring(substr, timeout_s=2.0):
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if substr in console.toPlainText():
+                return True
+            qtbot.wait(flush_ms)
+        return False
+
+    # Emit progress updates
+    total = 3
+    for i in range(1, total + 1):
+        stream.push(f"\rProgress {i}/{total}")
+        assert wait_for_substring(f"Progress {i}/{total}"), "Progress update not shown"
+        # Ensure it's last line
+        lines = [ln for ln in console.toPlainText().splitlines() if ln.strip()]
+        assert lines and lines[-1].endswith(f"Progress {i}/{total}"), (
+            "Progress line is not last during update"
+        )
+
+    # First normal output -> should appear ABOVE progress line (progress still last)
+    stream.push("After progress line A\n")
+    assert wait_for_substring("After progress line A"), "First normal output missing"
+    lines = [ln for ln in console.toPlainText().splitlines() if ln.strip()]
+    assert lines[-1].endswith(f"Progress {total}/{total}"), (
+        "Progress line should still be last after first normal output"
+    )
+    assert any(ln.endswith("After progress line A") for ln in lines[:-1]), (
+        "First normal line not placed above progress line"
+    )
+
+    # Second normal output -> should finalize progress (progress moves up, new line last)
+    stream.push("After progress line B\n")
+    assert wait_for_substring("After progress line B"), "Second normal output missing"
+    lines = [ln for ln in console.toPlainText().splitlines() if ln.strip()]
+    assert lines[-1].endswith("After progress line B"), (
+        "Newest normal line should be last after progress finalized"
+    )
+    assert any(ln.endswith(f"Progress {total}/{total}") for ln in lines[:-1]), (
+        "Progress line should have moved up after finalization"
+    )

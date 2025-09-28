@@ -54,6 +54,18 @@ class ConsoleWidget(QPlainTextEdit):
 
         # Kind -> StreamWorker mapping
         self._streams = {}
+        # Track an active progress line so we can keep it visually pinned
+        # to the bottom while normal output is inserted above it.
+        self._progress_active = False
+        self._progress_current_html: str | None = None
+        # Track whether progress was updated since last normal output
+        self._progress_updated_since_last_normal = False
+
+        # Ensure the widget is deleted on close so that destroyed is emitted
+        # and background workers are stopped.
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        # Ensure background worker threads terminate when the widget is destroyed.
+        self.destroyed.connect(lambda _=None: self.stop_streams())
 
     def set_autoscroll(self, autoscroll):
         self.autoscroll = autoscroll
@@ -81,25 +93,73 @@ class ConsoleWidget(QPlainTextEdit):
         for w in self._streams.values():
             w.stop()
         self._streams.clear()
+        # Reset progress tracking when streams are stopped
+        self._progress_active = False
+        self._progress_current_html = None
+        self._progress_updated_since_last_normal = False
+
+    def closeEvent(self, event):  # noqa: D401
+        """On close, stop streams so worker threads exit promptly."""
+        try:
+            self.stop_streams()
+        finally:
+            super().closeEvent(event)
+
+    # Internal helpers
+    def _remove_last_line(self):
+        """Remove the last line from the document (used for progress refresh).
+
+        Returns True if something was removed, else False.
+        """
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        # Save original position to detect emptiness
+        original_pos = cursor.position()
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        selected_text = cursor.selectedText()
+        if not selected_text and original_pos == 0:
+            return False
+        # Remove the selected line content
+        cursor.removeSelectedText()
+        # Remove the preceding newline if not at start (defensive: avoid removing if at pos 0)
+        if cursor.position() > 0:
+            cursor.deletePreviousChar()
+        return True
 
     # Slots to append pre-formatted HTML
     def write_html(self, text):
         if not text:
             return
-        self.appendHtml(text)
+        if self._progress_active and self._progress_current_html:
+            # Remove current progress line so we can decide how to reinsert
+            self._remove_last_line()
+            if self._progress_updated_since_last_normal:
+                # Progress still ongoing: insert normal output above and re-pin progress
+                self.appendHtml(text)
+                self.appendHtml(self._progress_current_html)
+            else:
+                # Progress finished previously (no new updates since last normal output):
+                # finalize progress line (keep it above) then append normal output below
+                self.appendHtml(self._progress_current_html)
+                self.appendHtml(text)
+                self._progress_active = False
+                self._progress_current_html = None
+        else:
+            self.appendHtml(text)
+        # A normal write resets the flag
+        self._progress_updated_since_last_normal = False
         if self.autoscroll:
             self.ensureCursorVisible()
 
     def write_html_progress(self, text):
         if not text:
             return
-        # Replace last line (progress update)
-        cursor = self.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
-        cursor.removeSelectedText()
-        cursor.deletePreviousChar()
+        # Replace last line with updated progress
+        self._remove_last_line()
         self.appendHtml(text)
+        self._progress_active = True
+        self._progress_current_html = text
+        self._progress_updated_since_last_normal = True
         if self.autoscroll:
             self.ensureCursorVisible()
 
