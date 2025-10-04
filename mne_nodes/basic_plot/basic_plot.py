@@ -43,7 +43,7 @@ def plot_raw(meeg: "MEEG", show_plots: bool, **kwargs) -> None:
         scalings="auto",
         title=f"{meeg.name}",
         show=show_plots,
-        block=show_plots,
+        block=False,
         **kwargs,
     )
 
