@@ -107,7 +107,7 @@ def load_decorator(load_func):
 
         # ToDo: Probably obsolete after save-management implementation
         # Save data in data-dict for machines with big RAM
-        if not Settings().value("save_ram"):
+        if not Settings().get("save_ram"):
             self.data_dict[data_type] = data
 
         return data
@@ -138,7 +138,7 @@ def save_decorator(save_func):
         save_func(self, *args, **kwargs)
 
         # Save data in data-dict for machines with big RAM
-        if not Settings().value("save_ram"):
+        if not Settings().get("save_ram"):
             self.data_dict[data_type] = data
 
         # Save File-Parameters
@@ -1412,8 +1412,8 @@ class FSMRI(BaseLoading):
 
     def init_attributes(self):
         """Initialize additional attributes for FSMRI."""
-        self.fs_path = Settings().value("fs_path")
-        self.mne_path = Settings().value("mne_path")
+        self.fs_path = Settings().get("fs_path")
+        self.mne_path = Settings().get("mne_path")
 
         # Initialize Parcellations and Labels
         if self.load_labels:

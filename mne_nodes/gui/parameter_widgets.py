@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 from mne_qt_browser._pg_figure import _get_color
 from qtpy import compat
-from qtpy.QtCore import Qt, Signal
-from qtpy.QtGui import QFontDatabase, QFont, QPixmap
+from qtpy.QtCore import Signal
+from qtpy.QtGui import QFont, QPixmap
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,7 +30,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QSizePolicy,
     QSlider,
     QSpinBox,
     QVBoxLayout,
@@ -42,8 +41,6 @@ from qtpy.QtWidgets import (
     QColorDialog,
     QStackedLayout,
 )
-from vtkmodules.vtkCommonCore import vtkCommand
-from vtkmodules.vtkRenderingCore import vtkCellPicker
 
 from mne_nodes import iswin
 from mne_nodes.gui.base_widgets import (
@@ -67,6 +64,22 @@ from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI
 from mne_nodes.pipeline.settings import Settings
+
+# Import shared Qt enum compatibility helpers
+from mne_nodes.qt_compat import (
+    SP_MAX,
+    SP_EXP,
+    SP_PREF,
+    CMBX_ADJUST_CONTENTS,
+    MB_YES,
+    MB_NO,
+    ALIGN_CENTER,
+    ALIGN_RIGHT,
+    HORIZONTAL,
+    RIGHT_DOCK,
+    CHECKED,
+    _lazy_font_options,
+)
 
 
 class Param(QWidget):
@@ -99,15 +112,17 @@ class Param(QWidget):
         none_select=False,
         description=None,
         parent_widget=None,
+        *args,
+        **kwargs,
     ):
         """
         Parameters
         ----------
-        data : dict | Controller | QSettings
+        data : dict | Controller | Settings
             The data-structure, in which the value of the parameter is stored
             (depends on the scenario how the Parameter-Widget is used,
-             e.g. displaying parameters from Project or displaying Settings
-             from Main-Window).
+             e.g. displaying parameters from Project or displaying device
+             settings from Main-Window).
         name : str
             The name of the key, which stores the value in the data-structure.
         alias : str | None
@@ -132,7 +147,7 @@ class Param(QWidget):
             The parent widget of the parameter GUI. If None, it has no parent.
         """
 
-        super().__init__(parent_widget)
+        super().__init__(*args, **kwargs)
         self.data = data
         self.name = name
         self.alias = alias if alias else self.name
@@ -150,6 +165,18 @@ class Param(QWidget):
 
         # Load initial value from data source
         self._value = self._load_from_data(self.name)
+
+    # ------------------------------------------------------------------
+    # Backwards compatibility helpers expected by other parts of code
+    # ------------------------------------------------------------------
+    def read_param(self):  # called externally to refresh from data
+        self._value = self._load_from_data(self.name)
+
+    def set_param(self, value):  # called externally to set & save
+        self.value = value
+
+    def _set_param(self):  # legacy internal naming
+        self._update_param()
 
     @property
     def value(self):
@@ -184,7 +211,7 @@ class Param(QWidget):
 
     def _on_none_changed(self, checked=None):
         """Handle none selection checkbox/groupbox state changes."""
-        if checked == Qt.Checked or checked is True:
+        if checked == CHECKED or checked is True:
             self._set_enabled(True)
             # Restore previous value or get current widget value
             if self._value is None:
@@ -229,9 +256,9 @@ class Param(QWidget):
         # get data from dictionary
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
-        # get data from QSettings
-        elif isinstance(self.data, Settings) and name in self.data.childKeys():
-            value = self.data.value(name)
+        # get data from device Settings (JSON based)
+        elif isinstance(self.data, Settings) and name in self.data.keys():
+            value = self.data.get(name)
         else:
             logging.warning(
                 f"Parameter {name} not found in data source, using default value."
@@ -257,7 +284,7 @@ class Param(QWidget):
         elif isinstance(self.data, dict):
             self.data[name] = value
         elif isinstance(self.data, Settings):
-            self.data.setValue(name, value)
+            self.data.set(name, value)
 
     def is_key(self, key):
         """Check if the given key is existing inside data."""
@@ -266,7 +293,7 @@ class Param(QWidget):
         elif isinstance(self.data, dict):
             return key in self.data
         elif isinstance(self.data, Settings):
-            return key in self.data.childKeys()
+            return key in self.data.keys()
         return False
 
     def _get_widget_value(self):
@@ -552,8 +579,7 @@ class BoolGui(Param):
         ----------
         return_integer : bool
             Set True to return an integer (0|1) instead of a boolean
-            (e.g. useful for QSettings).
-        **kwargs
+            (legacy compatibility when ints were stored).\n        **kwargs
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
@@ -761,9 +787,9 @@ class ListGui(Param):
         self.value_label = QLabel()
         list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
         self.param_widget.clicked.connect(self.open_dialog)
-        list_layout.addWidget(self.param_widget, alignment=Qt.AlignCenter)
+        list_layout.addWidget(self.param_widget, alignment=ALIGN_CENTER)
         self.init_ui(list_layout)
 
     def open_dialog(self):
@@ -830,10 +856,9 @@ class CheckListGui(Param):
         self.value_label = QLabel()
         check_list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
         self.param_widget.clicked.connect(self.open_dialog)
         check_list_layout.addWidget(self.param_widget)
-
         self.init_ui(check_list_layout)
 
     def open_dialog(self):
@@ -921,7 +946,7 @@ class DictGui(Param):
         self.value_label = QLabel()
         dict_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
         self.param_widget.clicked.connect(self.open_dialog)
         dict_layout.addWidget(self.param_widget)
         self.init_ui(dict_layout)
@@ -982,7 +1007,7 @@ class SliderGui(Param):
         self.min_val = min_val
         self.max_val = max_val
         self.param_widget = QSlider()
-        self.param_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.param_widget.setSizePolicy(SP_EXP, SP_MAX)
         self.decimal_count = max(
             [
                 len(str(value)[str(value).find(".") :]) - 1
@@ -996,7 +1021,7 @@ class SliderGui(Param):
             self.param_widget.setMinimum(self.min_val)
             self.param_widget.setMaximum(self.max_val)
         self.param_widget.setSingleStep(int(step))
-        self.param_widget.setOrientation(Qt.Horizontal)
+        self.param_widget.setOrientation(HORIZONTAL)
         # Only change value when slider is released
         self.param_widget.setTracking(tracking)
         self.param_widget.setToolTip(
@@ -1005,8 +1030,8 @@ class SliderGui(Param):
         self.param_widget.valueChanged.connect(self._on_widget_changed)
 
         self.display_widget = QLineEdit()
-        self.display_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
-        self.display_widget.setAlignment(Qt.AlignRight)
+        self.display_widget.setSizePolicy(SP_MAX, SP_MAX)
+        self.display_widget.setAlignment(ALIGN_RIGHT)
         self.display_widget.editingFinished.connect(self.display_edited)
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.param_widget, stretch=10)
@@ -1114,7 +1139,7 @@ class MultiTypeGui(Param):
 
         self.param_widget = None
         self.type_cmbx = QComboBox()
-        self.type_cmbx.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.type_cmbx.setSizePolicy(SP_MAX, SP_MAX)
         self.type_cmbx.addItems(self.types)
         self.type_cmbx.activated.connect(self.change_type)
         self.type_cmbx.setCurrentText(self.param_type)
@@ -1245,6 +1270,9 @@ class LabelPicker(mne.viz.Brain):
         )
 
     def _init_picking(self):
+        from vtkmodules.vtkCommonCore import vtkCommand
+        from vtkmodules.vtkRenderingCore import vtkCellPicker
+
         self._mouse_no_mvt = -1
         add_obs = self._renderer.plotter.iren.add_observer
         add_obs(vtkCommand.RenderEvent, self._on_mouse_move)
@@ -1567,10 +1595,9 @@ class LabelGui(Param):
         self.value_label = QLabel()
         check_list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
         self.param_widget.clicked.connect(self.show_dialog)
         check_list_layout.addWidget(self.param_widget)
-
         self.init_ui(check_list_layout)
 
     def show_dialog(self):
@@ -1630,7 +1657,7 @@ class ColorGui(Param):
         self.select_widget.activated.connect(self._change_display_color)
         layout.addWidget(self.select_widget)
         self.display_widget = QLabel()
-        self.display_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        self.display_widget.setSizePolicy(SP_MAX, SP_PREF)
         layout.addWidget(self.display_widget)
         self.param_widget = QPushButton("Pick Color")
         self.param_widget.clicked.connect(self._pick_color)
@@ -1847,7 +1874,7 @@ class ParametersDock(QDockWidget):
         super().__init__("Parameters", main_win)
         self.mw = main_win
         self.ct = main_win.ct
-        self.setAllowedAreas(Qt.RightDockWidgetArea)
+        self.setAllowedAreas(RIGHT_DOCK)
         self.main_widget = QWidget()
         self.param_guis = {}
 
@@ -1888,16 +1915,16 @@ class ParametersDock(QDockWidget):
         p_preset_l = QLabel("Parameter-Presets: ")
         title_layout1.addWidget(p_preset_l)
         self.p_preset_cmbx = QComboBox()
-        self.p_preset_cmbx.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.p_preset_cmbx.setSizeAdjustPolicy(CMBX_ADJUST_CONTENTS)
         self.p_preset_cmbx.activated.connect(self.p_preset_changed)
         self.update_ppreset_cmbx()
         title_layout1.addWidget(self.p_preset_cmbx)
 
-        add_bt = QPushButton(icon=get_std_icon("SP_FileDialogNewFolder"))
+        add_bt = QPushButton(get_std_icon("SP_FileDialogNewFolder"))
         add_bt.clicked.connect(self.add_p_preset)
         title_layout1.addWidget(add_bt)
 
-        rm_bt = QPushButton(icon=get_std_icon("SP_DialogDiscardButton"))
+        rm_bt = QPushButton(get_std_icon("SP_DialogDiscardButton"))
         rm_bt.clicked.connect(partial(RemovePPresetDlg, self))
         title_layout1.addWidget(rm_bt)
 
@@ -1905,20 +1932,20 @@ class ParametersDock(QDockWidget):
 
         title_layout2 = QHBoxLayout()
         copy_bt = QPushButton("Copy")
-        copy_bt.setFont(QFont(Settings().value("app_font"), 16))
-        copy_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        copy_bt.setFont(QFont(Settings().get("app_font"), 16))
+        copy_bt.setSizePolicy(SP_MAX, SP_MAX)
         copy_bt.clicked.connect(partial(CopyPDialog, self))
         title_layout2.addWidget(copy_bt)
 
         reset_bt = QPushButton("Reset")
-        reset_bt.setFont(QFont(Settings().value("app_font"), 16))
-        reset_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        reset_bt.setFont(QFont(Settings().get("app_font"), 16))
+        reset_bt.setSizePolicy(SP_MAX, SP_MAX)
         reset_bt.clicked.connect(partial(ResetDialog, self))
         title_layout2.addWidget(reset_bt)
 
         reset_all_bt = QPushButton("Reset All")
-        reset_all_bt.setFont(QFont(Settings().value("app_font"), 16))
-        reset_all_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        reset_all_bt.setFont(QFont(Settings().get("app_font"), 16))
+        reset_all_bt.setSizePolicy(SP_MAX, SP_MAX)
         reset_all_bt.clicked.connect(self.reset_all_parameters)
         title_layout2.addWidget(reset_all_bt)
 
@@ -2040,10 +2067,10 @@ class ParametersDock(QDockWidget):
             self,
             "Reset all Parameters?",
             "Do you really want to reset all parameters to their default?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            MB_YES | MB_NO,
+            MB_NO,
         )
-        if msgbox == QMessageBox.Yes:
+        if msgbox == MB_YES:
             self.ct.pr.load_default_parameters()
             self.update_all_param_guis()
 
@@ -2053,10 +2080,13 @@ class SettingsDlg(QDialog):
         super().__init__(parent_widget)
         self.ct = controller
 
+        # source_type:
+        #   "Device" (or legacy "QSettings"): values stored in device-level Settings()
+        #   "Controller" (or legacy "Settings"): values stored in controller config
         self.settings_items = {
             "app_theme": {
                 "gui_type": "ComboGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "slot": set_app_theme,
                 "gui_kwargs": {
                     "alias": "Application Theme",
@@ -2067,31 +2097,29 @@ class SettingsDlg(QDialog):
             },
             "app_font": {
                 "gui_type": "ComboGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "slot": set_app_font_size,
                 "gui_kwargs": {
                     "alias": "Application Font",
-                    "description": "Changes default application font "
-                    "(Restart required).",
-                    "options": QFontDatabase.families(QFontDatabase.Latin),
+                    "description": "Changes default application font (Restart required).",
+                    "options": _lazy_font_options(),
                     "raise_missing": False,
                 },
             },
             "app_font_size": {
                 "gui_type": "IntGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "slot": set_app_font_size,
                 "gui_kwargs": {
                     "alias": "Font Size",
-                    "description": "Changes default application font-size "
-                    "(Restart required).",
+                    "description": "Changes default application font-size (Restart required).",
                     "min_val": 5,
                     "max_val": 20,
                 },
             },
             "img_format": {
                 "gui_type": "ComboGui",
-                "source_type": "Settings",
+                "source_type": "Controller",
                 "gui_kwargs": {
                     "alias": "Image Format",
                     "description": "Choose the image format for plots.",
@@ -2100,7 +2128,7 @@ class SettingsDlg(QDialog):
             },
             "dpi": {
                 "gui_type": "IntGui",
-                "source_type": "Settings",
+                "source_type": "Controller",
                 "gui_kwargs": {
                     "alias": "DPI",
                     "description": "Set dpi for saved plots.",
@@ -2110,50 +2138,37 @@ class SettingsDlg(QDialog):
             },
             "enable_cuda": {
                 "gui_type": "BoolGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "gui_kwargs": {
                     "alias": "Enable CUDA",
-                    "description": "Enable for CUDA support "
-                    "(system has to be setup for cuda "
-                    "as in https://mne.tools/stable/install/"
-                    "advanced.html#gpu-acceleration-with-cuda)",
+                    "description": "Enable for CUDA support (system has to be setup for cuda as in https://mne.tools/stable/install/advanced.html#gpu-acceleration-with-cuda)",
                     "return_integer": True,
                 },
             },
             "save_ram": {
                 "gui_type": "BoolGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "gui_kwargs": {
                     "alias": "Save RAM",
-                    "description": "Set to True on low RAM-Machines to avoid"
-                    " the process to be killed by the OS due "
-                    "to low Memory (with leaving it off, "
-                    "the pipeline goes a bit faster, because "
-                    "the data can be saved in memory).",
+                    "description": "Set to True on low RAM-Machines to avoid the process to be killed by the OS due to low Memory (with leaving it off, the pipeline goes a bit faster, because the data can be saved in memory).",
                     "return_integer": True,
                 },
             },
             "fs_path": {
                 "gui_type": "StringGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "gui_kwargs": {
                     "alias": "FREESURFER_HOME-Path",
-                    "description": 'Set the Path to the "freesurfer"-directory'
-                    " of your Freesurfer-Installation "
-                    "(for Windows to the LINUX-Path of the "
-                    "Freesurfer-Installation in "
-                    "Windows-Subsystem for Linux(WSL))",
+                    "description": "Set the Path to the 'freesurfer'-directory of your Freesurfer-Installation (for Windows to the LINUX-Path of the Freesurfer-Installation in Windows-Subsystem for Linux(WSL))",
                     "none_select": True,
                 },
             },
             "mne_path": {
                 "gui_type": "StringGui",
-                "source_type": "QSettings",
+                "source_type": "Device",
                 "gui_kwargs": {
                     "alias": "MNE-WSL-Path",
-                    "description": "Set the LINUX-Path to the mne-environment "
-                    "(e.g ...anaconda3/envs/mne) in "
-                    "Windows-Subsystem for Linux(WSL))",
+                    "description": "Set the LINUX-Path to the mne-environment (e.g ...anaconda3/envs/mne) in Windows-Subsystem for Linux(WSL))",
                     "none_select": True,
                 },
             },
@@ -2172,15 +2187,12 @@ class SettingsDlg(QDialog):
             gui_handle = globals()[details["gui_type"]]
             source_type = details["source_type"]
             gui_kwargs = details["gui_kwargs"]
-            if source_type == "QSettings":
-                gui_kwargs["data"] = Settings()
-                gui_kwargs["default"] = self.ct.default_config["qsettings"][setting]
-            elif source_type == "Controller":
-                gui_kwargs["data"] = self.ct
-                gui_kwargs["default"] = self.ct.pd_params.loc[setting, "default"]
-            else:
+            if source_type == "Device":
                 gui_kwargs["data"] = self.ct.settings
-                gui_kwargs["default"] = self.ct.default_config["settings"][setting]
+                gui_kwargs["default"] = self.ct.settings.default(setting)
+            else:  # Controller
+                gui_kwargs["data"] = self.ct
+                gui_kwargs["default"] = self.ct.default_config[setting]
             gui_kwargs["name"] = setting
             gui = gui_handle(**gui_kwargs)
             if details.get("slot"):

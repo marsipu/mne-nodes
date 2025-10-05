@@ -40,12 +40,28 @@ class Controller:
     Parameters
     ----------
     config_path : str or Path, optional
-        Path to the config-file, if
+        Path to the config-file.
+    initialize_paths : bool, keyword-only, default False
+        If True, eagerly access path properties (may trigger user prompts).
+        Default False so that a Controller can be created safely in a
+        headless / non-QApplication context.
+    interactive : bool, keyword-only, default True
+        If False, suppress interactive GUI/terminal prompts when
+        config_path or project name are missing. A default config and
+        project name ("Default") will be created automatically in the
+        local config directory.
     """
 
-    def __init__(self, config_path: Optional[Union[str, Path]] = None):
+    def __init__(
+        self,
+        config_path: Optional[Union[str, Path]] = None,
+        *,
+        initialize_paths: bool = False,
+        interactive: bool = True,
+    ):
         # The device dependent settings
         self.settings = Settings()
+        self._interactive = interactive
         # config will be filled when self.config is first called
         self._config = {}
         self._config_path = None
@@ -54,8 +70,8 @@ class Controller:
         self._parameter_metas = {}
         self._procs = {}
         self._errors = {}
+        self._proc_workers = {}
         self.default_config = {
-            "data_path": None,
             "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
             "show_plots": True,
@@ -74,9 +90,13 @@ class Controller:
             "padding": 20,
             "tab_space_count": 4,
         }
-        self.config_path = config_path or self.settings.value(
-            "config_path", defaultValue=None
-        )
+        self.config_path = config_path or self.settings.get("config_path", default=None)
+        # Check existence of data_path (optional) only if requested
+        if initialize_paths:
+            try:
+                _ = self.data_path  # may trigger lazy initialization
+            except Exception as err:  # noqa: BLE001
+                logging.debug("Deferring data_path initialization: %s", err)
         # Initialize modules
         # Legacy: Add basic modules until separated
         self.module_meta["basic_operations"] = {
@@ -115,12 +135,30 @@ class Controller:
 
     @config_path.setter
     def config_path(self, value):
-        """Set the path to the config-file."""
+        """Set the path to the config-file (respects interactive mode)."""
         # Clear existing config
         self.save_config()
         self._clear_attributes()
-        # If the value is None, ask the user for a config-file path
-        if value is None or not isfile(value):
+        # Non-interactive auto-creation branch
+        if (value is None or not isfile(value)) and not getattr(
+            self, "_interactive", True
+        ):
+            logging.info(
+                "Non-interactive mode: creating default project config automatically."
+            )
+            cfg_dir = self.local_config_path
+            base = "default_project"
+            candidate = cfg_dir / f"{base}_config.json"
+            idx = 1
+            while candidate.exists():
+                candidate = cfg_dir / f"{base}{idx}_config.json"
+                idx += 1
+            # Write default config (name added later lazily if missing)
+            with open(candidate, "w", encoding="utf-8") as f:
+                json.dump(self.default_config, f, indent=4, cls=TypedJSONEncoder)
+            value = str(candidate)
+        # Interactive branch with user prompts
+        elif value is None or not isfile(value):
             if value is None:
                 logging.warning("No config-file path set!")
             else:
@@ -129,8 +167,7 @@ class Controller:
                 "Do you want to create a new config-file? (or use an existing one)",
                 close_on_cancel=True,
             )
-            # When the user cancels, the app is closed
-            if ans is None:
+            if ans is None:  # user cancelled
                 logging.info("User canceled, closing app.")
                 sys.exit(0)
             elif ans:
@@ -141,8 +178,7 @@ class Controller:
                     exit_on_cancel=True,
                 )
                 value = join(config_folder, f"{self.name}_config.json")
-                # Write empty config_file
-                with open(value, "w") as file:
+                with open(value, "w", encoding="utf-8") as file:
                     json.dump(self.default_config, file, indent=4, cls=TypedJSONEncoder)
             else:
                 logging.info("Using existing config-file.")
@@ -152,13 +188,11 @@ class Controller:
                     file_filter="JSON files (*.json)",
                     exit_on_cancel=True,
                 )
-        # Set the config path and load the config
+        # Set, load and persist
         self._config_path = value
         self.load_config()
-        # Store the config path in the settings
         if not is_test():
-            # Only set the config path in settings if not in test mode
-            self.settings.setValue("config_path", value)
+            self.settings.set("config_path", value)
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -187,7 +221,7 @@ class Controller:
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        data_path = self.config.get("data_path", None)
+        data_path = self.settings.get("data_path")
         input_message = f"Please select/create a folder where the data of the project {self.name} should be stored"
         if data_path is None:
             data_path = get_user_input(input_message, "folder")
@@ -206,8 +240,7 @@ class Controller:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            self.config["data_path"] = value
-            self.save_config()
+            self.settings.set("data_path", value)
 
     @property
     def subjects_dir(self) -> Path:
@@ -236,7 +269,7 @@ class Controller:
     @property
     def plot_path(self):
         """Path to the directory where plots are saved."""
-        plot_path = self.settings.value("plot_path", defaultValue=None)
+        plot_path = self.settings.get("plot_path", default=None)
         input_message = f"Please select a folder where the plots for project {self.name} should be saved"
         if plot_path is None:
             plot_path = get_user_input(input_message, "folder")
@@ -268,10 +301,13 @@ class Controller:
     @property
     def name(self):
         if "name" not in self._config:
-            self.config["name"] = get_user_input(
-                "Please enter a name for this project", "string"
-            )
-
+            if getattr(self, "_interactive", True):
+                self.config["name"] = get_user_input(
+                    "Please enter a name for this project", "string"
+                )
+            else:
+                # Non-interactive default
+                self.config["name"] = "Default"
         return self.config["name"]
 
     @name.setter
@@ -567,6 +603,77 @@ class Controller:
             raise KeyError(f"Process with index {idx} not found.")
         return self._procs[idx]
 
+    # ------------------------------------------------------------------
+    # Unified QProcess management
+    # ------------------------------------------------------------------
+    def create_process_worker(self, commands, working_directory=None, kind="general"):
+        """Create and register a QProcessWorker for external commands.
+
+        Parameters
+        ----------
+        commands : str | list
+            Command(s) to execute (string or list of strings / arg lists).
+        working_directory : Path | str | None
+            Working directory for the process.
+        kind : str
+            Free-form tag to identify process purpose (e.g. 'pipeline', 'dialog').
+
+        Returns
+        -------
+        proc_idx : int
+            Index of the registered process.
+        worker : QProcessWorker
+            The initialized (but not yet started) worker instance.
+        """
+        from mne_nodes.pipeline.execution import (
+            QProcessWorker,
+        )  # local import to avoid cycles
+
+        proc_idx = len(self._procs)
+        self._procs[proc_idx] = {
+            "commands": commands,
+            "status": "starting",
+            "state": "starting",
+            "kind": kind,
+        }
+        worker = QProcessWorker(commands, working_directory=working_directory)
+        self._proc_workers[proc_idx] = worker
+        # Wire state & finish updates into controller bookkeeping
+        worker.stateChanged.connect(
+            lambda state, idx=proc_idx: self._update_process_state(idx, state)
+        )
+        worker.finishedDetailed.connect(
+            lambda code, status, idx=proc_idx: self._finish_process(idx, code, status)
+        )
+        return proc_idx, worker
+
+    def get_process_worker(self, proc_idx):
+        return self._proc_workers.get(proc_idx)
+
+    def _update_process_state(self, proc_idx, state):
+        proc = self._procs.get(proc_idx)
+        if proc is None:
+            return
+        # QProcess.ProcessState.NotRunning
+        if state.value == 0:
+            proc["state"] = "finished"
+        # QProcess.ProcessState.Starting
+        elif state.value == 1:
+            proc["state"] = "starting"
+        # QProcess.ProcessState.Running
+        elif state.value == 2:
+            proc["state"] = "running"
+        else:
+            proc["state"] = f"unknown:{state} with value {state.value}"
+
+    def _finish_process(self, proc_idx, code, status):
+        proc = self._procs.get(proc_idx)
+        if proc is None:
+            return
+        proc["status"] = "finished"
+        proc["exit_code"] = code
+        proc["exit_status"] = status
+
     @property
     def errors(self):
         """This holds the errors encountered during the project execution."""
@@ -686,31 +793,27 @@ class Controller:
     def reload_modules(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
 
-        This method reloads the selected module or all modules in the controller by removing them from sys.modules
-        and importing them again. This ensures that any changes to the module's source code
-        are reflected in the controller.
+        This refreshes selected or all modules by removing them from sys.modules
+        and importing them again so source changes take effect.
 
         Parameters
         ----------
-        module_name : str, None, optional
-            Provide a module_name (must be unique) to be reloaded.
+        module_name : str | None
+            Provide a module_name (must be unique) to be reloaded. If None,
+            all modules are reloaded.
 
-        Note:
+        Notes
         -----
-        This method updates the modules in the controller, but it does not update existing
-        references to objects from the modules. If you have a reference to an object from
-        a module (like a function), you need to get a new reference to that object after
-        reloading the module using controller.modules[<module>].
+        This updates the controller's module objects, but it does not update
+        existing references to objects (e.g. functions) obtained before reload.
+        Acquire fresh references after calling this.
 
-        Example:
+        Examples
         --------
-        >>> # Get a reference to a function
         >>> controller = Controller()
         >>> func = controller.modules["module_name"].some_func
-        >>> # Modify the module's source code
         >>> controller.reload_modules()
-        >>> # Get a new reference to the function
-        >>> updated_func = controller.modules["module_name"].some_func
+        >>> new_func = controller.modules["module_name"].some_func
         """
 
         if module_name is None:
@@ -780,6 +883,7 @@ class Controller:
             "# This code was generated by mne-nodes\n\n"
             "import traceback\n"
             "from tqdm import tqdm\n"
+            "import mne_nodes\n"
             "from mne_nodes.pipeline.controller import Controller\n"
             "from mne_nodes.pipeline.loading import MEEG, FSMRI, Group\n\n"
             "# Load controller\n"
@@ -835,9 +939,16 @@ class Controller:
         run_file_path = self.local_config_path / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)
-        proc_idx = len(self._procs)
-        self._procs[proc_idx] = {"file": run_file_path, "status": "running"}
-        self.main_window.start_process(proc_idx)
+        # Register worker via unified interface (single command: python script)
+        commands = [[sys.executable, str(run_file_path)]]
+        proc_idx, worker = self.create_process_worker(
+            commands, working_directory=self.data_path, kind="pipeline"
+        )
+        # Store reference to run file for metadata/backward compatibility
+        self._procs[proc_idx]["file"] = run_file_path
+        # Attach process to main window UI and start
+        self.main_window.attach_process(proc_idx, worker)
+        worker.start()
 
     ####################################################################################
     # Legacy

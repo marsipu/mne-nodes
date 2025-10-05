@@ -14,7 +14,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from mne.viz import Brain
 from mne_qt_browser._pg_figure import MNEQtBrowser
-from qtpy.QtCore import Qt, QThreadPool
+from qtpy.QtCore import QThreadPool
 from qtpy.QtGui import QPixmap, QFont
 from qtpy.QtWidgets import (
     QMainWindow,
@@ -33,6 +33,15 @@ from qtpy.QtWidgets import (
     QScrollArea,
     QToolBar,
     QSpinBox,
+)
+
+# Added import of compatibility enums
+from mne_nodes.qt_compat import (
+    ALIGN_HCENTER,
+    KEEP_ASPECT_RATIO,
+    SMOOTH_TRANSFORMATION,
+    STRONG_FOCUS,
+    WHEEL_FOCUS,
 )
 
 try:
@@ -100,9 +109,7 @@ class PlotManager(QMainWindow):
         for subplot in plot:
             if isinstance(subplot, Figure):
                 plot_widget = FigureCanvasQTAgg(subplot)
-                plot_widget.setFocusPolicy(
-                    Qt.FocusPolicy(Qt.StrongFocus | Qt.WheelFocus)
-                )
+                plot_widget.setFocusPolicy(STRONG_FOCUS | WHEEL_FOCUS)
                 plot_widget.setFocus()
             elif isinstance(subplot, MNEQtBrowser):
                 plot_widget = subplot
@@ -413,7 +420,8 @@ class PlotViewer(QMainWindow):
             p_preset_layout = QVBoxLayout()
             p_preset_label = QLabel(p_preset)
             p_preset_label.setFont(QFont("AnyStlye", 16, QFont.Bold))
-            p_preset_layout.addWidget(p_preset_label, alignment=Qt.AlignHCenter)
+            # Replaced Qt.AlignHCenter with ALIGN_HCENTER
+            p_preset_layout.addWidget(p_preset_label, alignment=ALIGN_HCENTER)
 
             scroll_area = QScrollArea()
             scroll_widget = QWidget()
@@ -431,7 +439,7 @@ class PlotViewer(QMainWindow):
                 if isinstance(obj_items, str):
                     # This displays errors
                     error_layout = QVBoxLayout()
-                    error_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                    error_layout.addWidget(name_label, alignment=ALIGN_HCENTER)
                     error_layout.addWidget(QLabel(obj_items))
                     scroll_layout.addLayout(error_layout, row, col)
 
@@ -450,15 +458,15 @@ class PlotViewer(QMainWindow):
                             view_widget.setPixmap(
                                 item.scaled(
                                     item.size() * (self.zoom_factor / 100),
-                                    Qt.KeepAspectRatio,
-                                    Qt.SmoothTransformation,
+                                    KEEP_ASPECT_RATIO,
+                                    SMOOTH_TRANSFORMATION,
                                 )
                             )
 
                         if len(obj_items) > 1:
                             tab_widget.addTab(view_widget, str(item_idx))
                         else:
-                            obj_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                            obj_layout.addWidget(name_label, alignment=ALIGN_HCENTER)
                             # Add view-widget if not enough items
                             # for Tab-Widget
                             obj_layout.addWidget(view_widget)
@@ -467,7 +475,7 @@ class PlotViewer(QMainWindow):
                     if len(obj_items) > 1:
                         frame_widget = QWidget()
                         frame_layout = QVBoxLayout()
-                        frame_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                        frame_layout.addWidget(name_label, alignment=ALIGN_HCENTER)
                         frame_layout.addWidget(tab_widget)
                         show_bt = QPushButton("Show")
                         show_bt.clicked.connect(

@@ -122,9 +122,9 @@ def get_arguments(func, obj):
         if arg_name in obj.params:
             arguments[arg_name] = obj.params[arg_name]
         elif arg_name in obj.ct.settings:
-            arguments[arg_name] = obj.ct.settings.value(arg_name)
-        elif arg_name in Settings().childKeys():
-            arguments[arg_name] = Settings().value(arg_name)
+            arguments[arg_name] = obj.ct.settings.get(arg_name)
+        elif arg_name in Settings().keys():
+            arguments[arg_name] = Settings().get(arg_name)
 
     # Add additional keyword-arguments if added for function by user
     if func.__name__ in obj.pr.add_kwargs:
@@ -378,7 +378,7 @@ class QRunController(RunController):
 
     def process_finished(self, result):
         self.prog_count += 1
-        self.rd.pgbar.setValue(self.prog_count)
+        self.rd.pgbar.set(self.prog_count)
         self.mark_current_items(0)
         # Process
         if self.paused:
@@ -442,7 +442,7 @@ class QRunController(RunController):
             ismayavi = self.ct.pd_funcs.loc[self.current_func, "mayavi"]
             ismpl = self.ct.pd_funcs.loc[self.current_func, "matplotlib"]
             show_plots = self.ct.get_setting("show_plots")
-            use_qthread = Settings().value("use_qthread")
+            use_qthread = Settings().get("use_qthread")
             if (
                 ismayavi
                 or (ismpl and show_plots and use_qthread)
@@ -452,7 +452,7 @@ class QRunController(RunController):
                 result = run_func(**kwds)
                 self.process_finished(result)
 
-            elif Settings().value("use_qthread"):
+            elif Settings().get("use_qthread"):
                 logging.info("Starting in separate Thread.")
                 worker = Worker(function=run_func, **kwds)
                 worker.signals.error.connect(self.process_finished)

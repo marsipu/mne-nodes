@@ -9,7 +9,7 @@ import math
 from collections import OrderedDict
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, Qt, QRect, QSize, Signal
+from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal
 from qtpy.QtGui import QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QGraphicsView,
@@ -27,6 +27,23 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, SlicerPipeItem, Pipe
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.qt_compat import (
+    KEEP_ASPECT_RATIO,
+    SCROLLBAR_OFF,
+    VIEWPORT_FULL_UPDATE,
+    CACHE_BACKGROUND,
+    OPT_NO_ANTIALIAS_ADJUST,
+    MOUSE_LEFT,
+    MOUSE_RIGHT,
+    MOUSE_MIDDLE,
+    MOD_ALT,
+    MOD_SHIFT,
+    SELECTION_INTERSECTS,
+    DROP_COPY,
+    KEY_DELETE,
+    MOUSE_NONE,
+    KEY_SHIFT_MODIFIER,
+)
 
 
 class NodeViewer(QGraphicsView):
@@ -80,13 +97,11 @@ class NodeViewer(QGraphicsView):
         # init QGraphicsView
         self.setScene(NodeScene(self))
         self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
-        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
-        self.setOptimizationFlag(
-            QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing
-        )
+        self.setHorizontalScrollBarPolicy(SCROLLBAR_OFF)
+        self.setVerticalScrollBarPolicy(SCROLLBAR_OFF)
+        self.setViewportUpdateMode(VIEWPORT_FULL_UPDATE)
+        self.setCacheMode(CACHE_BACKGROUND)
+        self.setOptimizationFlag(OPT_NO_ANTIALIAS_ADJUST)
         self.setAcceptDrops(True)
         # Also set on the viewport where Qt delivers drag/drop events.
         self.viewport().setAcceptDrops(True)
@@ -100,7 +115,7 @@ class NodeViewer(QGraphicsView):
         self._coord_grid.setPen(grid_pen)
         self._coord_grid.setPath(QPainterPath())
         self._coord_grid.setVisible(False)
-        self._coord_grid.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_grid.setAcceptedMouseButtons(MOUSE_NONE)
         self._coord_grid.setFlag(
             self._coord_grid.GraphicsItemFlag.ItemIsSelectable, False
         )
@@ -114,7 +129,7 @@ class NodeViewer(QGraphicsView):
         self._coord_axes.setPen(axes_pen)
         self._coord_axes.setPath(QPainterPath())
         self._coord_axes.setVisible(False)
-        self._coord_axes.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_axes.setAcceptedMouseButtons(MOUSE_NONE)
         self._coord_axes.setFlag(
             self._coord_axes.GraphicsItemFlag.ItemIsSelectable, False
         )
@@ -593,19 +608,6 @@ class NodeViewer(QGraphicsView):
                     )
                 self._get_execution_from_nodes(instructions, node_info, visited)
 
-    def start_from_node(self, node):
-        """Start the execution of functions from a specific node."""
-        if not isinstance(node, InputNode):
-            logging.error(
-                f"You can't start from {node.name} node with type {type(node)}."
-            )
-            return
-
-        node_dict = node.downstream_nodes()
-        instructions = [(node.data_type, "Input")]
-        self._get_execution_from_nodes(instructions, node_dict)
-        self.ct.start(instructions, start_name=node.name)
-
     def from_project(self):
         """Legacy method to load nodes from the project.
 
@@ -712,7 +714,7 @@ class NodeViewer(QGraphicsView):
         This method updates the scene rectangle and fits the view.
         """
         self.setSceneRect(self._scene_range)
-        self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
+        self.fitInView(self._scene_range, KEEP_ASPECT_RATIO)
 
         # Update debug coordinate system (grid + axes)
         if debug_mode():
@@ -797,11 +799,11 @@ class NodeViewer(QGraphicsView):
         return super().contextMenuEvent(event)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == MOUSE_LEFT:
             self.LMB_state = True
-        elif event.button() == Qt.MouseButton.RightButton:
+        elif event.button() == MOUSE_RIGHT:
             self.RMB_state = True
-        elif event.button() == Qt.MouseButton.MiddleButton:
+        elif event.button() == MOUSE_MIDDLE:
             self.MMB_state = True
 
         self._origin_pos = event.pos()
@@ -819,15 +821,13 @@ class NodeViewer(QGraphicsView):
                 self._debug_path.setPath(path)
 
         # pipe slicer enabled.
-        if self.LMB_state and event.modifiers() == (
-            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-        ):
+        if self.LMB_state and event.modifiers() == (MOD_ALT | MOD_SHIFT):
             self._SLICER_PIPE.draw_path(map_pos, map_pos)
             self._SLICER_PIPE.setVisible(True)
             return
 
         # pan mode.
-        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
+        if event.modifiers() == MOD_ALT:
             return
 
         items = self._items_near(map_pos, 20, 20)
@@ -854,11 +854,11 @@ class NodeViewer(QGraphicsView):
             super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == MOUSE_LEFT:
             self.LMB_state = False
-        elif event.button() == Qt.MouseButton.RightButton:
+        elif event.button() == MOUSE_RIGHT:
             self.RMB_state = False
-        elif event.button() == Qt.MouseButton.MiddleButton:
+        elif event.button() == MOUSE_MIDDLE:
             self.MMB_state = False
 
         # hide pipe slicer.
@@ -903,7 +903,7 @@ class NodeViewer(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
+        alt_modifier = event.modifiers() == MOD_ALT
         if debug_mode():
             # Debug mouse
             if self.LMB_state:
@@ -913,9 +913,7 @@ class NodeViewer(QGraphicsView):
                 self._debug_path.setPath(path)
 
         # Draw slicer
-        if self.LMB_state and event.modifiers() == (
-            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-        ):
+        if self.LMB_state and event.modifiers() == (MOD_ALT | MOD_SHIFT):
             if self._SLICER_PIPE.isVisible():
                 p1 = self._SLICER_PIPE.path().pointAtPercent(0)
                 p2 = self.mapToScene(self._previous_pos)
@@ -946,9 +944,7 @@ class NodeViewer(QGraphicsView):
                 path = QPainterPath()
                 path.addRect(map_rect)
                 self._rubber_band.setGeometry(rect)
-                self.scene().setSelectionArea(
-                    path, mode=Qt.ItemSelectionMode.IntersectsItemShape
-                )
+                self.scene().setSelectionArea(path, mode=SELECTION_INTERSECTS)
                 self.scene().update(map_rect)
 
         elif self.LMB_state:
@@ -996,7 +992,7 @@ class NodeViewer(QGraphicsView):
 
         pos = self.mapToScene(event.pos())
         # enforce copy action for external drops
-        event.setDropAction(Qt.DropAction.CopyAction)
+        event.setDropAction(DROP_COPY)
         print(
             "[NodeViewer] dropEvent received. hasText=",
             event.mimeData().hasText(),
@@ -1045,7 +1041,7 @@ class NodeViewer(QGraphicsView):
             or event.mimeData().hasText()
         )
         if is_acceptable:
-            event.setDropAction(Qt.DropAction.CopyAction)
+            event.setDropAction(DROP_COPY)
             event.accept()
         else:
             event.ignore()
@@ -1060,7 +1056,7 @@ class NodeViewer(QGraphicsView):
         event.ignore()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Delete:
+        if event.key() == KEY_DELETE:
             # delete selected nodes and pipes
             for node in self.selected_nodes():
                 self.remove_node(node)
@@ -1074,10 +1070,7 @@ class NodeViewer(QGraphicsView):
         overlay_text = None
         self._cursor_text.setVisible(False)
 
-        if (
-            event.modifiers()
-            == Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-        ):
+        if event.modifiers() == MOD_ALT | MOD_SHIFT:
             overlay_text = "\n    ALT + SHIFT:\n    Pipe Slicer Enabled"
         if overlay_text:
             self._cursor_text.setPlainText(overlay_text)
@@ -1152,13 +1145,11 @@ class NodeViewer(QGraphicsView):
             The event handler from the QtWidgets.QGraphicsScene.
         """
         # pipe slicer enabled.
-        if event.modifiers() == (
-            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
-        ):
+        if event.modifiers() == (MOD_ALT | MOD_SHIFT):
             return
 
         # viewer pan mode.
-        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
+        if event.modifiers() == MOD_ALT:
             return
 
         if self._LIVE_PIPE.isVisible():
@@ -1209,7 +1200,7 @@ class NodeViewer(QGraphicsView):
             self.start_live_connection(from_port)
             self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos)
 
-            if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
+            if event.modifiers() == KEY_SHIFT_MODIFIER:
                 self._LIVE_PIPE.shift_selected = True
                 return
 
@@ -1223,7 +1214,7 @@ class NodeViewer(QGraphicsView):
         event : QtWidgets.QGraphicsSceneMouseEvent
             The event handler from the QtWidgets.QGraphicsScene.
         """
-        if event.button() != Qt.MouseButton.MiddleButton:
+        if event.button() != MOUSE_MIDDLE:
             self.apply_live_connection(event)
 
     def apply_live_connection(self, event):
@@ -1889,7 +1880,7 @@ class NodeViewer(QGraphicsView):
             # Keep text a constant size regardless of zoom
             txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
             txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
-            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setAcceptedMouseButtons(MOUSE_NONE)
             txt.setPos(QPointF(x + 2 * dx_scene, top + dy_scene))
             self.scene().addItem(txt)
             self._coord_tick_labels.append(txt)
@@ -1903,7 +1894,7 @@ class NodeViewer(QGraphicsView):
             txt.setZValue(-4)
             txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
             txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
-            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setAcceptedMouseButtons(MOUSE_NONE)
             txt.setPos(QPointF(left + dx_scene, y + 0.2 * dy_scene))
             self.scene().addItem(txt)
             self._coord_tick_labels.append(txt)

@@ -9,15 +9,7 @@ import io
 import sys
 import time
 
-from qtpy.QtCore import (
-    QMutex,
-    QWaitCondition,
-    QRunnable,
-    QThreadPool,
-    QObject,
-    Signal,
-    Qt,
-)
+from qtpy.QtCore import QMutex, QWaitCondition, QRunnable, QThreadPool, QObject, Signal
 from qtpy.QtGui import QTextCursor, QFont
 from qtpy.QtWidgets import (
     QPlainTextEdit,
@@ -27,6 +19,17 @@ from qtpy.QtWidgets import (
     QWidget,
     QLabel,
     QTabBar,
+)
+
+# Added: import compatibility enums
+from mne_nodes.qt_compat import (
+    ELIDE_RIGHT,
+    ALIGN_CENTER,
+    ALIGN_RIGHT,
+    LEFT_DOCK,
+    RIGHT_DOCK,
+    BOTTOM_DOCK,
+    WA_DELETE_ON_CLOSE,
 )
 
 from mne_nodes.gui.base_widgets import SimpleList
@@ -63,7 +66,7 @@ class ConsoleWidget(QPlainTextEdit):
 
         # Ensure the widget is deleted on close so that destroyed is emitted
         # and background workers are stopped.
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.setAttribute(WA_DELETE_ON_CLOSE, True)
         # Ensure background worker threads terminate when the widget is destroyed.
         self.destroyed.connect(lambda _=None: self.stop_streams())
 
@@ -377,12 +380,12 @@ class NotificationTabs(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.bubbles = {}
-        # Allow eliding to the right to avoid collision with the bubble
-        self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
+        # Replace Qt.TextElideMode.ElideRight
+        self.tabBar().setElideMode(ELIDE_RIGHT)
 
     def add_tab(self, widget, tab_name, count=0):
         bubble = QLabel(str(count))
-        bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bubble.setAlignment(ALIGN_CENTER)
         bubble.setStyleSheet(
             """
             background-color: red;
@@ -396,12 +399,12 @@ class NotificationTabs(QTabWidget):
             """
         )
         index = self.addTab(widget, tab_name)
-        # Wrap bubble in a right-side container with a small left margin to separate it from the text
         bubble_container = QWidget()
         layout = QHBoxLayout(bubble_container)
         layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight)
+        # Replace Qt.AlignmentFlag.AlignRight
+        layout.addWidget(bubble, 0, ALIGN_RIGHT)
         self.tabBar().setTabButton(
             index, QTabBar.ButtonPosition.RightSide, bubble_container
         )
@@ -499,11 +502,7 @@ class ConsoleDock(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.LeftDockWidgetArea
-            | Qt.DockWidgetArea.RightDockWidgetArea
-            | Qt.DockWidgetArea.BottomDockWidgetArea
-        )
+        self.setAllowedAreas(LEFT_DOCK | RIGHT_DOCK | BOTTOM_DOCK)
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
 
         # Containers for process UI

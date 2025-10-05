@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import qtpy
-from qtpy.QtCore import QTimer, Qt
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
@@ -21,6 +21,7 @@ from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
 from mne_nodes.pipeline.settings import Settings
+from mne_nodes.qt_compat import AA_DONT_USE_NATIVE_DIALOGS
 
 app_name = "mne-nodes"
 organization_name = "marsipu"
@@ -40,7 +41,7 @@ def init_logging(debug_mode: bool = False) -> None:
         logger.setLevel(logging.DEBUG)
         fmt = "{asctime} [{levelname}] {module}.{funcName}: {message}"
     else:
-        logger.setLevel(Settings().value("log_level", defaultValue=logging.INFO))
+        logger.setLevel(Settings().get("log_level", default=logging.INFO))
         fmt = "[{levelname}] {message}"
     # Format console handler
     date_fmt = "%H:%M:%S"
@@ -50,7 +51,7 @@ def init_logging(debug_mode: bool = False) -> None:
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     # Format file handler
-    logging_path = Settings().value("log_file_path") or Path.home() / "mne_nodes.log"
+    logging_path = Settings().get("log_file_path") or Path.home() / "mne_nodes.log"
     file_handler = logging.FileHandler(logging_path, mode="w", encoding="utf-8")
     file_handler.set_name("file")
     file_handler.setFormatter(formatter)
@@ -60,54 +61,50 @@ def init_logging(debug_mode: bool = False) -> None:
 def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
     init_logging(mne_nodes.debug_mode())
-
     logging.info("Starting MNE-Nodes...")
+    # Set gui_mode to true since starting as module always means gui-mode
+    mne_nodes.gui_mode = True
+    # Create QApplication
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    app.setApplicationName(app_name)
+    app.setOrganizationName(organization_name)
+    app.setOrganizationDomain(domain_name)
+    # For Spyder to make console accessible again
+    app.lastWindowClosed.connect(app.quit)
 
-    if mne_nodes.gui_mode:
-        app = QApplication.instance()
-        if app is None:
-            app = QApplication(sys.argv)
-        app.setApplicationName(app_name)
-        app.setOrganizationName(organization_name)
-        app.setOrganizationDomain(domain_name)
-        # For Spyder to make console accessible again
-        app.lastWindowClosed.connect(app.quit)
+    # Avoid file-dialog-problems with custom file-managers in linux
+    if mne_nodes.islin:
+        app.setAttribute(AA_DONT_USE_NATIVE_DIALOGS, True)
 
-        # Avoid file-dialog-problems with custom file-managers in linux
-        if mne_nodes.islin:
-            app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
+    # Initialize streams from stdout/stderr into Qt
+    init_streams()
 
-        # Initialize streams from stdout/stderr into Qt
-        init_streams()
+    # Show Qt-binding
+    logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
 
-        # Show Qt-binding
-        logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
-
-        # Initialize Exception-Hook
-        if mne_nodes.debug_mode():
-            logging.info("Debug-Mode is activated")
-        else:
-            qt_exception_hook = UncaughtHook()
-            sys.excepthook = qt_exception_hook.exception_hook
-
-        # Set style and font
-        set_app_theme()
-        set_app_font_size()
-
-        # Initialize controller and main window
-        controller = Controller()
-        MainWindow(controller)
-
-        # Command-Line interrupt with Ctrl+C possible
-        timer = QTimer()
-        timer.timeout.connect(lambda: None)
-        timer.start(500)
-
-        sys.exit(app.exec())
+    # Initialize Exception-Hook
+    if mne_nodes.debug_mode():
+        logging.info("Debug-Mode is activated")
     else:
-        # Headless mode (no gui)
-        logging.info("Started in headless mode (no gui).")
-        # ToDo: Implement headless functionality
+        qt_exception_hook = UncaughtHook()
+        sys.excepthook = qt_exception_hook.exception_hook
+
+    # Set style and font
+    set_app_theme()
+    set_app_font_size()
+
+    # Initialize controller and main window
+    controller = Controller()
+    MainWindow(controller)
+
+    # Command-Line interrupt with Ctrl+C possible
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(500)
+
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

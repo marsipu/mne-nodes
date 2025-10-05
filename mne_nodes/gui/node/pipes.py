@@ -17,6 +17,15 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
+from mne_nodes.qt_compat import (
+    PEN_SOLID,
+    PEN_DASH,
+    PEN_DASH_DOT,
+    PEN_JOIN_MITER,
+    PEN_CAP_ROUND,
+    BRUSH_NONE,
+    RENDER_ANTIALIAS,
+)
 
 
 class Pipe(QGraphicsPathItem):
@@ -132,7 +141,7 @@ class Pipe(QGraphicsPathItem):
 
         painter.setPen(pen)
         painter.setBrush(self.brush())
-        painter.setRenderHint(painter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(RENDER_ANTIALIAS, True)
         painter.drawPath(self.path())
 
         # QPaintDevice: Cannot destroy paint device that is being painted.
@@ -289,7 +298,7 @@ class Pipe(QGraphicsPathItem):
             port = self.input_port if reverse else self.output_port
         return port
 
-    def set_pipe_styling(self, color, width=2, style=Qt.PenStyle.SolidLine):
+    def set_pipe_styling(self, color, width=2, style=PEN_SOLID):
         """
         Args:
             color (list or tuple): (r, g, b, a) values 0-255
@@ -300,14 +309,14 @@ class Pipe(QGraphicsPathItem):
         pen.setWidth(width)
         pen.setColor(QColor(*color))
         pen.setStyle(style)
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(PEN_JOIN_MITER)
+        pen.setCapStyle(PEN_CAP_ROUND)
         self.setPen(pen)
-        self.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+        self.setBrush(QBrush(BRUSH_NONE))
 
         pen = self._dir_pointer.pen()
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(PEN_JOIN_MITER)
+        pen.setCapStyle(PEN_CAP_ROUND)
         pen.setWidth(width)
         pen.setColor(QColor(*color))
         self._dir_pointer.setPen(pen)
@@ -360,7 +369,7 @@ class LivePipeItem(Pipe):
         self.setZValue(4)
 
         self.color = defaults["pipes"]["active_color"]
-        self.style = Qt.PenStyle.DashLine
+        self.style = PEN_DASH
         self.set_pipe_styling(color=self.color, width=3, style=self.style)
 
         self.shift_selected = False
@@ -371,7 +380,7 @@ class LivePipeItem(Pipe):
         pen = self._idx_pointer.pen()
         pen.setWidth(self.pen().width())
         pen.setColor(self.pen().color())
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        pen.setJoinStyle(PEN_JOIN_MITER)
         self._idx_pointer.setPen(pen)
 
         color = self.pen().color()
@@ -482,7 +491,7 @@ class SlicerPipeItem(QGraphicsPathItem):
         arrow_size = 4.0
 
         painter.save()
-        painter.setRenderHint(painter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(RENDER_ANTIALIAS, True)
 
         font = painter.font()
         font.setPointSize(12)
@@ -493,19 +502,15 @@ class SlicerPipeItem(QGraphicsPathItem):
         text_pos = QPointF(p1.x() - text_x, p1.y() - text_y)
         text_color = QColor(color)
         text_color.setAlpha(80)
-        painter.setPen(
-            QPen(text_color, defaults["slicer"]["width"], Qt.PenStyle.SolidLine)
-        )
+        painter.setPen(QPen(text_color, defaults["slicer"]["width"], PEN_SOLID))
         painter.drawText(text_pos, text)
 
-        painter.setPen(
-            QPen(color, defaults["slicer"]["width"], Qt.PenStyle.DashDotLine)
-        )
+        painter.setPen(QPen(color, defaults["slicer"]["width"], PEN_DASH_DOT))
         painter.drawPath(self.path())
 
-        pen = QPen(color, defaults["slicer"]["width"], Qt.PenStyle.SolidLine)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+        pen = QPen(color, defaults["slicer"]["width"], PEN_SOLID)
+        pen.setCapStyle(PEN_CAP_ROUND)
+        pen.setJoinStyle(PEN_JOIN_MITER)
         painter.setPen(pen)
         painter.setBrush(color)
 

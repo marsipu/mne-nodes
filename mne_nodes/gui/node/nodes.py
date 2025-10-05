@@ -6,8 +6,14 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 
-from PySide6.QtWidgets import QHBoxLayout
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QScrollArea, QGroupBox
+from qtpy.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QScrollArea,
+    QGroupBox,
+    QHBoxLayout,
+)
 
 from mne_nodes import main_widget
 from mne_nodes.gui import parameter_widgets

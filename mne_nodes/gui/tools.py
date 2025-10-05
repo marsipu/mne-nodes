@@ -6,7 +6,6 @@ Github: https://github.com/marsipu/mne-nodes
 
 from functools import partial
 
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QComboBox,
@@ -14,7 +13,6 @@ from qtpy.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
 )
 
@@ -26,6 +24,7 @@ from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import MEEG
 from mne_nodes.pipeline.settings import Settings
+from mne_nodes.qt_compat import SP_MAX, SP_PREF, KEY_UP
 
 
 class HistoryDlg(QDialog):
@@ -153,32 +152,24 @@ class DataTerminal(QDialog):
 
         self.sub_layout = QGridLayout()
         self.inputw = CodeEditor()
-        self.inputw.setSizePolicy(
-            QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        )
+        self.inputw.setSizePolicy(SP_PREF, SP_MAX)
         self.sub_layout.addWidget(self.inputw, 0, 0, 3, 1)
 
         self.start_bt = QPushButton("Start")
-        self.start_bt.setFont(QFont(Settings().value("app_font"), 16))
-        self.start_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
-        )
+        self.start_bt.setFont(QFont(Settings().get("app_font"), 16))
+        self.start_bt.setSizePolicy(SP_MAX, SP_PREF)
         self.start_bt.clicked.connect(self.start_execution)
         self.sub_layout.addWidget(self.start_bt, 0, 1)
 
         self.history_bt = QPushButton("History")
-        self.history_bt.setFont(QFont(Settings().value("app_font"), 16))
-        self.history_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
-        )
+        self.history_bt.setFont(QFont(Settings().get("app_font"), 16))
+        self.history_bt.setSizePolicy(SP_MAX, SP_PREF)
         self.history_bt.clicked.connect(partial(HistoryDlg, self))
         self.sub_layout.addWidget(self.history_bt, 1, 1)
 
         self.quit_bt = QPushButton("Close")
-        self.quit_bt.setFont(QFont(Settings().value("app_font"), 16))
-        self.quit_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
-        )
+        self.quit_bt.setFont(QFont(Settings().get("app_font"), 16))
+        self.quit_bt.setSizePolicy(SP_MAX, SP_PREF)
         self.quit_bt.clicked.connect(self.close)
         self.sub_layout.addWidget(self.quit_bt, 2, 1)
 
@@ -262,6 +253,6 @@ class DataTerminal(QDialog):
             self.inputw.clear()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Up:
+        if event.key() == KEY_UP:
             self.inputw.insertPlainText(self.history[0])
             self.inputw.ensureCursorVisible()

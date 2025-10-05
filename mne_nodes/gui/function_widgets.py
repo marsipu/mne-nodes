@@ -15,7 +15,6 @@ from types import FunctionType
 from typing import List
 
 import pandas as pd
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -32,6 +31,7 @@ from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList, EditDict, EditList, SimpleList
 from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.qt_compat import CHECKED, UNCHECKED, ITEM_IS_USER_CHECKABLE
 
 
 class EditGuiArgsDlg(QDialog):
@@ -359,15 +359,15 @@ class SelectDependencies(QDialog):
     def populate_listw(self):
         for function in self.cf_dialog.ct.pd_funcs.index:
             item = QListWidgetItem(function)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | ITEM_IS_USER_CHECKABLE)
             if function in self.dpd_list:
-                item.setCheckState(Qt.Checked)
+                item.setCheckState(CHECKED)
             else:
-                item.setCheckState(Qt.Unchecked)
+                item.setCheckState(UNCHECKED)
             self.listw.addItem(item)
 
     def item_checked(self, item):
-        if item.checkState == Qt.Checked:
+        if item.checkState == CHECKED:
             self.dpd_list.append(item.text())
         elif item.text() in self.dpd_list:
             self.dpd_list.remove(item.text())
@@ -605,7 +605,7 @@ class SavePkgDialog(QDialog):
             self.cf_dialog.clear_param_items()
 
             # Add to selected modules
-            self.cf_dialog.ct.settings.value("selected_modules").append(
+            self.cf_dialog.ct.settings.get("selected_modules").append(
                 self.cf_dialog.file_path.stem
             )
             self.cf_dialog.ct.save_settings()

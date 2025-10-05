@@ -5,9 +5,11 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import sys
+import os
+import shlex
 from inspect import signature
 
-from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, Qt, QProcess
+from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, QProcess
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
@@ -22,6 +24,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple, ExceptionTuple
+from mne_nodes.qt_compat import ALIGN_HCENTER
 
 
 class WorkerSignals(QObject):
@@ -80,7 +83,7 @@ class Worker(QRunnable):
         # Retrieve args/kwargs here; and fire processing using them
         try:
             return_value = self.function(*self.args, **self.kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001
             exc_tuple = get_exception_tuple()
             self.signals.error.emit(exc_tuple)
         else:
@@ -143,12 +146,12 @@ class WorkerDialog(QDialog):
 
         if self.title:
             title_label = QLabel(self.title)
-            title_label.setFont(QFont("AnyType", 18, QFont.Bold))
+            title_label.setFont(QFont("AnyType", 18, QFont.Weight.Bold))
             layout.addWidget(title_label)
 
         self.progress_label = QLabel()
         self.progress_label.hide()
-        layout.addWidget(self.progress_label, alignment=Qt.AlignHCenter)
+        layout.addWidget(self.progress_label, alignment=ALIGN_HCENTER)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
@@ -215,47 +218,86 @@ class WorkerDialog(QDialog):
 
 
 class QProcessWorker(QObject):
-    """A worker for QProcess."""
+    """A worker for QProcess.
 
-    # Send stdout from current process.
+    Unified abstraction for launching one or multiple external commands
+    with stdout/stderr forwarding. Can be shared between MainWindow
+    (pipeline execution) and QProcessDialog (update/install dialogs).
+    """
+
+    # Send decoded stdout from current process.
     stdoutSignal = Signal(str)
-    # Send stderr from curren process.
+    # Send decoded stderr from current process.
     stderrSignal = Signal(str)
-    # Send when all processes from commands are finished.
+    # Emitted when all processes from commands are finished (no args, legacy behaviour)
     finished = Signal()
+    # Detailed final finished signal of the current (last) process
+    finishedDetailed = Signal(int, QProcess.ExitStatus)
+    # Forward state changes of the current process
+    stateChanged = Signal(QProcess.ProcessState)
 
-    def __init__(self, commands, printtostd=True):
+    def __init__(self, commands, printtostd=True, working_directory=None):
         """
         Parameters
         ----------
-        commands : str, list
-            Provide a command or a list of commands.
+        commands : str | list[str] | list[list[str]]
+            Command or list of commands. Each command can be provided as a
+            string (will be tokenized with shlex) or as a list of program + args.
         printtostd : bool
-            Set False if stdout/stderr are not supposed
-             to be passed to sys.stdout/sys.stderr.
+            Forward decoded stdout/stderr to sys.stdout/sys.stderr.
+        working_directory : str | Path | None
+            Working directory to set for each process.
         """
         super().__init__()
 
-        # Parse command(s)
+        # Normalize commands into list[list[str]] safely
         if not isinstance(commands, list):
             commands = [commands]
-        self.commands = [cmd.split(" ") for cmd in commands]
+        normalized = []
+        for cmd in commands:
+            if isinstance(cmd, (list, tuple)):
+                normalized.append([str(c) for c in cmd])
+            else:
+                # Tokenize respecting quotes; use posix flag depending on OS
+                try:
+                    normalized.append(shlex.split(str(cmd), posix=(os.name != "nt")))
+                except ValueError:
+                    # Fallback naive split
+                    normalized.append(str(cmd).split(" "))
+        self.commands = normalized
         self.printtostd = printtostd
-        self.process = None
+        self.working_directory = working_directory
+        self.process: QProcess | None = None
+        self._current_exit_code = None
+        self._current_exit_status = None
+
+    @property
+    def exit_code(self):
+        return self._current_exit_code
+
+    @property
+    def exit_status(self):
+        return self._current_exit_status
 
     def handle_stdout(self):
-        text = bytes(self.process.readAllStandardOutput()).decode("utf8")
+        if not self.process:
+            return
+        text = bytes(self.process.readAllStandardOutput()).decode("utf8", "replace")
         self.stdoutSignal.emit(text)
         if self.printtostd:
             sys.stdout.write(text)
 
     def handle_stderr(self):
-        text = bytes(self.process.readAllStandardError()).decode("utf8")
+        if not self.process:
+            return
+        text = bytes(self.process.readAllStandardError()).decode("utf8", "replace")
         self.stderrSignal.emit(text)
         if self.printtostd:
             sys.stderr.write(text)
 
     def error_occurred(self):
+        if not self.process:
+            return
         text = (
             f'An error occured with "{self.process.program()} '
             f'{" ".join(self.process.arguments())}":\n'
@@ -264,10 +306,15 @@ class QProcessWorker(QObject):
         self.stderrSignal.emit(text)
         if self.printtostd:
             sys.stderr.write(text)
-        self.process_finished()
+        # Treat as finished for chaining
+        # Pass synthetic exit code 1 if QProcess signals error
+        self.process_finished(1, self.process.exitStatus())
 
-    def process_finished(self):
-        if self.process.exitCode() == 1:
+    def process_finished(self, code, status):
+        # Store last exit status
+        self._current_exit_code = code
+        self._current_exit_status = status
+        if code == 1:
             text = (
                 f'"{self.process.program()} '
                 f'{" ".join(self.process.arguments())}" has crashed\n'
@@ -276,19 +323,32 @@ class QProcessWorker(QObject):
             if self.printtostd:
                 sys.stderr.write(text)
         if len(self.commands) > 0:
-            self.start()
+            self._start_next()
         else:
+            # All done
+            self.finishedDetailed.emit(code, status)
             self.finished.emit()
 
-    def start(self):
-        # Take the first command from commands until empty.
+    def _start_next(self):
+        # Take the first remaining command
         cmd = self.commands.pop(0)
         self.process = QProcess()
+        if self.working_directory is not None:
+            self.process.setWorkingDirectory(str(self.working_directory))
+        # Wire signals
         self.process.errorOccurred.connect(self.error_occurred)
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stderr)
+        self.process.stateChanged.connect(self.stateChanged)
         self.process.finished.connect(self.process_finished)
-        self.process.start(cmd[0], cmd[1:])
+        # Start
+        program, *args = cmd
+        self.process.start(program, args)
+
+    def start(self):
+        # Only start if not already running
+        if self.process is None:
+            self._start_next()
 
     def kill(self, kill_all=False):
         if kill_all:
@@ -307,6 +367,7 @@ class QProcessDialog(QDialog):
         close_directly=False,
         title=None,
         blocking=True,
+        controller=None,
     ):
         super().__init__(parent)
         self.commands = commands
@@ -314,6 +375,8 @@ class QProcessDialog(QDialog):
         self.show_console = show_console
         self.close_directly = close_directly
         self.title = title
+        self.controller = controller
+        self.proc_idx = None
 
         self.process_worker = None
         self.is_finished = False
@@ -367,9 +430,14 @@ class QProcessDialog(QDialog):
         self.process_worker.kill(kill_all=True)
 
     def start_process(self):
-        self.process_worker = QProcessWorker(self.commands)
+        # Use unified QProcessWorker, optionally register with controller
+        if self.controller is not None:
+            self.proc_idx, self.process_worker = self.controller.create_process_worker(
+                self.commands, kind="dialog"
+            )
+        else:
+            self.process_worker = QProcessWorker(self.commands)
         if self.show_console:
-            # Ensure streams exist and forward text into them
             self.console_output.add_stream("stdout")
             self.console_output.add_stream("stderr")
             self.process_worker.stdoutSignal.connect(

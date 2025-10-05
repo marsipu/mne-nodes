@@ -17,7 +17,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QListView,
     QPushButton,
-    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
 )
@@ -27,6 +26,7 @@ from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
+from mne_nodes.qt_compat import SP_MAX, SP_PREF, SP_MIN_EXP
 
 
 class CheckListDlg(QDialog):
@@ -154,15 +154,13 @@ class RawInfo(QDialog):
     def init_ui(self):
         layout = QGridLayout()
         meeg_list = SimpleList(self.mw.ct.pr.all_meeg)
-        meeg_list.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        meeg_list.setSizePolicy(SP_MAX, SP_PREF)
         meeg_list.currentChanged.connect(self.meeg_selected)
         layout.addWidget(meeg_list, 0, 0)
 
         self.info_label = QTextEdit()
         self.info_label.setReadOnly(True)
-        self.info_label.setSizePolicy(
-            QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding
-        )
+        self.info_label.setSizePolicy(SP_MIN_EXP, SP_MIN_EXP)
         layout.addWidget(self.info_label, 0, 1)
 
         close_bt = QPushButton("Close")

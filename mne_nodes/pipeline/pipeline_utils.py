@@ -97,7 +97,7 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
             if verbose:
                 logging.warning(f"{param} is missing in records for {file_name}")
 
-    if obj.ct.settings.value("overwrite"):
+    if obj.ct.settings.get("overwrite"):
         result_dict[param] = "overwrite"
         if verbose:
             logging.info(

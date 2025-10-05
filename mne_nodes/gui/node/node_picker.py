@@ -4,10 +4,10 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDockWidget, QTabWidget, QTableView, QAbstractItemView
 
 from mne_nodes.gui.models import FunctionPickerModel, InputPickerModel
+from mne_nodes.qt_compat import DROP_COPY
 
 
 class DraggableTableView(QTableView):
@@ -15,7 +15,7 @@ class DraggableTableView(QTableView):
         super().__init__()
         self.setDragEnabled(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
-        self.setDefaultDropAction(Qt.DropAction.CopyAction)
+        self.setDefaultDropAction(DROP_COPY)
         self.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)

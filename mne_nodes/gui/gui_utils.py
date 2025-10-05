@@ -14,7 +14,7 @@ from os.path import join
 
 import darkdetect
 from qtpy import compat
-from qtpy.QtCore import Qt, QEvent, QPoint
+from qtpy.QtCore import QEvent, QPoint
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -36,6 +36,15 @@ import mne_nodes
 from mne_nodes import _widgets, main_widget
 from mne_nodes import extra
 from mne_nodes.pipeline.settings import Settings
+from mne_nodes.qt_compat import (
+    MB_YES,
+    MB_NO,
+    MB_CANCEL,
+    NO_MODIFIER,
+    MOUSE_NONE,
+    MOUSE_LEFT,
+    KEY_NO_MODIFIER,
+)
 
 
 def center(widget):
@@ -83,17 +92,13 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
     if mne_nodes.gui_mode:
         parent = main_widget()
         if cancel_allowed:
-            buttons = (
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.No
-                | QMessageBox.StandardButton.Cancel
-            )
+            buttons = MB_YES | MB_NO | MB_CANCEL
         else:
-            buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            buttons = MB_YES | MB_NO
         ans = QMessageBox.question(parent, "Question", prompt, buttons=buttons)
-        ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
-        cancel = ans == QMessageBox.StandardButton.Cancel
-        ans = ans == QMessageBox.StandardButton.Yes
+        ok = ans in [MB_YES, MB_NO]
+        cancel = ans == MB_CANCEL
+        ans = ans == MB_YES
     else:
         if cancel_allowed:
             prompt += " (yes/no/cancel): "
@@ -267,19 +272,17 @@ def mouse_interaction(func):
 @mouse_interaction
 def mousePress(widget=None, pos=None, button=None, modifier=None):
     if modifier is None:
-        modifier = Qt.KeyboardModifier.NoModifier
-    event = QMouseEvent(
-        QEvent.Type.MouseButtonPress, pos, button, Qt.MouseButton.NoButton, modifier
-    )
+        modifier = NO_MODIFIER
+    event = QMouseEvent(QEvent.Type.MouseButtonPress, pos, button, MOUSE_NONE, modifier)
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseRelease(widget=None, pos=None, button=None, modifier=None):
     if modifier is None:
-        modifier = Qt.KeyboardModifier.NoModifier
+        modifier = NO_MODIFIER
     event = QMouseEvent(
-        QEvent.Type.MouseButtonRelease, pos, button, Qt.MouseButton.NoButton, modifier
+        QEvent.Type.MouseButtonRelease, pos, button, MOUSE_NONE, modifier
     )
     QApplication.sendEvent(widget, event)
 
@@ -287,15 +290,13 @@ def mouseRelease(widget=None, pos=None, button=None, modifier=None):
 @mouse_interaction
 def mouseMove(widget=None, pos=None, button=None, modifier=None):
     if button is None:
-        button = Qt.MouseButton.NoButton
+        button = MOUSE_NONE
     if modifier is None:
-        modifier = Qt.KeyboardModifier.NoModifier
+        modifier = NO_MODIFIER
 
     if isinstance(pos, QPoint):
         pass
-    event = QMouseEvent(
-        QEvent.Type.MouseMove, pos, Qt.MouseButton.NoButton, button, modifier
-    )
+    event = QMouseEvent(QEvent.Type.MouseMove, pos, MOUSE_NONE, button, modifier)
     QApplication.sendEvent(widget, event)
 
 
@@ -316,12 +317,7 @@ def mouseDrag(widget, positions, button, modifier=None):
 
 
 def mouseDragBetween(
-    widget_from,
-    pos_from,
-    widget_to,
-    pos_to,
-    button=Qt.MouseButton.LeftButton,
-    modifier=None,
+    widget_from, pos_from, widget_to, pos_to, button=MOUSE_LEFT, modifier=None
 ):
     """Drag from one widget to another using low-level mouse events.
 
@@ -329,7 +325,7 @@ def mouseDragBetween(
     held to trigger startDrag, then moves into target and releases.
     """
     if modifier is None:
-        modifier = Qt.KeyboardModifier.NoModifier
+        modifier = KEY_NO_MODIFIER
     QTest.qWaitForWindowExposed(widget_from.window())
     QTest.qWaitForWindowExposed(widget_to.window())
     # Press on source
@@ -469,9 +465,9 @@ def _get_auto_theme():
 
 def set_app_theme():
     app = QApplication.instance()
-    style = Settings().value("app_style")
+    style = Settings().get("app_style")
     app.setStyle(style)
-    app_theme = Settings().value("app_theme")
+    app_theme = Settings().get("app_theme")
     # Detect system theme
     if app_theme == "auto":
         app_theme = _get_auto_theme()
@@ -504,7 +500,7 @@ def set_app_theme():
 
 def set_app_font_size(font_size=None):
     app = QApplication.instance()
-    font_size = font_size or Settings().value("app_font_size")
+    font_size = font_size or Settings().get("app_font_size")
     font = QFont()
     font.setFamilies(["Segoe UI", "Noto Sans", "Open Sans", "DejaVu Sans"])
     font.setPointSize(font_size)
@@ -515,7 +511,7 @@ class ColorTester(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         _widgets["color_tester"] = self
-        theme = Settings().value("app_theme")
+        theme = Settings().get("app_theme")
         if theme == "auto":
             theme = _get_auto_theme()
         self.theme = theme
@@ -566,7 +562,7 @@ class ColorTester(QDialog):
         set_app_theme()
 
     def change_theme(self, theme):
-        Settings().setValue("app_theme", theme)
+        Settings().set("app_theme", theme)
         self.theme = theme
         set_app_theme()
         for field_name, color in theme_colors[theme].items():

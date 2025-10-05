@@ -121,6 +121,17 @@ from mne_nodes.pipeline.pipeline_utils import (
 )
 from mne_nodes.pipeline.settings import Settings
 
+# Add compatibility enums for Qt5/Qt6 differences
+from mne_nodes.qt_compat import (
+    CMBX_ADJUST_CONTENTS,
+    RIGHT_DOCK,
+    MB_YES,
+    MB_NO,
+    MB_CANCEL,
+    ALIGN_LEFT,
+    ALIGN_TOP,
+)
+
 renamed_parameters = {
     "filter_target": {"Raw": "raw", "Epochs": "epochs", "Evoked": "evoked"},
     "bad_interpolation": {
@@ -368,7 +379,7 @@ class OldController:
         # Check Home-Path
         self.pr = None
         # Try to load home_path from QSettings
-        self.home_path = home_path or Settings().value("home_path", defaultValue=None)
+        self.home_path = home_path or Settings().get("home_path", default=None)
         self.settings = {}
         if self.home_path is None:
             raise RuntimeError("No Home-Path found!")
@@ -383,7 +394,7 @@ class OldController:
 
         # Initialize log-file
         logger = logging.getLogger()
-        logging_path = Settings.value("log_file_path") or join(
+        logging_path = Settings.get("log_file_path") or join(
             Path.home() / "mne_nodes.log"
         )
         file_handler = logging.FileHandler(logging_path, "w")
@@ -391,7 +402,7 @@ class OldController:
         logger.addHandler(file_handler)
 
         logging.info(f"Home-Path: {self.home_path}")
-        Settings().setValue("home_path", self.home_path)
+        Settings().set("home_path", self.home_path)
         # Create subdirectories if not existing for a valid home_path
         for subdir in [d for d in home_dirs if not isdir(join(self.home_path, d))]:
             os.mkdir(join(self.home_path, subdir))
@@ -455,7 +466,7 @@ class OldController:
 
         # Check Project
         if selected_project is None:
-            selected_project = self.settings.value("selected_project")
+            selected_project = self.settings.get("selected_project")
 
         if selected_project is None:
             if len(self.projects) > 0:
@@ -495,14 +506,14 @@ class OldController:
 
         # Check integrity of QSettings-Keys
         Settings().sync()
-        qs_keys = set(Settings().childKeys())
+        qs_keys = set(Settings().keys())
         qdefault_keys = set(self.default_settings["qsettings"])
         # Remove additional (old) keys not appearing in default-settings
         for qsetting in qs_keys - qdefault_keys:
             Settings().remove(qsetting)
         # Add new keys from default-settings which are not present in QSettings
         for qsetting in qdefault_keys - qs_keys:
-            Settings().setValue(qsetting, self.default_settings["qsettings"][qsetting])
+            Settings().set(qsetting, self.default_settings["qsettings"][qsetting])
 
     def save_settings(self):
         try:
@@ -1020,7 +1031,7 @@ class Project:
                             eval_param = literal_eval(
                                 self.ct.pd_params.loc[param, "default"]
                             )
-                        except (ValueError, SyntaxError, NameError):
+                        except (ValueError, SyntaxError):
                             # Allow parameters to be defined by functions
                             # e.g. by numpy, etc.
                             is_func_gui = (
@@ -1394,7 +1405,7 @@ class OldMainWindow(QMainWindow):
         self.setWindowTitle("MNE-Pipeline HD")
 
         # Set QThread as default
-        Settings().setValue("use_qthread", True)
+        Settings().set("use_qthread", True)
 
         # Initiate attributes for Main-Window
         self.ct = controller
@@ -1533,7 +1544,7 @@ class OldMainWindow(QMainWindow):
 
     def init_edu(self):
         if (
-            Settings().value("education")
+            Settings().get("education")
             and self.ct.edu_program
             and len(self.ct.edu_program["tour_list"]) > 0
         ):
@@ -1670,7 +1681,7 @@ class OldMainWindow(QMainWindow):
         self.toolbar.addWidget(proj_box_label)
 
         self.project_box = QComboBox()
-        self.project_box.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.project_box.setSizeAdjustPolicy(CMBX_ADJUST_CONTENTS)
         self.project_box.activated.connect(self.project_changed)
         self.update_project_box()
         self.toolbar.addWidget(self.project_box)
@@ -1777,9 +1788,9 @@ class OldMainWindow(QMainWindow):
         start_bt = QPushButton("Start")
         stop_bt = QPushButton("Quit")
 
-        clear_bt.setFont(QFont(Settings().value("app_font"), 18))
-        start_bt.setFont(QFont(Settings().value("app_font"), 18))
-        stop_bt.setFont(QFont(Settings().value("app_font"), 18))
+        clear_bt.setFont(QFont(Settings().get("app_font"), 18))
+        start_bt.setFont(QFont(Settings().get("app_font"), 18))
+        stop_bt.setFont(QFont(Settings().get("app_font"), 18))
 
         clear_bt.clicked.connect(self.clear)
         start_bt.clicked.connect(self.start)
@@ -1843,9 +1854,7 @@ class OldMainWindow(QMainWindow):
                         tab_v_layout.addLayout(tab_h_layout)
                         h_size = group_box.sizeHint().width()
                         tab_h_layout = QHBoxLayout()
-                    tab_h_layout.addWidget(
-                        group_box, alignment=Qt.AlignLeft | Qt.AlignTop
-                    )
+                    tab_h_layout.addWidget(group_box, alignment=ALIGN_LEFT | ALIGN_TOP)
 
                 if tab_h_layout.count() > 0:
                     tab_v_layout.addLayout(tab_h_layout)
@@ -2052,7 +2061,7 @@ class OldMainWindow(QMainWindow):
         self.view_menu.addAction(self.file_dock.toggleViewAction())
 
         self.parameters_dock = ParametersDock(self)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.parameters_dock)
+        self.addDockWidget(RIGHT_DOCK, self.parameters_dock)
         self.view_menu.addAction(self.parameters_dock.toggleViewAction())
 
     def add_sample_dataset(self):
@@ -2165,7 +2174,7 @@ class OldMainWindow(QMainWindow):
                 "to apply the changes from the Update!",
             )
 
-            if answer == QMessageBox.Yes:
+            if answer == MB_YES:
                 self.restart()
 
     def update_mne(self):
@@ -2186,7 +2195,7 @@ class OldMainWindow(QMainWindow):
             "Please restart the Pipeline-Program to apply the changes from the Update!",
         )
 
-        if answer == QMessageBox.Yes:
+        if answer == MB_YES:
             self.restart()
 
     def show_sys_info(self):
@@ -2202,10 +2211,10 @@ class OldMainWindow(QMainWindow):
                 self,
                 "Closing MNE-Pipeline",
                 "Do you want to return to the Welcome-Window?",
-                buttons=QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
-                defaultButton=QMessageBox.Yes,
+                buttons=MB_YES | MB_NO | MB_CANCEL,
+                defaultButton=MB_YES,
             )
-        if answer not in [QMessageBox.Yes, QMessageBox.No]:
+        if answer not in [MB_YES, MB_NO]:
             event.ignore()
         else:
             if self.edu_tour:
@@ -2214,11 +2223,11 @@ class OldMainWindow(QMainWindow):
             _widgets["main_window"] = None
 
             if welcome_window is not None:
-                if answer == QMessageBox.Yes:
+                if answer == MB_YES:
                     welcome_window.update_widgets()
                     welcome_window.show()
 
-                elif answer == QMessageBox.No:
+                elif answer == MB_NO:
                     welcome_window.close()
 
 
@@ -2494,7 +2503,7 @@ class CustomFunctionImport(QDialog):
         self.exst_functions = list(self.ct.pd_funcs.index)
         self.exst_parameters = ["mw", "pr", "meeg", "fsmri", "group"]
         self.exst_parameters += list(self.ct.settings.keys())
-        self.exst_parameters += list(Settings().childKeys())
+        self.exst_parameters += list(Settings().keys())
         self.exst_parameters += list(self.ct.pr.parameters[self.ct.pr.p_preset].keys())
         self.param_exst_dict = {}
 
@@ -2548,11 +2557,11 @@ class CustomFunctionImport(QDialog):
         # Import Button and Combobox
         add_bt_layout = QHBoxLayout()
         addfn_bt = QPushButton("Load Function/s")
-        addfn_bt.setFont(QFont(Settings().value("app_font"), 12))
+        addfn_bt.setFont(QFont(Settings().get("app_font"), 12))
         addfn_bt.clicked.connect(self.get_functions)
         add_bt_layout.addWidget(addfn_bt)
         editfn_bt = QPushButton("Edit Function/s")
-        editfn_bt.setFont(QFont(Settings().value("app_font"), 12))
+        editfn_bt.setFont(QFont(Settings().get("app_font"), 12))
         editfn_bt.clicked.connect(self.edit_functions)
         add_bt_layout.addWidget(editfn_bt)
         layout.addLayout(add_bt_layout)
@@ -2774,17 +2783,17 @@ class CustomFunctionImport(QDialog):
         bt_layout = QHBoxLayout()
 
         save_bt = QPushButton("Save")
-        save_bt.setFont(QFont(Settings().value("app_font"), 16))
+        save_bt.setFont(QFont(Settings().get("app_font"), 16))
         save_bt.clicked.connect(self.save_pkg)
         bt_layout.addWidget(save_bt)
 
         src_bt = QPushButton("Show Code")
-        src_bt.setFont(QFont(Settings().value("app_font"), 16))
+        src_bt.setFont(QFont(Settings().get("app_font"), 16))
         src_bt.clicked.connect(self.show_code)
         bt_layout.addWidget(src_bt)
 
         close_bt = QPushButton("Quit")
-        close_bt.setFont(QFont(Settings().value("app_font"), 16))
+        close_bt.setFont(QFont(Settings().get("app_font"), 16))
         close_bt.clicked.connect(self.close)
         bt_layout.addWidget(close_bt)
 

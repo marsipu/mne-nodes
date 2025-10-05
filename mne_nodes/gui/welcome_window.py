@@ -9,7 +9,6 @@ from os import listdir
 from os.path import isdir, join
 
 from qtpy import compat
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont, QPixmap
 from qtpy.QtWidgets import (
     QComboBox,
@@ -21,6 +20,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from mne_nodes.qt_compat import ALIGN_RIGHT
 from mne_nodes import _widgets, extra
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import center, get_user_input
@@ -51,7 +51,7 @@ class WelcomeWindow(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
         title_label = QLabel("Welcome to MNE-Pipeline!")
-        title_label.setFont(QFont(Settings().value("app_font"), 20))
+        title_label.setFont(QFont(Settings().get("app_font"), 20))
         layout.addWidget(title_label)
 
         image_label = QLabel()
@@ -64,7 +64,7 @@ class WelcomeWindow(QWidget):
         home_layout.addWidget(self.home_path_label, stretch=4)
         self.home_path_bt = QPushButton("Set Home-Folder")
         self.home_path_bt.clicked.connect(self.set_home_path)
-        home_layout.addWidget(self.home_path_bt, alignment=Qt.AlignRight)
+        home_layout.addWidget(self.home_path_bt, alignment=ALIGN_RIGHT)
         layout.addLayout(home_layout)
 
         project_layout = QHBoxLayout()
@@ -76,12 +76,12 @@ class WelcomeWindow(QWidget):
         project_layout.addWidget(self.project_cmbx)
         self.add_pr_bt = QPushButton("Add Project")
         self.add_pr_bt.clicked.connect(self.add_project)
-        project_layout.addWidget(self.add_pr_bt, alignment=Qt.AlignRight)
+        project_layout.addWidget(self.add_pr_bt, alignment=ALIGN_RIGHT)
         layout.addLayout(project_layout)
 
         self.edu_groupbox = QGroupBox("Education")
         self.edu_groupbox.setCheckable(True)
-        self.edu_groupbox.setChecked(Settings().value("education", defaultValue=False))
+        self.edu_groupbox.setChecked(Settings().get("education", default=False))
         self.edu_groupbox.toggled.connect(self.edu_toggled)
 
         edu_layout = QVBoxLayout()
@@ -92,20 +92,20 @@ class WelcomeWindow(QWidget):
 
         bt_layout = QHBoxLayout()
         self.start_bt = QPushButton("Start")
-        self.start_bt.setFont(QFont(Settings().value("app_font"), 20))
+        self.start_bt.setFont(QFont(Settings().get("app_font"), 20))
         self.start_bt.clicked.connect(self.init_main_window)
         bt_layout.addWidget(self.start_bt)
 
         close_bt = QPushButton("Close")
         close_bt.clicked.connect(self.close)
-        close_bt.setFont(QFont(Settings().value("app_font"), 20))
+        close_bt.setFont(QFont(Settings().get("app_font"), 20))
         bt_layout.addWidget(close_bt)
 
         layout.addLayout(bt_layout)
         self.setLayout(layout)
 
     def edu_toggled(self, value):
-        Settings().setValue("education", value)
+        Settings().set("education", value)
 
     def update_widgets(self):
         if self.ct is not None:
@@ -173,7 +173,7 @@ class WelcomeWindow(QWidget):
 
     def init_main_window(self):
         if self.ct is not None:
-            edu_on = Settings().value("education")
+            edu_on = Settings().get("education")
             if edu_on:
                 self.ct.edu_program_name = self.edu_selection.get_current()
                 self.ct.load_edu()
@@ -185,8 +185,8 @@ class WelcomeWindow(QWidget):
         if self.ct is not None:
             WorkerDialog(self, self.ct.save, blocking=True, title="Saving Project!")
         if self.edu_groupbox.isChecked():
-            Settings().setValue("education", 1)
+            Settings().set("education", 1)
         else:
-            Settings().setValue("education", 0)
+            Settings().set("education", 0)
         _widgets["welcom_window"] = None
         event.accept()

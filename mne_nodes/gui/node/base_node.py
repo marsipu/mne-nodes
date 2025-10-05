@@ -21,6 +21,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.qt_compat import PEN_NONE, BRUSH_NONE, MOUSE_LEFT, MOD_ALT
 
 
 class NodeTextItem(QGraphicsTextItem):
@@ -497,10 +498,121 @@ class BaseNode(QGraphicsItem):
         return up_dict
 
     def start(self):
-        if not self.viewer:
-            logging.warning("NodeViewer not found. Cannot start node.")
+        """Start pipeline execution from this node using a simple dependency-
+        first DFS.
+
+        Rules:
+        - Determine a primary InputNode (self if InputNode, else the first upstream InputNode).
+        - Emit exactly one Input instruction for the primary InputNode's data_type.
+        - For each downstream FunctionNode, ensure all its upstream FunctionNode
+          dependencies (recursively) are emitted before the node itself.
+        - Multi-input functions cause all other upstream branches to be traversed.
+        - Downstream traversal proceeds breadth-first after dependency emission to
+          cover later stages.
+        """
+        try:
+            from mne_nodes.gui.node.nodes import InputNode, FunctionNode  # type: ignore
+        except Exception:  # pragma: no cover
+            logging.error("Node classes not importable; cannot start pipeline.")
             return
-        self.viewer.start_from_node(self)
+
+        # ------------------------------------------------------------------
+        # Helper: find a primary upstream InputNode if needed
+        # ------------------------------------------------------------------
+        def find_upstream_input(start):
+            visited = set()
+            stack = [start]
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                if isinstance(node, InputNode):
+                    return node
+                for port in getattr(node, "inputs", []):
+                    for cp in getattr(port, "connected_ports", []):
+                        up = getattr(cp, "node", None)
+                        if up is not None and up not in visited:
+                            stack.append(up)
+            return None
+
+        primary_input = (
+            self if isinstance(self, InputNode) else find_upstream_input(self)
+        )
+        if primary_input is None:
+            logging.error("No upstream InputNode found; cannot start pipeline.")
+            return
+
+        # ------------------------------------------------------------------
+        # Collect downstream function nodes starting from a seed list
+        # ------------------------------------------------------------------
+        def downstream_functions(seed):
+            out = []
+            visited = set()
+            queue = [seed]
+            while queue:
+                node = queue.pop(0)
+                if node in visited:
+                    continue
+                visited.add(node)
+                for port in getattr(node, "outputs", []):
+                    for cp in getattr(port, "connected_ports", []):
+                        dn = getattr(cp, "node", None)
+                        if dn is None:
+                            continue
+                        if isinstance(dn, FunctionNode):
+                            out.append(dn)
+                        queue.append(dn)
+            return out
+
+        seed_funcs = (
+            downstream_functions(primary_input)
+            if isinstance(primary_input, InputNode)
+            else [self]
+        )  # type: ignore[arg-type]
+
+        # Sets to prevent duplication
+        emitted_funcs: set[str] = set()
+
+        # Dependency-first emission ------------------------------------------------
+        def emit_function(fn):
+            if fn.name in emitted_funcs:
+                return
+            # Ensure all upstream dependencies first
+            for in_port in fn.inputs:
+                for cp in in_port.connected_ports:
+                    up = getattr(cp, "node", None)
+                    if up is None:
+                        continue
+                    if isinstance(up, FunctionNode):
+                        emit_function(up)
+                    # If another InputNode feeds this function and it's *not* the primary one,
+                    # we intentionally ignore adding a second Input instruction to keep the
+                    # execution model (single primary loop) consistent.
+            # Emit this function
+            if fn.name not in emitted_funcs:
+                instructions.append((fn.name, "Function"))
+                emitted_funcs.add(fn.name)
+
+        instructions = [(primary_input.data_type, "Input")]
+        # Traverse seed functions and their downstream chain
+        visited_seed = set()
+        queue = list(seed_funcs)
+        while queue:
+            fn = queue.pop(0)
+            if fn in visited_seed:
+                continue
+            visited_seed.add(fn)
+            emit_function(fn)
+            # Enqueue downstream function nodes
+            for port in fn.outputs:
+                for cp in port.connected_ports:
+                    dn = getattr(cp, "node", None)
+                    if isinstance(dn, FunctionNode):
+                        queue.append(dn)
+
+        # Delegate to controller
+        self.ct.start(instructions, primary_input.name)
 
     def add_widget(self, widget):
         """Add widget to the node."""
@@ -543,8 +655,8 @@ class BaseNode(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         painter.save()
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(PEN_NONE)
+        painter.setBrush(BRUSH_NONE)
 
         # base background.
         margin = 1.0
@@ -606,7 +718,7 @@ class BaseNode(QGraphicsItem):
         Args:
             event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
         """
-        if event.button() == Qt.MouseButton.LeftButton:
+        if event.button() == MOUSE_LEFT:
             for p in self.inputs + self.outputs:
                 if p.hovered:
                     event.ignore()
@@ -619,7 +731,7 @@ class BaseNode(QGraphicsItem):
         Args:
             event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
         """
-        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
+        if event.modifiers() == MOD_ALT:
             event.ignore()
             return
         super().mouseReleaseEvent(event)

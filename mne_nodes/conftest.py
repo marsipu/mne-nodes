@@ -107,6 +107,18 @@ def _add_nodes(viewer):
     # Establish connection
     in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
 
+    viewer.auto_layout_nodes()
+    viewer.zoom_to_nodes()
+
+
+def _add_complex_nodes(viewer):
+    # Create nodes
+    in_node = viewer.add_input_node("raw")
+    func_node = viewer.add_function_node("filter_data")
+
+    # Establish connection
+    in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
+
     # Add more function nodes
     func_node2 = viewer.add_function_node("find_events")
     func_node3 = viewer.add_function_node("epoch_raw")

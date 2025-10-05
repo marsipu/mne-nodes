@@ -621,7 +621,7 @@ def _brain_plot(
                 img_format=img_format,
             )
 
-            if not meeg.ct.settings.value("show_plots"):
+            if not meeg.ct.settings.get("show_plots"):
                 brain.close()
 
 

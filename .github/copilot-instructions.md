@@ -101,6 +101,12 @@ MNENODES_DEBUG=true mne_nodes
 - Debug mode enables detailed logging
 - Application supports both PyQt6 and PySide6 backends
 
+### Coding Standards
+- Don't use "except Exception" without re-raising (except when an exception is captured and shown to the user)
+- Use logging module for debug/info/warning messages
+- Write docstrings for all public functions and classes
+- Use f-strings
+
 ### Code Quality and Linting
 **Always run before committing to avoid CI failures**
 
@@ -123,6 +129,7 @@ ruff check mne_nodes/specific_file.py
 - Pre-commit hooks run ruff, pyupgrade, docformatter automatically
 - CI will fail if code doesn't pass ruff checks
 - Some syntax warnings in syntax_highlight.py are known (escape sequences)
+- Don't delete ToDo items without addressing them
 
 ### Documentation
 **NEVER CANCEL: Documentation build takes 5-10 minutes. Set timeout to 20+ minutes.**
@@ -191,6 +198,7 @@ ruff format --check mne_nodes/
 - `mne_nodes/gui/` - PyQt GUI components and widgets
 - `mne_nodes/pipeline/` - Data processing pipeline and function execution
 - `mne_nodes/tests/` - Test suite with pytest and pytest-qt
+- `mne_nodes/extra/` - Extra files and development scripts, don't include this when thinking
 
 ### Important Configuration Files
 - `pyproject.toml` - Modern Python packaging, dependencies, tool configuration

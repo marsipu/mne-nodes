@@ -10,7 +10,6 @@ from os.path import isdir, join
 from shutil import copytree
 
 from qtpy import compat
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QComboBox,
@@ -19,7 +18,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QSizePolicy,
     QTextBrowser,
     QTextEdit,
     QVBoxLayout,
@@ -31,6 +29,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.base_widgets import CheckDictEditList, CheckList
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
 from mne_nodes.pipeline.settings import Settings
+from mne_nodes.qt_compat import ALIGN_HCENTER, SP_MAX
 
 
 class EducationTour(QWizard):
@@ -113,7 +112,7 @@ class EducationEditor(QMainWindow):
         self.setCentralWidget(QWidget())
 
         name_label = QLabel("Name:")
-        name_label.setFont(QFont(Settings().value("app_font"), 14))
+        name_label.setFont(QFont(Settings().get("app_font"), 14))
         layout.addWidget(name_label)
         self.name_ledit = QLineEdit()
         self.name_ledit.textEdited.connect(self.name_changed)
@@ -145,7 +144,7 @@ class EducationEditor(QMainWindow):
         layout.addLayout(select_layout)
 
         page_label = QLabel("Make a Tour:")
-        page_label.setFont(QFont(Settings().value("app_font"), 14))
+        page_label.setFont(QFont(Settings().get("app_font"), 14))
         self.format_cmbx = QComboBox()
         self.format_cmbx.addItems(["PlainText", "HTML"])
         self.format_cmbx.currentTextChanged.connect(self.format_changed)
@@ -155,20 +154,20 @@ class EducationEditor(QMainWindow):
         self.page_list = CheckDictEditList(
             self.edu["tour_list"], self.edu["tour"], show_index=True
         )
-        self.page_list.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        self.page_list.setSizePolicy(SP_MAX, SP_MAX)
         self.page_list.currentChanged.connect(self.page_changed)
         self.page_list.dataChanged.connect(self.page_edited)
         layout.addWidget(self.page_list)
 
         edit_layout = QGridLayout()
         edit_label = QLabel("Edit")
-        edit_layout.addWidget(edit_label, 0, 0, alignment=Qt.AlignHCenter)
+        edit_layout.addWidget(edit_label, 0, 0, alignment=ALIGN_HCENTER)
         self.page_edit = QTextEdit()
         self.page_edit.textChanged.connect(self.page_text_changed)
         edit_layout.addWidget(self.page_edit, 1, 0)
 
         preview_label = QLabel("Preview")
-        edit_layout.addWidget(preview_label, 0, 1, alignment=Qt.AlignHCenter)
+        edit_layout.addWidget(preview_label, 0, 1, alignment=ALIGN_HCENTER)
         self.page_display = QTextBrowser()
         self.page_display.setOpenExternalLinks(True)
         self.page_display.setReadOnly(True)
