@@ -58,7 +58,7 @@ class StreamWorker(QRunnable):
         self, kind: str, flush_interval_ms: int = 50, max_chunk_size: int = 8192
     ):
         super().__init__()
-        QRunnable.setAutoDelete(self, False)
+        self.setAutoDelete(False)
         self.kind = kind
         self.flush_interval_ms = flush_interval_ms
         self.max_chunk_size = max_chunk_size

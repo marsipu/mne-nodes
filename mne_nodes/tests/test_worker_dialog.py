@@ -9,7 +9,7 @@ import time
 
 from qtpy.QtCore import Qt
 
-from mne_nodes.__main__ import init_streams
+from mne_nodes.pipeline.streams import init_streams
 from mne_nodes.pipeline.execution import WorkerDialog
 
 

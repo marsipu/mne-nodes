@@ -5,6 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import json
+import os  # added
 from os import mkdir
 from os.path import isdir
 from pathlib import Path
@@ -13,14 +14,9 @@ import numpy as np
 import pytest
 from qtpy.QtWidgets import QMessageBox
 
-from mne_nodes.__main__ import init_logging
+# Force debug mode for all tests
+os.environ["MNENODES_DEBUG"] = "true"
 
-# Defer GUI-heavy imports to fixtures to avoid optional dependency errors in tests that don't need them
-from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.io import TypedJSONEncoder
-
-# Initialize logging for tests
-init_logging(debug_mode=True)
 
 test_parameters = {
     "int": 2,
@@ -61,6 +57,10 @@ alternative_test_parameters = {
 
 @pytest.fixture
 def controller(tmp_path, monkeypatch):
+    """Fixture to create a Controller with temporary config, data and subjects
+    directories."""
+    from mne_nodes.pipeline.controller import Controller
+
     # Create a config_file, data_path and subjects_dir
     controller_name = "test"
     data_path = tmp_path / "MEEG"
@@ -196,6 +196,10 @@ def test_script(tmp_path, test_code):
 
 @pytest.fixture
 def test_module_config(tmp_path, test_script):
+    """Fixture to create a temporary JSON configuration file for the test
+    module."""
+    from mne_nodes.pipeline.io import TypedJSONEncoder
+
     # Generate test configuration file
     test_config = {
         "module_name": "test_module",

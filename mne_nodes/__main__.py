@@ -7,55 +7,23 @@ Github: https://github.com/marsipu/mne-nodes
 import argparse
 import logging
 import sys
-from pathlib import Path
 
 import qtpy
 from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
-from mne_nodes.gui.console import StdoutStderrStream
 from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
-from mne_nodes.pipeline.settings import Settings
 from mne_nodes.qt_compat import AA_DONT_USE_NATIVE_DIALOGS
+from mne_nodes.pipeline.streams import init_streams, init_logging
 
 app_name = "mne-nodes"
 organization_name = "marsipu"
 domain_name = "https://github.com/marsipu/mne-nodes"
-
-
-def init_streams() -> None:
-    # Redirect stdout and stderr to capture it later in GUI
-    sys.stdout = StdoutStderrStream("stdout")
-    sys.stderr = StdoutStderrStream("stderr")
-
-
-def init_logging(debug_mode: bool = False) -> None:
-    """Initialize Root Logger."""
-    logger = logging.getLogger()
-    if debug_mode:
-        logger.setLevel(logging.DEBUG)
-        fmt = "{asctime} [{levelname}] {module}.{funcName}: {message}"
-    else:
-        logger.setLevel(Settings().get("log_level", default=logging.INFO))
-        fmt = "[{levelname}] {message}"
-    # Format console handler
-    date_fmt = "%H:%M:%S"
-    formatter = logging.Formatter(fmt, date_fmt, style="{")
-    console_handler = logging.StreamHandler()
-    console_handler.set_name("console")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    # Format file handler
-    logging_path = Settings().get("log_file_path") or Path.home() / "mne_nodes.log"
-    file_handler = logging.FileHandler(logging_path, mode="w", encoding="utf-8")
-    file_handler.set_name("file")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
 
 
 def main() -> None:
