@@ -185,7 +185,6 @@ class ConsoleWidget(QPlainTextEdit):
         self.setReadOnly(True)
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setFont(QFont("Consolas", 12))
-        self.highlighter = PythonHighlighter(self.document())
         self.autoscroll = True
         self.buffer_time = 50
         self._streams: dict[str, StreamWorker] = {}

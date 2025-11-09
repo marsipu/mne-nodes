@@ -928,7 +928,7 @@ class Controller:
                     "Skipping this instruction."
                 )
         code += self.tab + "except Exception as e:\n"
-        code += self.tab * 2 + "print(f'Error processing {meeg_name}: {e}')\n"
+        code += self.tab * 2 + "print(f'[Error] for {meeg_name}: {e}')\n"
         code += self.tab * 2 + "traceback.print_exc()\n"
         code += self.tab * 2 + "continue\n"
 

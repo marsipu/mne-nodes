@@ -7,6 +7,8 @@ Github: https://github.com/marsipu/mne-nodes
 import logging
 import traceback
 
+from mne_nodes.tests._test_utils import create_console
+
 
 def test_console_stream_basic(qtbot):
     """Set up a ConsoleWidget and write via streams (bytes and str)."""
@@ -36,17 +38,8 @@ def test_logging(qtbot):
     Also verify that a real exception traceback reaches the stderr
     stream.
     """
-    from mne_nodes.gui.console import MainConsoleWidget
-    from mne_nodes.pipeline.streams import init_streams, init_logging
-
-    # Initialize streams and logging
-    # Putting stream initialization into a fixture doesn't
-    init_streams()
-    init_logging()
-    # Create console widget
-    console = MainConsoleWidget()
-    qtbot.addWidget(console)
-    try:
+    with create_console() as console:
+        qtbot.addWidget(console)
         wait_time = console.buffer_time * 2
         # stdout: plain print
         print("Print-Test")
@@ -68,6 +61,26 @@ def test_logging(qtbot):
         logging.info("Logging-Test")
         qtbot.wait(wait_time)
         assert "[INFO] Logging-Test" in console.toPlainText()
-    finally:
-        # Stop streams to avoid blocking the test after finish
-        console.stop_streams()
+
+
+def test_formatting(qtbot):
+    # ToDo Next: Fix Console formatting
+    import tqdm
+
+    with create_console() as console:
+        qtbot.addWidget(console)
+        console.resize(800, 600)
+        console.show()
+        print("Test")
+        qtbot.wait(1000)
+        for _ in tqdm.tqdm(range(20), desc="Progress"):
+            qtbot.wait(50)
+        qtbot.wait(1000)
+        try:
+            raise RuntimeError("Test-Error")
+        except RuntimeError:
+            # This prints a full traceback to sys.stderr (hooked by the console)
+            traceback.print_exc()
+        qtbot.wait(1000)
+        print("Test2")
+        qtbot.wait(5000)
