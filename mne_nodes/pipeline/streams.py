@@ -8,8 +8,38 @@ import logging
 import sys
 from pathlib import Path
 
-from mne_nodes.gui.console import StdoutStderrStream
+from qtpy.QtCore import QObject, Signal
+import io
 from mne_nodes.pipeline.settings import Settings
+
+
+# ---------------------------------------------------------------------------
+# Stdout/Stderr redirection
+# ---------------------------------------------------------------------------
+class StreamSignals(QObject):
+    text_written = Signal(str)
+
+
+class StdoutStderrStream(io.TextIOBase):
+    def __init__(self, kind):
+        super().__init__()
+        self.signal = StreamSignals()
+        self.original_stream = sys.__stdout__ if kind == "stdout" else sys.__stderr__
+
+    def write(self, text):  # type: ignore[override]
+        try:
+            if self.original_stream:
+                self.original_stream.write(text)
+        except OSError:
+            pass
+        self.signal.text_written.emit(text)
+
+    def flush(self):  # type: ignore[override]
+        try:
+            if self.original_stream:
+                self.original_stream.flush()
+        except OSError:
+            pass
 
 
 def init_streams() -> None:

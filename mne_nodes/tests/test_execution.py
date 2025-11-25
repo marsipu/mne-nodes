@@ -11,7 +11,7 @@ import sys
 import pytest
 
 from mne_nodes.__main__ import init_streams, init_logging
-from mne_nodes.pipeline.execution import QProcessDialog
+from mne_nodes.pipeline.execution import ProcessDialog
 
 
 @pytest.mark.timeout(10)
@@ -70,7 +70,7 @@ def test_qprocess_dialog_execution(qtbot, main_window, controller):
     py_snippet = "import sys; print('DIALOG_OUT'); print('DIALOG_ERR', file=sys.stderr)"
     commands = [[sys.executable, "-c", py_snippet]]
 
-    dialog = QProcessDialog(
+    dialog = ProcessDialog(
         parent=main_window,
         commands=commands,
         show_buttons=False,

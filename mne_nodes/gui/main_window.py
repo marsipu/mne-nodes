@@ -17,7 +17,7 @@ from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
-from mne_nodes.pipeline.execution import QProcessDialog, QProcessWorker
+from mne_nodes.pipeline.execution import ProcessDialog, ProcessWorker
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 
 
@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Process handling (unified via QProcessWorker)
     # ------------------------------------------------------------------
-    def attach_process(self, process_idx: int, worker: QProcessWorker):
+    def attach_process(self, process_idx: int, worker: ProcessWorker):
         """Attach a QProcessWorker to the console dock and manage its
         lifecycle."""
         # Prepare per-process UI in the dock
@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
             )
         else:
             # Register with controller for central tracking
-            QProcessDialog(
+            ProcessDialog(
                 self,
                 command,
                 show_buttons=True,
@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
 
     def update_mne(self):
         command = "pip install --upgrade mne"
-        QProcessDialog(
+        ProcessDialog(
             self,
             command,
             show_buttons=True,

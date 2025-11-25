@@ -216,7 +216,7 @@ class WorkerDialog(QDialog):
             event.ignore()
 
 
-class QProcessWorker(QObject):
+class ProcessWorker(QObject):
     """A worker for QProcess.
 
     Unified abstraction for launching one or multiple external commands
@@ -281,7 +281,7 @@ class QProcessWorker(QObject):
     def handle_stdout(self):
         if not self.process:
             return
-        text = bytes(self.process.readAllStandardOutput()).decode("utf8", "replace")
+        text = self.process.readAllStandardOutput().data().decode("utf8", "replace")
         self.stdoutSignal.emit(text)
         if self.printtostd:
             sys.stdout.write(text)
@@ -289,7 +289,7 @@ class QProcessWorker(QObject):
     def handle_stderr(self):
         if not self.process:
             return
-        text = bytes(self.process.readAllStandardError()).decode("utf8", "replace")
+        text = self.process.readAllStandardError().data().decode("utf8", "replace")
         self.stderrSignal.emit(text)
         if self.printtostd:
             sys.stderr.write(text)
@@ -356,7 +356,7 @@ class QProcessWorker(QObject):
             self.process.kill()
 
 
-class QProcessDialog(QDialog):
+class ProcessDialog(QDialog):
     def __init__(
         self,
         parent,
@@ -435,15 +435,15 @@ class QProcessDialog(QDialog):
                 self.commands, kind="dialog"
             )
         else:
-            self.process_worker = QProcessWorker(self.commands)
+            self.process_worker = ProcessWorker(self.commands)
         if self.show_console:
-            self.console_output.add_stream("stdout")
-            self.console_output.add_stream("stderr")
+            self.console_output.add_stream_worker("stdout")
+            self.console_output.add_stream_worker("stderr")
             self.process_worker.stdoutSignal.connect(
-                lambda text: self.console_output.get_stream("stdout").push(text)
+                lambda text: self.console_output.push_stdout(text)
             )
             self.process_worker.stderrSignal.connect(
-                lambda text: self.console_output.get_stream("stderr").push(text)
+                lambda text: self.console_output.push_stderr(text)
             )
         self.process_worker.finished.connect(self.process_finished)
         self.process_worker.start()

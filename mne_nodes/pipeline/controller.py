@@ -626,7 +626,7 @@ class Controller:
             The initialized (but not yet started) worker instance.
         """
         from mne_nodes.pipeline.execution import (
-            QProcessWorker,
+            ProcessWorker,
         )  # local import to avoid cycles
 
         proc_idx = len(self._procs)
@@ -636,7 +636,7 @@ class Controller:
             "state": "starting",
             "kind": kind,
         }
-        worker = QProcessWorker(commands, working_directory=working_directory)
+        worker = ProcessWorker(commands, working_directory=working_directory)
         self._proc_workers[proc_idx] = worker
         # Wire state & finish updates into controller bookkeeping
         worker.stateChanged.connect(

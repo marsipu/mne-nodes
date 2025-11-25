@@ -110,7 +110,7 @@ from mne_nodes.gui.parameter_widgets import SettingsDlg, IntGui, BoolGui, Parame
 from mne_nodes.gui.plot_widgets import PlotViewSelection
 from mne_nodes.gui.tools import DataTerminal
 from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.execution import WorkerDialog, QProcessDialog
+from mne_nodes.pipeline.execution import WorkerDialog, ProcessDialog
 from mne_nodes.pipeline.function_utils import close_all, QRunController
 from mne_nodes.pipeline.io import encode_tuples, TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
@@ -2152,7 +2152,7 @@ class OldMainWindow(QMainWindow):
                 f'and type "{command}" into the terminal!',
             )
         else:
-            QProcessDialog(
+            ProcessDialog(
                 self,
                 command,
                 show_buttons=True,
@@ -2174,7 +2174,7 @@ class OldMainWindow(QMainWindow):
 
     def update_mne(self):
         command = "pip install --upgrade mne"
-        QProcessDialog(
+        ProcessDialog(
             self,
             command,
             show_buttons=True,
@@ -2438,7 +2438,7 @@ class RunDialog(QDialog):
 
     def pause_funcs(self):
         self.rc.paused = True
-        self.console_widget.write_html("<br><b>Finishing last function...</b><br>")
+        self.console_widget.appendHtml("<br><b>Finishing last function...</b><br>")
 
     def restart(self):
         # Reinitialize controller

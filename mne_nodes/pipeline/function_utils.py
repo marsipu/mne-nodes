@@ -364,7 +364,7 @@ class QRunController(RunController):
         super().get_object()
         # Print Headline for object if new
         if old_obj_name != self.current_obj_name:
-            self.rd.console_widget.write_html(
+            self.rd.console_widget.appendHtml(
                 f"<br><h1>{self.current_obj_name}</h1><br>"
             )
         # Load functions for object into func_model
@@ -374,7 +374,7 @@ class QRunController(RunController):
         self.rd.func_model.layoutChanged.emit()
 
         # Print Headline for function
-        self.rd.console_widget.write_html(f"<h2>{self.current_func}</h2><br>")
+        self.rd.console_widget.appendHtml(f"<h2>{self.current_func}</h2><br>")
 
     def process_finished(self, result):
         self.prog_count += 1
@@ -382,7 +382,7 @@ class QRunController(RunController):
         self.mark_current_items(0)
         # Process
         if self.paused:
-            self.rd.console_widget.write_html("<b><big>Paused</big></b><br>")
+            self.rd.console_widget.appendHtml("<b><big>Paused</big></b><br>")
             # Enable/Disable Buttons
             self.rd.continue_bt.setEnabled(True)
             self.rd.pause_bt.setEnabled(False)
@@ -401,7 +401,7 @@ class QRunController(RunController):
 
                 # Insert Error-Number into console-widget as an anchor
                 # for later inspection
-                self.rd.console_widget.write_html(
+                self.rd.console_widget.appendHtml(
                     f"<b>Error-No. {self.error_count} (above)</b><br>"
                 )
                 # Increase Error-Count by one
@@ -411,7 +411,7 @@ class QRunController(RunController):
             self.start()
 
     def finished(self):
-        self.rd.console_widget.write_html("<b><big>Finished</big></b><br>")
+        self.rd.console_widget.appendHtml("<b><big>Finished</big></b><br>")
         # Enable/Disable Buttons
         self.rd.continue_bt.setEnabled(False)
         self.rd.pause_bt.setEnabled(False)
