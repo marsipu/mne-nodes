@@ -15,6 +15,7 @@ from types import FunctionType
 from typing import List
 
 import pandas as pd
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -31,7 +32,6 @@ from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckList, EditDict, EditList, SimpleList
 from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
-from mne_nodes.qt_compat import CHECKED, UNCHECKED, ITEM_IS_USER_CHECKABLE
 
 
 class EditGuiArgsDlg(QDialog):
@@ -359,15 +359,15 @@ class SelectDependencies(QDialog):
     def populate_listw(self):
         for function in self.cf_dialog.ct.pd_funcs.index:
             item = QListWidgetItem(function)
-            item.setFlags(item.flags() | ITEM_IS_USER_CHECKABLE)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             if function in self.dpd_list:
-                item.setCheckState(CHECKED)
+                item.setCheckState(Qt.CheckState.Checked)
             else:
-                item.setCheckState(UNCHECKED)
+                item.setCheckState(Qt.CheckState.Unchecked)
             self.listw.addItem(item)
 
     def item_checked(self, item):
-        if item.checkState == CHECKED:
+        if item.checkState == Qt.CheckState.Checked:
             self.dpd_list.append(item.text())
         elif item.text() in self.dpd_list:
             self.dpd_list.remove(item.text())

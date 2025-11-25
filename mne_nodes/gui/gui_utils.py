@@ -14,7 +14,7 @@ from os.path import join
 
 import darkdetect
 from qtpy import compat
-from qtpy.QtCore import QEvent, QPoint
+from qtpy.QtCore import QEvent, QPoint, Qt
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -36,15 +36,6 @@ import mne_nodes
 from mne_nodes import _widgets, main_widget
 from mne_nodes import extra
 from mne_nodes.pipeline.settings import Settings
-from mne_nodes.qt_compat import (
-    MB_YES,
-    MB_NO,
-    MB_CANCEL,
-    NO_MODIFIER,
-    MOUSE_NONE,
-    MOUSE_LEFT,
-    KEY_NO_MODIFIER,
-)
 
 
 def center(widget):
@@ -92,13 +83,17 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
     if mne_nodes.gui_mode:
         parent = main_widget()
         if cancel_allowed:
-            buttons = MB_YES | MB_NO | MB_CANCEL
+            buttons = (
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel
+            )
         else:
-            buttons = MB_YES | MB_NO
+            buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         ans = QMessageBox.question(parent, "Question", prompt, buttons=buttons)
-        ok = ans in [MB_YES, MB_NO]
-        cancel = ans == MB_CANCEL
-        ans = ans == MB_YES
+        ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
+        cancel = ans == QMessageBox.StandardButton.Cancel
+        ans = ans == QMessageBox.StandardButton.Yes
     else:
         if cancel_allowed:
             prompt += " (yes/no/cancel): "
@@ -272,17 +267,19 @@ def mouse_interaction(func):
 @mouse_interaction
 def mousePress(widget=None, pos=None, button=None, modifier=None):
     if modifier is None:
-        modifier = NO_MODIFIER
-    event = QMouseEvent(QEvent.Type.MouseButtonPress, pos, button, MOUSE_NONE, modifier)
+        modifier = Qt.KeyboardModifier.NoModifier
+    event = QMouseEvent(
+        QEvent.Type.MouseButtonPress, pos, button, Qt.MouseButton.NoButton, modifier
+    )
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseRelease(widget=None, pos=None, button=None, modifier=None):
     if modifier is None:
-        modifier = NO_MODIFIER
+        modifier = Qt.KeyboardModifier.NoModifier
     event = QMouseEvent(
-        QEvent.Type.MouseButtonRelease, pos, button, MOUSE_NONE, modifier
+        QEvent.Type.MouseButtonRelease, pos, button, Qt.MouseButton.NoButton, modifier
     )
     QApplication.sendEvent(widget, event)
 
@@ -290,13 +287,15 @@ def mouseRelease(widget=None, pos=None, button=None, modifier=None):
 @mouse_interaction
 def mouseMove(widget=None, pos=None, button=None, modifier=None):
     if button is None:
-        button = MOUSE_NONE
+        button = Qt.MouseButton.NoButton
     if modifier is None:
-        modifier = NO_MODIFIER
+        modifier = Qt.KeyboardModifier.NoModifier
 
     if isinstance(pos, QPoint):
         pass
-    event = QMouseEvent(QEvent.Type.MouseMove, pos, MOUSE_NONE, button, modifier)
+    event = QMouseEvent(
+        QEvent.Type.MouseMove, pos, Qt.MouseButton.NoButton, button, modifier
+    )
     QApplication.sendEvent(widget, event)
 
 
@@ -317,7 +316,12 @@ def mouseDrag(widget, positions, button, modifier=None):
 
 
 def mouseDragBetween(
-    widget_from, pos_from, widget_to, pos_to, button=MOUSE_LEFT, modifier=None
+    widget_from,
+    pos_from,
+    widget_to,
+    pos_to,
+    button=Qt.MouseButton.LeftButton,
+    modifier=None,
 ):
     """Drag from one widget to another using low-level mouse events.
 
@@ -325,7 +329,7 @@ def mouseDragBetween(
     held to trigger startDrag, then moves into target and releases.
     """
     if modifier is None:
-        modifier = KEY_NO_MODIFIER
+        modifier = Qt.KeyboardModifier.NoModifier
     QTest.qWaitForWindowExposed(widget_from.window())
     QTest.qWaitForWindowExposed(widget_to.window())
     # Press on source

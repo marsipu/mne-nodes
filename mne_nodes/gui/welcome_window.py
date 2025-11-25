@@ -9,6 +9,7 @@ from os import listdir
 from os.path import isdir, join
 
 from qtpy import compat
+from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont, QPixmap
 from qtpy.QtWidgets import (
     QComboBox,
@@ -20,7 +21,6 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes.qt_compat import ALIGN_RIGHT
 from mne_nodes import _widgets, extra
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import center, get_user_input
@@ -64,7 +64,7 @@ class WelcomeWindow(QWidget):
         home_layout.addWidget(self.home_path_label, stretch=4)
         self.home_path_bt = QPushButton("Set Home-Folder")
         self.home_path_bt.clicked.connect(self.set_home_path)
-        home_layout.addWidget(self.home_path_bt, alignment=ALIGN_RIGHT)
+        home_layout.addWidget(self.home_path_bt, alignment=Qt.AlignmentFlag.AlignRight)
         layout.addLayout(home_layout)
 
         project_layout = QHBoxLayout()
@@ -76,7 +76,7 @@ class WelcomeWindow(QWidget):
         project_layout.addWidget(self.project_cmbx)
         self.add_pr_bt = QPushButton("Add Project")
         self.add_pr_bt.clicked.connect(self.add_project)
-        project_layout.addWidget(self.add_pr_bt, alignment=ALIGN_RIGHT)
+        project_layout.addWidget(self.add_pr_bt, alignment=Qt.AlignmentFlag.AlignRight)
         layout.addLayout(project_layout)
 
         self.edu_groupbox = QGroupBox("Education")

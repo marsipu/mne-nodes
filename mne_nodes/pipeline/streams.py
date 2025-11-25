@@ -40,7 +40,7 @@ def init_logging(debug_mode: bool = False) -> None:
         logger.setLevel(logging.DEBUG)
         fmt = "{asctime} [{levelname}] {module}.{funcName}: {message}"
     else:
-        logger.setLevel(Settings().value("log_level", defaultValue=logging.INFO))
+        logger.setLevel(Settings().get("log_level", default=logging.INFO))
         fmt = "[{levelname}] {message}"
 
     # Format console handler
@@ -52,7 +52,7 @@ def init_logging(debug_mode: bool = False) -> None:
     logger.addHandler(console_handler)
 
     # Format file handler
-    logging_path = Settings().value("log_file_path") or Path.home() / "mne_nodes.log"
+    logging_path = Settings().get("log_file_path") or Path.home() / "mne_nodes.log"
     file_handler = logging.FileHandler(logging_path, mode="w", encoding="utf-8")
     file_handler.set_name("file")
     file_handler.setFormatter(formatter)

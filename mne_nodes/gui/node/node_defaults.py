@@ -4,7 +4,7 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.qt_compat import PEN_SOLID
+from qtpy.QtCore import Qt
 
 defaults = {
     "nodes": {
@@ -32,7 +32,7 @@ defaults = {
         "disabled_color": (200, 60, 60, 255),
         "active_color": (70, 255, 220, 255),
         "highlight_color": (232, 184, 13, 255),
-        "style": PEN_SOLID,
+        "style": Qt.PenStyle.SolidLine,
     },
     "viewer": {
         "background_color": (35, 35, 35),

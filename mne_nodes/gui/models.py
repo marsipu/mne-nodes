@@ -20,35 +20,6 @@ from qtpy.QtCore import (
 from qtpy.QtGui import QBrush, QFont
 
 from mne_nodes.gui.gui_utils import get_std_icon
-from mne_nodes.qt_compat import (
-    DISPLAY_ROLE,
-    DECORATION_ROLE,
-    BACKGROUND_ROLE,
-    DRAG_ENABLED_FLAG,
-    DROP_COPY,
-    SORT_ASC,
-    COLOR_DARK_RED,
-    COLOR_GREEN,
-    COLOR_LIGHT_GRAY,
-    COLOR_DARK_YELLOW,
-    CHECKED,
-    UNCHECKED,
-    ITEM_IS_USER_CHECKABLE,
-    ITEM_IS_EDITABLE,
-    HORIZONTAL,
-    VERTICAL,
-    EDIT_ROLE,
-    CHECK_STATE_ROLE,
-    NO_ITEM_FLAGS,
-    ITEM_IS_ENABLED,
-    ITEM_IS_SELECTABLE,
-    TOOLTIP_ROLE,
-    FOREGROUND_ROLE,
-    DARK_GRAY,
-    GREEN,
-    DARK_GREEN,
-    FONT_ROLE,
-)
 
 
 # ToDo: Merge models and base widgets
@@ -96,12 +67,12 @@ class BaseListModel(QAbstractListModel):
 
     def data(self, index, role=None):
         val = self.getData(index)
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if self.show_index:
                 return f"{index.row()}: {val}" if val is not None else ""
             else:
                 return "" if val is None else str(val)
-        elif role == EDIT_ROLE:
+        elif role == Qt.ItemDataRole.EditRole:
             return "" if val is None else str(val)
 
     def rowCount(self, *args, **kwargs):
@@ -150,12 +121,12 @@ class EditListModel(BaseListModel):
     def flags(self, index):
         default_flags = BaseListModel.flags(self, index)
         if index.isValid():
-            return default_flags | ITEM_IS_EDITABLE
+            return default_flags | Qt.ItemFlag.ItemIsEditable
         else:
             return default_flags
 
     def setData(self, index, value, role=None):
-        if role == EDIT_ROLE and index and index.isValid():
+        if role == Qt.ItemDataRole.EditRole and index and index.isValid():
             try:
                 self._data[index.row()] = literal_eval(value)
             except (ValueError, SyntaxError):
@@ -207,24 +178,28 @@ class CheckListModel(BaseListModel):
 
     def data(self, index, role=None):
         val = self.getData(index)
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if self.show_index:
                 return f"{index.row()}: {val}" if val is not None else ""
             else:
                 return "" if val is None else str(val)
 
-        if role == CHECK_STATE_ROLE:
+        if role == Qt.ItemDataRole.CheckStateRole:
             if val is None:
                 return None
-            return CHECKED if val in self._checked else UNCHECKED
+            return (
+                Qt.CheckState.Checked
+                if val in self._checked
+                else Qt.CheckState.Unchecked
+            )
 
     def setData(self, index, value, role=None):
-        if role == CHECK_STATE_ROLE and index and index.isValid():
+        if role == Qt.ItemDataRole.CheckStateRole and index and index.isValid():
             val = self.getData(index)
             if val is None:
                 return False
             # In PyQt5 value is an integer, in PySide6 it is a Qt.CheckState
-            if value in [CHECKED, 2]:
+            if value in [Qt.CheckState.Checked, 2]:
                 if self.one_check:
                     self._checked.clear()
                 if val not in self._checked:
@@ -237,7 +212,7 @@ class CheckListModel(BaseListModel):
         return False
 
     def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | ITEM_IS_USER_CHECKABLE
+        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsUserCheckable
 
 
 class CheckDictModel(BaseListModel):
@@ -296,15 +271,15 @@ class CheckDictModel(BaseListModel):
 
     def data(self, index, role=None):
         val = self.getData(index)
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if self.show_index:
                 return f"{index.row()}: {val}" if val is not None else ""
             else:
                 return "" if val is None else str(val)
-        elif role == EDIT_ROLE:
+        elif role == Qt.ItemDataRole.EditRole:
             return "" if val is None else str(val)
 
-        elif role == DECORATION_ROLE:
+        elif role == Qt.ItemDataRole.DecorationRole:
             if val is None:
                 return None
             if val in self._check_dict:
@@ -385,17 +360,17 @@ class BaseDictModel(QAbstractTableModel):
             return ""
 
     def data(self, index, role=None):
-        if role == DISPLAY_ROLE or role == EDIT_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
             return str(self.getData(index))
 
     def headerData(self, idx, orientation, role=None):
-        if role == DISPLAY_ROLE:
-            if orientation == HORIZONTAL:
+        if role == Qt.ItemDataRole.DisplayRole:
+            if orientation == Qt.Orientation.Horizontal:
                 if idx == 0:
                     return "Key"
                 elif idx == 1:
                     return "Value"
-            elif orientation == VERTICAL:
+            elif orientation == Qt.Orientation.Vertical:
                 return str(idx)
 
     def rowCount(self, parent=None, *args, **kwargs):
@@ -429,7 +404,7 @@ class EditDictModel(BaseDictModel):
         self.only_edit = only_edit
 
     def setData(self, index, value, role=None):
-        if role == EDIT_ROLE:
+        if role == Qt.ItemDataRole.EditRole:
             try:
                 value = literal_eval(value)
             except (SyntaxError, ValueError):
@@ -448,11 +423,11 @@ class EditDictModel(BaseDictModel):
 
     def flags(self, index):
         if not self.only_edit:
-            return QAbstractItemModel.flags(self, index) | ITEM_IS_EDITABLE
+            return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsEditable
         elif index.column() == 0 and self.only_edit == "keys":
-            return QAbstractItemModel.flags(self, index) | ITEM_IS_EDITABLE
+            return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsEditable
         elif index.column() == 1 and self.only_edit == "values":
-            return QAbstractItemModel.flags(self, index) | ITEM_IS_EDITABLE
+            return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsEditable
         else:
             return QAbstractItemModel.flags(self, index)
 
@@ -504,14 +479,14 @@ class BasePandasModel(QAbstractTableModel):
         return self._data.iloc[index.row(), index.column()]
 
     def data(self, index, role=None):
-        if role == DISPLAY_ROLE or role == EDIT_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
             return str(self.getData(index))
 
     def headerData(self, idx, orientation, role=None):
-        if role == DISPLAY_ROLE:
-            if orientation == HORIZONTAL:
+        if role == Qt.ItemDataRole.DisplayRole:
+            if orientation == Qt.Orientation.Horizontal:
                 return str(self._data.columns[idx])
-            elif orientation == VERTICAL:
+            elif orientation == Qt.Orientation.Vertical:
                 return str(self._data.index[idx])
 
     def rowCount(self, parent=None, *args, **kwargs):
@@ -541,7 +516,7 @@ class EditPandasModel(BasePandasModel):
         super().__init__(data, **kwargs)
 
     def setData(self, index, value, role=None):
-        if role == EDIT_ROLE:
+        if role == Qt.ItemDataRole.EditRole:
             try:
                 value = literal_eval(value)
                 # List or Dictionary not allowed here as PandasDataFrame-Item
@@ -555,30 +530,30 @@ class EditPandasModel(BasePandasModel):
 
         return False
 
-    def setHeaderData(self, index, orientation, value, role=EDIT_ROLE):
-        if role == EDIT_ROLE:
-            if orientation == VERTICAL:
+    def setHeaderData(self, index, orientation, value, role=Qt.ItemDataRole.EditRole):
+        if role == Qt.ItemDataRole.EditRole:
+            if orientation == Qt.Orientation.Vertical:
                 # DataFrame.rename does rename all duplicate indices
                 # if existent, that's why the index is reassigned directly
                 new_index = list(self._data.index)
                 new_index[index] = value
                 self._data.index = new_index
-                self.headerDataChanged.emit(VERTICAL, index, index)
+                self.headerDataChanged.emit(Qt.Orientation.Vertical, index, index)
                 return True
 
-            elif orientation == HORIZONTAL:
+            elif orientation == Qt.Orientation.Horizontal:
                 # DataFrame.rename does rename all duplicate columns
                 # if existent, that's why the columns are reassigned directly
                 new_columns = list(self._data.columns)
                 new_columns[index] = value
                 self._data.columns = new_columns
-                self.headerDataChanged.emit(HORIZONTAL, index, index)
+                self.headerDataChanged.emit(Qt.Orientation.Horizontal, index, index)
                 return True
 
         return False
 
     def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | ITEM_IS_EDITABLE
+        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsEditable
 
     def insertRows(self, row, count, parent=None, *args, **kwargs):
         self.beginInsertRows(parent, row, row + count - 1)
@@ -799,14 +774,17 @@ class TreeModel(QAbstractItemModel):
         if not index.isValid():
             return None
 
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             item = index.internalPointer()
             return item.data(index.column())
 
         return None
 
     def headerData(self, section, orientation, role=None):
-        if orientation == HORIZONTAL and role == DISPLAY_ROLE:
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+        ):
             if 0 <= section < len(self._headers):
                 return self._headers[section]
         return None
@@ -853,9 +831,9 @@ class TreeModel(QAbstractItemModel):
 
     def flags(self, index):
         if not index.isValid():
-            return NO_ITEM_FLAGS
+            return Qt.ItemFlag.NoItemFlags
 
-        return ITEM_IS_ENABLED | ITEM_IS_SELECTABLE
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
 
 class AddFilesModel(BasePandasModel):
@@ -865,25 +843,25 @@ class AddFilesModel(BasePandasModel):
     def data(self, index, role=None):
         column = self._data.columns[index.column()]
 
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if column != "Empty-Room?":
                 return str(self.getData(index))
             else:
                 return ""
 
-        elif role == CHECK_STATE_ROLE:
+        elif role == Qt.ItemDataRole.CheckStateRole:
             if column == "Empty-Room?":
                 if self.getData(index):
-                    return CHECKED
+                    return Qt.CheckState.Checked
                 else:
-                    return UNCHECKED
+                    return Qt.CheckState.Unchecked
 
     def setData(self, index, value, role=None):
         if (
-            role == CHECK_STATE_ROLE
+            role == Qt.ItemDataRole.CheckStateRole
             and self._data.columns[index.column()] == "Empty-Room?"
         ):
-            if value == CHECKED:
+            if value == Qt.CheckState.Checked:
                 self._data.iloc[index.row(), index.column()] = 1
             else:
                 self._data.iloc[index.row(), index.column()] = 0
@@ -894,7 +872,9 @@ class AddFilesModel(BasePandasModel):
 
     def flags(self, index):
         if self._data.columns[index.column()] == "Empty-Room?":
-            return QAbstractItemModel.flags(self, index) | ITEM_IS_USER_CHECKABLE
+            return (
+                QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsUserCheckable
+            )
 
         return QAbstractItemModel.flags(self, index)
 
@@ -908,7 +888,7 @@ class FileManagementModel(BasePandasModel):
 
     def data(self, index, role=None):
         value = self.getData(index)
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if pd.isna(value) or value in [
                 "existst",
                 "possible_conflict",
@@ -925,7 +905,7 @@ class FileManagementModel(BasePandasModel):
                 else:
                     return f"{int(value / (1024**2))} MB"
 
-        if role == DECORATION_ROLE:
+        if role == Qt.ItemDataRole.DecorationRole:
             if pd.isna(value) or value == 0:
                 return get_std_icon("SP_DialogCancelButton")
             elif value == "exists":
@@ -935,15 +915,15 @@ class FileManagementModel(BasePandasModel):
             elif value == "critical_conflict":
                 return get_std_icon("SP_MessageBoxWarning")
 
-        elif role == BACKGROUND_ROLE:
+        elif role == Qt.ItemDataRole.BackgroundRole:
             if pd.isna(value) or value == 0:
-                return QBrush(COLOR_DARK_RED)
+                return QBrush(Qt.GlobalColor.darkRed)
             elif value == "exists":
-                return QBrush(COLOR_GREEN)
+                return QBrush(Qt.GlobalColor.green)
             elif value == "possible_conflict":
-                return QBrush(COLOR_LIGHT_GRAY)
+                return QBrush(Qt.GlobalColor.lightGray)
             elif value == "critical_conflict":
-                return QBrush(COLOR_DARK_YELLOW)
+                return QBrush(Qt.GlobalColor.darkYellow)
 
 
 # ------------------------ NodePicker Models -------------------------------
@@ -962,13 +942,13 @@ class PickerModel(BasePandasModel):
         super().__init__(data, **kwargs)
 
     def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | DRAG_ENABLED_FLAG
+        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsDragEnabled
 
     def mimeTypes(self):
         return ["text/plain"]
 
     def supportedDragActions(self):
-        return DROP_COPY
+        return Qt.DropAction.CopyAction
 
     def sort(self, column: int, order: Qt.SortOrder):
         self.layoutAboutToBeChanged.emit()
@@ -976,7 +956,7 @@ class PickerModel(BasePandasModel):
             self._data.columns[column],
             axis=0,
             inplace=True,
-            ascending=order == SORT_ASC,
+            ascending=order == Qt.SortOrder.AscendingOrder,
         )
         self.layoutChanged.emit()
 
@@ -1021,7 +1001,7 @@ class FunctionPickerModel(PickerModel):
         return md
 
     def data(self, index, role=None):
-        if role == TOOLTIP_ROLE:
+        if role == Qt.ItemDataRole.ToolTipRole:
             fname = self._data.index[index.row()]
             meta = self._metas.get(fname, {})
             alias = meta.get("alias")
@@ -1075,7 +1055,7 @@ class InputPickerModel(PickerModel):
         return md
 
     def data(self, index, role=None):
-        if role == TOOLTIP_ROLE:
+        if role == Qt.ItemDataRole.ToolTipRole:
             dt = self._data.iloc[index.row()]["data_type"]
             group = self._data.iloc[index.row()]["group"]
             return f"Input node for data_type '{dt}', group '{group}'"
@@ -1116,10 +1096,10 @@ class CustomFunctionModel(QAbstractListModel):
         self.layoutChanged.emit()
 
     def data(self, index, role=None):
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             return str(self.getData(index))
 
-        elif role == DECORATION_ROLE:
+        elif role == Qt.ItemDataRole.DecorationRole:
             if self._data.loc[self.getData(index), "ready"]:
                 return get_std_icon("SP_DialogApplyButton")
             else:
@@ -1157,7 +1137,7 @@ class RunModel(QAbstractListModel):
         return self._data[self.getKey(index)]["type"]
 
     def data(self, index, role=None):
-        if role == DISPLAY_ROLE:
+        if role == Qt.ItemDataRole.DisplayRole:
             if self.mode == "object":
                 return f"{self.getType(index)}: {self.getKey(index)}"
             return self.getKey(index)
@@ -1167,26 +1147,26 @@ class RunModel(QAbstractListModel):
         # 1 = Pending
         # 2 = Currently Runnning
         # Return Foreground depending on state of object/function
-        elif role == FOREGROUND_ROLE:
+        elif role == Qt.ItemDataRole.ForegroundRole:
             if self.getValue(index) == 0:
-                return QBrush(DARK_GRAY)
+                return QBrush(Qt.GlobalColor.darkGray)
             elif self.getValue(index) == 2:
-                return QBrush(GREEN)
+                return QBrush(Qt.GlobalColor.green)
 
         # Return Background depending on state of object/function
-        elif role == BACKGROUND_ROLE:
+        elif role == Qt.ItemDataRole.BackgroundRole:
             if self.getValue(index) == 2:
-                return QBrush(DARK_GREEN)
+                return QBrush(Qt.GlobalColor.darkGreen)
 
         # Mark objects/functions if they are already done,
         # mark objects according to their type (color-code)
-        elif role == DECORATION_ROLE:
+        elif role == Qt.ItemDataRole.DecorationRole:
             if self.getValue(index) == 0:
                 return get_std_icon("SP_DialogApplyButton")
             elif self.getValue(index) == 2:
                 return get_std_icon("SP_ArrowRight")
 
-        elif role == FONT_ROLE:
+        elif role == Qt.ItemDataRole.FontRole:
             if self.getValue(index) == 2:
                 bold_font = QFont()
                 bold_font.setBold(True)

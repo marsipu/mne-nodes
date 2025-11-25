@@ -9,7 +9,7 @@ import os
 import shlex
 from inspect import signature
 
-from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, QProcess
+from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, QProcess, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
@@ -24,7 +24,6 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple, ExceptionTuple
-from mne_nodes.qt_compat import ALIGN_HCENTER
 
 
 class WorkerSignals(QObject):
@@ -151,7 +150,7 @@ class WorkerDialog(QDialog):
 
         self.progress_label = QLabel()
         self.progress_label.hide()
-        layout.addWidget(self.progress_label, alignment=ALIGN_HCENTER)
+        layout.addWidget(self.progress_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()

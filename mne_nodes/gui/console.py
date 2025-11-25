@@ -16,23 +16,33 @@ import re
 import sys
 import time
 
-# Added: import compatibility enums
-from mne_nodes.qt_compat import (ELIDE_RIGHT, ALIGN_CENTER, ALIGN_RIGHT, LEFT_DOCK,
-                                 RIGHT_DOCK, BOTTOM_DOCK, WA_DELETE_ON_CLOSE, )
-from qtpy.QtCore import QMutex, QWaitCondition, QRunnable, QThreadPool, QObject, Signal
-from qtpy.QtCore import (Qt, )
+from qtpy.QtCore import (
+    QMutex,
+    QWaitCondition,
+    QRunnable,
+    QThreadPool,
+    QObject,
+    Signal,
+    Qt,
+)
 from qtpy.QtGui import QTextCursor, QFont
-from qtpy.QtWidgets import (QPlainTextEdit, QDockWidget, QTabWidget, QHBoxLayout,
-                            QWidget, QLabel, QTabBar, )
+from qtpy.QtWidgets import (
+    QPlainTextEdit,
+    QDockWidget,
+    QTabWidget,
+    QHBoxLayout,
+    QWidget,
+    QLabel,
+    QTabBar,
+)
 
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.code_editor import PythonHighlighter
 
+
 # ---------------------------------------------------------------------------
 # Stream worker (decoding + progress detection)
 # ---------------------------------------------------------------------------
-
-
 class StreamWorkerSignals(QObject):
     text_ready = Signal(str)  # normal text (plain)
     progress_ready = Signal(str, bool)  # progress line + finished flag
@@ -344,11 +354,11 @@ class NotificationTabs(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.bubbles = {}
-        self.tabBar().setElideMode(ELIDE_RIGHT)
+        self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
 
     def add_tab(self, widget, tab_name, count=0):
         bubble = QLabel(str(count))
-        bubble.setAlignment(ALIGN_CENTER)
+        bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
         bubble.setStyleSheet(
             """background-color: red; color: white; border-radius: 8px; min-width: 16px; min-height: 16px; font-weight: bold; padding: 0 4px; font-size: 10pt;"""
         )
@@ -357,7 +367,7 @@ class NotificationTabs(QTabWidget):
         layout = QHBoxLayout(bubble_container)
         layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(bubble, 0, ALIGN_RIGHT)
+        layout.addWidget(bubble, 0, Qt.AlignmentFlag.AlignRight)
         self.tabBar().setTabButton(
             index, QTabBar.ButtonPosition.RightSide, bubble_container
         )
@@ -445,7 +455,11 @@ class ConsoleDock(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
-        self.setAllowedAreas(LEFT_DOCK | RIGHT_DOCK | BOTTOM_DOCK)
+        self.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea
+            | Qt.DockWidgetArea.RightDockWidgetArea
+            | Qt.DockWidgetArea.BottomDockWidgetArea
+        )
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.process_tabs: dict[int, dict[str, object]] = {}
         self._process_tab_indexes: dict[int, int] = {}

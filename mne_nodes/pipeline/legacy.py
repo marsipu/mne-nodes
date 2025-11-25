@@ -27,7 +27,7 @@ import mne
 import numpy as np
 import pandas as pd
 from qtpy import compat
-from qtpy.QtCore import Signal, QSize
+from qtpy.QtCore import Signal, QSize, Qt
 from qtpy.QtGui import QAction, QFont, QTextDocument
 from qtpy.QtWidgets import (
     QMainWindow,
@@ -120,20 +120,6 @@ from mne_nodes.pipeline.pipeline_utils import (
     _run_from_script,
 )
 from mne_nodes.pipeline.settings import Settings
-
-# Add compatibility enums for Qt5/Qt6 differences
-from mne_nodes.qt_compat import (
-    CMBX_ADJUST_CONTENTS,
-    RIGHT_DOCK,
-    MB_YES,
-    MB_NO,
-    MB_CANCEL,
-    ALIGN_LEFT,
-    ALIGN_TOP,
-    ALIGN_CENTER,
-    LEFT_DOCK,
-    ALIGN_HCENTER,
-)
 
 renamed_parameters = {
     "filter_target": {"Raw": "raw", "Epochs": "epochs", "Evoked": "evoked"},
@@ -1684,7 +1670,9 @@ class OldMainWindow(QMainWindow):
         self.toolbar.addWidget(proj_box_label)
 
         self.project_box = QComboBox()
-        self.project_box.setSizeAdjustPolicy(CMBX_ADJUST_CONTENTS)
+        self.project_box.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
         self.project_box.activated.connect(self.project_changed)
         self.update_project_box()
         self.toolbar.addWidget(self.project_box)
@@ -1813,7 +1801,7 @@ class OldMainWindow(QMainWindow):
         cleaned_pd_funcs = self.ct.pd_funcs.loc[
             self.ct.pd_funcs["module"].isin(self.ct.get_setting("selected_modules"))
         ].copy()
-        # Horizontal Border for Function-Groups
+        # Qt.Orientation.Horizontal Border for Function-Groups
         max_h_size = self.tab_func_widget.geometry().width()
 
         # Assert, that cleaned_pd_funcs is not empty
@@ -1857,7 +1845,11 @@ class OldMainWindow(QMainWindow):
                         tab_v_layout.addLayout(tab_h_layout)
                         h_size = group_box.sizeHint().width()
                         tab_h_layout = QHBoxLayout()
-                    tab_h_layout.addWidget(group_box, alignment=ALIGN_LEFT | ALIGN_TOP)
+                    tab_h_layout.addWidget(
+                        group_box,
+                        alignment=Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop,
+                    )
 
                 if tab_h_layout.count() > 0:
                     tab_v_layout.addLayout(tab_h_layout)
@@ -2060,11 +2052,11 @@ class OldMainWindow(QMainWindow):
         else:
             dock_kwargs = {}
         self.file_dock = FileDock(self, **dock_kwargs)
-        self.addDockWidget(LEFT_DOCK, self.file_dock)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.file_dock)
         self.view_menu.addAction(self.file_dock.toggleViewAction())
 
         self.parameters_dock = ParametersDock(self)
-        self.addDockWidget(RIGHT_DOCK, self.parameters_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.parameters_dock)
         self.view_menu.addAction(self.parameters_dock.toggleViewAction())
 
     def add_sample_dataset(self):
@@ -2177,7 +2169,7 @@ class OldMainWindow(QMainWindow):
                 "to apply the changes from the Update!",
             )
 
-            if answer == MB_YES:
+            if answer == QMessageBox.StandardButton.Yes:
                 self.restart()
 
     def update_mne(self):
@@ -2198,7 +2190,7 @@ class OldMainWindow(QMainWindow):
             "Please restart the Pipeline-Program to apply the changes from the Update!",
         )
 
-        if answer == MB_YES:
+        if answer == QMessageBox.StandardButton.Yes:
             self.restart()
 
     def show_sys_info(self):
@@ -2214,10 +2206,15 @@ class OldMainWindow(QMainWindow):
                 self,
                 "Closing MNE-Pipeline",
                 "Do you want to return to the Welcome-Window?",
-                buttons=MB_YES | MB_NO | MB_CANCEL,
-                defaultButton=MB_YES,
+                buttons=QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel,
+                defaultButton=QMessageBox.StandardButton.Yes,
             )
-        if answer not in [MB_YES, MB_NO]:
+        if answer not in [
+            QMessageBox.StandardButton.Yes,
+            QMessageBox.StandardButton.No,
+        ]:
             event.ignore()
         else:
             if self.edu_tour:
@@ -2226,11 +2223,11 @@ class OldMainWindow(QMainWindow):
             _widgets["main_window"] = None
 
             if welcome_window is not None:
-                if answer == MB_YES:
+                if answer == QMessageBox.StandardButton.Yes:
                     welcome_window.update_widgets()
                     welcome_window.show()
 
-                elif answer == MB_NO:
+                elif answer == QMessageBox.StandardButton.No:
                     welcome_window.close()
 
 
@@ -2609,7 +2606,7 @@ class CustomFunctionImport(QDialog):
         setup_layout = QHBoxLayout()
         # The Function-Setup-Groupbox
         func_setup_gbox = QGroupBox("Function-Setup")
-        func_setup_gbox.setAlignment(ALIGN_CENTER)
+        func_setup_gbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         func_setup_formlayout = QFormLayout()
 
         self.falias_le = QLineEdit()
@@ -2716,7 +2713,7 @@ class CustomFunctionImport(QDialog):
 
         # The Parameter-Setup-Group-Box
         self.param_setup_gbox = QGroupBox("Parameter-Setup")
-        self.param_setup_gbox.setAlignment(ALIGN_HCENTER)
+        self.param_setup_gbox.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         param_setup_layout = QVBoxLayout()
         self.exstparam_l = QLabel()
         self.exstparam_l.setWordWrap(True)

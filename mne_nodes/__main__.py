@@ -9,7 +9,7 @@ import logging
 import sys
 
 import qtpy
-from qtpy.QtCore import QTimer
+from qtpy.QtCore import QTimer, Qt
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
@@ -18,7 +18,6 @@ from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.legacy import legacy_import_check
-from mne_nodes.qt_compat import AA_DONT_USE_NATIVE_DIALOGS
 from mne_nodes.pipeline.streams import init_streams, init_logging
 
 app_name = "mne-nodes"
@@ -44,7 +43,7 @@ def main() -> None:
 
     # Avoid file-dialog-problems with custom file-managers in linux
     if mne_nodes.islin:
-        app.setAttribute(AA_DONT_USE_NATIVE_DIALOGS, True)
+        app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
 
     # Initialize streams from stdout/stderr into Qt
     init_streams()

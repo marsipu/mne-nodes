@@ -7,7 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import logging
 
 import mne
-from qtpy.QtCore import QProcess, Signal
+from qtpy.QtCore import QProcess, Signal, Qt
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
 
@@ -19,7 +19,6 @@ from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.execution import QProcessDialog, QProcessWorker
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
-from mne_nodes.qt_compat import RIGHT_DOCK, MB_YES, LEFT_DOCK, DOCK_ANIMATED, KEY_C
 
 
 class MainWindow(QMainWindow):
@@ -48,7 +47,7 @@ class MainWindow(QMainWindow):
         center(self)
 
         # Init Dock options
-        self.setDockOptions(DOCK_ANIMATED)
+        self.setDockOptions(QMainWindow.DockOption.AnimatedDocks)
 
         # Init Node-Viewer
         self.viewer = NodeViewer(controller, self)
@@ -57,12 +56,12 @@ class MainWindow(QMainWindow):
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
-        self.addDockWidget(RIGHT_DOCK, self.console_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
         # Init Node-Picker dock
         self.node_picker = NodePicker(controller, self)
-        self.addDockWidget(LEFT_DOCK, self.node_picker)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.node_picker)
 
         # Init QActions
         self.actions = {}
@@ -195,7 +194,7 @@ class MainWindow(QMainWindow):
                 "Please restart the Pipeline-Program "
                 "to apply the changes from the Update!",
             )
-            if answer == MB_YES:
+            if answer == QMessageBox.StandardButton.Yes:
                 self.restart()
 
     def update_mne(self):
@@ -216,7 +215,7 @@ class MainWindow(QMainWindow):
             "Do you want to restart?",
             "Please restart the Pipeline-Program to apply the changes from the Update!",
         )
-        if answer == MB_YES:
+        if answer == QMessageBox.StandardButton.Yes:
             self.restart()
 
     def show_sys_info(self):
@@ -227,7 +226,7 @@ class MainWindow(QMainWindow):
     # Events
     # ------------------------------------------------------------------
     def keyPressEvent(self, event):
-        if event.key() == KEY_C:
+        if event.key() == Qt.Key.Key_C:
             self.console_dock.setVisible(not self.console_dock.isVisible())
         else:
             super().keyPressEvent(event)

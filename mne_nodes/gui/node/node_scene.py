@@ -4,12 +4,11 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from qtpy.QtCore import QLineF
+from qtpy.QtCore import QLineF, Qt
 from qtpy.QtGui import QColor, QPen, QPainter
 from qtpy.QtWidgets import QGraphicsScene
 
 from mne_nodes.gui.node.node_defaults import defaults
-from mne_nodes.qt_compat import MOUSE_MIDDLE, MOUSE_RIGHT, MOD_ALT
 
 
 class NodeScene(QGraphicsScene):
@@ -152,9 +151,9 @@ class NodeScene(QGraphicsScene):
         super().mousePressEvent(event)
         keep_selection = any(
             [
-                event.button() == MOUSE_MIDDLE,
-                event.button() == MOUSE_RIGHT,
-                event.modifiers() == MOD_ALT,
+                event.button() == Qt.MouseButton.MiddleButton,
+                event.button() == Qt.MouseButton.RightButton,
+                event.modifiers() == Qt.KeyboardModifier.AltModifier,
             ]
         )
         if keep_selection:

@@ -1,7 +1,6 @@
-from qtpy.QtCore import QPointF
+from qtpy.QtCore import QPointF, Qt
 
 from mne_nodes.gui.gui_utils import mouseDrag
-from mne_nodes.qt_compat import MOUSE_LEFT, MOD_SHIFT, MOD_ALT
 
 
 def test_nodes_basic_interaction(nodeviewer):
@@ -16,7 +15,9 @@ def test_nodes_basic_interaction(nodeviewer):
     out1_pos = nodeviewer.port_position_view(port_type="out", port_idx=0, node_idx=0)
     in2_pos = nodeviewer.port_position_view(port_type="in", port_idx=0, node_idx=1)
     mouseDrag(
-        widget=nodeviewer.viewport(), positions=[out1_pos, in2_pos], button=MOUSE_LEFT
+        widget=nodeviewer.viewport(),
+        positions=[out1_pos, in2_pos],
+        button=Qt.MouseButton.LeftButton,
     )
     # Check if new connection was created
     assert port1.connected(port2)
@@ -26,8 +27,8 @@ def test_nodes_basic_interaction(nodeviewer):
     mouseDrag(
         widget=nodeviewer.viewport(),
         positions=[start_slice_pos, end_slice_pos],
-        button=MOUSE_LEFT,
-        modifier=MOD_ALT | MOD_SHIFT,
+        button=Qt.MouseButton.LeftButton,
+        modifier=Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier,
     )
     # Check if connection was sliced
     assert not port1.connected(port2)

@@ -8,7 +8,7 @@ import logging
 from collections import OrderedDict
 
 import qtawesome as qta
-from qtpy.QtCore import QRectF
+from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
 from qtpy.QtWidgets import (
     QGraphicsItem,
@@ -21,19 +21,12 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
-from mne_nodes.qt_compat import (
-    PEN_NONE,
-    NO_BRUSH,
-    MOUSE_LEFT,
-    MOD_ALT,
-    NO_TEXT_INTERACTION,
-)
 
 
 class NodeTextItem(QGraphicsTextItem):
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
-        self.setTextInteractionFlags(NO_TEXT_INTERACTION)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
 
 
 # ToDo:
@@ -661,8 +654,8 @@ class BaseNode(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         painter.save()
-        painter.setPen(PEN_NONE)
-        painter.setBrush(NO_BRUSH)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
         # base background.
         margin = 1.0
@@ -712,7 +705,7 @@ class BaseNode(QGraphicsItem):
         pen.setCosmetic(True)
         path = QPainterPath()
         path.addRoundedRect(border_rect, radius, radius)
-        painter.setBrush(NO_BRUSH)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(pen)
         painter.drawPath(path)
 
@@ -724,7 +717,7 @@ class BaseNode(QGraphicsItem):
         Args:
             event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
         """
-        if event.button() == MOUSE_LEFT:
+        if event.button() == Qt.MouseButton.LeftButton:
             for p in self.inputs + self.outputs:
                 if p.hovered:
                     event.ignore()
@@ -737,7 +730,7 @@ class BaseNode(QGraphicsItem):
         Args:
             event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
         """
-        if event.modifiers() == MOD_ALT:
+        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
             event.ignore()
             return
         super().mouseReleaseEvent(event)

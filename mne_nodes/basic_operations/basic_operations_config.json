@@ -1026,7 +1026,7 @@
         },
         "eog_channel": {
             "default": null,
-            "description": "Set Vertical EOG-Channel",
+            "description": "Set Qt.Orientation.Vertical EOG-Channel",
             "gui": "StringGui"
         },
         "ica_ecg": {

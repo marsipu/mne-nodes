@@ -10,7 +10,6 @@ from collections import Counter
 from importlib import resources
 from pathlib import Path
 
-from qtpy.QtWidgets import QApplication
 from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
@@ -19,6 +18,8 @@ from qtpy.QtWidgets import (
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QApplication,
+    QSizePolicy,
 )
 
 from mne_nodes import extra
@@ -26,7 +27,6 @@ from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.models import CheckListModel
 from mne_nodes.pipeline.loading import MEEG
-from mne_nodes.qt_compat import SP_MAX, SP_PREF, SP_MIN_EXP
 
 
 class CheckListDlg(QDialog):
@@ -41,7 +41,7 @@ class CheckListDlg(QDialog):
         data: list or None
             Data for the Check-List.
         checked: list or None
-            List, where Checked Data-Items are stored.
+            List, where checked Data-Items are stored.
         """
         super().__init__(parent)
         self.data = data
@@ -154,13 +154,17 @@ class RawInfo(QDialog):
     def init_ui(self):
         layout = QGridLayout()
         meeg_list = SimpleList(self.mw.ct.pr.all_meeg)
-        meeg_list.setSizePolicy(SP_MAX, SP_PREF)
+        meeg_list.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
         meeg_list.currentChanged.connect(self.meeg_selected)
         layout.addWidget(meeg_list, 0, 0)
 
         self.info_label = QTextEdit()
         self.info_label.setReadOnly(True)
-        self.info_label.setSizePolicy(SP_MIN_EXP, SP_MIN_EXP)
+        self.info_label.setSizePolicy(
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
+        )
         layout.addWidget(self.info_label, 0, 1)
 
         close_bt = QPushButton("Close")

@@ -15,9 +15,10 @@ from types import NoneType
 import mne
 import numpy as np
 import pandas as pd
+from PySide6.QtGui import QFontDatabase
 from mne_qt_browser._pg_figure import _get_color
 from qtpy import compat
-from qtpy.QtCore import Signal
+from qtpy.QtCore import Signal, Qt
 from qtpy.QtGui import QFont, QPixmap
 from qtpy.QtWidgets import (
     QCheckBox,
@@ -40,6 +41,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
     QColorDialog,
     QStackedLayout,
+    QSizePolicy,
 )
 
 from mne_nodes import iswin
@@ -65,22 +67,6 @@ from mne_nodes.pipeline.execution import WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI
 from mne_nodes.pipeline.settings import Settings
 
-# Import shared Qt enum compatibility helpers
-from mne_nodes.qt_compat import (
-    SP_MAX,
-    SP_EXP,
-    SP_PREF,
-    CMBX_ADJUST_CONTENTS,
-    MB_YES,
-    MB_NO,
-    ALIGN_CENTER,
-    ALIGN_RIGHT,
-    HORIZONTAL,
-    RIGHT_DOCK,
-    CHECKED,
-    _lazy_font_options,
-)
-
 
 class Param(QWidget):
     """Base-Class Parameter-GUIs, not to be called directly Inherited Clases
@@ -95,7 +81,7 @@ class Param(QWidget):
     init_ui(layout=None)
         Base layout initialization, which adds the given layout to a
         group-box with the parameters name if groupbox_layout is enabled.
-        Else the layout will be horizontal with a QLabel for the name.
+        Else the layout will be Qt.Orientation.Horizontal with a QLabel for the name.
     """
 
     data_type = object
@@ -211,7 +197,7 @@ class Param(QWidget):
 
     def _on_none_changed(self, checked=None):
         """Handle none selection checkbox/groupbox state changes."""
-        if checked == CHECKED or checked is True:
+        if checked == checked or checked is True:
             self._set_enabled(True)
             # Restore previous value or get current widget value
             if self._value is None:
@@ -314,8 +300,8 @@ class Param(QWidget):
         """Base layout initialization, which adds the given layout to a group-
         box with the parameters name if groupbox_layout is enabled.
 
-        Else the layout will be horizontal with a QCheckbox/QLabel for
-        the name.
+        Else the layout will be Qt.Orientation.Horizontal with a
+        QCheckbox/QLabel for the name.
         """
         self.param_layout = layout
         main_layout = QHBoxLayout()
@@ -787,9 +773,11 @@ class ListGui(Param):
         self.value_label = QLabel()
         list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
+        self.param_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.param_widget.clicked.connect(self.open_dialog)
-        list_layout.addWidget(self.param_widget, alignment=ALIGN_CENTER)
+        list_layout.addWidget(self.param_widget, alignment=Qt.AlignmentFlag.AlignCenter)
         self.init_ui(list_layout)
 
     def open_dialog(self):
@@ -856,7 +844,9 @@ class CheckListGui(Param):
         self.value_label = QLabel()
         check_list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
+        self.param_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.param_widget.clicked.connect(self.open_dialog)
         check_list_layout.addWidget(self.param_widget)
         self.init_ui(check_list_layout)
@@ -946,7 +936,9 @@ class DictGui(Param):
         self.value_label = QLabel()
         dict_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
+        self.param_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.param_widget.clicked.connect(self.open_dialog)
         dict_layout.addWidget(self.param_widget)
         self.init_ui(dict_layout)
@@ -1007,7 +999,9 @@ class SliderGui(Param):
         self.min_val = min_val
         self.max_val = max_val
         self.param_widget = QSlider()
-        self.param_widget.setSizePolicy(SP_EXP, SP_MAX)
+        self.param_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+        )
         self.decimal_count = max(
             [
                 len(str(value)[str(value).find(".") :]) - 1
@@ -1021,7 +1015,7 @@ class SliderGui(Param):
             self.param_widget.setMinimum(self.min_val)
             self.param_widget.setMaximum(self.max_val)
         self.param_widget.setSingleStep(int(step))
-        self.param_widget.setOrientation(HORIZONTAL)
+        self.param_widget.setOrientation(Qt.Orientation.Horizontal)
         # Only change value when slider is released
         self.param_widget.setTracking(tracking)
         self.param_widget.setToolTip(
@@ -1030,8 +1024,10 @@ class SliderGui(Param):
         self.param_widget.valueChanged.connect(self._on_widget_changed)
 
         self.display_widget = QLineEdit()
-        self.display_widget.setSizePolicy(SP_MAX, SP_MAX)
-        self.display_widget.setAlignment(ALIGN_RIGHT)
+        self.display_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
+        self.display_widget.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.display_widget.editingFinished.connect(self.display_edited)
         slider_layout = QHBoxLayout()
         slider_layout.addWidget(self.param_widget, stretch=10)
@@ -1139,7 +1135,9 @@ class MultiTypeGui(Param):
 
         self.param_widget = None
         self.type_cmbx = QComboBox()
-        self.type_cmbx.setSizePolicy(SP_MAX, SP_MAX)
+        self.type_cmbx.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.type_cmbx.addItems(self.types)
         self.type_cmbx.activated.connect(self.change_type)
         self.type_cmbx.setCurrentText(self.param_type)
@@ -1595,7 +1593,9 @@ class LabelGui(Param):
         self.value_label = QLabel()
         check_list_layout.addWidget(self.value_label)
         self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(SP_MAX, SP_MAX)
+        self.param_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.param_widget.clicked.connect(self.show_dialog)
         check_list_layout.addWidget(self.param_widget)
         self.init_ui(check_list_layout)
@@ -1657,7 +1657,9 @@ class ColorGui(Param):
         self.select_widget.activated.connect(self._change_display_color)
         layout.addWidget(self.select_widget)
         self.display_widget = QLabel()
-        self.display_widget.setSizePolicy(SP_MAX, SP_PREF)
+        self.display_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
         layout.addWidget(self.display_widget)
         self.param_widget = QPushButton("Pick Color")
         self.param_widget.clicked.connect(self._pick_color)
@@ -1874,7 +1876,7 @@ class ParametersDock(QDockWidget):
         super().__init__("Parameters", main_win)
         self.mw = main_win
         self.ct = main_win.ct
-        self.setAllowedAreas(RIGHT_DOCK)
+        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
         self.main_widget = QWidget()
         self.param_guis = {}
 
@@ -1915,7 +1917,9 @@ class ParametersDock(QDockWidget):
         p_preset_l = QLabel("Parameter-Presets: ")
         title_layout1.addWidget(p_preset_l)
         self.p_preset_cmbx = QComboBox()
-        self.p_preset_cmbx.setSizeAdjustPolicy(CMBX_ADJUST_CONTENTS)
+        self.p_preset_cmbx.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
         self.p_preset_cmbx.activated.connect(self.p_preset_changed)
         self.update_ppreset_cmbx()
         title_layout1.addWidget(self.p_preset_cmbx)
@@ -1933,19 +1937,21 @@ class ParametersDock(QDockWidget):
         title_layout2 = QHBoxLayout()
         copy_bt = QPushButton("Copy")
         copy_bt.setFont(QFont(Settings().get("app_font"), 16))
-        copy_bt.setSizePolicy(SP_MAX, SP_MAX)
+        copy_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         copy_bt.clicked.connect(partial(CopyPDialog, self))
         title_layout2.addWidget(copy_bt)
 
         reset_bt = QPushButton("Reset")
         reset_bt.setFont(QFont(Settings().get("app_font"), 16))
-        reset_bt.setSizePolicy(SP_MAX, SP_MAX)
+        reset_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         reset_bt.clicked.connect(partial(ResetDialog, self))
         title_layout2.addWidget(reset_bt)
 
         reset_all_bt = QPushButton("Reset All")
         reset_all_bt.setFont(QFont(Settings().get("app_font"), 16))
-        reset_all_bt.setSizePolicy(SP_MAX, SP_MAX)
+        reset_all_bt.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         reset_all_bt.clicked.connect(self.reset_all_parameters)
         title_layout2.addWidget(reset_all_bt)
 
@@ -2067,10 +2073,10 @@ class ParametersDock(QDockWidget):
             self,
             "Reset all Parameters?",
             "Do you really want to reset all parameters to their default?",
-            MB_YES | MB_NO,
-            MB_NO,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if msgbox == MB_YES:
+        if msgbox == QMessageBox.StandardButton.Yes:
             self.ct.pr.load_default_parameters()
             self.update_all_param_guis()
 
@@ -2102,7 +2108,9 @@ class SettingsDlg(QDialog):
                 "gui_kwargs": {
                     "alias": "Application Font",
                     "description": "Changes default application font (Restart required).",
-                    "options": _lazy_font_options(),
+                    "options": list(
+                        QFontDatabase.families(QFontDatabase.WritingSystem.Latin)
+                    ),
                     "raise_missing": False,
                 },
             },

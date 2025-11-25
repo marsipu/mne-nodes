@@ -10,6 +10,7 @@ from os.path import isdir, join
 from shutil import copytree
 
 from qtpy import compat
+from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QComboBox,
@@ -24,12 +25,12 @@ from qtpy.QtWidgets import (
     QWidget,
     QWizard,
     QWizardPage,
+    QSizePolicy,
 )
 
 from mne_nodes.gui.base_widgets import CheckDictEditList, CheckList
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
 from mne_nodes.pipeline.settings import Settings
-from mne_nodes.qt_compat import ALIGN_HCENTER, SP_MAX
 
 
 class EducationTour(QWizard):
@@ -154,20 +155,24 @@ class EducationEditor(QMainWindow):
         self.page_list = CheckDictEditList(
             self.edu["tour_list"], self.edu["tour"], show_index=True
         )
-        self.page_list.setSizePolicy(SP_MAX, SP_MAX)
+        self.page_list.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+        )
         self.page_list.currentChanged.connect(self.page_changed)
         self.page_list.dataChanged.connect(self.page_edited)
         layout.addWidget(self.page_list)
 
         edit_layout = QGridLayout()
         edit_label = QLabel("Edit")
-        edit_layout.addWidget(edit_label, 0, 0, alignment=ALIGN_HCENTER)
+        edit_layout.addWidget(edit_label, 0, 0, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.page_edit = QTextEdit()
         self.page_edit.textChanged.connect(self.page_text_changed)
         edit_layout.addWidget(self.page_edit, 1, 0)
 
         preview_label = QLabel("Preview")
-        edit_layout.addWidget(preview_label, 0, 1, alignment=ALIGN_HCENTER)
+        edit_layout.addWidget(
+            preview_label, 0, 1, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
         self.page_display = QTextBrowser()
         self.page_display.setOpenExternalLinks(True)
         self.page_display.setReadOnly(True)
