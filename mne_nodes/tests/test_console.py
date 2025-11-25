@@ -9,27 +9,28 @@ import traceback
 import tqdm
 import time
 
+from mne_nodes.gui.console import ConsoleWidget
 from mne_nodes.tests._test_utils import create_console
 
 
 def test_console_stream_basic(qtbot):
     """Set up a ConsoleWidget and write via streams (bytes and str)."""
-    from mne_nodes.gui.console import ConsoleWidget
 
     console = ConsoleWidget()
     qtbot.addWidget(console)
+    wait_time = console.stream_worker.flush_s * 1000 * 2
     try:
-        # Faster flush for test speed
-        console.add_stream_worker("stdout", flush_interval_ms=20)
-
         # Push bytes and strings
         console.push_stdout(b"Hello from bytes\n")
-        console.push_stdout(" and text!\n")
-
-        qtbot.wait(100)
+        console.push_stdout("and text\n")
+        console.push_stderr(b"and Error from bytes\n")
+        console.push_stderr("and Error text!\n")
+        qtbot.wait(wait_time)
         text = console.toPlainText()
         assert "Hello from bytes" in text
-        assert "and text!" in text
+        assert "and text" in text
+        assert "and Error from bytes" in text
+        assert "and Error text!" in text
     finally:
         console.stop_streams()
 
@@ -42,7 +43,7 @@ def test_logging(qtbot):
     """
     with create_console() as console:
         qtbot.addWidget(console)
-        wait_time = console.buffer_time * 2
+        wait_time = console.stream_worker.flush_s * 1000 * 2
         # stdout: plain print
         print("Print-Test")
         qtbot.wait(wait_time)
@@ -102,19 +103,19 @@ def test_formatting_show(qtbot):
         console.resize(800, 600)
         console.show()
         print("Test1")
-        qtbot.wait(1000)
+        qtbot.wait(500)
         for i in tqdm.tqdm(range(20), desc="Progress"):
             print(i)
             qtbot.wait(50)
-        qtbot.wait(1000)
+        qtbot.wait(500)
         try:
             raise RuntimeError("Test-Error")
         except RuntimeError:
             # This prints a full traceback to sys.stderr (hooked by the console)
             traceback.print_exc()
-        qtbot.wait(1000)
+        qtbot.wait(500)
         print("Test2")
-        qtbot.wait(2000)
+        qtbot.wait(10000)
 
 
 def test_stream_worker_progress_and_utf8(qtbot):

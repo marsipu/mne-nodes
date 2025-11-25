@@ -437,8 +437,6 @@ class ProcessDialog(QDialog):
         else:
             self.process_worker = ProcessWorker(self.commands)
         if self.show_console:
-            self.console_output.add_stream_worker("stdout")
-            self.console_output.add_stream_worker("stderr")
             self.process_worker.stdoutSignal.connect(
                 lambda text: self.console_output.push_stdout(text)
             )
