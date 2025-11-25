@@ -7,10 +7,10 @@ Github: https://github.com/marsipu/mne-nodes
 import sys
 import time
 
-from qtpy.QtCore import Qt
 
 from mne_nodes.pipeline.streams import init_streams
 from mne_nodes.pipeline.execution import WorkerDialog
+from mne_nodes.qt_compat import MOUSE_LEFT
 
 
 def test_worker_dialog_executes_with_kwargs_and_shows_console(qtbot):
@@ -76,5 +76,5 @@ def test_worker_dialog_executes_with_kwargs_and_shows_console(qtbot):
 
     # Close the dialog and verify the emitted return value
     with qtbot.waitSignal(dlg.thread_finished, timeout=2000) as finished:
-        qtbot.mouseClick(dlg.close_bt, Qt.LeftButton)
+        qtbot.mouseClick(dlg.close_bt, MOUSE_LEFT)
     assert finished.args[0] == 5

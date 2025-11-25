@@ -27,7 +27,7 @@ import mne
 import numpy as np
 import pandas as pd
 from qtpy import compat
-from qtpy.QtCore import Signal, Qt, QSize
+from qtpy.QtCore import Signal, QSize
 from qtpy.QtGui import QAction, QFont, QTextDocument
 from qtpy.QtWidgets import (
     QMainWindow,
@@ -130,6 +130,9 @@ from mne_nodes.qt_compat import (
     MB_CANCEL,
     ALIGN_LEFT,
     ALIGN_TOP,
+    ALIGN_CENTER,
+    LEFT_DOCK,
+    ALIGN_HCENTER,
 )
 
 renamed_parameters = {
@@ -2057,7 +2060,7 @@ class OldMainWindow(QMainWindow):
         else:
             dock_kwargs = {}
         self.file_dock = FileDock(self, **dock_kwargs)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.file_dock)
+        self.addDockWidget(LEFT_DOCK, self.file_dock)
         self.view_menu.addAction(self.file_dock.toggleViewAction())
 
         self.parameters_dock = ParametersDock(self)
@@ -2606,7 +2609,7 @@ class CustomFunctionImport(QDialog):
         setup_layout = QHBoxLayout()
         # The Function-Setup-Groupbox
         func_setup_gbox = QGroupBox("Function-Setup")
-        func_setup_gbox.setAlignment(Qt.AlignHCenter)
+        func_setup_gbox.setAlignment(ALIGN_CENTER)
         func_setup_formlayout = QFormLayout()
 
         self.falias_le = QLineEdit()
@@ -2713,7 +2716,7 @@ class CustomFunctionImport(QDialog):
 
         # The Parameter-Setup-Group-Box
         self.param_setup_gbox = QGroupBox("Parameter-Setup")
-        self.param_setup_gbox.setAlignment(Qt.AlignHCenter)
+        self.param_setup_gbox.setAlignment(ALIGN_HCENTER)
         param_setup_layout = QVBoxLayout()
         self.exstparam_l = QLabel()
         self.exstparam_l.setWordWrap(True)

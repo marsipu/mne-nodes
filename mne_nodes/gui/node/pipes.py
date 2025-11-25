@@ -6,7 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 import math
 
-from qtpy.QtCore import QPointF, Qt, QLineF, QRectF
+from qtpy.QtCore import QPointF, QLineF, QRectF
 from qtpy.QtGui import QPolygonF, QColor, QPainterPath, QBrush, QTransform, QPen
 from qtpy.QtWidgets import (
     QGraphicsPathItem,
@@ -23,8 +23,9 @@ from mne_nodes.qt_compat import (
     PEN_DASH_DOT,
     PEN_JOIN_MITER,
     PEN_CAP_ROUND,
-    BRUSH_NONE,
+    NO_BRUSH,
     RENDER_ANTIALIAS,
+    PEN_DOT,
 )
 
 
@@ -136,7 +137,7 @@ class Pipe(QGraphicsPathItem):
         pen = self.pen()
         if not self.isEnabled() and not self._active:
             pen.setColor(QColor(*defaults["pipes"]["disabled_color"]))
-            pen.setStyle(Qt.PenStyle.DotLine)
+            pen.setStyle(PEN_DOT)
             pen.setWidth(3)
 
         painter.setPen(pen)
@@ -312,7 +313,7 @@ class Pipe(QGraphicsPathItem):
         pen.setJoinStyle(PEN_JOIN_MITER)
         pen.setCapStyle(PEN_CAP_ROUND)
         self.setPen(pen)
-        self.setBrush(QBrush(BRUSH_NONE))
+        self.setBrush(QBrush(NO_BRUSH))
 
         pen = self._dir_pointer.pen()
         pen.setJoinStyle(PEN_JOIN_MITER)

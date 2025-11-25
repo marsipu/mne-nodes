@@ -42,6 +42,12 @@ from mne_nodes.qt_compat import (
     NO_ITEM_FLAGS,
     ITEM_IS_ENABLED,
     ITEM_IS_SELECTABLE,
+    TOOLTIP_ROLE,
+    FOREGROUND_ROLE,
+    DARK_GRAY,
+    GREEN,
+    DARK_GREEN,
+    FONT_ROLE,
 )
 
 
@@ -1015,7 +1021,7 @@ class FunctionPickerModel(PickerModel):
         return md
 
     def data(self, index, role=None):
-        if role == Qt.ItemDataRole.ToolTipRole:
+        if role == TOOLTIP_ROLE:
             fname = self._data.index[index.row()]
             meta = self._metas.get(fname, {})
             alias = meta.get("alias")
@@ -1069,7 +1075,7 @@ class InputPickerModel(PickerModel):
         return md
 
     def data(self, index, role=None):
-        if role == Qt.ToolTipRole:
+        if role == TOOLTIP_ROLE:
             dt = self._data.iloc[index.row()]["data_type"]
             group = self._data.iloc[index.row()]["group"]
             return f"Input node for data_type '{dt}', group '{group}'"
@@ -1161,16 +1167,16 @@ class RunModel(QAbstractListModel):
         # 1 = Pending
         # 2 = Currently Runnning
         # Return Foreground depending on state of object/function
-        elif role == Qt.ForegroundRole:
+        elif role == FOREGROUND_ROLE:
             if self.getValue(index) == 0:
-                return QBrush(Qt.darkGray)
+                return QBrush(DARK_GRAY)
             elif self.getValue(index) == 2:
-                return QBrush(Qt.green)
+                return QBrush(GREEN)
 
         # Return Background depending on state of object/function
         elif role == BACKGROUND_ROLE:
             if self.getValue(index) == 2:
-                return QBrush(Qt.darkGreen)
+                return QBrush(DARK_GREEN)
 
         # Mark objects/functions if they are already done,
         # mark objects according to their type (color-code)
@@ -1180,7 +1186,7 @@ class RunModel(QAbstractListModel):
             elif self.getValue(index) == 2:
                 return get_std_icon("SP_ArrowRight")
 
-        elif role == Qt.FontRole:
+        elif role == FONT_ROLE:
             if self.getValue(index) == 2:
                 bold_font = QFont()
                 bold_font.setBold(True)

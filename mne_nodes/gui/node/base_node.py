@@ -8,7 +8,7 @@ import logging
 from collections import OrderedDict
 
 import qtawesome as qta
-from qtpy.QtCore import QRectF, Qt
+from qtpy.QtCore import QRectF
 from qtpy.QtGui import QColor, QPen, QPainterPath
 from qtpy.QtWidgets import (
     QGraphicsItem,
@@ -21,13 +21,19 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
-from mne_nodes.qt_compat import PEN_NONE, BRUSH_NONE, MOUSE_LEFT, MOD_ALT
+from mne_nodes.qt_compat import (
+    PEN_NONE,
+    NO_BRUSH,
+    MOUSE_LEFT,
+    MOD_ALT,
+    NO_TEXT_INTERACTION,
+)
 
 
 class NodeTextItem(QGraphicsTextItem):
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
-        self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self.setTextInteractionFlags(NO_TEXT_INTERACTION)
 
 
 # ToDo:
@@ -656,7 +662,7 @@ class BaseNode(QGraphicsItem):
     def paint(self, painter, option, widget=None):
         painter.save()
         painter.setPen(PEN_NONE)
-        painter.setBrush(BRUSH_NONE)
+        painter.setBrush(NO_BRUSH)
 
         # base background.
         margin = 1.0
@@ -706,7 +712,7 @@ class BaseNode(QGraphicsItem):
         pen.setCosmetic(True)
         path = QPainterPath()
         path.addRoundedRect(border_rect, radius, radius)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setBrush(NO_BRUSH)
         painter.setPen(pen)
         painter.drawPath(path)
 

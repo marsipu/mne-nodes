@@ -129,6 +129,11 @@ try:
 except AttributeError:
     UNCHECKED = Qt.Unchecked  # type: ignore[attr-defined]
 
+try:
+    NO_TEXT_INTERACTION = Qt.TextInteractionFlag.NoTextInteraction
+except AttributeError:
+    NO_TEXT_INTERACTION = Qt.NoTextInteraction  # type: ignore[attr-defined]
+
 # -----------------------------------------------------------------------------
 # Item flag and focus policy compatibility
 # -----------------------------------------------------------------------------
@@ -156,14 +161,18 @@ try:
     DISPLAY_ROLE = Qt.ItemDataRole.DisplayRole
     EDIT_ROLE = Qt.ItemDataRole.EditRole
     CHECK_STATE_ROLE = Qt.ItemDataRole.CheckStateRole
+    FOREGROUND_ROLE = Qt.ItemDataRole.ForegroundRole
     BACKGROUND_ROLE = Qt.ItemDataRole.BackgroundRole
     TOOLTIP_ROLE = Qt.ItemDataRole.ToolTipRole
+    FONT_ROLE = Qt.ItemDataRole.FontRole
 except AttributeError:
     DISPLAY_ROLE = Qt.DisplayRole  # type: ignore[attr-defined]
     EDIT_ROLE = Qt.EditRole  # type: ignore[attr-defined]
     CHECK_STATE_ROLE = Qt.CheckStateRole  # type: ignore[attr-defined]
+    FOREGROUND_ROLE = Qt.ForegroundRole  # type: ignore[attr-defined]
     BACKGROUND_ROLE = Qt.BackgroundRole  # type: ignore[attr-defined]
     TOOLTIP_ROLE = Qt.ToolTipRole  # type: ignore[attr-defined]
+    FONT_ROLE = Qt.FontRole  # type: ignore[attr-defined]
 
 # -----------------------------------------------------------------------------
 # Key and mouse button enums
@@ -172,10 +181,12 @@ try:  # Key enums
     KEY_C = Qt.Key.Key_C
     KEY_DELETE = Qt.Key.Key_Delete
     KEY_UP = Qt.Key.Key_Up
+    KEY_RETURN = Qt.Key.Key_Return
 except AttributeError:
     KEY_C = Qt.Key_C  # type: ignore[attr-defined]
     KEY_DELETE = Qt.Key_Delete  # type: ignore[attr-defined]
     KEY_UP = Qt.Key_Up  # type: ignore[attr-defined]
+    KEY_RETURN = Qt.Key_Return  # type: ignore[attr-defined]
 
 try:
     KEY_NO_MODIFIER = Qt.KeyboardModifier.NoModifier
@@ -247,7 +258,7 @@ try:  # Qt6
 except AttributeError:  # Qt5
     try:
         RENDER_ANTIALIAS = QPainter.Antialiasing  # type: ignore[attr-defined]
-    except Exception:  # pragma: no cover
+    except AttributeError:  # pragma: no cover
         RENDER_ANTIALIAS = 0
 
 # -----------------------------------------------------------------------------
@@ -261,7 +272,7 @@ try:  # Qt6 enum namespaces
     PEN_NONE = Qt.PenStyle.NoPen
     PEN_JOIN_MITER = Qt.PenJoinStyle.MiterJoin
     PEN_CAP_ROUND = Qt.PenCapStyle.RoundCap
-    BRUSH_NONE = Qt.BrushStyle.NoBrush
+    NO_BRUSH = Qt.BrushStyle.NoBrush
 except AttributeError:  # Qt5 fallback attributes
     PEN_SOLID = Qt.SolidLine  # type: ignore[attr-defined]
     PEN_DASH = Qt.DashLine  # type: ignore[attr-defined]
@@ -270,7 +281,7 @@ except AttributeError:  # Qt5 fallback attributes
     PEN_NONE = Qt.NoPen  # type: ignore[attr-defined]
     PEN_JOIN_MITER = Qt.MiterJoin  # type: ignore[attr-defined]
     PEN_CAP_ROUND = Qt.RoundCap  # type: ignore[attr-defined]
-    BRUSH_NONE = Qt.NoBrush  # type: ignore[attr-defined]
+    NO_BRUSH = Qt.NoBrush  # type: ignore[attr-defined]
 
 # -----------------------------------------------------------------------------
 # QApplication attributes
@@ -290,6 +301,7 @@ try:
     BLACK = Qt.GlobalColor.black
     RED = Qt.GlobalColor.red
     GREEN = Qt.GlobalColor.green
+    DARK_GREEN = Qt.GlobalColor.darkGreen
     BLUE = Qt.GlobalColor.blue
     YELLOW = Qt.GlobalColor.yellow
     GRAY = Qt.GlobalColor.gray
@@ -301,6 +313,7 @@ except AttributeError:
     BLACK = Qt.black  # type: ignore[attr-defined]
     RED = Qt.red  # type: ignore[attr-defined]
     GREEN = Qt.green  # type: ignore[attr-defined]
+    DARK_GREEN = Qt.darkGreen  # type: ignore[attr-defined]
     BLUE = Qt.blue  # type: ignore[attr-defined]
     YELLOW = Qt.yellow  # type: ignore[attr-defined]
     GRAY = Qt.gray  # type: ignore[attr-defined]

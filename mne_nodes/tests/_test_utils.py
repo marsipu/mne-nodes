@@ -1,12 +1,11 @@
 from contextlib import contextmanager
 
-from mne_nodes.qt_compat import CHECKED, UNCHECKED
-from qtpy.QtCore import Qt
+from mne_nodes.qt_compat import CHECKED, UNCHECKED, CHECK_STATE_ROLE
 
 
 def toggle_checked_list_model(model, value=1, row=0, column=0):
     value = CHECKED if value else UNCHECKED
-    model.setData(model.index(row, column), value, Qt.CheckStateRole)
+    model.setData(model.index(row, column), value, CHECK_STATE_ROLE)
 
 
 @contextmanager
