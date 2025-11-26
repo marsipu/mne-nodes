@@ -170,7 +170,6 @@ class MainWindow(QMainWindow):
             close_directly=True,
             title="Updating MNE-Python...",
             blocking=True,
-            controller=self.controller,
         )
 
         answer = QMessageBox.question(
