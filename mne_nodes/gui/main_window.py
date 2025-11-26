@@ -17,7 +17,7 @@ from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
-from mne_nodes.pipeline.execution import ProcessDialog, ProcessWorker
+from mne_nodes.pipeline.execution import ProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 
 
@@ -123,40 +123,6 @@ class MainWindow(QMainWindow):
             self.node_picker.ct = controller
 
     # ------------------------------------------------------------------
-    # Process handling (unified via QProcessWorker)
-    # ------------------------------------------------------------------
-    def attach_process(self, process_idx: int, worker: ProcessWorker):
-        """Attach a QProcessWorker to the console dock and manage its
-        lifecycle."""
-        # Prepare per-process UI in the dock
-        self.console_dock.add_process(process_idx)
-        # Connect output signals
-        worker.stdoutSignal.connect(
-            lambda text, idx=process_idx: self.console_dock.push_stdout(idx, text)
-        )
-        worker.stderrSignal.connect(
-            lambda text, idx=process_idx: self.console_dock.push_stderr(idx, text)
-        )
-        # State changes & finished
-        worker.stateChanged.connect(
-            lambda state, idx=process_idx: self.controller._update_process_state(
-                idx, state
-            )
-        )
-        worker.finishedDetailed.connect(
-            lambda code, status, idx=process_idx: self._process_finished(
-                idx, code, status
-            )
-        )
-
-    def _process_finished(self, process_idx, code, status):
-        logging.info(
-            f"Process {process_idx} finished with code {code} and status {status}"
-        )
-        self.processFinished.emit(process_idx, code, status)
-        self.console_dock.process_finished(process_idx)
-
-    # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
     def restart(self):
@@ -235,19 +201,24 @@ class MainWindow(QMainWindow):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
         # Stop any running processes and workers
-        for idx, worker in list(self.controller._proc_workers.items()):
-            proc = worker.process
-            if proc is not None:
+        for idx, process in list(self.controller._processes.items()):
+            if process is not None:
                 try:
-                    proc.finished.disconnect()
+                    process.finished.disconnect()
+                    process.stateChanged.disconnect()
+                    process.errorOccurred.disconnect()
+                    process.allFinished.disconnect()
                 except (TypeError, RuntimeError):  # safe disconnect failures
                     pass
-            if proc is not None and proc.state() != QProcess.ProcessState.NotRunning:
-                worker.kill(kill_all=True)
-                if proc is not None:
-                    proc.waitForFinished(2000)
-        self.console_dock.stop_all()
-        self.controller._proc_workers.clear()
+            if (
+                process is not None
+                and process.state() != QProcess.ProcessState.NotRunning
+            ):
+                process.kill(kill_all=True)
+                if process is not None:
+                    logging.info(f"Process {idx} killed")
+                    process.waitForFinished(2000)
+        self.controller._processes.clear()
         _widgets["main_window"] = None
         self.controller.save_node_config(self.viewer.to_dict())
         event.accept()

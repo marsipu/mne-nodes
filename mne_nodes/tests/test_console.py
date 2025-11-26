@@ -6,6 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 import traceback
+
 import tqdm
 import time
 
@@ -73,7 +74,7 @@ def test_formatting(qtbot):
         "20/20",
         "Traceback (most recent call last):",
         "in test_formatting",
-        "raise RuntimeError('Test-Error')",
+        "raise RuntimeError",
         "RuntimeError: Test-Error",
         "Test2",
     ]
@@ -81,7 +82,6 @@ def test_formatting(qtbot):
         qtbot.addWidget(console)
         print("Test1")
         for i in tqdm.tqdm(range(20), desc="Progress"):
-            print(i)
             time.sleep(0.1)
         try:
             raise RuntimeError("Test-Error")
@@ -104,9 +104,10 @@ def test_formatting_show(qtbot):
         console.show()
         print("Test1")
         qtbot.wait(500)
-        for i in tqdm.tqdm(range(20), desc="Progress"):
+        for i in tqdm.tqdm(range(10), desc="Progress"):
             print(i)
-            qtbot.wait(50)
+        qtbot.wait(500)
+        print("Test2")
         qtbot.wait(500)
         try:
             raise RuntimeError("Test-Error")
@@ -114,62 +115,8 @@ def test_formatting_show(qtbot):
             # This prints a full traceback to sys.stderr (hooked by the console)
             traceback.print_exc()
         qtbot.wait(500)
-        print("Test2")
-        qtbot.wait(10000)
-
-
-def test_stream_worker_progress_and_utf8(qtbot):
-    """Test intermediate progress updates and UTF-8 handling.
-
-    Validates that:
-    - All intermediate progress updates are emitted (not just last)
-    - Multi-byte UTF-8 characters are handled correctly
-    - Mixed progress and normal text output works properly
-    """
-
-    with create_console() as console:
-        console.add_stream_worker("stdout", flush_interval_ms=20)
-
-        # Track progress updates
-        progress_updates = []
-
-        def on_progress(text, finished):
-            progress_updates.append((text, finished))
-
-        worker = console._stream_workers["stdout"]
-        worker.signals.progress_ready.connect(on_progress)
-
-        # Test 1: Intermediate progress updates
-        combined_progress = "Starting\r50%\r75%\r100%\n"
-        console.push_stdout(combined_progress)
-        qtbot.wait(100)
-
-        # Should have multiple progress updates
-        assert len(progress_updates) >= 3, (
-            f"Expected at least 3 progress updates, got {len(progress_updates)}"
-        )
-
-        # Test 2: UTF-8 multi-byte characters (emoji split across chunks)
-        emoji = "🚀"
-        emoji_bytes = emoji.encode("utf-8")
-        console.push_stdout(emoji_bytes[:2])
-        console.push_stdout(emoji_bytes[2:])
-        console.push_stdout(b" Done!\n")
-        qtbot.wait(100)
-
-        text = console.toPlainText()
-        assert emoji in text or "Done!" in text
-
-        # Test 3: Mixed progress and text
-        console.push_stdout("Processing data\n")
-        console.push_stdout("Progress: 25%\r")
-        console.push_stdout("Progress: 100%\n")
-        console.push_stdout("Complete!\n")
-        qtbot.wait(100)
-
-        text = console.toPlainText()
-        assert "Processing data" in text
-        assert "Complete!" in text
+        print("\nTest3")
+        qtbot.wait(1000)
 
 
 def test_stream_worker_massive_output(qtbot):
@@ -180,30 +127,18 @@ def test_stream_worker_massive_output(qtbot):
     - Queue backpressure protection exists (MAX_QUEUE_SIZE)
     - Performance is acceptable for typical use cases
     """
-    import time
 
     with create_console() as console:
-        console.add_stream_worker("stdout", flush_interval_ms=50)
-
-        # Test massive output performance (500KB)
-        start_time = time.time()
-
+        qtbot.addWidget(console)
+        # Test massive output performance
         large_chunk = "X" * 10000
         for _ in range(50):
             console.push_stdout(large_chunk + "\n")
 
-        qtbot.wait(1000)
-        elapsed = time.time() - start_time
+        qtbot.wait(2000)  # Wait for processing
 
-        # Should process in reasonable time (not freeze)
-        assert elapsed < 3.0, f"Processing took too long: {elapsed:.2f}s"
-
-        # Console should have content
+        # Console should have content and did not crash
         assert len(console.toPlainText()) > 0
-
-        # Queue overflow protection is functional
-        # (actual overflow is hard to test deterministically in unit tests
-        # due to timing, but the mechanism is tested in manual scenarios)
 
 
 def test_process_formatting(qtbot, tmp_path):

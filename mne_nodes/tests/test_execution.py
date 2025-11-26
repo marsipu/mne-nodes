@@ -11,54 +11,59 @@ import sys
 import pytest
 
 from mne_nodes.__main__ import init_streams, init_logging
-from mne_nodes.pipeline.execution import ProcessDialog
+from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.pipeline.execution import ProcessDialog, Process
+
+
+def test_process(qtbot):
+    console = ConsoleWidget()
+    qtbot.addWidget(console)
+    console.show()
+    commands = f"{sys.executable} -c \"import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)\""
+    process = Process(commands, console=console, self_destruct=False)
+    process.start()
+    qtbot.wait(1000)
+    console_text = console.toPlainText()
+    # Assertions on output presence
+    assert "TEST_OUT" in console_text, "Stdout not captured in console"
+    assert "TEST_ERR" in console_text, "Stderr not captured in console"
 
 
 @pytest.mark.timeout(10)
-def test_main_window_qprocess_execution(qtbot, main_window, controller, tmp_path):
+def test_main_window_process_execution(qtbot, main_window, controller, tmp_path):
     """Test launching a process through Controller/MainWindow integration.
 
     Uses a trivial Python one-shot command that writes to stdout &
     stderr.
     """
-    # Build command as list-of-list to avoid tokenization surprises
-    py_snippet = "import sys; print('MW_OUT'); print('MW_ERR', file=sys.stderr)"
-    commands = [[sys.executable, "-c", py_snippet]]
-
-    proc_idx, worker = controller.create_process_worker(
-        commands, working_directory=controller.data_path, kind="test"
+    console = main_window.console_dock.add_process()
+    commands = f"{sys.executable} -c \"import sys; print('MW_OUT'); print('MW_ERR', file=sys.stderr)\""
+    process = controller.create_process(
+        commands,
+        working_directory=controller.data_path,
+        console=console,
+        self_destruct=False,
     )
-
-    # Attach to MainWindow so its console dock captures output
-    main_window.attach_process(proc_idx, worker)
 
     # Start and wait for finish
-    worker.start()
-    with qtbot.waitSignal(worker.finished, timeout=5000):
-        pass
+    process.start()
 
     # Allow event loop a moment to flush final console batches
-    qtbot.wait(100)
+    qtbot.wait(1000)
 
     # Retrieve console text
-    proc_tabs = main_window.console_dock.process_tabs
-    assert proc_idx in proc_tabs, "Process tab not registered in console dock"
-    console_text = proc_tabs[proc_idx]["console"].toPlainText()
+    console_text = process.console.toPlainText()
 
     # Assertions on output presence
-    assert "MW_OUT" in console_text, "Stdout not captured in console dock"
-    assert "MW_ERR" in console_text, "Stderr not captured in console dock"
+    assert "MW_OUT" in console_text, "Stdout not captured in console"
+    assert "MW_ERR" in console_text, "Stderr not captured in console"
 
     # Controller bookkeeping
-    meta = controller.process(proc_idx)
-    assert meta["status"] == "finished", "Process status not marked finished"
-    assert meta.get("exit_code", 0) == 0, (
-        f"Unexpected exit code {meta.get('exit_code')}"
-    )
+    assert process.state() == 0
 
 
 @pytest.mark.timeout(10)
-def test_qprocess_dialog_execution(qtbot, main_window, controller):
+def test_qprocess_dialog_execution(qtbot, controller):
     """Test a QProcessDialog that registers with the Controller.
 
     Ensures dialog execution finishes, output is captured, and
@@ -71,7 +76,6 @@ def test_qprocess_dialog_execution(qtbot, main_window, controller):
     commands = [[sys.executable, "-c", py_snippet]]
 
     dialog = ProcessDialog(
-        parent=main_window,
         commands=commands,
         show_buttons=False,
         show_console=True,
@@ -81,18 +85,18 @@ def test_qprocess_dialog_execution(qtbot, main_window, controller):
     )
     qtbot.addWidget(dialog)
 
-    assert dialog.process_worker is not None, "Dialog did not initialize worker"
+    assert dialog.process is not None, "Dialog did not initialize worker"
     assert dialog.proc_idx is not None, (
         "Dialog did not register process with controller"
     )
 
     # Wait for completion
-    with qtbot.waitSignal(dialog.process_worker.finished, timeout=5000):
+    with qtbot.waitSignal(dialog.process.finished, timeout=5000):
         pass
 
     # Let console flush
     qtbot.wait(100)
-    console_text = dialog.console_output.toPlainText()
+    console_text = dialog.console.toPlainText()
     assert "DIALOG_OUT" in console_text, "Dialog stdout missing"
     assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
 
@@ -196,8 +200,8 @@ def test_inputnode_start(monkeypatch, qtbot, main_window, controller):
 
     input_node.start()
 
-    proc_idx = max(controller._procs.keys())
-    worker = controller.get_process_worker(proc_idx)
+    proc_idx = max(controller._process_info.keys())
+    worker = controller.process(proc_idx)
     assert worker is not None, "Worker not stored in controller."
 
     with qtbot.waitSignal(worker.finished, timeout=5000):

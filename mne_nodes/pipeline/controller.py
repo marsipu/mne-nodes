@@ -45,32 +45,23 @@ class Controller:
         If True, eagerly access path properties (may trigger user prompts).
         Default False so that a Controller can be created safely in a
         headless / non-QApplication context.
-    interactive : bool, keyword-only, default True
-        If False, suppress interactive GUI/terminal prompts when
-        config_path or project name are missing. A default config and
-        project name ("Default") will be created automatically in the
-        local config directory.
     """
 
     def __init__(
         self,
         config_path: Optional[Union[str, Path]] = None,
-        *,
         initialize_paths: bool = False,
-        interactive: bool = True,
     ):
         # The device dependent settings
         self.settings = Settings()
-        self._interactive = interactive
         # config will be filled when self.config is first called
         self._config = {}
         self._config_path = None
         self._modules = {}
         self._function_metas = {}
         self._parameter_metas = {}
-        self._procs = {}
+        self._processes = {}
         self._errors = {}
-        self._proc_workers = {}
         self.default_config = {
             "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
@@ -130,7 +121,9 @@ class Controller:
         self._config.clear()
         self._function_metas.clear()
         self._parameter_metas.clear()
-        self._procs.clear()
+        for process in self._processes.values():
+            process.deleteLater()
+        self._processes.clear()
         self._errors.clear()
 
     @config_path.setter
@@ -139,26 +132,8 @@ class Controller:
         # Clear existing config
         self.save_config()
         self._clear_attributes()
-        # Non-interactive auto-creation branch
-        if (value is None or not isfile(value)) and not getattr(
-            self, "_interactive", True
-        ):
-            logging.info(
-                "Non-interactive mode: creating default project config automatically."
-            )
-            cfg_dir = self.local_config_path
-            base = "default_project"
-            candidate = cfg_dir / f"{base}_config.json"
-            idx = 1
-            while candidate.exists():
-                candidate = cfg_dir / f"{base}{idx}_config.json"
-                idx += 1
-            # Write default config (name added later lazily if missing)
-            with open(candidate, "w", encoding="utf-8") as f:
-                json.dump(self.default_config, f, indent=4, cls=TypedJSONEncoder)
-            value = str(candidate)
-        # Interactive branch with user prompts
-        elif value is None or not isfile(value):
+        # Check existence and prompt user for a new config-file if needed
+        if value is None or not isfile(value):
             if value is None:
                 logging.warning("No config-file path set!")
             else:
@@ -599,80 +574,9 @@ class Controller:
 
     def process(self, idx):
         """Get the process for a specific index."""
-        if idx not in self._procs:
+        if idx not in self._processes:
             raise KeyError(f"Process with index {idx} not found.")
-        return self._procs[idx]
-
-    # ------------------------------------------------------------------
-    # Unified QProcess management
-    # ------------------------------------------------------------------
-    def create_process_worker(self, commands, working_directory=None, kind="general"):
-        """Create and register a QProcessWorker for external commands.
-
-        Parameters
-        ----------
-        commands : str | list
-            Command(s) to execute (string or list of strings / arg lists).
-        working_directory : Path | str | None
-            Working directory for the process.
-        kind : str
-            Free-form tag to identify process purpose (e.g. 'pipeline', 'dialog').
-
-        Returns
-        -------
-        proc_idx : int
-            Index of the registered process.
-        worker : QProcessWorker
-            The initialized (but not yet started) worker instance.
-        """
-        from mne_nodes.pipeline.execution import (
-            ProcessWorker,
-        )  # local import to avoid cycles
-
-        proc_idx = len(self._procs)
-        self._procs[proc_idx] = {
-            "commands": commands,
-            "status": "starting",
-            "state": "starting",
-            "kind": kind,
-        }
-        worker = ProcessWorker(commands, working_directory=working_directory)
-        self._proc_workers[proc_idx] = worker
-        # Wire state & finish updates into controller bookkeeping
-        worker.stateChanged.connect(
-            lambda state, idx=proc_idx: self._update_process_state(idx, state)
-        )
-        worker.finishedDetailed.connect(
-            lambda code, status, idx=proc_idx: self._finish_process(idx, code, status)
-        )
-        return proc_idx, worker
-
-    def get_process_worker(self, proc_idx):
-        return self._proc_workers.get(proc_idx)
-
-    def _update_process_state(self, proc_idx, state):
-        proc = self._procs.get(proc_idx)
-        if proc is None:
-            return
-        # QProcess.ProcessState.NotRunning
-        if state.value == 0:
-            proc["state"] = "finished"
-        # QProcess.ProcessState.Starting
-        elif state.value == 1:
-            proc["state"] = "starting"
-        # QProcess.ProcessState.Running
-        elif state.value == 2:
-            proc["state"] = "running"
-        else:
-            proc["state"] = f"unknown:{state} with value {state.value}"
-
-    def _finish_process(self, proc_idx, code, status):
-        proc = self._procs.get(proc_idx)
-        if proc is None:
-            return
-        proc["status"] = "finished"
-        proc["exit_code"] = code
-        proc["exit_status"] = status
+        return self._processes[idx]
 
     @property
     def errors(self):
@@ -701,6 +605,53 @@ class Controller:
         # set to dict directly to avoid calling setter again
         self.config["node_config"] = node_config
         self.save_config()
+
+    # ------------------------------------------------------------------
+    # QProcess Management
+    # ------------------------------------------------------------------
+    def create_process(
+        self, commands, console=None, working_directory=None, self_destruct=False
+    ):
+        """Create and register a Process for external commands.
+
+        Parameters
+        ----------
+        commands : str | list
+            Command(s) to execute (string or list of strings / arg lists).
+        console : ConsoleWidget | None
+            Console widget to attach process output to (if any). If None,
+            output is not attached to any console and send to stdout/stderr.
+        working_directory : Path | str | None
+            Working directory for the process.
+        Returns
+        -------
+        proc_idx : int
+            Index of the registered process.
+        process : QProcess
+            The initialized (but not yet started) process instance.
+        """
+        # local import to avoid cycles
+        from mne_nodes.pipeline.execution import Process
+
+        process = Process(
+            commands,
+            console=console,
+            working_directory=working_directory,
+            self_destruct=self_destruct,
+        )
+        proc_idx = len(self._processes)
+        self._processes[proc_idx] = process
+        # Wire state & finish updates into controller bookkeeping
+        process.allFinished.connect(lambda _: self._process_all_finished(proc_idx))
+        if console is not None:
+            process.allFinished.connect(console.stop_streams)
+        return process
+
+    def _process_all_finished(self, proc_idx):
+        proc = self.process(proc_idx)
+        if proc.self_destruct:
+            # Remove process from controller bookkeeping
+            del self._processes[proc_idx]
 
     ####################################################################################
     # Modules
@@ -935,20 +886,22 @@ class Controller:
         return code
 
     def start(self, instructions, start_name):
+        # Generate code file
         code = self.convert_to_code(instructions, start_name)
         run_file_path = self.local_config_path / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)
-        # Register worker via unified interface (single command: python script)
-        commands = [[sys.executable, str(run_file_path)]]
-        proc_idx, worker = self.create_process_worker(
-            commands, working_directory=self.data_path, kind="pipeline"
+        # Add Process to ConsoleDock and get Console
+        console = self.main_window.console_dock.add_process()
+        # Register process via unified interface (single command: python script)
+        proc_idx, process = self.create_process(
+            f"{sys.executable} {run_file_path}",
+            working_directory=self.data_path,
+            console=console,
+            self_destruct=True,
         )
         # Store reference to run file for metadata/backward compatibility
-        self._procs[proc_idx]["file"] = run_file_path
-        # Attach process to main window UI and start
-        self.main_window.attach_process(proc_idx, worker)
-        worker.start()
+        process.start()
 
     ####################################################################################
     # Legacy

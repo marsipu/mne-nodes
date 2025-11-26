@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import codecs
 import logging
+import queue
 import re
 import sys
 import time
-import queue
+from functools import wraps
 
 from qtpy.QtCore import (
     QMutex,
@@ -36,9 +37,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QTabBar,
 )
-
-from mne_nodes.gui.base_widgets import SimpleList
-from mne_nodes.gui.code_editor import PythonHighlighter
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +77,10 @@ class StreamWorker(QRunnable):
         self._dropped_count = 0  # Track dropped items due to queue overflow
         self.chunk: str = ""
         self.chunk_len: int = 0
+        self._ignore_next_newline = False
+        self._finished = False
+        self._console_busy = False
+        self.debug_list = []
         self.last_emitted: float = time.monotonic()
         self._stopping = False
         self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
@@ -86,6 +88,7 @@ class StreamWorker(QRunnable):
 
     # Public API ---------------------------------------------------------
     def push(self, data, kind: str):
+        self.debug_list.append(data)
         try:
             self.queue.put_nowait((data, kind))
         except queue.Full:
@@ -116,9 +119,11 @@ class StreamWorker(QRunnable):
         # Emit chunk if too large or flush interval passed
         now = time.monotonic()
         t_enough = now - self.last_emitted >= self.flush_s
-        if (force or self.chunk_len >= self.max_chunk_size or t_enough) and len(
-            self.chunk
-        ) > 0:
+        if (
+            (force or self.chunk_len >= self.max_chunk_size or t_enough)
+            and len(self.chunk) > 0
+            and not self._console_busy
+        ):
             # Reset chunk
             chunk = self.chunk
             self.chunk = ""
@@ -146,15 +151,29 @@ class StreamWorker(QRunnable):
             data = data.replace("<", "&lt;")
             data = data.replace(">", "&gt;")
             data = data.replace("\n", "<br>")
+            data = data.replace("\x1b[A", "")
             data = data.replace("\x1b", "")
-            # Carriage return: progress updatex
+            # Ignore empty lines
+            if len(data) == 0:
+                continue
+            # # Ignore single newlines when there is no newline at the end of the chunk
+            # if data == "<br>" and self._ignore_next_newline:
+            #     self._ignore_next_newline = False
+            #     continue
+            # self._ignore_next_newline = not data.endswith("<br>")
+            # Carriage return: progress update
             if data[:1] == "\r":
                 data = data[1:]
                 data = f"<span style='color:green;'>{data}</span>"
                 now = time.monotonic()
                 t_enough = now - self.last_emitted >= self.flush_s / 1000.0
                 finished = self._detect_finished(data)
-                if t_enough or finished:
+                # Avoid to print the final progress line twice
+                if finished and self._finished:
+                    continue
+                else:
+                    self._finished = finished
+                if t_enough or self._finished and not self._console_busy:
                     self.signals.progress_ready.emit(data, finished)
                     self.last_emitted = now
                 continue
@@ -168,6 +187,18 @@ class StreamWorker(QRunnable):
 # ---------------------------------------------------------------------------
 # Console (plain text + progress pinning)
 # ---------------------------------------------------------------------------
+def busy_state(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self.stream_worker._console_busy = True
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            self.stream_worker._console_busy = False
+
+    return wrapper
+
+
 class ConsoleWidget(QPlainTextEdit):
     """Plain text console keeping an in-progress status line pinned at
     bottom."""
@@ -198,9 +229,7 @@ class ConsoleWidget(QPlainTextEdit):
 
     # Internal line operations ------------------------------------------
     def add_text(self, text):
-        if text[-4:] == "<br>":
-            text = text[:-4]
-        self.appendHtml(text)
+        self.textCursor().insertHtml(text)
         if self.autoscroll:
             self.ensureCursorVisible()
 
@@ -210,12 +239,10 @@ class ConsoleWidget(QPlainTextEdit):
         cursor.select(QTextCursor.SelectionType.LineUnderCursor)
         selected = cursor.selectedText()
         if selected:
-            cursor.removeSelectedText()
-            if cursor.position() > 0:
-                cursor.deletePreviousChar()  # remove preceding newline
-        self.setTextCursor(cursor)
+            cursor.removeSelectedText()  # self.setTextCursor(cursor)
 
     # Slots --------------------------------------------------------------
+    @busy_state
     def _on_text(self, text: str):
         # Handle progress line pinning
         if self._progress_line is not None:
@@ -224,15 +251,16 @@ class ConsoleWidget(QPlainTextEdit):
         if self._progress_line is not None:
             self.add_text(self._progress_line)
 
+    @busy_state
     def _on_progress(self, line: str, finished: bool):
         if self._progress_line is not None:
             self._remove_last_line()
         self.add_text(line)
         if finished:
-            # finalize by adding newline so subsequent output starts on next line
-            cursor = self.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            cursor.insertText("\n")
+            # # finalize by adding newline so subsequent output starts on next line
+            # cursor = self.textCursor()
+            # cursor.movePosition(QTextCursor.MoveOperation.End)
+            # cursor.insertText("<br>")
             self._progress_active = False
             self._progress_line = None
         else:
@@ -240,6 +268,7 @@ class ConsoleWidget(QPlainTextEdit):
             self._progress_line = line
 
     # Event overrides ----------------------------------------------------
+    # The cursor should not be moved my mouse clicks
     def mousePressEvent(self, event):  # noqa: D401
         event.accept()
 
@@ -260,6 +289,9 @@ class MainConsoleWidget(ConsoleWidget):
 class NotificationTabs(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setDocumentMode(True)
+        self.setMovable(False)
+        self.setTabsClosable(False)
         self.bubbles = {}
         self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
 
@@ -315,50 +347,13 @@ class NotificationTabs(QTabWidget):
         bubble.setVisible(count != 0)
 
 
-class ShowErrorWidget(QPlainTextEdit):
-    def __init__(self):
-        super().__init__()
-        self.setReadOnly(True)
-        self.setFont(QFont("Consolas", 12))
-        self.highlighter = PythonHighlighter(self.document())
-
-
-class ErrorWidget(QWidget):
-    notification_count_changed = Signal(int)
-
-    def __init__(self, controller):
-        super().__init__()
-        self.ct = controller
-        layout = QHBoxLayout(self)
-        self.list_widget = SimpleList()
-        layout.addWidget(self.list_widget)
-        self.show_widget = ShowErrorWidget()
-        layout.addWidget(self.show_widget, stretch=2)
-        self._last_data = None
-        self._count = 0
-
-    @property
-    def last_data(self):
-        return self._last_data
-
-    @last_data.setter
-    def last_data(self, data):
-        self._last_data = data
-        if isinstance(data, (bytes, bytearray)):
-            text = data.decode("utf-8", errors="replace")
-        else:
-            text = str(data)
-        if text:
-            self.show_widget.appendPlainText(text.rstrip("\n"))
-        self._count += 1
-        self.notification_count_changed.emit(self._count)
-
-    def reset_count(self):
-        self._count = 0
-        self.notification_count_changed.emit(self._count)
-
-
 class ConsoleDock(QDockWidget):
+    """A Console Dock containing multiple consoles.
+
+    Rather than having error resolution here, it would be better to
+    generate a report from the script and handling errors there too.
+    """
+
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
@@ -370,99 +365,18 @@ class ConsoleDock(QDockWidget):
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.process_tabs: dict[int, dict[str, object]] = {}
         self._process_tab_indexes: dict[int, int] = {}
-        self.tab_widget = NotificationTabs(self)
-        self.tab_widget.setTabsClosable(True)
+        self.tab_widget = QTabWidget(self)
         self.tab_widget.setMovable(False)
         self.tab_widget.setDocumentMode(False)
-        self.tab_widget.tabCloseRequested.connect(self._close_process_tab)
+        # ToDo: Enable canceling operation by closing tab
+        # self.tab_widget.setTabsClosable(True)
+        # self.tab_widget.tabCloseRequested.connect(self._close_process_tab)
         self.setWidget(self.tab_widget)
 
-    def add_process(self, process_idx, title=None):
-        if process_idx in self.process_tabs:
-            return
-        tab_title = title or f"Process {process_idx}"
+    def add_process(self):
         console = ConsoleWidget()
-        err = ErrorWidget(self.ct)
-        inner = NotificationTabs()
-        inner.setDocumentMode(True)
-        inner.setMovable(False)
-        inner.setTabsClosable(False)
-        inner.add_tab(console, "Console", 0)
-        inner.add_tab(err, "Errors", 0)
-        inner.currentChanged.connect(
-            lambda idx, tabs=inner, e=err: self.reset_errors(idx, tabs, e)
-        )
-        err.notification_count_changed.connect(
-            lambda c, pid=process_idx: self._update_process_notification(pid, c)
-        )
-        err.notification_count_changed.connect(
-            lambda c, tabs=inner: tabs.set_notification(tab_name="Errors", count=c)
-        )
-        self.tab_widget.add_tab(inner, tab_title, count=0)
-        idx = self.tab_widget._resolve(tab_name=tab_title)
-        self.process_tabs[process_idx] = {
-            "inner": inner,
-            "console": console,
-            "error": err,
-        }
-        self._process_tab_indexes[process_idx] = idx
+        self.tab_widget.addTab(console, f"Process {len(self.process_tabs) + 1}")
         if not self.isVisible():
             self.setVisible(True)
 
-    def _update_process_notification(self, process_idx, count):
-        idx = self._process_tab_indexes.get(process_idx)
-        if idx is None:
-            return
-        self.tab_widget.set_notification(tab_index=idx, count=count)
-        title = f"Process {process_idx}"
-        idx2 = self.tab_widget._resolve(tab_name=title)
-        self._process_tab_indexes[process_idx] = idx2
-        self.tab_widget.set_notification(tab_index=idx2, count=count)
-
-    def reset_errors(self, idx, tabs: QTabWidget, err_widget: ErrorWidget):
-        if tabs.tabText(idx) == "Errors":
-            err_widget.reset_count()
-            if isinstance(tabs, NotificationTabs):
-                tabs.set_notification(tab_name="Errors", count=0)
-
-    def push_stdout(self, process_idx, data):
-        proc = self.process_tabs.get(process_idx)
-        if not proc:
-            return
-        stream = proc["console"].get_stream_worker("stdout")  # type: ignore[index]
-        if stream:
-            stream.push(data)
-
-    def push_stderr(self, process_idx, data):
-        proc = self.process_tabs.get(process_idx)
-        if not proc:
-            return
-        stream = proc["console"].get_stream_worker("stderr")  # type: ignore[index]
-        if stream:
-            stream.push(data)
-        proc["error"].last_data = data  # type: ignore[index]
-
-    def process_finished(self, process_idx):
-        proc = self.process_tabs.get(process_idx)
-        if proc:
-            proc["console"].stop_streams()  # type: ignore[index]
-
-    def stop_all(self):
-        for proc in list(self.process_tabs.values()):
-            proc["console"].stop_streams()  # type: ignore[index]
-
-    def _close_process_tab(self, tab_index):
-        pid = None
-        for k, v in list(self._process_tab_indexes.items()):
-            if v == tab_index:
-                pid = k
-                break
-        self.tab_widget.remove_tab(tab_index=tab_index)
-        if pid is not None:
-            proc = self.process_tabs.pop(pid)
-            self._process_tab_indexes.pop(pid)
-            if proc:
-                proc["console"].stop_streams()  # type: ignore[index]
-        for k, v in list(self._process_tab_indexes.items()):
-            if v > tab_index:
-                self._process_tab_indexes[k] = v - 1
+        return console
