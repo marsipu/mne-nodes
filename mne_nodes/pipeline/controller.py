@@ -24,6 +24,7 @@ from mne_nodes import _widgets
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
+from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
@@ -60,7 +61,7 @@ class Controller:
         self._modules = {}
         self._function_metas = {}
         self._parameter_metas = {}
-        self._processes = {}
+        self._process_count = 0
         self._errors = {}
         self.default_config = {
             "selected_modules": ["basic_operations", "basic_plot"],
@@ -121,9 +122,6 @@ class Controller:
         self._config.clear()
         self._function_metas.clear()
         self._parameter_metas.clear()
-        for process in self._processes.values():
-            process.deleteLater()
-        self._processes.clear()
         self._errors.clear()
 
     @config_path.setter
@@ -572,12 +570,6 @@ class Controller:
             self.config["add_kwargs"] = {}
         return self.config["add_kwargs"]
 
-    def process(self, idx):
-        """Get the process for a specific index."""
-        if idx not in self._processes:
-            raise KeyError(f"Process with index {idx} not found.")
-        return self._processes[idx]
-
     @property
     def errors(self):
         """This holds the errors encountered during the project execution."""
@@ -605,53 +597,6 @@ class Controller:
         # set to dict directly to avoid calling setter again
         self.config["node_config"] = node_config
         self.save_config()
-
-    # ------------------------------------------------------------------
-    # QProcess Management
-    # ------------------------------------------------------------------
-    def create_process(
-        self, commands, console=None, working_directory=None, self_destruct=False
-    ):
-        """Create and register a Process for external commands.
-
-        Parameters
-        ----------
-        commands : str | list
-            Command(s) to execute (string or list of strings / arg lists).
-        console : ConsoleWidget | None
-            Console widget to attach process output to (if any). If None,
-            output is not attached to any console and send to stdout/stderr.
-        working_directory : Path | str | None
-            Working directory for the process.
-        Returns
-        -------
-        proc_idx : int
-            Index of the registered process.
-        process : QProcess
-            The initialized (but not yet started) process instance.
-        """
-        # local import to avoid cycles
-        from mne_nodes.pipeline.execution import Process
-
-        process = Process(
-            commands,
-            console=console,
-            working_directory=working_directory,
-            self_destruct=self_destruct,
-        )
-        proc_idx = len(self._processes)
-        self._processes[proc_idx] = process
-        # Wire state & finish updates into controller bookkeeping
-        process.allFinished.connect(lambda _: self._process_all_finished(proc_idx))
-        if console is not None:
-            process.allFinished.connect(console.stop_streams)
-        return process
-
-    def _process_all_finished(self, proc_idx):
-        proc = self.process(proc_idx)
-        if proc.self_destruct:
-            # Remove process from controller bookkeeping
-            del self._processes[proc_idx]
 
     ####################################################################################
     # Modules
@@ -893,15 +838,15 @@ class Controller:
             file.write(code)
         # Add Process to ConsoleDock and get Console
         console = self.main_window.console_dock.add_process()
-        # Register process via unified interface (single command: python script)
-        proc_idx, process = self.create_process(
-            f"{sys.executable} {run_file_path}",
-            working_directory=self.data_path,
+        process = Process(
+            proc_id=self._process_count,
             console=console,
+            working_directory=self.data_path,
             self_destruct=True,
         )
-        # Store reference to run file for metadata/backward compatibility
-        process.start()
+        self._process_count += 1
+        # Start process
+        process.start(sys.executable, [run_file_path])
 
     ####################################################################################
     # Legacy

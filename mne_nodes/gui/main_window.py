@@ -4,8 +4,6 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-import logging
-
 import mne
 from qtpy.QtCore import QProcess, Signal, Qt
 from qtpy.QtGui import QAction, QKeySequence
@@ -200,25 +198,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
-        # Stop any running processes and workers
-        for idx, process in list(self.controller._processes.items()):
-            if process is not None:
-                try:
-                    process.finished.disconnect()
-                    process.stateChanged.disconnect()
-                    process.errorOccurred.disconnect()
-                    process.allFinished.disconnect()
-                except (TypeError, RuntimeError):  # safe disconnect failures
-                    pass
-            if (
-                process is not None
-                and process.state() != QProcess.ProcessState.NotRunning
-            ):
-                process.kill(kill_all=True)
-                if process is not None:
-                    logging.info(f"Process {idx} killed")
-                    process.waitForFinished(2000)
-        self.controller._processes.clear()
         _widgets["main_window"] = None
         self.controller.save_node_config(self.viewer.to_dict())
         event.accept()

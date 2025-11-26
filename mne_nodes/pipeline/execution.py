@@ -5,8 +5,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import os
-import shlex
 import sys
 from inspect import signature
 from os.path import isdir
@@ -229,19 +227,22 @@ class Process(QProcess):
 
     def __init__(
         self,
-        commands,
+        commands=None,
         proc_id=None,
         console=None,
         working_directory=None,
-        self_destruct=False,
+        self_destruct=True,
     ):
         """
         Parameters
         ----------
-        commands : str | list[str]
-            Command or list of commands. Each command can be provided as a
-            string (will be tokenized with shlex) or as a list of commands, where the first one will be interpreted as program and the others as args.
-        proc_id : str | None
+        commands : list[tuple[str, list]] or None
+            List of program/argument combinations to execute in sequence.
+            The first element of each tuple is the program to execute,
+            the second element is a list of arguments. If None, no commands
+            are pre-registered. Then the process has to be started with
+            explicit program/arguments.
+        proc_id : int | None
             Optional ID for the process.
         console : ConsoleWidget | None
             Console to forward stdout/stderr to (if None, forwarding goes to stdout/stderr).
@@ -251,12 +252,8 @@ class Process(QProcess):
             If True, the Process object will delete itself after finishing.
         """
         super().__init__()
-        self.original_commands = commands
-        # Parse commands
-        if not isinstance(commands, list):
-            commands = [commands]
-        self.commands = [shlex.split(c, posix=os.name == "posix") for c in commands]
-        self.proc_id = proc_id or "X"
+        self.commands = commands or []
+        self.proc_id = proc_id
         self.console = console
         if working_directory is not None and isdir(working_directory):
             self.setWorkingDirectory(str(working_directory))
@@ -286,7 +283,6 @@ class Process(QProcess):
 
     def handle_error(self, error):
         logging.warning(f"Process {self.proc_id} encountered an error {error.value}.")
-        self.handle_finished()
 
     def handle_stdout(self):
         text = self.readAllStandardOutput().data()
@@ -309,12 +305,15 @@ class Process(QProcess):
             super().start(*args, **kwargs)
             return
         # Otherwise, start the next command in the list
-        cmds = self.commands.pop(0)
-        # Start
-        program, *args = cmds
-        self.setProgram(program)
-        self.setArguments(args)
-        super().start()
+        if len(self.commands) > 0:
+            cmds = self.commands.pop(0)
+            # Start
+            program, args = cmds
+            self.setProgram(program)
+            self.setArguments(args)
+            super().start()
+        else:
+            logging.warning("Process.start() called but no commands left to execute.")
 
 
 class ProcessDialog(QDialog):
@@ -327,7 +326,6 @@ class ProcessDialog(QDialog):
         close_directly=False,
         title=None,
         blocking=True,
-        controller=None,
     ):
         super().__init__(parent)
         self.commands = commands
@@ -335,8 +333,6 @@ class ProcessDialog(QDialog):
         self.show_console = show_console
         self.close_directly = close_directly
         self.title = title
-        self.controller = controller
-        self.proc_idx = None
         self.console = None
 
         self.process = None
@@ -388,19 +384,12 @@ class ProcessDialog(QDialog):
             self.close()
 
     def start_process(self):
-        # Use unified QProcessWorker, optionally register with controller
-        if self.controller is not None:
-            self.proc_idx, self.process = self.controller.create_process(
-                self.commands, console=self.console
-            )
-        else:
-            self.process = Process(self.commands, console=self.console)
+        self.process = Process(self.commands, console=self.console, self_destruct=True)
         self.process.finished.connect(self.process_finished)
         self.process.start()
 
     def closeEvent(self, event):
         if self.is_finished:
-            self.deleteLater()
             event.accept()
         else:
             event.ignore()
