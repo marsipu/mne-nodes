@@ -1,5 +1,6 @@
+from qtpy.QtCore import QPointF, Qt
+
 from mne_nodes.gui.gui_utils import mouseDrag
-from qtpy.QtCore import Qt, QPointF
 
 
 def test_nodes_basic_interaction(nodeviewer):
@@ -42,16 +43,15 @@ def test_node_serialization(nodeviewer):
     assert len(viewer_dict["nodes"]) == len(second_viewer_dict["nodes"])
 
 
-def test_show_nodeviewer(qtbot, nodeviewer_extended):
+def test_show_nodeviewer(nodeviewer):
     """Test if NodeViewer can be shown."""
-    nodeviewer_extended.show()
-    assert nodeviewer_extended.isVisible()
+    nodeviewer.show()
+    assert nodeviewer.isVisible()
 
     # Check if the viewport is correctly set
-    assert nodeviewer_extended.viewport() is not None
+    assert nodeviewer.viewport() is not None
 
     # Check if the nodes are correctly laid out
-    assert len(nodeviewer_extended.nodes) > 0
-    for node in nodeviewer_extended.nodes.values():
+    assert len(nodeviewer.nodes) > 0
+    for node in nodeviewer.nodes.values():
         assert node.isVisible()
-    qtbot.wait(100000)

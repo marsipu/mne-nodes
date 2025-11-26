@@ -11,17 +11,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu, windows, macos ]
-        python: [ '3.11' ]
-        # Test PySide6 and PyQt6 (PyQt5 and PySide2 are no longer supported)
-        qt : [ 'PySide6' , 'PyQt6' ]
+        python: [ '3.13' ]
+        # Oldest supported python version
         include:
           - os: ubuntu
-            python: '3.9'
-            qt : 'PySide6'
-          - os: ubuntu
             python: '3.10'
-            qt : 'PySide6'
-    name: Run tests on ${{ matrix.os }} - ${{matrix.python}} - ${{ matrix.qt }}
+    name: Run tests on ${{ matrix.os }} - ${{matrix.python}}
     runs-on: ${{ matrix.os }}-latest
     defaults:
       run:
@@ -39,9 +34,10 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Installation with dependencies
+        # Test with PySide6 by default
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ${{ matrix.qt }}
+          python -m pip install PySide6
           python -m pip install -ve ".[dev]"
       - name: Get testing version
         run: |
@@ -54,9 +50,9 @@ jobs:
           key: ${{ env.TESTING_VERSION }}
           path: ~/mne_data
         name: 'Cache testing data'
-      - name: 'Download testing, sample and fsaverage data'
+      - name: 'Download testing dataset'
         run: |
-          python -c 'import mne; mne.datasets.testing.data_path(); mne.datasets.sample.data_path(); mne.datasets.fetch_fsaverage()'
+          python -c 'import mne; mne.datasets.testing.data_path()'
       - name: Show system information
         run: mne sys_info
       - run: pytest

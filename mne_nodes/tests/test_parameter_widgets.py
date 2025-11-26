@@ -7,13 +7,13 @@ Github: https://github.com/marsipu/mne-nodes
 import inspect
 
 import pytest
-from qtpy.QtCore import Qt
 from numpy.testing import assert_allclose
+
+from qtpy.QtCore import Qt
 
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.parameter_widgets import Param, LabelGui
 from mne_nodes.tests._test_utils import toggle_checked_list_model
-
 
 gui_mapping = {
     "IntGui": "int",
@@ -192,10 +192,14 @@ def test_label_gui(qtbot, controller):
     assert "insula-lh" in dlg._parc_picker._shown_labels
     assert "postcentral-lh" in dlg._parc_picker._shown_labels
     # Add label by clicking on plot
-    qtbot.mouseClick(parc_plot, Qt.LeftButton, pos=parc_plot.rect().center(), delay=100)
+    qtbot.mouseClick(
+        parc_plot, Qt.MouseButton.LeftButton, pos=parc_plot.rect().center(), delay=100
+    )
     assert "supramarginal-rh" in dlg._selected_parc_labels
     # Remove label by clicking on plot
-    qtbot.mouseClick(parc_plot, Qt.LeftButton, pos=parc_plot.rect().center(), delay=100)
+    qtbot.mouseClick(
+        parc_plot, Qt.MouseButton.LeftButton, pos=parc_plot.rect().center(), delay=100
+    )
     assert "superiorfrontal-rh" not in dlg._selected_parc_labels
     # Add label by selecting from list
     toggle_checked_list_model(dlg.parc_label_list.model, value=1, row=5)
@@ -218,7 +222,9 @@ def test_label_gui(qtbot, controller):
     dlg.parcellation_cmbx.setCurrentText("aparc_sub")
     dlg._parc_changed()  # Only triggered by mouse click with .activated
     # Add label by clicking on plot
-    qtbot.mouseClick(parc_plot, Qt.LeftButton, pos=parc_plot.rect().center(), delay=100)
+    qtbot.mouseClick(
+        parc_plot, Qt.MouseButton.LeftButton, pos=parc_plot.rect().center(), delay=100
+    )
     assert "supramarginal_9-rh" in dlg._selected_parc_labels
     # Add label by selecting from list
     toggle_checked_list_model(dlg.parc_label_list.model, value=1, row=0)

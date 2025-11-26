@@ -22,12 +22,12 @@ from qtpy.QtWidgets import (
     QApplication,
 )
 
+from mne_nodes.conftest import test_parameters
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import SimpleDict
 from mne_nodes.gui.gui_utils import center
 from mne_nodes.gui.parameter_widgets import Param
 from mne_nodes.tests.test_parameter_widgets import gui_mapping, gui_kwargs
-from mne_nodes.conftest import test_parameters
 
 
 class ParamGuis(QWidget):

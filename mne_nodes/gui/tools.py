@@ -14,13 +14,13 @@ from qtpy.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
+    QSizePolicy,
 )
 
 from mne_nodes.gui.base_widgets import CheckList
 from mne_nodes.gui.code_editor import CodeEditor
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.execution import WorkerDialog
@@ -148,36 +148,36 @@ class DataTerminal(QDialog):
 
         self.layout.addLayout(bt_layout)
 
-        self.displayw = ConsoleWidget()
+        self.displayw = MainConsoleWidget()
         self.layout.addWidget(self.displayw)
 
         self.sub_layout = QGridLayout()
         self.inputw = CodeEditor()
         self.inputw.setSizePolicy(
-            QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
         )
         self.sub_layout.addWidget(self.inputw, 0, 0, 3, 1)
 
         self.start_bt = QPushButton("Start")
-        self.start_bt.setFont(QFont(Settings().value("app_font"), 16))
+        self.start_bt.setFont(QFont(Settings().get("app_font"), 16))
         self.start_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
         )
         self.start_bt.clicked.connect(self.start_execution)
         self.sub_layout.addWidget(self.start_bt, 0, 1)
 
         self.history_bt = QPushButton("History")
-        self.history_bt.setFont(QFont(Settings().value("app_font"), 16))
+        self.history_bt.setFont(QFont(Settings().get("app_font"), 16))
         self.history_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
         )
         self.history_bt.clicked.connect(partial(HistoryDlg, self))
         self.sub_layout.addWidget(self.history_bt, 1, 1)
 
         self.quit_bt = QPushButton("Close")
-        self.quit_bt.setFont(QFont(Settings().value("app_font"), 16))
+        self.quit_bt.setFont(QFont(Settings().get("app_font"), 16))
         self.quit_bt.setSizePolicy(
-            QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
         )
         self.quit_bt.clicked.connect(self.close)
         self.sub_layout.addWidget(self.quit_bt, 2, 1)
@@ -262,6 +262,6 @@ class DataTerminal(QDialog):
             self.inputw.clear()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Up:
+        if event.key() == Qt.Key.Key_Up:
             self.inputw.insertPlainText(self.history[0])
             self.inputw.ensureCursorVisible()

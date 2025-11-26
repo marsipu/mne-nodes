@@ -4,10 +4,12 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import logging
 import sys
 from inspect import signature
+from os.path import isdir
 
-from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, Qt, QProcess
+from qtpy.QtCore import QObject, Signal, QRunnable, Slot, QThreadPool, QProcess, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
@@ -19,7 +21,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
 )
 
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget, ConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple, ExceptionTuple
 
@@ -80,7 +82,7 @@ class Worker(QRunnable):
         # Retrieve args/kwargs here; and fire processing using them
         try:
             return_value = self.function(*self.args, **self.kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001
             exc_tuple = get_exception_tuple()
             self.signals.error.emit(exc_tuple)
         else:
@@ -143,19 +145,19 @@ class WorkerDialog(QDialog):
 
         if self.title:
             title_label = QLabel(self.title)
-            title_label.setFont(QFont("AnyType", 18, QFont.Bold))
+            title_label.setFont(QFont("AnyType", 18, QFont.Weight.Bold))
             layout.addWidget(title_label)
 
         self.progress_label = QLabel()
         self.progress_label.hide()
-        layout.addWidget(self.progress_label, alignment=Qt.AlignHCenter)
+        layout.addWidget(self.progress_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
 
         if self.show_console:
-            self.console_output = ConsoleWidget()
+            self.console_output = MainConsoleWidget()
             layout.addWidget(self.console_output)
 
         if self.show_buttons:
@@ -214,90 +216,107 @@ class WorkerDialog(QDialog):
             event.ignore()
 
 
-class QProcessWorker(QObject):
-    """A worker for QProcess."""
+class Process(QProcess):
+    """A wrapper for QProcess.
 
-    # Send stdout from current process.
-    stdoutSignal = Signal(str)
-    # Send stderr from curren process.
-    stderrSignal = Signal(str)
-    # Send when all processes from commands are finished.
-    finished = Signal()
+    QProcess.start() can also multiple program/argument combinations in
+    sequence.
+    """
 
-    def __init__(self, commands, printtostd=True):
+    allFinished = Signal(int, QProcess.ExitStatus)
+
+    def __init__(
+        self,
+        commands=None,
+        proc_id=None,
+        console=None,
+        working_directory=None,
+        self_destruct=True,
+    ):
         """
         Parameters
         ----------
-        commands : str, list
-            Provide a command or a list of commands.
-        printtostd : bool
-            Set False if stdout/stderr are not supposed
-             to be passed to sys.stdout/sys.stderr.
+        commands : list[tuple[str, list]] or None
+            List of program/argument combinations to execute in sequence.
+            The first element of each tuple is the program to execute,
+            the second element is a list of arguments. If None, no commands
+            are pre-registered. Then the process has to be started with
+            explicit program/arguments.
+        proc_id : int | None
+            Optional ID for the process.
+        console : ConsoleWidget | None
+            Console to forward stdout/stderr to (if None, forwarding goes to stdout/stderr).
+        working_directory : str | Path | None
+            Working directory to set for each process.
+        self_destruct : bool
+            If True, the Process object will delete itself after finishing.
         """
         super().__init__()
-
-        # Parse command(s)
-        if not isinstance(commands, list):
-            commands = [commands]
-        self.commands = [cmd.split(" ") for cmd in commands]
-        self.printtostd = printtostd
-        self.process = None
-
-    def handle_stdout(self):
-        text = bytes(self.process.readAllStandardOutput()).decode("utf8")
-        self.stdoutSignal.emit(text)
-        if self.printtostd:
-            sys.stdout.write(text)
-
-    def handle_stderr(self):
-        text = bytes(self.process.readAllStandardError()).decode("utf8")
-        self.stderrSignal.emit(text)
-        if self.printtostd:
-            sys.stderr.write(text)
-
-    def error_occurred(self):
-        text = (
-            f'An error occured with "{self.process.program()} '
-            f'{" ".join(self.process.arguments())}":\n'
-            f"{self.process.errorString()}\n"
-        )
-        self.stderrSignal.emit(text)
-        if self.printtostd:
-            sys.stderr.write(text)
-        self.process_finished()
-
-    def process_finished(self):
-        if self.process.exitCode() == 1:
-            text = (
-                f'"{self.process.program()} '
-                f'{" ".join(self.process.arguments())}" has crashed\n'
+        self.commands = commands or []
+        self.proc_id = proc_id
+        self.console = console
+        if working_directory is not None and isdir(working_directory):
+            self.setWorkingDirectory(str(working_directory))
+        self.self_destruct = self_destruct
+        self.readyReadStandardOutput.connect(self.handle_stdout)
+        self.readyReadStandardError.connect(self.handle_stderr)
+        self.stateChanged.connect(
+            lambda state: logging.debug(
+                f"Process {self.proc_id} state changed to {state.value}"
             )
-            self.stderrSignal.emit(text)
-            if self.printtostd:
-                sys.stderr.write(text)
+        )
+        self.finished.connect(self.handle_finished)
+
+    def handle_finished(self, code, status):
+        logging.info(
+            f"Process {self.proc_id} finished with exit code {code} and status {status.value}."
+        )
+        # Start next process if necessary
         if len(self.commands) > 0:
             self.start()
         else:
-            self.finished.emit()
+            self.allFinished.emit(self.exitCode(), self.exitStatus())
+            if self.console is not None:
+                self.console.stop_streams()
+            if self.self_destruct:
+                self.deleteLater()
 
-    def start(self):
-        # Take the first command from commands until empty.
-        cmd = self.commands.pop(0)
-        self.process = QProcess()
-        self.process.errorOccurred.connect(self.error_occurred)
-        self.process.readyReadStandardOutput.connect(self.handle_stdout)
-        self.process.readyReadStandardError.connect(self.handle_stderr)
-        self.process.finished.connect(self.process_finished)
-        self.process.start(cmd[0], cmd[1:])
+    def handle_error(self, error):
+        logging.warning(f"Process {self.proc_id} encountered an error {error.value}.")
 
-    def kill(self, kill_all=False):
-        if kill_all:
-            self.commands = []
-        if self.process:
-            self.process.kill()
+    def handle_stdout(self):
+        text = self.readAllStandardOutput().data()
+        if self.console is not None:
+            self.console.push_stdout(text)
+        else:
+            sys.stdout.write(text)
+
+    def handle_stderr(self):
+        text = self.readAllStandardError().data()
+        if self.console is not None:
+            self.console.push_stderr(text)
+        else:
+            sys.stderr.write(text)
+
+    def start(self, *args, **kwargs):
+        # If commands are given to start(), execute them first
+        if any([len(a) > 0 for a in [args, kwargs]]):
+            logging.debug("Starting external commmand")
+            super().start(*args, **kwargs)
+            return
+        # Otherwise, start the next command in the list
+        if len(self.commands) > 0:
+            cmds = self.commands.pop(0)
+            # Start
+            program, args = cmds
+            self.setProgram(program)
+            self.setArguments(args)
+            super().start()
+        else:
+            logging.warning("Process.start() called but no commands left to execute.")
 
 
-class QProcessDialog(QDialog):
+class ProcessDialog(QDialog):
     def __init__(
         self,
         parent,
@@ -314,8 +333,9 @@ class QProcessDialog(QDialog):
         self.show_console = show_console
         self.close_directly = close_directly
         self.title = title
+        self.console = None
 
-        self.process_worker = None
+        self.process = None
         self.is_finished = False
 
         self.init_ui()
@@ -337,14 +357,14 @@ class QProcessDialog(QDialog):
             layout.addWidget(title_label)
 
         if self.show_console:
-            self.console_output = ConsoleWidget()
-            layout.addWidget(self.console_output)
+            self.console = ConsoleWidget()
+            layout.addWidget(self.console)
 
         if self.show_buttons:
             bt_layout = QHBoxLayout()
 
             cancel_bt = QPushButton("Cancel")
-            cancel_bt.clicked.connect(self.cancel)
+            cancel_bt.clicked.connect(self.process.kill)
             bt_layout.addWidget(cancel_bt)
 
             self.close_bt = QPushButton("Close")
@@ -363,20 +383,13 @@ class QProcessDialog(QDialog):
         if self.close_directly:
             self.close()
 
-    def cancel(self):
-        self.process_worker.kill(kill_all=True)
-
     def start_process(self):
-        self.process_worker = QProcessWorker(self.commands)
-        if self.show_console:
-            self.process_worker.stdoutSignal.connect(self.console_output.write_stdout)
-            self.process_worker.stderrSignal.connect(self.console_output.write_stderr)
-        self.process_worker.finished.connect(self.process_finished)
-        self.process_worker.start()
+        self.process = Process(self.commands, console=self.console, self_destruct=True)
+        self.process.finished.connect(self.process_finished)
+        self.process.start()
 
     def closeEvent(self, event):
         if self.is_finished:
-            self.deleteLater()
             event.accept()
         else:
             event.ignore()

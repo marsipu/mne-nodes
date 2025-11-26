@@ -41,7 +41,7 @@ plot_noise_covariance;;MEEG;Plot;Inverse;True;False;;plot;basic;meeg,show_plots
 plot_transformation;;MEEG;Plot;Forward;True;True;;plot;basic;meeg,backend_3d
 plot_sensitivity_maps;;MEEG;Plot;Inverse;True;True;;plot;basic;meeg,ch_types
 plot_sensors;;MEEG;Plot;Forward;True;False;;plot;basic;meeg,plot_sensors_kind,ch_types,show_plots
-plot_raw;;MEEG;Plot;Raw;True;False;;plot;basic;meeg,show_plots,close_func
+plot_raw;;MEEG;Plot;Raw;True;False;;plot;basic;meeg,show_plots
 plot_filtered;;MEEG;Plot;Raw;True;False;;plot;basic;meeg,show_plots,close_func
 plot_events;;MEEG;Plot;events;True;False;;plot;basic;meeg,show_plots
 plot_power_spectra;;MEEG;Plot;Time-Frequency;True;False;;plot;basic;meeg,show_plots

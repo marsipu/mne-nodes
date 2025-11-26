@@ -6,7 +6,9 @@ using the widget.
 """
 
 import sys
+
 from qtpy.QtWidgets import QApplication, QMainWindow
+
 from mne_nodes.gui.base_widgets import TreeWidget
 
 

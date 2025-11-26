@@ -10,16 +10,16 @@ from collections import Counter
 from importlib import resources
 from pathlib import Path
 
-from qtpy.QtWidgets import QApplication
 from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
     QLabel,
     QListView,
     QPushButton,
-    QSizePolicy,
     QTextEdit,
     QVBoxLayout,
+    QApplication,
+    QSizePolicy,
 )
 
 from mne_nodes import extra
@@ -41,7 +41,7 @@ class CheckListDlg(QDialog):
         data: list or None
             Data for the Check-List.
         checked: list or None
-            List, where Checked Data-Items are stored.
+            List, where checked Data-Items are stored.
         """
         super().__init__(parent)
         self.data = data
@@ -154,14 +154,16 @@ class RawInfo(QDialog):
     def init_ui(self):
         layout = QGridLayout()
         meeg_list = SimpleList(self.mw.ct.pr.all_meeg)
-        meeg_list.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        meeg_list.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
         meeg_list.currentChanged.connect(self.meeg_selected)
         layout.addWidget(meeg_list, 0, 0)
 
         self.info_label = QTextEdit()
         self.info_label.setReadOnly(True)
         self.info_label.setSizePolicy(
-            QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
         )
         layout.addWidget(self.info_label, 0, 1)
 

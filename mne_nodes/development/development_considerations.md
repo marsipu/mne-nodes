@@ -65,6 +65,7 @@ Nodes should improve usability and the representation of the pipeline by the fol
   namespaces like "raw" or "epochs") can be used. Maybe that makes meeg/fsmri obsolete
   in the end but for group analysis group is still handy.
 - data-types need to be stored in Controller and visible somewhere
+- use **type-hints** to determine gui-type of parameters!
 
 ## Controller and Project
 

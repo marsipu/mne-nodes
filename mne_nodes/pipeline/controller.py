@@ -4,24 +4,29 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import ast
 import json
 import logging
 import os
-import re
+import shutil
 import sys
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
+from types import NoneType
 from typing import Any, Dict, Optional, Union
 
 import mne
 
+from mne_nodes import _widgets
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
 from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
+from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -36,34 +41,29 @@ class Controller:
     Parameters
     ----------
     config_path : str or Path, optional
-        Path to the config-file, if
-    data_path : str or Path, optional
-        Path to the (processed) data directory. This contatins all data, mne-nodes works with.
-    subjects_dir : str or Path, optional
-        Path to the FreeSurfer MRI data root directory, by default None.
-        Will be read and written to the mne config file.
-
-    Attributes
-    ----------
-    config_path : str or Path
         Path to the config-file.
-    config : dict
-        Dictionary containing the configuration data loaded from the config-file.
+    initialize_paths : bool, keyword-only, default False
+        If True, eagerly access path properties (may trigger user prompts).
+        Default False so that a Controller can be created safely in a
+        headless / non-QApplication context.
     """
 
-    def __init__(self, config_path: Optional[Union[str, Path]] = None):
-        # config will be filled when self.config is first called
-        self._config = {}
-        self._config_path = config_path or Settings().value(
-            "config_path", defaultValue=None
-        )
-        # If config_path is not specified (new user), invoke getter-method
-        if config_path is None:
-            _ = self.config_path
+    def __init__(
+        self,
+        config_path: Optional[Union[str, Path]] = None,
+        initialize_paths: bool = False,
+    ):
         # The device dependent settings
         self.settings = Settings()
+        # config will be filled when self.config is first called
+        self._config = {}
+        self._config_path = None
+        self._modules = {}
+        self._function_metas = {}
+        self._parameter_metas = {}
+        self._process_count = 0
+        self._errors = {}
         self.default_config = {
-            "data_path": None,
             "selected_modules": ["basic_operations", "basic_plot"],
             "parameter_preset": "Default",
             "show_plots": True,
@@ -80,71 +80,121 @@ class Controller:
             "app_style": "fusion",
             "app_theme": "auto",
             "padding": 20,
+            "tab_space_count": 4,
         }
-
-        # Property attributes
-        self._modules = {}
-        self._function_metas = {}
-        self._parameter_metas = {}
-        self._input_nodes = {k: {} for k in self.input_data_types}
-        self._function_nodes = {}
-        self._errors = {}
-
+        self.config_path = config_path or self.settings.get("config_path", default=None)
+        # Check existence of data_path (optional) only if requested
+        if initialize_paths:
+            try:
+                _ = self.data_path  # may trigger lazy initialization
+            except Exception as err:  # noqa: BLE001
+                logging.debug("Deferring data_path initialization: %s", err)
         # Initialize modules
-        self.load_basic_modules()
-        self.load_custom_modules()
+        # Legacy: Add basic modules until separated
+        self.module_meta["basic_operations"] = {
+            "module": Path(basic_operations.__file__),
+            "config": Path(basic_operations.__file__).with_name(
+                "basic_operations_config.json"
+            ),
+        }
+        self.module_meta["basic_plot"] = {
+            "module": Path(basic_plot.__file__),
+            "config": Path(basic_plot.__file__).with_name("basic_plot_config.json"),
+        }
+        self.load_modules()
 
     ####################################################################################
     # Initialization and Properties
     ####################################################################################
     @property
-    def config_path(self) -> str:
+    def config_path(self) -> Path | None:
         """Path to the config-file."""
-        if self._config_path is None:
-            logging.warning("No config-file path set!")
-            ans = ask_user("Do you want to create a new config-file?")
-            if ans:
+        if self._config_path is not None:
+            return Path(self._config_path)
+        return None
+
+    def _clear_attributes(self):
+        """Clear all attributes that depend on the config.
+
+        This is called when the config_path is changed to ensure that
+        all attributes are re-initialized.
+        """
+        self._config.clear()
+        self._function_metas.clear()
+        self._parameter_metas.clear()
+        self._errors.clear()
+
+    @config_path.setter
+    def config_path(self, value):
+        """Set the path to the config-file (respects interactive mode)."""
+        # Clear existing config
+        self.save_config()
+        self._clear_attributes()
+        # Check existence and prompt user for a new config-file if needed
+        if value is None or not isfile(value):
+            if value is None:
+                logging.warning("No config-file path set!")
+            else:
+                logging.warning(f"Config file {value} does not exist!")
+            ans = ask_user(
+                "Do you want to create a new config-file? (or use an existing one)",
+                close_on_cancel=True,
+            )
+            if ans is None:  # user cancelled
+                logging.info("User canceled, closing app.")
+                sys.exit(0)
+            elif ans:
                 logging.info("Creating new config-file.")
                 config_folder = get_user_input(
-                    "Set the folder-path to store the config-file", "folder"
+                    "Set the folder-path to store the config-file",
+                    "folder",
+                    exit_on_cancel=True,
                 )
-                config_path = join(config_folder, f"{self.name}_config.json")
-                self._config_path = config_path
-                self.save_config()
+                value = join(config_folder, f"{self.name}_config.json")
+                with open(value, "w", encoding="utf-8") as file:
+                    json.dump(self.default_config, file, indent=4, cls=TypedJSONEncoder)
             else:
                 logging.info("Using existing config-file.")
-                self._config_path = get_user_input(
+                value = get_user_input(
                     "Please enter the path to an exisiting config-file",
                     "file",
                     file_filter="JSON files (*.json)",
+                    exit_on_cancel=True,
                 )
-
-        return self._config_path
+        # Set, load and persist
+        self._config_path = value
+        self.load_config()
+        if not is_test():
+            self.settings.set("config_path", value)
 
     @property
     def config(self) -> Dict[str, Any]:
         """Configuration dictionary loaded from the config-file."""
-        if not self._config:
+        return self._config
+
+    def load_config(self):
+        """Load the configuration from the config-file."""
+        if len(self._config) == 0:
             with open(self.config_path) as file:
                 self._config = json.load(file, object_hook=type_json_hook)
         # Set defaults
         for config_key, value in self.default_config.items():
             if config_key not in self._config:
-                self._config[config_key] = value
-        return self._config
+                self.config[config_key] = value
 
     def save_config(self) -> None:
-        with open(self._config_path, "w") as file:
-            json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
+        if self._config_path is not None:
+            with open(self._config_path, "w") as file:
+                json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
 
     @property
-    def data_path(self) -> str:
+    def data_path(self) -> Path:
         """Path to the (processed) data directory.
 
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        data_path = self.config.get("data_path", None)
+        data_path = self.settings.get("data_path")
         input_message = f"Please select/create a folder where the data of the project {self.name} should be stored"
         if data_path is None:
             data_path = get_user_input(input_message, "folder")
@@ -156,17 +206,17 @@ class Controller:
             data_path = get_user_input(input_message, "folder")
             self.data_path = data_path
 
-        return data_path
+        return Path(data_path)
 
     @data_path.setter
     def data_path(self, value: Optional[Union[str, Path]]) -> None:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            self.config["data_path"] = value
+            self.settings.set("data_path", value)
 
     @property
-    def subjects_dir(self):
+    def subjects_dir(self) -> Path:
         """Path to the FreeSurfer subjects directory."""
         subjects_dir = mne.get_config("SUBJECTS_DIR", None)
         input_message = f"Please enter the path to the FreeSurfer subjects directory for project {self.name}"
@@ -180,7 +230,7 @@ class Controller:
             subjects_dir = get_user_input(input_message, "folder")
             self.subjects_dir = subjects_dir
 
-        return subjects_dir
+        return Path(subjects_dir)
 
     @subjects_dir.setter
     def subjects_dir(self, value):
@@ -192,7 +242,7 @@ class Controller:
     @property
     def plot_path(self):
         """Path to the directory where plots are saved."""
-        plot_path = self.settings.value("plot_path", defaultValue=None)
+        plot_path = self.settings.get("plot_path", default=None)
         input_message = f"Please select a folder where the plots for project {self.name} should be saved"
         if plot_path is None:
             plot_path = get_user_input(input_message, "folder")
@@ -212,25 +262,67 @@ class Controller:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
             self.config["plot_path"] = value
+            self.save_config()
+
+    @property
+    def plot_files(self):
+        """This holds the plot file-paths for the project."""
+        if "plot_files" not in self.config:
+            self.config["plot_files"] = {}
+        return self.config["plot_files"]
 
     @property
     def name(self):
         if "name" not in self._config:
-            self.name = get_user_input("Please enter a name for this project", "string")
-
-        return self._config["name"]
+            if getattr(self, "_interactive", True):
+                self.config["name"] = get_user_input(
+                    "Please enter a name for this project", "string"
+                )
+            else:
+                # Non-interactive default
+                self.config["name"] = "Default"
+        return self.config["name"]
 
     @name.setter
     def name(self, new_name):
-        old_name = self._config.get("name", None)
-        if old_name is not None and old_name != new_name:
+        old_name = self._config.get("name")
+        if old_name != new_name:
             # Rename the config file if the name changes
             old_path = self._config_path
             new_path = join(os.path.dirname(old_path), f"{new_name}_config.json")
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
             self._config_path = new_path
-        self._config["name"] = new_name
+        self.config["name"] = new_name
+        self.save_config()
+
+    @property
+    def local_config_path(self):
+        """Path to the local config folder."""
+        local_config_path = Path.home() / ".mne-nodes"
+        local_config_path.mkdir(parents=True, exist_ok=True)
+
+        return local_config_path
+
+    @property
+    def viewer(self):
+        """Get the viewer object from the _widgets dictionary."""
+        viewer = _widgets.get("viewer", None)
+        if viewer is None:
+            raise RuntimeError(
+                "Viewer is not initialized. Please initialize the viewer first."
+            )
+        return viewer
+
+    @property
+    def main_window(self):
+        """Get the main window object from the _widgets dictionary."""
+        main_window = _widgets.get("main_window", None)
+        if main_window is None:
+            raise RuntimeError(
+                "Main window is not initialized. Please initialize the main window first."
+            )
+        return main_window
 
     @property
     def input_data_types(self):
@@ -241,10 +333,9 @@ class Controller:
         """
         if "input_data_types" not in self.config:
             self.config["input_data_types"] = {
-                "raw": "MEG/EEG",
-                "fsmri": "Freesurfer MRI",
+                "raw": {"alias": "MEG/EEG", "import": "import_raw"},
+                "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
             }
-            self.save_config()
         return self.config["input_data_types"]
 
     @property
@@ -252,11 +343,11 @@ class Controller:
         """This holds all data input nodes from MEEG and FSMRI data.
 
         There can be multiple input-nodes for each data type with each
-        having a distinct name (keys in the second level of the
+        having a distinct (group)name (keys in the second level of the
         dictionary).
         """
         if "inputs" not in self.config:
-            self.config["inputs"] = {k: {} for k in self.input_data_types}
+            self.config["inputs"] = {k: {"All": []} for k in self.input_data_types}
         return self.config["inputs"]
 
     @property
@@ -268,11 +359,75 @@ class Controller:
 
     @property
     def input_mapping(self):
-        """This holds the mapping of input nodes to data types (like MRI or
+        """This holds the mapping of inputs to other data types (like MRI or
         Empty- Room)."""
         if "input_mapping" not in self.config:
-            self.config["input_mapping"] = {}
+            self.config["input_mapping"] = {"fsmri": {}, "erm": {}}
         return self.config["input_mapping"]
+
+    def add_data(
+        self,
+        name: str,
+        data_type: str,
+        group: str = "All",
+        input_path: Path | str | NoneType = None,
+    ) -> None:
+        """Add an input to the inputs dictionary.
+
+        Parameters
+        ----------
+        name : str
+            Name of the input (e.g., subject name or ID).
+        data_type : str
+            Type of the input data. Must be one of the keys in
+            self.input_data_types (e.g., "raw", "fsmri").
+        group : str, optional
+            Group name for the input. Default is "All".
+        input_path : Path or str or NoneType, optional
+            Path to the input data file or directory. If provided,
+            the data will be imported using the appropriate import function.
+            Default is None.
+        """
+        if data_type not in self.input_data_types:
+            raise ValueError(f"{data_type} is not valid data-type.")
+        if group not in self.inputs[data_type]:
+            self.inputs[data_type][group] = []
+        if name in self.inputs[data_type][group]:
+            logging.error(f"The input {name} is already in {group} for{data_type}.")
+            return
+        self.inputs[data_type][group].append(name)
+        if input_path is not None:
+            # ToDo: Implement import functions for other data types
+            data_import = import_module("mne_nodes.pipeline.data_import")
+            import_func = getattr(
+                data_import, self.input_data_types[data_type]["import"]
+            )
+            import_func(name=name, import_path=input_path, controller=self)
+
+    def remove_data(self, name, data_type, group="All"):
+        """Remove an input from the inputs dictionary."""
+        if data_type not in self.input_data_types:
+            raise ValueError(f"{data_type} is not valid data-type.")
+        if group not in self.inputs[data_type]:
+            logging.error(f"Group {group} does not exist for {data_type}.")
+            return
+        if name not in self.inputs[data_type][group]:
+            logging.error(f"The input {name} is not in {group} for {data_type}.")
+            return
+        self.inputs[data_type][group].remove(name)
+        if len(self.inputs[data_type][group]) == 0:
+            del self.inputs[data_type][group]
+        for dt in ["fsmri", "erm"]:
+            self.input_mapping[dt].pop(name, None)
+        if name in self.selected_inputs:
+            self.selected_inputs.remove(name)
+        self.bad_channels.pop(name, None)
+        self.event_ids.pop(name, None)
+        if data_type == "fsmri":
+            data_type_dir = join(self.subjects_dir, name)
+        else:
+            data_type_dir = join(self.data_path, name)
+        shutil.rmtree(data_type_dir, ignore_errors=True)
 
     @property
     def bad_channels(self):
@@ -334,20 +489,23 @@ class Controller:
     def parameter_preset(self, value):
         """Set the current parameter preset for the project."""
         if value not in self.parameters:
-            raise KeyError(f"Parameter preset '{value}' not found in project.")
+            logging.info(f"Creating new parameter preset '{value}'.")
+            self.parameters[value] = {}
         self.config["parameter_preset"] = value
         self.save_config()
 
     def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
-        parameter_meta = self.parameter_metas.get(parameter_name, None)
+        parameter_meta = self.parameter_metas.get(parameter_name)
         if parameter_meta is None:
             raise KeyError(f"Parameter '{parameter_name}' not found in Parameter-Meta.")
         default_value = parameter_meta["default"]
 
         return default_value
 
-    def parameter(self, parameter_name: str, parameter_preset: Optional[str] = None) -> Any:
+    def parameter(
+        self, parameter_name: str, parameter_preset: Optional[str] = None
+    ) -> Any:
         """Get a specific parameter from the project parameters."""
         parameter_preset = parameter_preset or self.parameter_preset
         if parameter_preset not in self.parameters:
@@ -359,11 +517,51 @@ class Controller:
         if parameter_name not in self.parameters[parameter_preset]:
             logging.warning(
                 f"Parameter '{parameter_name}' not found in preset '{parameter_preset}'. "
-                "Returning default value."
+                "Setting and returning default value."
             )
-            return self.get_default(parameter_name)
+            self.parameters[parameter_preset][parameter_name] = self.get_default(
+                parameter_name
+            )
 
         return self.parameters[parameter_preset][parameter_name]
+
+    def set_parameter(
+        self, parameter_name: str, value: Any, parameter_preset: Optional[str] = None
+    ) -> None:
+        """Set a specific parameter in the project parameters."""
+        parameter_preset = parameter_preset or self.parameter_preset
+        if parameter_preset not in self.parameters:
+            logging.warning(
+                f"Parameter preset '{parameter_preset}' not found in project. "
+                "Using 'Default' preset instead."
+            )
+            parameter_preset = "Default"
+        if parameter_name not in self.parameters[parameter_preset]:
+            logging.warning(
+                "You should not create a new parameter with controller.set_parameter. Add the parameter to the parameter-meta first. This function should only be used to modify existing parameters."
+            )
+        self.parameters[parameter_preset][parameter_name] = value
+        self.save_config()
+
+    def func_parameters(self, function_name, parameter_preset=None):
+        """Get the parameters for a specific function from the project
+        parameters."""
+        parameter_preset = parameter_preset or self.parameter_preset
+        if parameter_preset not in self.parameters:
+            logging.warning(
+                f"Parameter preset '{parameter_preset}' not found in project. "
+                "Using 'Default' preset instead."
+            )
+            parameter_preset = "Default"
+        if function_name not in self.function_metas:
+            raise KeyError(f"Function '{function_name}' not found in function meta.")
+
+        func_meta = self.function_metas[function_name]
+        params = {}
+        for param_name in func_meta["parameters"]:
+            params[param_name] = self.parameter(param_name, parameter_preset)
+
+        return params
 
     @property
     def add_kwargs(self):
@@ -373,16 +571,32 @@ class Controller:
         return self.config["add_kwargs"]
 
     @property
-    def plot_files(self):
-        """This holds the plot file-paths for the project."""
-        if "plot_files" not in self.config:
-            self.config["plot_files"] = {}
-        return self.config["plot_files"]
-
-    @property
     def errors(self):
         """This holds the errors encountered during the project execution."""
         return self._errors
+
+    @property
+    def tab(self):
+        """This holds the tabs for the project."""
+        return " " * self._config.get(
+            "tab_space_count", self.default_config["tab_space_count"]
+        )
+
+    @property
+    def node_config(self):
+        return self._config.get("node_config", {"nodes": {}, "connections": {}})
+
+    @node_config.setter
+    def node_config(self, value):
+        if not isinstance(value, dict):
+            raise TypeError("Node config must be a dictionary.")
+        self.viewer.load_config(value)
+        self.save_node_config(value)
+
+    def save_node_config(self, node_config):
+        # set to dict directly to avoid calling setter again
+        self.config["node_config"] = node_config
+        self.save_config()
 
     ####################################################################################
     # Modules
@@ -402,16 +616,16 @@ class Controller:
         return self._modules
 
     @property
-    def custom_module_meta(self):
+    def module_meta(self):
         """This holds the custom modules used in the project, stored by name
         and path to the config-file."""
-        if "custom_module_meta" not in self.config:
-            self.config["custom_module_meta"] = {}
-        return self.config["custom_module_meta"]
+        if "module_meta" not in self.config:
+            self.config["module_meta"] = {}
+        return self.config["module_meta"]
 
-    def _load_module_config(self, module_name, pkg_path):
+    def _load_module_config(self, module_name):
         """Load the configuration file for a module from the package path."""
-        config_file_path = join(pkg_path, f"{module_name}_config.json")
+        config_file_path = self.module_meta[module_name]["config"]
         if not isfile(config_file_path):
             raise RuntimeError(
                 f"Config file for {module_name} not found at {config_file_path}."
@@ -421,8 +635,9 @@ class Controller:
         self.function_metas.update(config_data["functions"])
         self.parameter_metas.update(config_data["parameters"])
 
-    def _import_module(self, module_name, pkg_path):
+    def _import_module(self, module_name):
         """Import a module from the given package path."""
+        pkg_path = self.module_meta[module_name]["module"].parent
         # Add the package path to sys.path if not already present
         if pkg_path not in sys.path:
             sys.path.insert(0, str(pkg_path))
@@ -435,21 +650,12 @@ class Controller:
         else:
             self._modules[module_name] = module
         # Load the config file for the basic module
-        self._load_module_config(module_name, pkg_path)
+        self._load_module_config(module_name)
 
-    def load_basic_modules(self) -> None:
-        """Load the basic modules from the basic_operations package."""
-        for module in [basic_operations, basic_plot]:
-            module_name = module.__name__.split(".")[-1]  # Get the module name
-            self._modules[module_name] = module
-            pkg_path = Path(module.__file__).parent
-            self._load_module_config(module_name, pkg_path)
-
-    def load_custom_modules(self) -> None:
+    def load_modules(self) -> None:
         """Load custom modules from their config files."""
-        for module_name, config_file_path in self.custom_module_meta.items():
-            pkg_path = Path(config_file_path).parent
-            self._import_module(module_name, pkg_path)
+        for module_name in self.module_meta:
+            self._import_module(module_name)
 
     def add_custom_module(self, config_file_path: Union[str, Path]):
         """Add a custom module to the controller.
@@ -459,7 +665,13 @@ class Controller:
         config_file_path : str or Path
             Path to the configuration file for the custom module.
         """
-        module_name = Path(config_file_path).stem.replace("_config", "")
+        with open(config_file_path) as file:
+            config_data = json.load(file, object_hook=type_json_hook)
+        module_name = config_data.get("module_name", None)
+        if module_name is None:
+            raise ValueError(
+                f"Config file {config_file_path} does not contain a 'module_name' entry."
+            )
         if not isfile(config_file_path):
             raise FileNotFoundError(f"Config file {config_file_path} does not exist.")
         module_path = Path(config_file_path).parent / f"{module_name}.py"
@@ -468,37 +680,36 @@ class Controller:
                 f"Module file {module_path} does not exist. The module file has to have the exact name of the module and the config file has to be named <module_name>_config.json."
             )
 
-        self.custom_module_meta[module_name] = config_file_path
-        self.load_custom_modules()
+        self.module_meta[module_name] = {
+            "config": config_file_path,
+            "module": Path(config_file_path).parent / f"{module_name}.py",
+        }
+        self.load_modules()
 
     def reload_modules(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
 
-        This method reloads the selected module or all modules in the controller by removing them from sys.modules
-        and importing them again. This ensures that any changes to the module's source code
-        are reflected in the controller.
+        This refreshes selected or all modules by removing them from sys.modules
+        and importing them again so source changes take effect.
 
         Parameters
         ----------
-        module_name : str, None, optional
-            Provide a module_name (must be unique) to be reloaded.
+        module_name : str | None
+            Provide a module_name (must be unique) to be reloaded. If None,
+            all modules are reloaded.
 
-        Note:
+        Notes
         -----
-        This method updates the modules in the controller, but it does not update existing
-        references to objects from the modules. If you have a reference to an object from
-        a module (like a function), you need to get a new reference to that object after
-        reloading the module using controller.modules[<module>].
+        This updates the controller's module objects, but it does not update
+        existing references to objects (e.g. functions) obtained before reload.
+        Acquire fresh references after calling this.
 
-        Example:
+        Examples
         --------
-        >>> # Get a reference to a function
         >>> controller = Controller()
         >>> func = controller.modules["module_name"].some_func
-        >>> # Modify the module's source code
         >>> controller.reload_modules()
-        >>> # Get a new reference to the function
-        >>> updated_func = controller.modules["module_name"].some_func
+        >>> new_func = controller.modules["module_name"].some_func
         """
 
         if module_name is None:
@@ -532,6 +743,20 @@ class Controller:
         else:
             raise KeyError(f"Metadata for '{name}' not found in project.")
 
+    @staticmethod
+    def _get_func_start_end(function_name, module_code):
+        tree = ast.parse(module_code)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                # lineno and end_lineno are 1-based
+                start_line = node.lineno - 1
+                end_line = node.end_lineno - 1
+
+                return start_line, end_line
+        logging.warning("Could not find function in module code.")
+
+        return None, None
+
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
         module_name = self.get_meta(function_name)["module"]
@@ -541,13 +766,87 @@ class Controller:
             raise KeyError(
                 f"Function '{function_name}' not found in module '{module_name}'."
             )
-        code = getsource(function)
         module_code = getsource(module)
-        # ToDo: Get start/end lines of the function code in module
-        re.search(code, module_code)
-        pass
+        func_code = getsource(function)
+        start, end = self._get_func_start_end(function_name, module_code)
 
-        return None, None, None
+        return func_code, start, end
+
+    def convert_to_code(self, instructions, start_name):
+        """Convert a list of instructions to a Python code string."""
+        # Resolve imports
+        code = (
+            "# This code was generated by mne-nodes\n\n"
+            "import traceback\n"
+            "from tqdm import tqdm\n"
+            "import mne_nodes\n"
+            "from mne_nodes.pipeline.controller import Controller\n"
+            "from mne_nodes.pipeline.loading import MEEG, FSMRI, Group\n\n"
+            "# Load controller\n"
+            f"ct = Controller(config_path='{self.config_path.as_posix()}')\n\n"
+            "# Inject modules into global namespace\n"
+            "globals().update(ct.modules)\n"
+        )
+        # Add module imports
+        for module_name, module in self.modules.items():
+            code += f"from {module_name} import *\n"
+        # Add function execution code
+        code += "\n# Execute pipeline\n"
+        # ToDo: Put into try-except block to catch errors of multiple subjects
+        loaded_data = set()
+        modules = {}
+        if instructions[0][0] == "raw":
+            code += f"for meeg_name in tqdm(ct.inputs['raw']['{start_name}']):\n"
+            code += self.tab + "meeg = MEEG(meeg_name, ct)\n"
+            loaded_data.add(instructions[0][0])
+        elif instructions[0][0] == "fsmri":
+            code += f"for fsmri_name in tqdm(ct.inputs['fsmri']['{start_name}']):\n"
+            code += self.tab + "fsmri = FSMRI(fsmri_name, ct)\n"
+        elif instructions[0][0] == "group":
+            pass  # ToDo: Handle groups
+        else:
+            raise ValueError(f"Unknown input type: {instructions[0][0]}")
+        # Add try-except block for error handling
+        code += self.tab + "try:\n"
+        for name, kind in instructions:
+            if kind == "Input" and name not in loaded_data:
+                code += self.tab * 2 + f'{kind} = meeg.load(data_type="{kind}")\n'
+                loaded_data.add(name)
+            elif kind == "Function":
+                meta = self.get_meta(name)
+                if meta["module"] not in modules:
+                    modules[meta["module"]] = []
+                modules[meta["module"]].append(name)
+                code += self.tab * 2 + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
+            else:
+                logging.warning(
+                    f"Unknown instruction type '{kind}' for name '{name}'. "
+                    "Skipping this instruction."
+                )
+        code += self.tab + "except Exception as e:\n"
+        code += self.tab * 2 + "print(f'[Error] for {meeg_name}: {e}')\n"
+        code += self.tab * 2 + "traceback.print_exc()\n"
+        code += self.tab * 2 + "continue\n"
+
+        return code
+
+    def start(self, instructions, start_name):
+        # Generate code file
+        code = self.convert_to_code(instructions, start_name)
+        run_file_path = self.local_config_path / f"{self.name}_pipeline.py"
+        with open(run_file_path, "w") as file:
+            file.write(code)
+        # Add Process to ConsoleDock and get Console
+        console = self.main_window.console_dock.add_process()
+        process = Process(
+            proc_id=self._process_count,
+            console=console,
+            working_directory=self.data_path,
+            self_destruct=True,
+        )
+        self._process_count += 1
+        # Start process
+        process.start(sys.executable, [str(run_file_path)])
 
     ####################################################################################
     # Legacy
@@ -601,8 +900,8 @@ class Controller:
         self.config["selected_event_ids"] = pr.sel_event_id
         self.config["ica_exclude"] = pr.meeg_ica_exclude
 
-        self.config["input_mapping"].update(pr.meeg_to_erm)
-        self.config["input_mapping"].update(pr.meeg_to_fsmri)
+        self.input_mapping["erm"].update(pr.meeg_to_erm)
+        self.input_mapping["fsmri"].update(pr.meeg_to_fsmri)
 
         self.config["parameters"].update(pr.parameters)
         self.config["parameter_preset"] = pr.parameter_preset

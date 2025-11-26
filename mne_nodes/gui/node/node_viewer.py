@@ -9,7 +9,7 @@ import math
 from collections import OrderedDict
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, Qt, QRect, QSize, Signal
+from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
 from qtpy.QtGui import QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QGraphicsView,
@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QGraphicsPathItem,
 )
 
-from mne_nodes import _object_refs
+from mne_nodes import _widgets, debug_mode
 from mne_nodes.gui.gui_utils import invert_rgb_color
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
@@ -52,13 +52,12 @@ class NodeViewer(QGraphicsView):
     InsertNode = Signal(object, str, dict)
     NodeNameChanged = Signal(str, str)
 
-    def __init__(self, ct, parent=None, debug_mode=False):
+    def __init__(self, ct, parent=None):
         super().__init__(parent)
         self.ct = ct
-        self._debug_mode = debug_mode
 
         # add to global object references
-        _object_refs["viewer"] = self
+        _widgets["viewer"] = self
 
         # attributes
         self._nodes = OrderedDict()
@@ -89,6 +88,40 @@ class NodeViewer(QGraphicsView):
             QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing
         )
         self.setAcceptDrops(True)
+        # Also set on the viewport where Qt delivers drag/drop events.
+        self.viewport().setAcceptDrops(True)
+
+        # initialize debug coordinate system (grid + axes)
+        self._coord_grid = QGraphicsPathItem()
+        self._coord_grid.setZValue(-6)
+        grid_pen = self._coord_grid.pen()
+        grid_pen.setColor(QColor(0, 200, 0, 50))
+        grid_pen.setWidth(0)
+        self._coord_grid.setPen(grid_pen)
+        self._coord_grid.setPath(QPainterPath())
+        self._coord_grid.setVisible(False)
+        self._coord_grid.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_grid.setFlag(
+            self._coord_grid.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_grid)
+
+        self._coord_axes = QGraphicsPathItem()
+        self._coord_axes.setZValue(-5)
+        axes_pen = self._coord_axes.pen()
+        axes_pen.setColor(QColor(0, 200, 0, 160))
+        axes_pen.setWidth(0)
+        self._coord_axes.setPen(axes_pen)
+        self._coord_axes.setPath(QPainterPath())
+        self._coord_axes.setVisible(False)
+        self._coord_axes.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_axes.setFlag(
+            self._coord_axes.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_axes)
+
+        # tick label items for debug grid
+        self._coord_tick_labels = []
 
         # set initial range
         self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
@@ -132,6 +165,11 @@ class NodeViewer(QGraphicsView):
         self._debug_path.setPath(QPainterPath())
         self.scene().addItem(self._debug_path)
 
+        # show immediately if in debug mode
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+
     ####################################################################################
     # Properties
     ####################################################################################
@@ -152,8 +190,9 @@ class NodeViewer(QGraphicsView):
 
         Returns
         -------
-        list
-            List of InputNode instances.
+        dict
+            Dictionary of InputNode instances with first key being the data-type
+            and second key being the (group)name.
         """
         return self._input_nodes
 
@@ -164,7 +203,8 @@ class NodeViewer(QGraphicsView):
         Returns
         -------
         dict
-            Dictionary of FunctionNode instances, keyed by function name.
+            Dictionary of FunctionNode instances with the function name as the
+            first key and the node id as the second key.
         """
         return self._function_nodes
 
@@ -220,11 +260,15 @@ class NodeViewer(QGraphicsView):
         if isinstance(node, InputNode):
             dt = node.data_type
             if dt not in self.input_nodes:
-                self.input_nodes[dt] = {}
+                self.input_nodes[dt] = {}  #
+            # For input nodes, the name must be unique while there can be
+            # multiple input-nodes per data-type
             self.input_nodes[dt][node.name] = node
         elif isinstance(node, FunctionNode):
             if node.name not in self.function_nodes:
                 self.function_nodes[node.name] = {}
+            # For function nodes, the name can be the same for multiple nodes but
+            # they need to be distinguishable by their id.
             self.function_nodes[node.name][node.id] = node
         # draw node (necessary to redraw after it is added to the scene)
         node.draw_node()
@@ -392,7 +436,7 @@ class NodeViewer(QGraphicsView):
             name = "All"
         if data_type not in self.input_nodes:
             raise ValueError(f"Data type {data_type} not found in inputs.")
-        if name not in [node.name for node in self.input_nodes]:
+        if name not in self.input_nodes[data_type]:
             raise ValueError(f"Group {name} not found in inputs for {data_type}.")
 
         return self.input_nodes[data_type].get(name, None)
@@ -421,6 +465,35 @@ class NodeViewer(QGraphicsView):
         elif node_id not in self.function_nodes[name]:
             raise KeyError(f"Node with id '{node_id}' for function '{name}' not found.")
         return self.function_nodes[name].get(node_id, None)
+
+    def port(self, **kwargs):
+        """Get a port from the node graph based on its properties.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments to find the port by its properties, such as
+            node_id, port_id, or old_id.
+
+        Returns
+        -------
+        Port or list of Port or None
+            The port that matches the provided properties. If multiple ports matcht the properties, a list of matching ports is returned.If no match is found,
+            returns None.
+        """
+        ports = [
+            node.port(**kwargs)
+            for node in self.nodes.values()
+            if node.port(**kwargs) is not None
+        ]
+        if len(ports) == 0:
+            logging.warning("No port found with the provided parameters.")
+            return None
+        elif len(ports) == 1:
+            return ports[0]
+        else:
+            logging.warning(f"Found {len(ports)} ports with the provided parameters.")
+            return ports
 
     def to_dict(self):
         """Serialize the node viewer to a dictionary.
@@ -472,11 +545,53 @@ class NodeViewer(QGraphicsView):
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
 
-    def start_from_node(self, node):
-        """Start the execution of functions from a specific node."""
-        if isinstance(node, InputNode):
-            node_dict = node.downstream_nodes()
-            print(node_dict)
+    def load_config(self, config: dict):
+        self.from_dict(config)
+        # If nodes are loaded, we need to re-layout them
+        self.auto_layout_nodes()
+        self.zoom_to_nodes()
+
+    def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
+        if visited is None:
+            visited = set()
+        for port_id, port_info in node_dict.items():
+            if port_id in visited:
+                continue
+            visited.add(port_id)
+            port = self.port(port_id=port_id)
+            # If the port has no connected ports, skip it
+            if len(port.connected_ports) == 0:
+                continue
+            instructions.append((port.name, "Port"))
+            for node_id, node_info in port_info.items():
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+                node = self.node(node_id=node_id)
+                if len(node.inputs) > 1:
+                    # If the node has multiple inputs, we need to ensure
+                    # that all inputs are processed before this node.
+                    other_ports = [
+                        p for p in node.inputs if p not in port.connected_ports
+                    ]
+                    for oport in other_ports:
+                        reverse_exec_order = []
+                        up_nodes = node.upstream_nodes(port_id=oport.id)
+                        self._get_execution_from_nodes(
+                            reverse_exec_order, up_nodes, visited
+                        )
+                        reverse_exec_order.reverse()
+                        instructions.extend(reverse_exec_order)
+                if isinstance(node, InputNode):
+                    instructions.append((node.data_type, "Input"))
+                elif isinstance(node, FunctionNode):
+                    instructions.append((node.name, "Function"))
+                else:
+                    logging.warning(
+                        f"Node {node.name} of type {type(node)} is not a valid "
+                        "input or function node."
+                    )
+                self._get_execution_from_nodes(instructions, node_info, visited)
 
     def from_project(self):
         """Legacy method to load nodes from the project.
@@ -586,6 +701,13 @@ class NodeViewer(QGraphicsView):
         self.setSceneRect(self._scene_range)
         self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
 
+        # Update debug coordinate system (grid + axes)
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+
     def _combined_rect(self, nodes):
         """Return a QRectF with the combined size of the provided node items.
 
@@ -632,6 +754,13 @@ class NodeViewer(QGraphicsView):
         rect = QRectF(x, y, width, height)
         items = []
         excl = [self._LIVE_PIPE, self._SLICER_PIPE]
+        # exclude debug helpers from hit-tests
+        if hasattr(self, "_coord_grid"):
+            excl.append(self._coord_grid)
+        if hasattr(self, "_coord_axes"):
+            excl.append(self._coord_axes)
+        if hasattr(self, "_debug_path"):
+            excl.append(self._debug_path)
         for item in self.scene().items(rect):
             if item in excl:
                 continue
@@ -670,7 +799,7 @@ class NodeViewer(QGraphicsView):
         map_pos = self.mapToScene(event.pos())
 
         # debug path
-        if self._debug_mode:
+        if debug_mode():
             if self.LMB_state:
                 path = self._debug_path.path()
                 path.moveTo(map_pos)
@@ -762,7 +891,7 @@ class NodeViewer(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
-        if self._debug_mode:
+        if debug_mode():
             # Debug mouse
             if self.LMB_state:
                 to_pos = self.mapToScene(event.pos())
@@ -853,37 +982,77 @@ class NodeViewer(QGraphicsView):
         # 3. Drag a pipeline-config-file to load a pipeline
 
         pos = self.mapToScene(event.pos())
+        # enforce copy action for external drops
         event.setDropAction(Qt.DropAction.CopyAction)
-        self.DataDropped.emit(event.mimeData(), QPointF(pos.x(), pos.y()))
+        print(
+            "[NodeViewer] dropEvent received. hasText=",
+            event.mimeData().hasText(),
+            "text=",
+            event.mimeData().text(),
+        )
+        mime = event.mimeData()
+        self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
+
+        # Handle drop from NodePicker
+        text = mime.text() if hasattr(mime, "text") else ""
+        if text is None:
+            logging.debug("No text payload in drop event, ignoring.")
+            return
+        if text.startswith("mne-nodes/function:"):
+            fname = text[len("mne-nodes/function:") :]
+            if not fname:
+                return
+            node = self.add_function_node(fname)
+            node.xy_pos = (pos.x(), pos.y())
+        elif text.startswith("mne-nodes/input:"):
+            payload = text[len("mne-nodes/input:") :]
+            parts = payload.split(":")
+            if len(parts) >= 2:
+                dt, group = parts[0], parts[1]
+            else:
+                return
+            node = self.add_input_node(data_type=dt, name=group)
+            node.xy_pos = (pos.x(), pos.y())
+        self.zoom_to_nodes()
+
+        event.accept()
+
+    def _on_viewer_drop(self, mime, pos):
+        """Create nodes on drop from NodePicker.
+
+        Expected mime text payloads:
+        - "mne-nodes/function:<function_name>"
+        - "mne-nodes/input:<data_type>:<group>"
+        """
+
+    def _check_drag_event(self, event):
+        acceptable_formats = ["text/plain"]
+        is_acceptable = (
+            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
+            or event.mimeData().hasText()
+        )
+        if is_acceptable:
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
 
     def dragEnterEvent(self, event):
-        is_acceptable = any(
-            [
-                event.mimeData().hasFormat(i)
-                for i in ["nodegraphqt/nodes", "text/plain", "text/uri-list"]
-            ]
-        )
-        if is_acceptable:
-            event.accept()
-        else:
-            event.ignore()
+        self._check_drag_event(event)
 
     def dragMoveEvent(self, event):
-        is_acceptable = any(
-            [
-                event.mimeData().hasFormat(i)
-                for i in ["nodegraphqt/nodes", "text/plain", "text/uri-list"]
-            ]
-        )
-        if is_acceptable:
-            event.accept()
-        else:
-            event.ignore()
+        self._check_drag_event(event)
 
     def dragLeaveEvent(self, event):
         event.ignore()
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            # delete selected nodes and pipes
+            for node in self.selected_nodes():
+                self.remove_node(node)
+            return
+
         if self._LIVE_PIPE.isVisible():
             super().keyPressEvent(event)
             return
@@ -1619,20 +1788,133 @@ class NodeViewer(QGraphicsView):
 
         current_x = 0
         node_height = 120
-        for rank in sorted(range(len(rank_map)), reverse=not down_stream):
+        # Iterate over actual rank keys to handle non-contiguous ranks correctly
+        for rank in sorted(rank_map.keys(), reverse=not down_stream):
             ranked_nodes = rank_map[rank]
             max_width = max([node.width for node in ranked_nodes])
-            current_x += max_width
             current_y = 0
             for idx, node in enumerate(ranked_nodes):
                 dy = max(node_height, node.height)
-                current_y += 0 if idx == 0 else dy
                 node.setPos(current_x, current_y)
-                current_y += dy * 0.5 + 10
+                current_y += dy + 50
 
-            current_x += max_width * 0.5
+            current_x += max_width + 200
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]
         dy = nodes_center_0[1] - nodes_center_1[1]
         [n.setPos(n.x() + dx, n.y() + dy) for n in nodes]
+
+    def _update_coord_axes(self):
+        """Update the debug coordinate system (grid + axes) in the scene."""
+        if not debug_mode():
+            self._set_grid_visible(False)
+            return
+
+        # Use the current visible viewport in scene coordinates to cover full view
+        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        left, right = visible_rect.left(), visible_rect.right()
+        top, bottom = visible_rect.top(), visible_rect.bottom()
+
+        # Build grid path
+        grid_path = QPainterPath()
+        step = 100.0
+
+        # Qt.Orientation.Vertical grid lines
+        start_x = math.floor(left / step) * step
+        x = start_x
+        while x <= right:
+            grid_path.moveTo(x, top)
+            grid_path.lineTo(x, bottom)
+            x += step
+
+        # Qt.Orientation.Horizontal grid lines
+        start_y = math.floor(top / step) * step
+        y = start_y
+        while y <= bottom:
+            grid_path.moveTo(left, y)
+            grid_path.lineTo(right, y)
+            y += step
+
+        self._coord_grid.setPath(grid_path)
+
+        # Build axes path (x=0 and y=0) if within current rect
+        axes_path = QPainterPath()
+        if left <= 0.0 <= right:
+            axes_path.moveTo(0.0, top)
+            axes_path.lineTo(0.0, bottom)
+        if top <= 0.0 <= bottom:
+            axes_path.moveTo(left, 0.0)
+            axes_path.lineTo(right, 0.0)
+        self._coord_axes.setPath(axes_path)
+
+        # Update numeric tick labels (top and left edges)
+        # Clear old labels
+        if self._coord_tick_labels:
+            for t in self._coord_tick_labels:
+                try:
+                    self.scene().removeItem(t)
+                except Exception:
+                    pass
+            self._coord_tick_labels = []
+
+        # Color and font for ticks
+        tick_color = QColor(0, 200, 0, 160)
+        # Offsets in scene units approximating a few pixels
+        # Convert a 10px Qt.Orientation.Vertical and 6px Qt.Orientation.Horizontal offset to scene units
+        dy_scene = (
+            self.mapToScene(QPoint(0, 10)).y() - self.mapToScene(QPoint(0, 0)).y()
+        )
+        dx_scene = self.mapToScene(QPoint(6, 0)).x() - self.mapToScene(QPoint(0, 0)).x()
+
+        # X ticks along the top
+        x = start_x
+        while x <= right:
+            txt = QGraphicsTextItem(f"{int(x)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            # Keep text a constant size regardless of zoom
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(x + 2 * dx_scene, top + dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            x += step
+
+        # Y ticks along the left
+        y = start_y
+        while y <= bottom:
+            txt = QGraphicsTextItem(f"{int(y)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(left + dx_scene, y + 0.2 * dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            y += step
+
+    def _set_grid_visible(self, visible):
+        """Show/hide the debug grid and axes."""
+        self._coord_grid.setVisible(bool(visible))
+        self._coord_axes.setVisible(bool(visible))
+        # toggle tick labels
+        for t in getattr(self, "_coord_tick_labels", []) or []:
+            t.setVisible(bool(visible))
+
+    def update_debug_grid(self):
+        """Enable or disable debug mode."""
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+            # also clear labels to avoid stale items
+            for t in getattr(self, "_coord_tick_labels", []) or []:
+                try:
+                    self.scene().removeItem(t)
+                except Exception:
+                    pass
+            self._coord_tick_labels = []

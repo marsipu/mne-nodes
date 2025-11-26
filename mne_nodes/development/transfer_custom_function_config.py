@@ -2,8 +2,8 @@ import json
 
 import pandas as pd
 
-from mne_nodes.pipeline.legacy import convert_pandas_meta
 from mne_nodes.pipeline.io import TypedJSONEncoder
+from mne_nodes.pipeline.legacy import convert_pandas_meta
 
 func_pd = pd.read_csv("../extra/functions.csv", sep=";", index_col=0)
 param_pd = pd.read_csv("../extra/parameters.csv", sep=";", index_col=0)
@@ -68,4 +68,6 @@ for module_name, module_dict in configs.items():
     print(print_msg)
     with open(config_file, "w") as f:
         json.dump(module_dict, f, indent=4, cls=TypedJSONEncoder)
+        # Add empty line at the end of the file
+        f.write("\n")
     print(success_msg)

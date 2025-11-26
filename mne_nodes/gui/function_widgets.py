@@ -12,7 +12,7 @@ from importlib import util
 from os import mkdir
 from os.path import isdir, isfile, join
 from types import FunctionType
-from typing import Any, Dict, List, Optional
+from typing import List
 
 import pandas as pd
 from qtpy.QtCore import Qt
@@ -359,15 +359,15 @@ class SelectDependencies(QDialog):
     def populate_listw(self):
         for function in self.cf_dialog.ct.pd_funcs.index:
             item = QListWidgetItem(function)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             if function in self.dpd_list:
-                item.setCheckState(Qt.Checked)
+                item.setCheckState(Qt.CheckState.Checked)
             else:
-                item.setCheckState(Qt.Unchecked)
+                item.setCheckState(Qt.CheckState.Unchecked)
             self.listw.addItem(item)
 
     def item_checked(self, item):
-        if item.checkState == Qt.Checked:
+        if item.checkState == Qt.CheckState.Checked:
             self.dpd_list.append(item.text())
         elif item.text() in self.dpd_list:
             self.dpd_list.remove(item.text())
@@ -605,7 +605,7 @@ class SavePkgDialog(QDialog):
             self.cf_dialog.clear_param_items()
 
             # Add to selected modules
-            self.cf_dialog.ct.settings["selected_modules"].append(
+            self.cf_dialog.ct.settings.get("selected_modules").append(
                 self.cf_dialog.file_path.stem
             )
             self.cf_dialog.ct.save_settings()

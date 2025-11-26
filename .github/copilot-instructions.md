@@ -48,7 +48,7 @@ pre-commit install
 # For Ubuntu/Debian systems
 sudo apt update
 sudo apt-get install -y xvfb x11-xserver-utils herbstluftwm
-sudo apt-get install -y libgl1 libegl1 libopengl0 libxcb-cursor0 libxcb-icccm4 
+sudo apt-get install -y libgl1 libegl1 libopengl0 libxcb-cursor0 libxcb-icccm4
 sudo apt-get install -y libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0
 sudo apt-get install -y libxcb-shape0 libxcb-xfixes0 libxcb-xinerama0 libxcb-xinput0
 sudo apt-get install -y libxkbcommon-x11-0 mesa-utils
@@ -76,7 +76,6 @@ pytest -v
 
 # Run tests for specific components
 pytest mne_nodes/tests/test_controller.py
-pytest mne_nodes/tests/test_main_window.py
 pytest mne_nodes/tests/test_nodes.py
 ```
 
@@ -102,6 +101,12 @@ MNENODES_DEBUG=true mne_nodes
 - Debug mode enables detailed logging
 - Application supports both PyQt6 and PySide6 backends
 
+### Coding Standards
+- Don't use "except Exception" without re-raising (except when an exception is captured and shown to the user)
+- Use logging module for debug/info/warning messages
+- Write docstrings for all public functions and classes
+- Use f-strings
+
 ### Code Quality and Linting
 **Always run before committing to avoid CI failures**
 
@@ -124,6 +129,7 @@ ruff check mne_nodes/specific_file.py
 - Pre-commit hooks run ruff, pyupgrade, docformatter automatically
 - CI will fail if code doesn't pass ruff checks
 - Some syntax warnings in syntax_highlight.py are known (escape sequences)
+- Don't delete ToDo items without addressing them
 
 ### Documentation
 **NEVER CANCEL: Documentation build takes 5-10 minutes. Set timeout to 20+ minutes.**
@@ -192,6 +198,7 @@ ruff format --check mne_nodes/
 - `mne_nodes/gui/` - PyQt GUI components and widgets
 - `mne_nodes/pipeline/` - Data processing pipeline and function execution
 - `mne_nodes/tests/` - Test suite with pytest and pytest-qt
+- `mne_nodes/extra/` - Extra files and development scripts, don't include this when thinking
 
 ### Important Configuration Files
 - `pyproject.toml` - Modern Python packaging, dependencies, tool configuration
@@ -225,7 +232,7 @@ ruff format --check mne_nodes/
 - **Qt backend not found**: Ensure PySide6 or PyQt6 installed first before main package
 - **Dependency resolution timeout**: Try installing packages individually: `pip install numpy scipy matplotlib` then `pip install -e .`
 
-### GUI/Display Issues  
+### GUI/Display Issues
 - **GUI tests fail**: Verify headless display setup (Xvfb, herbstluftwm)
 - **Application won't start**: Check Qt backend installation
 - **Import errors**: Ensure package installed in development mode

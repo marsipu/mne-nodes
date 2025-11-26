@@ -14,7 +14,7 @@ from os.path import join
 
 import darkdetect
 from qtpy import compat
-from qtpy.QtCore import Qt, QEvent
+from qtpy.QtCore import QEvent, QPoint, Qt
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -33,9 +33,8 @@ from qtpy.QtWidgets import (
 )
 
 import mne_nodes
-from mne_nodes import _object_refs
+from mne_nodes import _widgets, main_widget
 from mne_nodes import extra
-from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -51,7 +50,7 @@ def set_ratio_geometry(size_ratio, widget):
 
     Parameters
     ----------
-    size_ratio : tuple of float
+    size_ratio : float or tuple of float
         Enter the ratio of the current screen size to set the widget size, e.g. (0.5, 0.5) for half the width
         and height of the screen. If a single float is provided, it will be used for both width and height.
     widget : QWidget
@@ -75,28 +74,43 @@ def get_std_icon(icon_name):
     return QApplication.instance().style().standardIcon(getattr(QStyle, icon_name))
 
 
-# ToDo: Make PyQt-independent with tqdm
+def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
+    """Ask the user a yes or no question.
 
-
-# ToDo: WIP
-
-
-def ask_user(prompt):
-    """Ask the user a question and return the answer (yes or no)."""
+    The answer is returned as a boolean. If the user cancels the
+    operation, None is returned.
+    """
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
-        ans = QMessageBox.question(parent, "Question", prompt)
+        parent = main_widget()
+        if cancel_allowed:
+            buttons = (
+                QMessageBox.StandardButton.Yes
+                | QMessageBox.StandardButton.No
+                | QMessageBox.StandardButton.Cancel
+            )
+        else:
+            buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ans = QMessageBox.question(parent, "Question", prompt, buttons=buttons)
         ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
+        cancel = ans == QMessageBox.StandardButton.Cancel
         ans = ans == QMessageBox.StandardButton.Yes
-    elif is_test() or sys.stdin.isatty():
+    else:
+        if cancel_allowed:
+            prompt += " (yes/no/cancel): "
+        else:
+            prompt += " (yes/no): "
+        # Use input() for terminal interaction
         ans = input(f"{prompt} (yes/no): ")
         ok = ans in ["yes", "y", "no", "n"]
+        cancel = ans in ["cancel", "c"]
         ans = ans.strip().lower() in ["yes", "y"]
-    else:
-        raise RuntimeError(
-            "Input is not available in this environment. "
-            "Please run the script in a terminal/command prompt or start the GUI."
-        )
+    if cancel and cancel_allowed:
+        if close_on_cancel:
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        else:
+            logging.info("User cancelled the operation.")
+            return None
     if not ok or ans is None:
         warning_message = (
             "You need to provide an appropriate input to proceed (yes/n or no/n)!"
@@ -105,7 +119,7 @@ def ask_user(prompt):
         warning_message = None
     if warning_message is not None:
         if mne_nodes.gui_mode:
-            parent = QApplication.activeWindow()
+            parent = main_widget()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
             logging.warning(warning_message)
@@ -114,7 +128,13 @@ def ask_user(prompt):
     return ans
 
 
-def get_user_input(prompt, input_type="string", file_filter=None):
+def get_user_input(
+    prompt,
+    input_type="string",
+    file_filter=None,
+    cancel_allowed=True,
+    exit_on_cancel=False,
+):
     """Get user input either via GUI or terminal, supporting string and path
     input.
 
@@ -126,6 +146,10 @@ def get_user_input(prompt, input_type="string", file_filter=None):
         The type of input to request: "string", "folder" or "file".
     file_filter : str, optional
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
+    cancel_allowed : bool, optional
+        If True, allows the user to cancel the input operation. Defaults to True.
+    exit_on_cancel : bool, optional
+        If True, the app exits after cancel. Defaults to False.
 
     Returns
     -------
@@ -139,9 +163,11 @@ def get_user_input(prompt, input_type="string", file_filter=None):
     ValueError
         If `input_type` is not "string" or "path".
     """
-    type_error_message = f"input_type must be 'string' or 'path', not '{input_type}'"
+    type_error_message = (
+        f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
+    )
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
+        parent = main_widget()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
         elif input_type == "folder":
@@ -151,27 +177,31 @@ def get_user_input(prompt, input_type="string", file_filter=None):
             user_input, ok = compat.getopenfilename(parent, prompt, filters=file_filter)
         else:
             raise ValueError(type_error_message)
-    # Checks for interactive terminal
-    elif sys.stdin.isatty():
-        if input_type == "path":
-            ans = input("Do you want to use the current directory? (y/n): ")
+    else:
+        if input_type == "string":
+            user_input = input(f"{prompt}: ")
+        elif input_type == "folder":
+            ans = input("Do you want to use the current directory? (y/n/c/cancel): ")
             if ans.lower() in ["y", "yes"]:
                 user_input = os.getcwd()
-                ok = True
+            elif ans.lower() in ["c", "cancel"]:
+                user_input = None
             else:
                 user_input = input(f"{prompt}: ")
-                ok = True
-        elif input_type == "string":
-            user_input = input(f"{prompt}: ")
-            ok = True
+        elif input_type == "file":
+            user_input = input(
+                f"{prompt} | Please enter the full path to the file (c/cancel): "
+            )
         else:
             raise ValueError(type_error_message)
-    else:
-        raise RuntimeError(
-            "Input is not available in this environment. "
-            "Please run the script in a terminal/command prompt or start the GUI."
-        )
-
+        ok = user_input.lower() not in ["cancel", "c"]
+    if cancel_allowed and not ok:
+        if exit_on_cancel:
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        else:
+            logging.debug("User cancelled the input operation.")
+            return None
     # Check user input
     if not ok or user_input is None:
         warning_message = "You need to provide an appropriate input to proceed!"
@@ -193,7 +223,7 @@ def get_user_input(prompt, input_type="string", file_filter=None):
 def raise_user_attention(message, message_type="warning"):
     """Raise a message to the user, either as a warning or an error."""
     if mne_nodes.gui_mode:
-        parent = QApplication.activeWindow()
+        parent = main_widget()
         if message_type == "warning":
             QMessageBox().warning(parent, "Warning", message)
         elif message_type == "error":
@@ -260,7 +290,6 @@ def mouseMove(widget=None, pos=None, button=None, modifier=None):
         button = Qt.MouseButton.NoButton
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
-    from qtpy.QtCore import QPoint
 
     if isinstance(pos, QPoint):
         pass
@@ -284,6 +313,39 @@ def mouseDrag(widget, positions, button, modifier=None):
     # For some reason moeve again to last position
     mouseMove(widget=widget, pos=positions[-1], button=button, modifier=modifier)
     mouseRelease(widget=widget, pos=positions[-1], button=button, modifier=modifier)
+
+
+def mouseDragBetween(
+    widget_from,
+    pos_from,
+    widget_to,
+    pos_to,
+    button=Qt.MouseButton.LeftButton,
+    modifier=None,
+):
+    """Drag from one widget to another using low-level mouse events.
+
+    Sends MousePress on source, several MouseMove events with button
+    held to trigger startDrag, then moves into target and releases.
+    """
+    if modifier is None:
+        modifier = Qt.KeyboardModifier.NoModifier
+    QTest.qWaitForWindowExposed(widget_from.window())
+    QTest.qWaitForWindowExposed(widget_to.window())
+    # Press on source
+    mousePress(widget=widget_from, pos=pos_from, button=button, modifier=modifier)
+    # Move within source to exceed drag threshold
+    mouseMove(
+        widget=widget_from,
+        pos=QPoint(pos_from.x() + 30, pos_from.y()),
+        button=button,
+        modifier=modifier,
+    )
+    QTest.qWait(10)
+    # Move into target widget while holding button
+    mouseMove(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
+    QTest.qWait(10)
+    mouseRelease(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
 
 
 ########################################################################################
@@ -407,9 +469,9 @@ def _get_auto_theme():
 
 def set_app_theme():
     app = QApplication.instance()
-    style = Settings().value("app_style")
+    style = Settings().get("app_style")
     app.setStyle(style)
-    app_theme = Settings().value("app_theme")
+    app_theme = Settings().get("app_theme")
     # Detect system theme
     if app_theme == "auto":
         app_theme = _get_auto_theme()
@@ -420,7 +482,7 @@ def set_app_theme():
     else:
         icon_name = "mne_pipeline_icon_dark.png"
     # Set func-button color
-    mw = _object_refs["main_window"]
+    mw = main_widget()
     if mw is not None:
         for func_button in mw.bt_dict.values():
             if app_theme == "light":
@@ -442,7 +504,7 @@ def set_app_theme():
 
 def set_app_font_size(font_size=None):
     app = QApplication.instance()
-    font_size = font_size or Settings().value("app_font_size")
+    font_size = font_size or Settings().get("app_font_size")
     font = QFont()
     font.setFamilies(["Segoe UI", "Noto Sans", "Open Sans", "DejaVu Sans"])
     font.setPointSize(font_size)
@@ -452,8 +514,8 @@ def set_app_font_size(font_size=None):
 class ColorTester(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        _object_refs["color_tester"] = self
-        theme = Settings().value("app_theme")
+        _widgets["color_tester"] = self
+        theme = Settings().get("app_theme")
         if theme == "auto":
             theme = _get_auto_theme()
         self.theme = theme
@@ -504,7 +566,7 @@ class ColorTester(QDialog):
         set_app_theme()
 
     def change_theme(self, theme):
-        Settings().setValue("app_theme", theme)
+        Settings().set("app_theme", theme)
         self.theme = theme
         set_app_theme()
         for field_name, color in theme_colors[theme].items():

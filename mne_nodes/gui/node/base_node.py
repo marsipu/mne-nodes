@@ -6,8 +6,8 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 from collections import OrderedDict
-from functools import partial
 
+import qtawesome as qta
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
 from qtpy.QtWidgets import (
@@ -17,7 +17,6 @@ from qtpy.QtWidgets import (
     QCheckBox,
     QPushButton,
 )
-import qtawesome as qta
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
@@ -110,9 +109,7 @@ class BaseNode(QGraphicsItem):
             self.start_button.setFixedSize(24, 22)
             self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(
-                partial(self.viewer.start_from_node, self)
-            )
+            self.start_button.clicked.connect(self.start)
             self.start_button_proxy = QGraphicsProxyWidget(self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
@@ -377,9 +374,9 @@ class BaseNode(QGraphicsItem):
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
             port_names = [p for p in port_list if p.name == port_name]
-            if len(port_names) > 1:
+            if len(port_names) > 2:
                 logging.warning(
-                    "More than one port with the same name. This should not be allowed."
+                    "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
                 logging.warning(f"{port_type} port {port_name} not found.")
@@ -415,45 +412,206 @@ class BaseNode(QGraphicsItem):
         """Get output port by the name, index, id, or old id as in port()."""
         return self.port(port_type="out", **port_kwargs)
 
+    def connected_nodes(self, port_id=None):
+        """Returns all nodes connected to the node.
+
+        Parameters
+        ----------
+        port_id : int, None
+            If None, returns all connected nodes from all ports.
+
+        Returns
+        -------
+        dict
+            List of nodes connected to the node. If port_id is provided,
+            returns nodes connected to the specified port.
+        """
+        nodes = OrderedDict()
+        if port_id is None:
+            # Return all connected nodes from all ports
+            for port in self.inputs + self.outputs:
+                nodes[port.id] = [cp.node for cp in port.connected_ports]
+            return nodes
+        else:
+            port = self.port(port_id=port_id)
+            nodes[port.id] = [cp.node for cp in port.connected_ports]
+
+        return nodes
+
     def connected_input_nodes(self):
         """Returns all nodes connected from the input ports.
 
         Returns:
-            dict: {<input_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<input_port_id>: <node_list>}
+            Returns a dictionary with input port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.inputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
     def connected_output_nodes(self):
         """Returns all nodes connected from the output ports.
 
         Returns:
-            dict: {<output_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<output_port_id>: <node_list>}
+            Returns a dictionary with output port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.outputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
-    def downstream_nodes(self):
+    def downstream_nodes(self, port_id=None):
         """Returns all nodes downstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_output_nodes():
-            nodes[port_id] = {}
+        down_dict = OrderedDict()
+        if port_id is None:
+            connected_nodes = self.connected_output_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
+            down_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.downstream_nodes()
-        return nodes
+                down_dict[port_id][node.id] = node.downstream_nodes()
 
-    def upstream_nodes(self):
+        return down_dict
+
+    def upstream_nodes(self, port_id=None):
         """Returns all nodes upstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_input_nodes():
-            nodes[port_id] = {}
+        up_dict = OrderedDict()
+        if port_id is None:
+            connected_nodes = self.connected_input_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
+            up_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.upstream_nodes()
-        return nodes
+                up_dict[port_id][node.id] = node.upstream_nodes()
+
+        return up_dict
+
+    def start(self):
+        """Start pipeline execution from this node using a simple dependency-
+        first DFS.
+
+        Rules:
+        - Determine a primary InputNode (self if InputNode, else the first upstream InputNode).
+        - Emit exactly one Input instruction for the primary InputNode's data_type.
+        - For each downstream FunctionNode, ensure all its upstream FunctionNode
+          dependencies (recursively) are emitted before the node itself.
+        - Multi-input functions cause all other upstream branches to be traversed.
+        - Downstream traversal proceeds breadth-first after dependency emission to
+          cover later stages.
+        """
+        try:
+            from mne_nodes.gui.node.nodes import InputNode, FunctionNode  # type: ignore
+        except Exception:  # pragma: no cover
+            logging.error("Node classes not importable; cannot start pipeline.")
+            return
+
+        # ------------------------------------------------------------------
+        # Helper: find a primary upstream InputNode if needed
+        # ------------------------------------------------------------------
+        def find_upstream_input(start):
+            visited = set()
+            stack = [start]
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                if isinstance(node, InputNode):
+                    return node
+                for port in getattr(node, "inputs", []):
+                    for cp in getattr(port, "connected_ports", []):
+                        up = getattr(cp, "node", None)
+                        if up is not None and up not in visited:
+                            stack.append(up)
+            return None
+
+        primary_input = (
+            self if isinstance(self, InputNode) else find_upstream_input(self)
+        )
+        if primary_input is None:
+            logging.error("No upstream InputNode found; cannot start pipeline.")
+            return
+
+        # ------------------------------------------------------------------
+        # Collect downstream function nodes starting from a seed list
+        # ------------------------------------------------------------------
+        def downstream_functions(seed):
+            out = []
+            visited = set()
+            queue = [seed]
+            while queue:
+                node = queue.pop(0)
+                if node in visited:
+                    continue
+                visited.add(node)
+                for port in getattr(node, "outputs", []):
+                    for cp in getattr(port, "connected_ports", []):
+                        dn = getattr(cp, "node", None)
+                        if dn is None:
+                            continue
+                        if isinstance(dn, FunctionNode):
+                            out.append(dn)
+                        queue.append(dn)
+            return out
+
+        seed_funcs = (
+            downstream_functions(primary_input)
+            if isinstance(primary_input, InputNode)
+            else [self]
+        )  # type: ignore[arg-type]
+
+        # Sets to prevent duplication
+        emitted_funcs: set[str] = set()
+
+        # Dependency-first emission ------------------------------------------------
+        def emit_function(fn):
+            if fn.name in emitted_funcs:
+                return
+            # Ensure all upstream dependencies first
+            for in_port in fn.inputs:
+                for cp in in_port.connected_ports:
+                    up = getattr(cp, "node", None)
+                    if up is None:
+                        continue
+                    if isinstance(up, FunctionNode):
+                        emit_function(up)
+                    # If another InputNode feeds this function and it's *not* the primary one,
+                    # we intentionally ignore adding a second Input instruction to keep the
+                    # execution model (single primary loop) consistent.
+            # Emit this function
+            if fn.name not in emitted_funcs:
+                instructions.append((fn.name, "Function"))
+                emitted_funcs.add(fn.name)
+
+        instructions = [(primary_input.data_type, "Input")]
+        # Traverse seed functions and their downstream chain
+        visited_seed = set()
+        queue = list(seed_funcs)
+        while queue:
+            fn = queue.pop(0)
+            if fn in visited_seed:
+                continue
+            visited_seed.add(fn)
+            emit_function(fn)
+            # Enqueue downstream function nodes
+            for port in fn.outputs:
+                for cp in port.connected_ports:
+                    dn = getattr(cp, "node", None)
+                    if isinstance(dn, FunctionNode):
+                        queue.append(dn)
+
+        # Delegate to controller
+        self.ct.start(instructions, primary_input.name)
 
     def add_widget(self, widget):
         """Add widget to the node."""

@@ -8,11 +8,10 @@ import itertools
 import logging
 import re
 import sys
-from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas
-from qtpy.QtCore import QItemSelectionModel, QTimer, Qt, Signal
+from qtpy.QtCore import QItemSelectionModel, QTimer, Signal, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QAbstractItemView,
@@ -34,7 +33,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
 )
 
-from mne_nodes import _object_refs
+from mne_nodes import _widgets
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.models import (
     BaseDictModel,
@@ -84,9 +83,9 @@ class Base(QWidget):
         if self.title:
             title_label = QLabel(self.title)
             if len(self.title) <= 12:
-                title_label.setFont(QFont(Settings().value("app_font"), 14))
+                title_label.setFont(QFont(Settings().get("app_font"), 14))
             else:
-                title_label.setFont(QFont(Settings().value("app_font"), 12))
+                title_label.setFont(QFont(Settings().get("app_font"), 12))
             layout.addWidget(title_label)
 
         layout.addWidget(self.view)
@@ -265,17 +264,23 @@ class EditList(BaseList):
 
         if self.ui_buttons:
             addrow_bt = QPushButton("Add")
-            addrow_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            addrow_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             addrow_bt.clicked.connect(self.add_row)
             bt_layout.addWidget(addrow_bt)
 
             rmrow_bt = QPushButton("Remove")
-            rmrow_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            rmrow_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             rmrow_bt.clicked.connect(self.remove_row)
             bt_layout.addWidget(rmrow_bt)
 
             edit_bt = QPushButton("Edit")
-            edit_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            edit_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             edit_bt.clicked.connect(self.edit_item)
             bt_layout.addWidget(edit_bt)
 
@@ -289,8 +294,8 @@ class EditList(BaseList):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(Settings().value("app_font"), 14))
-            super_layout.addWidget(title_label)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
         else:
@@ -376,12 +381,14 @@ class CheckList(BaseList):
 
         if self.ui_buttons:
             all_bt = QPushButton("All")
-            all_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            all_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
             all_bt.clicked.connect(self.select_all)
             bt_layout.addWidget(all_bt)
 
             clear_bt = QPushButton("Clear")
-            clear_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            clear_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             clear_bt.clicked.connect(self.clear_all)
             bt_layout.addWidget(clear_bt)
 
@@ -395,8 +402,8 @@ class CheckList(BaseList):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(Settings().value("app_font"), 14))
-            super_layout.addWidget(title_label)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
         else:
@@ -738,17 +745,23 @@ class EditDict(BaseDict):
 
         if self.ui_buttons:
             addrow_bt = QPushButton("Add")
-            addrow_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            addrow_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             addrow_bt.clicked.connect(self.add_row)
             bt_layout.addWidget(addrow_bt)
 
             rmrow_bt = QPushButton("Remove")
-            rmrow_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            rmrow_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             rmrow_bt.clicked.connect(self.remove_row)
             bt_layout.addWidget(rmrow_bt)
 
             edit_bt = QPushButton("Edit")
-            edit_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            edit_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             edit_bt.clicked.connect(self.edit_item)
             bt_layout.addWidget(edit_bt)
 
@@ -762,8 +775,8 @@ class EditDict(BaseDict):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(Settings().value("app_font"), 14))
-            super_layout.addWidget(title_label)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
         else:
@@ -832,10 +845,14 @@ class BasePandasTable(Base):
         """
         data = self.model.getData(index)
         row = self.model.headerData(
-            index.row(), orientation=Qt.Vertical, role=Qt.DisplayRole
+            index.row(),
+            orientation=Qt.Orientation.Vertical,
+            role=Qt.ItemDataRole.DisplayRole,
         )
         column = self.model.headerData(
-            index.column(), orientation=Qt.Horizontal, role=Qt.DisplayRole
+            index.column(),
+            orientation=Qt.Orientation.Horizontal,
+            role=Qt.ItemDataRole.DisplayRole,
         )
 
         data_list.append((data, row, column))
@@ -1022,7 +1039,9 @@ class EditPandasTable(BasePandasTable):
         if self.ui_buttons:
             addr_layout = QHBoxLayout()
             addr_bt = QPushButton("Add Row")
-            addr_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            addr_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             addr_bt.clicked.connect(self.add_row)
             addr_layout.addWidget(addr_bt)
             self.rows_chkbx = QSpinBox()
@@ -1032,7 +1051,9 @@ class EditPandasTable(BasePandasTable):
 
             addc_layout = QHBoxLayout()
             addc_bt = QPushButton("Add Column")
-            addc_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            addc_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             addc_bt.clicked.connect(self.add_column)
             addc_layout.addWidget(addc_bt)
             self.cols_chkbx = QSpinBox()
@@ -1041,27 +1062,33 @@ class EditPandasTable(BasePandasTable):
             bt_layout.addLayout(addc_layout)
 
             rmr_bt = QPushButton("Remove Row")
-            rmr_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            rmr_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
             rmr_bt.clicked.connect(self.remove_row)
             bt_layout.addWidget(rmr_bt)
 
             rmc_bt = QPushButton("Remove Column")
-            rmc_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            rmc_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
             rmc_bt.clicked.connect(self.remove_column)
             bt_layout.addWidget(rmc_bt)
 
             edit_bt = QPushButton("Edit")
-            edit_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            edit_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             edit_bt.clicked.connect(self.edit_item)
             bt_layout.addWidget(edit_bt)
 
             editrh_bt = QPushButton("Edit Row-Header")
-            editrh_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            editrh_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             editrh_bt.clicked.connect(self.edit_row_header)
             bt_layout.addWidget(editrh_bt)
 
             editch_bt = QPushButton("Edit Column-Header")
-            editch_bt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            editch_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
             editch_bt.clicked.connect(self.edit_col_header)
             bt_layout.addWidget(editch_bt)
 
@@ -1075,8 +1102,8 @@ class EditPandasTable(BasePandasTable):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(Settings().value("app_font"), 14))
-            super_layout.addWidget(title_label)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
         else:
@@ -1142,7 +1169,7 @@ class EditPandasTable(BasePandasTable):
         old_value = self.model._data.index[row]
         text = get_user_input(f"Change Header '{old_value}' in row {row} to:", "string")
         if text is not None:
-            self.model.setHeaderData(row, Qt.Vertical, text)
+            self.model.setHeaderData(row, Qt.Orientation.Vertical, text)
 
     def edit_col_header(self):
         column = self.view.selectionModel().currentIndex().column()
@@ -1151,7 +1178,7 @@ class EditPandasTable(BasePandasTable):
             f"Change Header '{old_value}' in column {column} to:", "string"
         )
         if text is not None:
-            self.model.setHeaderData(column, Qt.Horizontal, text)
+            self.model.setHeaderData(column, Qt.Orientation.Horizontal, text)
 
 
 class FilePandasTable(BasePandasTable):
@@ -1246,11 +1273,11 @@ class SimpleDialog(QDialog):
         window_title=None,
         show_close_bt=True,
     ):
-        parent = parent or _object_refs["main_window"] or _object_refs["viewer"]
+        parent = parent or _widgets["main_window"] or _widgets["viewer"]
         super().__init__(parent)
 
         # Make sure, the dialog is deleted when closed
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         layout = QVBoxLayout()
 
@@ -1333,13 +1360,13 @@ class AssignWidget(QWidget):
         bt_layout = QHBoxLayout()
         assign_bt = QPushButton("Assign")
         assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        assign_bt.setFont(QFont(Settings().value("app_font"), 13))
+        assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         assign_bt.clicked.connect(self.assign)
         bt_layout.addWidget(assign_bt)
 
         show_assign_bt = QPushButton("Show Assignments")
         show_assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        show_assign_bt.setFont(QFont(Settings().value("app_font"), 13))
+        show_assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         show_assign_bt.clicked.connect(self.show_assignments)
         bt_layout.addWidget(show_assign_bt)
         layout.addLayout(bt_layout)
@@ -1347,8 +1374,8 @@ class AssignWidget(QWidget):
         if self.title:
             super_layout = QVBoxLayout()
             title_label = QLabel(self.title)
-            title_label.setFont(QFont(Settings().value("app_font"), 14))
-            super_layout.addWidget(title_label, alignment=Qt.AlignHCenter)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
             super_layout.addLayout(layout)
             self.setLayout(super_layout)
         else:
