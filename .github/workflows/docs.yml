@@ -15,14 +15,14 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Setup headless display
       uses: pyvista/setup-headless-display-action@main
       with:
         qt: true
         pyvista: false
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
     - name: Install requirements

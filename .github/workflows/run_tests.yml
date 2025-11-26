@@ -22,7 +22,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # Set up headless display for windows and linux
       - name: Setup headless display
         uses: pyvista/setup-headless-display-action@main
@@ -30,7 +30,7 @@ jobs:
           qt: true
           pyvista: false
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Installation with dependencies
