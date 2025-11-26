@@ -157,11 +157,6 @@ class StreamWorker(QRunnable):
             # Ignore empty lines
             if len(data) == 0:
                 continue
-            # # Ignore single newlines when there is no newline at the end of the chunk
-            # if data == "<br>" and self._ignore_next_newline:
-            #     self._ignore_next_newline = False
-            #     continue
-            # self._ignore_next_newline = not data.endswith("<br>")
             # Carriage return: progress update
             if data[:1] == "\r":
                 data = data[1:]
