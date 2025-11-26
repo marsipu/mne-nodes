@@ -1,6 +1,9 @@
 from contextlib import contextmanager
 
 from qtpy.QtCore import Qt
+from mne_nodes.pipeline.streams import init_streams
+from mne_nodes.pipeline.streams import init_logging
+from mne_nodes.gui.console import MainConsoleWidget, ConsoleWidget
 
 
 def toggle_checked_list_model(model, value=1, row=0, column=0):
@@ -9,17 +12,18 @@ def toggle_checked_list_model(model, value=1, row=0, column=0):
 
 
 @contextmanager
-def create_console():
+def create_console(qtbot, main_std=True):
     # Initialize streams and logging
-    # Putting stream initialization into a fixture doesn't
-    from mne_nodes.pipeline.streams import init_streams
-    from mne_nodes.pipeline.streams import init_logging
-    from mne_nodes.gui.console import MainConsoleWidget
+    # Putting stream initialization into a fixture doesn't initialize the streams
 
-    init_streams()
-    init_logging()
-    # Create console widget
-    console = MainConsoleWidget()
+    if main_std:
+        init_streams()
+        init_logging()
+        # Create console widget
+        console = MainConsoleWidget()
+    else:
+        console = ConsoleWidget()
+    qtbot.addWidget(console)
     try:
         yield console
     finally:

@@ -846,7 +846,7 @@ class Controller:
         )
         self._process_count += 1
         # Start process
-        process.start(sys.executable, [run_file_path])
+        process.start(sys.executable, [str(run_file_path)])
 
     ####################################################################################
     # Legacy

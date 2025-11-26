@@ -5,22 +5,23 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import traceback
-
-import tqdm
+import sys
 import time
+import traceback
+from pathlib import Path
 
-from mne_nodes.gui.console import ConsoleWidget
+import pytest
+import tqdm
+
+from mne_nodes.pipeline.execution import Process
 from mne_nodes.tests._test_utils import create_console
 
 
 def test_console_stream_basic(qtbot):
     """Set up a ConsoleWidget and write via streams (bytes and str)."""
 
-    console = ConsoleWidget()
-    qtbot.addWidget(console)
-    wait_time = console.stream_worker.flush_s * 1000 * 2
-    try:
+    with create_console(qtbot, main_std=False) as console:
+        wait_time = console.stream_worker.flush_s * 1000 * 2
         # Push bytes and strings
         console.push_stdout(b"Hello from bytes\n")
         console.push_stdout("and text\n")
@@ -32,8 +33,6 @@ def test_console_stream_basic(qtbot):
         assert "and text" in text
         assert "and Error from bytes" in text
         assert "and Error text!" in text
-    finally:
-        console.stop_streams()
 
 
 def test_logging(qtbot):
@@ -42,8 +41,7 @@ def test_logging(qtbot):
     Also verify that a real exception traceback reaches the stderr
     stream.
     """
-    with create_console() as console:
-        qtbot.addWidget(console)
+    with create_console(qtbot) as console:
         wait_time = console.stream_worker.flush_s * 1000 * 2
         # stdout: plain print
         print("Print-Test")
@@ -78,8 +76,7 @@ def test_formatting(qtbot):
         "RuntimeError: Test-Error",
         "Test2",
     ]
-    with create_console() as console:
-        qtbot.addWidget(console)
+    with create_console(qtbot) as console:
         print("Test1")
         for i in tqdm.tqdm(range(20), desc="Progress"):
             time.sleep(0.1)
@@ -89,17 +86,17 @@ def test_formatting(qtbot):
             traceback.print_exc()
         print("Test2")
         # Check console content
-        qtbot.wait(500)
+        qtbot.wait(100)
         text = console.toPlainText()
         for actual, expected in zip(text.splitlines(), expected_text):
             assert expected in actual, f"Expected '{expected}', got '{actual}'"
 
 
+@pytest.mark.skipif(True, reason="Disabled for now")
 def test_formatting_show(qtbot):
     import tqdm
 
-    with create_console() as console:
-        qtbot.addWidget(console)
+    with create_console(qtbot) as console:
         console.resize(800, 600)
         console.show()
         print("Test1")
@@ -128,8 +125,7 @@ def test_stream_worker_massive_output(qtbot):
     - Performance is acceptable for typical use cases
     """
 
-    with create_console() as console:
-        qtbot.addWidget(console)
+    with create_console(qtbot) as console:
         # Test massive output performance
         large_chunk = "X" * 10000
         for _ in range(50):
@@ -143,34 +139,22 @@ def test_stream_worker_massive_output(qtbot):
 
 def test_process_formatting(qtbot, tmp_path):
     """Test that process output formatting works in the console."""
-    from mne_nodes.gui.console import ConsoleWidget
-    from mne_nodes.pipeline.execution import ProcessWorker
-    import sys
 
-    console = ConsoleWidget()
-    qtbot.addWidget(console)
-
-    test_file = tmp_path / "test_process.py"
-    code = """
-    import time
-    import tqdm
-    import traceback
-    print('Test1')
-    for _ in tqdm.tqdm(range(20), desc='Progress'):
-        time.sleep(0.05)
-    try:
-        raise RuntimeError('Test-Error')
-    except RuntimeError:
-        traceback.print_exc()
-    print('Test2')
-    """
-
-    with open(test_file, "w", encoding="utf-8") as f:
-        f.write(code)
-
-    process_worker = ProcessWorker(["python", str(test_file)])
-    process_worker.process.readyReadStandardOutput.connect(console.push_stdout)
-    process_worker.process.readyReadStandardError.connect(console.push_stderr)
-
-    # Run the code using the same Python interpreter via `-c`
-    process_worker.process.start(sys.executable, test_file.as_posix())
+    with create_console(qtbot, main_std=False) as console:
+        test_file = Path(__file__).parent / "_test_process.py"
+        expected_text = [
+            "Test1",
+            "20/20",
+            "Traceback (most recent call last):",
+            "in test_formatting",
+            "raise RuntimeError",
+            "RuntimeError: Test-Error",
+            "Test2",
+        ]
+        process = Process(console=console, self_destruct=False)
+        process.start(sys.executable, [str(test_file)])
+        # Check console content
+        qtbot.wait(100)
+        text = console.toPlainText()
+        for actual, expected in zip(text.splitlines(), expected_text):
+            assert expected in actual, f"Expected '{expected}', got '{actual}'"

@@ -79,8 +79,9 @@ def controller(tmp_path, monkeypatch):
     )
     # set the directory where to save the config-file
     monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
+    config_path = tmp_path / f"{controller_name}_config.json"
     # Create Controller
-    ct = Controller(config_path=tmp_path / f"{controller_name}_config.json")
+    ct = Controller(config_path=config_path)
     ct.data_path = data_path
     ct.subjects_dir = subjects_dir
 

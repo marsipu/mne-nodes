@@ -152,7 +152,8 @@ class StreamWorker(QRunnable):
             data = data.replace(">", "&gt;")
             data = data.replace("\n", "<br>")
             data = data.replace("\x1b[A", "")
-            data = data.replace("\x1b", "")
+            data = data.replace("\x1b[0m", "")
+
             # Ignore empty lines
             if len(data) == 0:
                 continue
