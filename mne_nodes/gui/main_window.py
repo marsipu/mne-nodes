@@ -149,7 +149,6 @@ class MainWindow(QMainWindow):
                 close_directly=True,
                 title="Updating Pipeline...",
                 blocking=True,
-                controller=self.controller,
             )
 
             answer = QMessageBox.question(
