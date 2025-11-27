@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 import sys
+from copy import deepcopy
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
@@ -19,7 +20,7 @@ from types import NoneType
 from typing import Any, Dict, Optional, Union
 
 import mne
-
+from filelock import FileLock, Timeout
 from mne_nodes import _widgets
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
@@ -37,6 +38,12 @@ class Controller:
     The home-path structure should no longer be as rigid as before, just specifying the
     path to meeg- and fsmri-data. For each controller, there is a config-file stored,
     where paths to the meeg-data, the freesurfer-dir and the custom-packages are stored.
+
+    It is possible to get config values by accessing them as attributes of the
+    controller, e.g., controller.data_path. Importantly, setting attributes directly
+    works while setting values inside of containers like controller.inputs doesn't work::
+        controller.data_path = new_path  # works
+        controller.inputs['raw']['subject1'] = new_value  # doesn't work
 
     Parameters
     ----------
@@ -58,17 +65,38 @@ class Controller:
     ):
         # The device dependent settings
         self.settings = settings or Settings()
-        # config will be filled when self.config is first called
-        self._config = {}
         self._config_path = None
-        self._modules = {}
-        self._function_metas = {}
-        self._parameter_metas = {}
+        self._config_lock = None
+        self.lock_timeout = 5  # seconds
+        self.modules = {}
         self._process_count = 0
-        self._errors = {}
         self.default_config = {
+            "plot_files": {},
+            "input_data_types": {
+                "raw": {"alias": "MEG/EEG", "import": "import_raw"},
+                "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
+            },
+            "inputs": {},
+            "input_mapping": {},
+            "selected_inputs": [],
+            # Legacy entries from old Project class
+            "all_meeg": [],
+            "all_fsmri": [],
+            "all_erm": [],
+            "all_groups": {},
+            "sel_meeg": [],
+            "sel_fsmri": [],
+            "bad_channels": {},
+            "event_ids": {},
+            "selected_event_ids": {},
+            "ica_exclude": {},
             "selected_modules": ["basic_operations", "basic_plot"],
-            "parameter_preset": "Default",
+            "p_preset": "Default",
+            "parameters": {"Default": {}},
+            "module_meta": {},
+            "function_metas": {},
+            "parameter_metas": {},
+            "add_kwargs": {},
             "show_plots": True,
             "save_plots": True,
             "shutdown": False,
@@ -83,7 +111,8 @@ class Controller:
             "app_style": "fusion",
             "app_theme": "auto",
             "padding": 20,
-            "tab_space_count": 4,
+            "tab": "    ",
+            "node_config": {},
         }
         self.config_path = config_path or self.settings.get("config_path", default=None)
         # Check existence of data_path (optional) only if requested
@@ -94,16 +123,18 @@ class Controller:
                 logging.debug("Deferring data_path initialization: %s", err)
         # Initialize modules
         # Legacy: Add basic modules until separated
-        self.module_meta["basic_operations"] = {
+        module_meta = self.get("module_meta")
+        module_meta["basic_operations"] = {
             "module": Path(basic_operations.__file__),
             "config": Path(basic_operations.__file__).with_name(
                 "basic_operations_config.json"
             ),
         }
-        self.module_meta["basic_plot"] = {
+        module_meta["basic_plot"] = {
             "module": Path(basic_plot.__file__),
             "config": Path(basic_plot.__file__).with_name("basic_plot_config.json"),
         }
+        self.set("module_meta", module_meta)
         self.load_modules()
 
     ####################################################################################
@@ -112,27 +143,15 @@ class Controller:
     @property
     def config_path(self) -> Path | None:
         """Path to the config-file."""
-        if self._config_path is not None:
-            return Path(self._config_path)
-        return None
-
-    def _clear_attributes(self):
-        """Clear all attributes that depend on the config.
-
-        This is called when the config_path is changed to ensure that
-        all attributes are re-initialized.
-        """
-        self._config.clear()
-        self._function_metas.clear()
-        self._parameter_metas.clear()
-        self._errors.clear()
+        if self._config_path is None:
+            # Initialize setting of the config_path
+            logging.info("No config_path set, initializing.")
+            self.config_path = None
+        return self._config_path
 
     @config_path.setter
     def config_path(self, value):
         """Set the path to the config-file (respects interactive mode)."""
-        # Clear existing config
-        self.save_config()
-        self._clear_attributes()
         # Check existence and prompt user for a new config-file if needed
         if value is None or not isfile(value):
             if value is None:
@@ -153,7 +172,8 @@ class Controller:
                     "folder",
                     exit_on_cancel=True,
                 )
-                value = join(config_folder, f"{self.name}_config.json")
+                name = get_user_input("Please enter a name for this project", "string")
+                value = join(config_folder, f"{name}_config.json")
                 with open(value, "w", encoding="utf-8") as file:
                     json.dump(self.default_config, file, indent=4, cls=TypedJSONEncoder)
             else:
@@ -165,30 +185,108 @@ class Controller:
                     exit_on_cancel=True,
                 )
         # Set, load and persist
-        self._config_path = value
-        self.load_config()
-        if not is_test():
-            self.settings.set("config_path", value)
+        self._config_path = Path(value)
+        self._config_lock = FileLock(Path(self._config_path).with_suffix(".lock"))
+        self.settings.set("config_path", value)
 
     @property
-    def config(self) -> Dict[str, Any]:
-        """Configuration dictionary loaded from the config-file."""
-        return self._config
+    def config_lock(self):
+        if self._config_lock is None:
+            logging.info("Config lock not set, initializing config_path.")
+            self.config_path = None
+        return self._config_lock
 
-    def load_config(self):
-        """Load the configuration from the config-file."""
-        if len(self._config) == 0:
+    def _load_config(self):
+        """Load the configuration from the config-file if necessary."""
+        try:
             with open(self.config_path) as file:
-                self._config = json.load(file, object_hook=type_json_hook)
-        # Set defaults
-        for config_key, value in self.default_config.items():
-            if config_key not in self._config:
-                self.config[config_key] = value
+                config = json.load(file, object_hook=type_json_hook)
+        except (
+            OSError,
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            FileNotFoundError,
+        ) as err:
+            logging.warning(
+                f"Loading config from {self.config_path} failed with:\n{err}\nUsing defaults."
+            )
+            config = deepcopy(self.default_config)
 
-    def save_config(self) -> None:
-        if self._config_path is not None:
-            with open(self._config_path, "w") as file:
-                json.dump(self._config, file, indent=4, cls=TypedJSONEncoder)
+        return config
+
+    def _save_config(self, config) -> None:
+        with open(self._config_path, "w") as file:
+            json.dump(config, file, indent=4, cls=TypedJSONEncoder)
+
+    def default(self, key):
+        """Get the default value for a specific key."""
+        return deepcopy(self.default_config.get(key, None))
+
+    def get(self, key, default=None) -> Any:
+        """Load a specific key from the config-file."""
+        try:
+            with self.config_lock:
+                config = self._load_config()
+                return config.get(
+                    key, self.default(key) if default is None else default
+                )
+        except Timeout:
+            logging.warning(
+                f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
+            )
+        return self.default(key)
+
+    def set(self, key, value) -> None:
+        """Set a specific key in the config-file."""
+        try:
+            with self.config_lock:
+                config = self._load_config()
+                config[key] = value
+                self._save_config(config)
+        except Timeout:
+            logging.error(
+                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
+            )
+
+    def __getattr__(self, name) -> Any:
+        """Get attributes from the config-file if possible."""
+        if name in self.default_config:
+            return self.get(name)
+        else:
+            raise AttributeError(f"Controller has no attribute '{name}'")
+
+    def __setattr(self, name, value) -> None:
+        """Set attributes in the config-file if possible."""
+        if name in self.default_config:
+            self.set(name, value)
+        else:
+            super().__setattr__(name, value)
+
+    @property
+    def data_root(self) -> Path:
+        """Path to the root data directory.
+
+        This is the root folder of the processed data.
+        """
+        data_root = self.settings.get("data_root")
+        if data_root is not None and not isdir(data_root):
+            raise_user_attention(
+                f"Path {data_root} does not exist! If you moved from another device, please select the data-root folder."
+            )
+        if data_root is None or not isdir(data_root):
+            data_root = get_user_input(
+                "Please select/create a folder for the data-root.", "folder"
+            )
+            self.data_root = data_root
+
+        return Path(data_root)
+
+    @data_root.setter
+    def data_root(self, value: Optional[Union[str, Path]]) -> None:
+        if value is not None:
+            if not isdir(value):
+                raise ValueError(f"Path {value} does not exist!")
+            self.settings.set("data_root", value)
 
     @property
     def data_path(self) -> Path:
@@ -197,40 +295,26 @@ class Controller:
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        data_path = self.settings.get("data_path")
-        input_message = f"Please select/create a folder where the data of the project {self.name} should be stored"
-        if data_path is None:
-            data_path = get_user_input(input_message, "folder")
-            self.data_path = data_path
+        data_path = self.data_root / self.name
         if not isdir(data_path):
-            raise_user_attention(
-                f"Path {data_path} does not exist! If you moved from another device, please select the folder where the (processed) data from project {self.name} is stored."
-            )
-            data_path = get_user_input(input_message, "folder")
-            self.data_path = data_path
-
-        return Path(data_path)
-
-    @data_path.setter
-    def data_path(self, value: Optional[Union[str, Path]]) -> None:
-        if value is not None:
-            if not isdir(value):
-                raise ValueError(f"Path {value} does not exist!")
-            self.settings.set("data_path", value)
+            data_path.mkdir(parents=True, exist_ok=True)
+        return data_path
 
     @property
     def subjects_dir(self) -> Path:
         """Path to the FreeSurfer subjects directory."""
-        subjects_dir = mne.get_config("SUBJECTS_DIR", None)
-        input_message = f"Please enter the path to the FreeSurfer subjects directory for project {self.name}"
-        if subjects_dir is None:
-            subjects_dir = get_user_input(input_message, "folder")
-            self.subjects_dir = subjects_dir
-        if not isdir(subjects_dir):
+        if is_test():
+            subjects_dir = self.settings.get("subjects_dir", None)
+        else:
+            subjects_dir = mne.get_config("SUBJECTS_DIR", None)
+        if subjects_dir is not None and not isdir(subjects_dir):
             raise_user_attention(
-                f"Path {subjects_dir} does not exist! If you moved from another device, please select the folder where the FreeSurfer subjects directory for project {self.name} is stored."
+                f"Path {subjects_dir} does not exist! If you moved from another device, please select the folder where the FreeSurfer subjects directory is stored."
             )
-            subjects_dir = get_user_input(input_message, "folder")
+        if subjects_dir is None or not isdir(subjects_dir):
+            subjects_dir = get_user_input(
+                "Please enter the path to the FreeSurfer subjects directory", "folder"
+            )
             self.subjects_dir = subjects_dir
 
         return Path(subjects_dir)
@@ -240,55 +324,51 @@ class Controller:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            mne.set_config("SUBJECTS_DIR", value)
+            if is_test():
+                self.settings.set("subjects_dir", value)
+            else:
+                mne.set_config("SUBJECTS_DIR", value)
 
     @property
-    def plot_path(self):
+    def plot_root(self):
         """Path to the directory where plots are saved."""
-        plot_path = self.settings.get("plot_path", default=None)
-        input_message = f"Please select a folder where the plots for project {self.name} should be saved"
-        if plot_path is None:
-            plot_path = get_user_input(input_message, "folder")
-            self.plot_path = plot_path
-        if not isdir(plot_path):
+        plot_root = self.settings.get("plot_root", None)
+        if plot_root is not None and not isdir(plot_root):
             raise_user_attention(
-                f"Path {plot_path} does not exist! If you moved from another device, please select the folder where the plots for project {self.name} should be saved."
+                f"Path {plot_root} does not exist! If you moved from another device, please select/create the folder where plots should be saved."
             )
-            plot_path = get_user_input(input_message, "folder")
-            self.plot_path = plot_path
+        if plot_root is None or not isdir(plot_root):
+            plot_root = get_user_input(
+                "Please select/create a folder for saving plots.", "folder"
+            )
+            self.plot_root = plot_root
+        return Path(plot_root)
 
-        return plot_path
-
-    @plot_path.setter
-    def plot_path(self, value):
+    @plot_root.setter
+    def plot_root(self, value):
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
-            self.config["plot_path"] = value
-            self.save_config()
+            self.settings.set("plot_root", value)
 
     @property
-    def plot_files(self):
-        """This holds the plot file-paths for the project."""
-        if "plot_files" not in self.config:
-            self.config["plot_files"] = {}
-        return self.config["plot_files"]
+    def plot_path(self):
+        """Path to the plot directory for the current project."""
+        plot_path = self.plot_root / self.name
+        if not isdir(plot_path):
+            plot_path.mkdir(parents=True, exist_ok=True)
+        return plot_path
 
     @property
     def name(self):
-        if "name" not in self._config:
-            if getattr(self, "_interactive", True):
-                self.config["name"] = get_user_input(
-                    "Please enter a name for this project", "string"
-                )
-            else:
-                # Non-interactive default
-                self.config["name"] = "Default"
-        return self.config["name"]
+        name = self.get("name", None)
+        if name is None:
+            name = get_user_input("Please enter a name for this project", "string")
+        return name
 
     @name.setter
     def name(self, new_name):
-        old_name = self._config.get("name")
+        old_name = self.get("name")
         if old_name != new_name:
             # Rename the config file if the name changes
             old_path = self._config_path
@@ -296,8 +376,7 @@ class Controller:
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
             self._config_path = new_path
-        self.config["name"] = new_name
-        self.save_config()
+        self.set("name", new_name)
 
     @property
     def local_config_path(self):
@@ -327,47 +406,6 @@ class Controller:
             )
         return main_window
 
-    @property
-    def input_data_types(self):
-        """This holds the input data types for the project.
-
-        Keys are the data-type while values are the names/aliases of the
-        data-type
-        """
-        if "input_data_types" not in self.config:
-            self.config["input_data_types"] = {
-                "raw": {"alias": "MEG/EEG", "import": "import_raw"},
-                "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
-            }
-        return self.config["input_data_types"]
-
-    @property
-    def inputs(self):
-        """This holds all data input nodes from MEEG and FSMRI data.
-
-        There can be multiple input-nodes for each data type with each
-        having a distinct (group)name (keys in the second level of the
-        dictionary).
-        """
-        if "inputs" not in self.config:
-            self.config["inputs"] = {k: {"All": []} for k in self.input_data_types}
-        return self.config["inputs"]
-
-    @property
-    def selected_inputs(self):
-        """This holds all selected inputs."""
-        if "selected_inputs" not in self.config:
-            self.config["selected_inputs"] = []
-        return self.config["selected_inputs"]
-
-    @property
-    def input_mapping(self):
-        """This holds the mapping of inputs to other data types (like MRI or
-        Empty- Room)."""
-        if "input_mapping" not in self.config:
-            self.config["input_mapping"] = {"fsmri": {}, "erm": {}}
-        return self.config["input_mapping"]
-
     def add_data(
         self,
         name: str,
@@ -383,7 +421,7 @@ class Controller:
             Name of the input (e.g., subject name or ID).
         data_type : str
             Type of the input data. Must be one of the keys in
-            self.input_data_types (e.g., "raw", "fsmri").
+            self.get("input_data_types") (e.g., "raw", "fsmri").
         group : str, optional
             Group name for the input. Default is "All".
         input_path : Path or str or NoneType, optional
@@ -393,17 +431,19 @@ class Controller:
         """
         if data_type not in self.input_data_types:
             raise ValueError(f"{data_type} is not valid data-type.")
-        if group not in self.inputs[data_type]:
-            self.inputs[data_type][group] = []
-        if name in self.inputs[data_type][group]:
+        inputs = self.get("inputs")
+        if group not in inputs[data_type]:
+            inputs[data_type][group] = []
+        if name in inputs[data_type][group]:
             logging.error(f"The input {name} is already in {group} for{data_type}.")
             return
-        self.inputs[data_type][group].append(name)
+        inputs[data_type][group].append(name)
+        self.set("inputs", inputs)
         if input_path is not None:
             # ToDo: Implement import functions for other data types
             data_import = import_module("mne_nodes.pipeline.data_import")
             import_func = getattr(
-                data_import, self.input_data_types[data_type]["import"]
+                data_import, self.get("input_data_types")[data_type]["import"]
             )
             import_func(name=name, import_path=input_path, controller=self)
 
@@ -411,15 +451,17 @@ class Controller:
         """Remove an input from the inputs dictionary."""
         if data_type not in self.input_data_types:
             raise ValueError(f"{data_type} is not valid data-type.")
-        if group not in self.inputs[data_type]:
+        inputs = self.get("inputs")
+        if group not in inputs[data_type]:
             logging.error(f"Group {group} does not exist for {data_type}.")
             return
-        if name not in self.inputs[data_type][group]:
+        if name not in inputs[data_type][group]:
             logging.error(f"The input {name} is not in {group} for {data_type}.")
             return
-        self.inputs[data_type][group].remove(name)
-        if len(self.inputs[data_type][group]) == 0:
-            del self.inputs[data_type][group]
+        inputs[data_type][group].remove(name)
+        if len(inputs[data_type][group]) == 0:
+            del inputs[data_type][group]
+        self.set("inputs", inputs)
         for dt in ["fsmri", "erm"]:
             self.input_mapping[dt].pop(name, None)
         if name in self.selected_inputs:
@@ -432,71 +474,6 @@ class Controller:
             data_type_dir = join(self.data_path, name)
         shutil.rmtree(data_type_dir, ignore_errors=True)
 
-    @property
-    def bad_channels(self):
-        """This holds all bad channels for MEEG data.
-
-        Maybe this is obsolete with mne-bids.
-        """
-        if "bad_channels" not in self.config:
-            self.config["bad_channels"] = {}
-        return self.config["bad_channels"]
-
-    @property
-    def event_ids(self):
-        """This holds all event ids for MEEG data.
-
-        Maybe this is obsolete with mne-bids.
-        """
-        if "event_ids" not in self.config:
-            self.config["event_ids"] = {}
-        return self.config["event_ids"]
-
-    @property
-    def selected_event_ids(self):
-        """This holds all selected event ids for MEEG data.
-
-        Maybe this is obsolete with mne-bids.
-        """
-        if "selected_event_ids" not in self.config:
-            self.config["selected_event_ids"] = {}
-        return self.config["selected_event_ids"]
-
-    @property
-    def ica_exclude(self):
-        """This holds the ICA-excluded components for MEEG data."""
-        if "ica_exclude" not in self.config:
-            self.config["ica_exclude"] = {}
-        return self.config["ica_exclude"]
-
-    @property
-    def parameters(self):
-        """This holds the parameters for the project."""
-        if "parameters" not in self.config:
-            self.config["parameters"] = {self.parameter_preset: {}}
-        return self.config["parameters"]
-
-    @property
-    def parameter_metas(self):
-        """This holds the metadata for the parameters."""
-        return self._parameter_metas
-
-    @property
-    def parameter_preset(self):
-        """This holds the current parameter preset for the project."""
-        if "parameter_preset" not in self.config:
-            self.config["parameter_preset"] = "Default"
-        return self.config["parameter_preset"]
-
-    @parameter_preset.setter
-    def parameter_preset(self, value):
-        """Set the current parameter preset for the project."""
-        if value not in self.parameters:
-            logging.info(f"Creating new parameter preset '{value}'.")
-            self.parameters[value] = {}
-        self.config["parameter_preset"] = value
-        self.save_config()
-
     def get_default(self, parameter_name: str) -> Any:
         """Get the default value for a given parameter name."""
         parameter_meta = self.parameter_metas.get(parameter_name)
@@ -506,126 +483,68 @@ class Controller:
 
         return default_value
 
-    def parameter(
-        self, parameter_name: str, parameter_preset: Optional[str] = None
-    ) -> Any:
+    def parameter(self, parameter_name: str, p_preset: Optional[str] = None) -> Any:
         """Get a specific parameter from the project parameters."""
-        parameter_preset = parameter_preset or self.parameter_preset
-        if parameter_preset not in self.parameters:
+        p_preset = p_preset or self.p_preset
+        parameters = self.parameters
+        if p_preset not in parameters:
             logging.warning(
-                f"Parameter preset '{parameter_preset}' not found in project. "
+                f"Parameter preset '{p_preset}' not found in project. "
                 "Using 'Default' preset instead."
             )
-            parameter_preset = "Default"
-        if parameter_name not in self.parameters[parameter_preset]:
+            p_preset = "Default"
+        if parameter_name not in parameters[p_preset]:
             logging.warning(
-                f"Parameter '{parameter_name}' not found in preset '{parameter_preset}'. "
+                f"Parameter '{parameter_name}' not found in preset '{p_preset}'. "
                 "Setting and returning default value."
             )
-            self.parameters[parameter_preset][parameter_name] = self.get_default(
-                parameter_name
-            )
+            parameters[p_preset][parameter_name] = self.get_default(parameter_name)
 
-        return self.parameters[parameter_preset][parameter_name]
+        return parameters[p_preset][parameter_name]
 
     def set_parameter(
-        self, parameter_name: str, value: Any, parameter_preset: Optional[str] = None
+        self, parameter_name: str, value: Any, p_preset: Optional[str] = None
     ) -> None:
         """Set a specific parameter in the project parameters."""
-        parameter_preset = parameter_preset or self.parameter_preset
-        if parameter_preset not in self.parameters:
+        p_preset = p_preset or self.p_preset
+        parameters = self.get("parameters")
+        if p_preset not in parameters:
             logging.warning(
-                f"Parameter preset '{parameter_preset}' not found in project. "
+                f"Parameter preset '{p_preset}' not found in project. "
                 "Using 'Default' preset instead."
             )
-            parameter_preset = "Default"
-        if parameter_name not in self.parameters[parameter_preset]:
+            p_preset = "Default"
+        if parameter_name not in parameters[p_preset]:
             logging.warning(
                 "You should not create a new parameter with controller.set_parameter. Add the parameter to the parameter-meta first. This function should only be used to modify existing parameters."
             )
-        self.parameters[parameter_preset][parameter_name] = value
-        self.save_config()
+        parameters[p_preset][parameter_name] = value
+        self.set("parameters", parameters)
 
-    def func_parameters(self, function_name, parameter_preset=None):
+    def func_parameters(self, function_name, p_preset=None):
         """Get the parameters for a specific function from the project
         parameters."""
-        parameter_preset = parameter_preset or self.parameter_preset
-        if parameter_preset not in self.parameters:
+        p_preset = p_preset or self.p_preset
+        if p_preset not in self.parameters:
             logging.warning(
-                f"Parameter preset '{parameter_preset}' not found in project. "
+                f"Parameter preset '{p_preset}' not found in project. "
                 "Using 'Default' preset instead."
             )
-            parameter_preset = "Default"
-        if function_name not in self.function_metas:
+            p_preset = "Default"
+        function_metas = self.get("function_metas")
+        if function_name not in function_metas:
             raise KeyError(f"Function '{function_name}' not found in function meta.")
 
-        func_meta = self.function_metas[function_name]
+        func_meta = function_metas[function_name]
         params = {}
         for param_name in func_meta["parameters"]:
-            params[param_name] = self.parameter(param_name, parameter_preset)
+            params[param_name] = self.parameter(param_name, p_preset)
 
         return params
-
-    @property
-    def add_kwargs(self):
-        """This holds additional keyword arguments for the project."""
-        if "add_kwargs" not in self.config:
-            self.config["add_kwargs"] = {}
-        return self.config["add_kwargs"]
-
-    @property
-    def errors(self):
-        """This holds the errors encountered during the project execution."""
-        return self._errors
-
-    @property
-    def tab(self):
-        """This holds the tabs for the project."""
-        return " " * self._config.get(
-            "tab_space_count", self.default_config["tab_space_count"]
-        )
-
-    @property
-    def node_config(self):
-        return self._config.get("node_config", {"nodes": {}, "connections": {}})
-
-    @node_config.setter
-    def node_config(self, value):
-        if not isinstance(value, dict):
-            raise TypeError("Node config must be a dictionary.")
-        self.viewer.load_config(value)
-        self.save_node_config(value)
-
-    def save_node_config(self, node_config):
-        # set to dict directly to avoid calling setter again
-        self.config["node_config"] = node_config
-        self.save_config()
 
     ####################################################################################
     # Modules
     ####################################################################################
-    @property
-    def function_metas(self):
-        """This holds the metadata for the functions used in the project.
-
-        Only unique function names are allowed accross basic and custom
-        packages.
-        """
-        return self._function_metas
-
-    @property
-    def modules(self):
-        """This holds all modules used in the project."""
-        return self._modules
-
-    @property
-    def module_meta(self):
-        """This holds the custom modules used in the project, stored by name
-        and path to the config-file."""
-        if "module_meta" not in self.config:
-            self.config["module_meta"] = {}
-        return self.config["module_meta"]
-
     def _load_module_config(self, module_name):
         """Load the configuration file for a module from the package path."""
         config_file_path = self.module_meta[module_name]["config"]
@@ -635,8 +554,12 @@ class Controller:
             )
         with open(config_file_path) as file:
             config_data = json.load(file, object_hook=type_json_hook)
-        self.function_metas.update(config_data["functions"])
-        self.parameter_metas.update(config_data["parameters"])
+        function_metas = self.get("function_metas")
+        function_metas.update(config_data["functions"])
+        self.set("function_metas", function_metas)
+        parameter_metas = self.get("parameter_metas")
+        parameter_metas.update(config_data["parameters"])
+        self.set("parameter_metas", parameter_metas)
 
     def _import_module(self, module_name):
         """Import a module from the given package path."""
@@ -651,7 +574,7 @@ class Controller:
         except ModuleNotFoundError:
             logging.error(f"Module {module_name} not found in {pkg_path}].")
         else:
-            self._modules[module_name] = module
+            self.modules[module_name] = module
         # Load the config file for the basic module
         self._load_module_config(module_name)
 
@@ -682,11 +605,12 @@ class Controller:
             raise FileNotFoundError(
                 f"Module file {module_path} does not exist. The module file has to have the exact name of the module and the config file has to be named <module_name>_config.json."
             )
-
-        self.module_meta[module_name] = {
+        module_meta = self.get("module_meta")
+        module_meta[module_name] = {
             "config": config_file_path,
             "module": Path(config_file_path).parent / f"{module_name}.py",
         }
+        self.set("module_meta", module_meta)
         self.load_modules()
 
     def reload_modules(self, module_name: Optional[str] = None) -> None:
@@ -735,7 +659,7 @@ class Controller:
             # Import the module again
             new_module = import_module(module_name)
             # Update the module in the controller
-            self._modules[module_name] = new_module
+            self.modules[module_name] = new_module
 
     def get_meta(self, name: str) -> Dict[str, Any]:
         """Get the metadata for a specific parameter or function."""
@@ -785,6 +709,8 @@ class Controller:
             "import mne_nodes\n"
             "from mne_nodes.pipeline.controller import Controller\n"
             "from mne_nodes.pipeline.loading import MEEG, FSMRI, Group\n\n"
+            "# Disable gui-mode\n"
+            "mne_nodes.gui_mode = False\n\n"
             "# Load controller\n"
             f"ct = Controller(config_path='{self.config_path.as_posix()}')\n\n"
             "# Inject modules into global namespace\n"
@@ -799,11 +725,13 @@ class Controller:
         loaded_data = set()
         modules = {}
         if instructions[0][0] == "raw":
-            code += f"for meeg_name in tqdm(ct.inputs['raw']['{start_name}']):\n"
+            code += f"for meeg_name in tqdm(ct.get('inputs')['raw']['{start_name}']):\n"
             code += self.tab + "meeg = MEEG(meeg_name, ct)\n"
             loaded_data.add(instructions[0][0])
         elif instructions[0][0] == "fsmri":
-            code += f"for fsmri_name in tqdm(ct.inputs['fsmri']['{start_name}']):\n"
+            code += (
+                f"for fsmri_name in tqdm(ct.get('inputs')['fsmri']['{start_name}']):\n"
+            )
             code += self.tab + "fsmri = FSMRI(fsmri_name, ct)\n"
         elif instructions[0][0] == "group":
             pass  # ToDo: Handle groups
@@ -880,40 +808,33 @@ class Controller:
             ct = old_controller
         pr = Project(ct, project_name)
         self.name = pr.name
-        self.data_path = pr.data_path
+        self.data_root = pr.data_path
         self.subjects_dir = ct.subjects_dir
-        self.plot_path = pr.figures_path
-
+        self.plot_root = pr.figures_path
+        # ToDo Next: Legacy conversion
         # Add inputs (and split groups into multiple input nodes)
         for group_name, names in pr.all_groups.items():
-            self.inputs["raw"][group_name] = names
             self.viewer.add_input_node("MEEG", group_name)
-        self.inputs["raw"]["All"].extend(pr.all_meeg)
-        self.selected_inputs.extend(pr.sel_meeg)
-
-        # Add Empty-Room data if available
-        if len(pr.all_erm) > 0:
-            self.inputs["raw"]["Empty-Room"] = pr.all_erm
-
-        self.inputs["fsmri"]["All"].extend(pr.all_fsmri)
-        self.selected_inputs.extend(pr.sel_fsmri)
-
-        self.config["bad_channels"] = pr.meeg_bad_channels
-        self.config["event_ids"] = pr.meeg_event_id
-        self.config["selected_event_ids"] = pr.sel_event_id
-        self.config["ica_exclude"] = pr.meeg_ica_exclude
-
-        self.input_mapping["erm"].update(pr.meeg_to_erm)
-        self.input_mapping["fsmri"].update(pr.meeg_to_fsmri)
-
-        self.config["parameters"].update(pr.parameters)
-        self.config["parameter_preset"] = pr.parameter_preset
+        self.all_groups = pr.all_groups
+        self.all_meeg = pr.all_meeg
+        self.all_fsmri = pr.all_fsmri
+        self.all_erm = pr.all_erm
+        self.sel_meeg = pr.sel_meeg
+        self.sel_fsmri = pr.sel_fsmri
+        self.bad_channels = pr.meeg_bad_channels
+        self.event_ids = pr.meeg_event_id
+        self.sel_event_id = pr.sel_event_id
+        self.ica_exclude = pr.meeg_ica_exclude
+        self.meeg_to_erm = pr.meeg_to_erm
+        self.meeg_to_fsmri = pr.meeg_to_fsmri
+        self.parameters = pr.parameters
+        self.p_preset = pr.p_preset
 
         # Get function meta
-        func_metas = convert_pandas_meta(ct.pd_funcs, ct.pd_params)
-        for module_name, func_meta in func_metas.items():
-            for func_name, meta in func_meta["functions"].items():
-                self._function_metas[func_name] = meta
+        new_module_meta = convert_pandas_meta(ct.pd_funcs, ct.pd_params)
+        module_meta = self.get("module_meta")
+        module_meta.update(new_module_meta)
+        self.set("module_meta", module_meta)
 
         for func in pr.sel_functions:
             self.viewer.add_function_node(func)

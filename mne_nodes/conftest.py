@@ -12,12 +12,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from qtpy.QtWidgets import QMessageBox
+from mne_nodes.pipeline.io import TypedJSONEncoder
 
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
-
-
 test_parameters = {
     "int": 2,
     "float": 5.3,
@@ -73,27 +71,20 @@ def controller(tmp_path, monkeypatch, settings):
 
     # Create a config_file, data_path and subjects_dir
     controller_name = "test"
-    data_path = tmp_path / "MEEG"
-    mkdir(data_path)
+    data_root = tmp_path / "MEEG"
+    mkdir(data_root)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
-    # Monkeypatching to simulate user input
-    # Create a new config-file with answering yes
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QMessageBox.question",
-        lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
-    )
-    # Set the controller name
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: (controller_name, True)
-    )
-    # set the directory where to save the config-file
-    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
+
+    settings.set("data_root", str(data_root))
+    settings.set("subjects_dir", str(subjects_dir))
+
+    test_config = {"name": "test", "parameters": {"Default": test_parameters}}
     config_path = tmp_path / f"{controller_name}_config.json"
+    with open(config_path, "w") as f:
+        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
     # Create Controller
     ct = Controller(config_path=config_path, settings=settings)
-    ct.data_path = data_path
-    ct.subjects_dir = subjects_dir
 
     return ct
 

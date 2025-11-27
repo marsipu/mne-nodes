@@ -25,9 +25,9 @@ def test_app_start(controller, main_window):
 
     # test proper closing
     config_path = controller.config_path
-    controller.parameter_preset = "test_preset"
+    controller.p_preset = "test_preset"
     main_window.close()
     with open(config_path) as f:
         config = json.load(f, object_hook=type_json_hook)
         assert config["name"] == "test2"
-        assert config["parameter_preset"] == "test_preset"
+        assert config["p_preset"] == "test_preset"

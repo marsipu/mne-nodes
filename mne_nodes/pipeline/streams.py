@@ -87,3 +87,6 @@ def init_logging(debug_mode: bool = False) -> None:
     file_handler.set_name("file")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+    # Hide fileloc logging
+    logging.getLogger("filelock").setLevel(logging.INFO)

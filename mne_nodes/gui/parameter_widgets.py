@@ -266,7 +266,7 @@ class Param(QWidget):
     def _save_to_data(self, name, value):
         """Save parameter value to the data source."""
         if isinstance(self.data, Controller):
-            self.data.parameters[self.data.parameter_preset][name] = value
+            self.data.parameters[self.data.p_preset][name] = value
         elif isinstance(self.data, dict):
             self.data[name] = value
         elif isinstance(self.data, Settings):
@@ -275,7 +275,7 @@ class Param(QWidget):
     def is_key(self, key):
         """Check if the given key is existing inside data."""
         if isinstance(self.data, Controller):
-            return key in self.data.parameters[self.data.parameter_preset]
+            return key in self.data.parameters[self.data.p_preset]
         elif isinstance(self.data, dict):
             return key in self.data
         elif isinstance(self.data, Settings):

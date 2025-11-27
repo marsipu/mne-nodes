@@ -87,20 +87,20 @@ def load_decorator(load_func):
                         # Remove deprecated path
                         os.remove(dp)
 
-                    elif self.ct.parameter_preset != "Default":
+                    elif self.ct.p_preset != "Default":
                         logging.info(
                             f"No File for {data_type} from {self.name}"
-                            f" with Parameter-Preset={self.ct.parameter_preset} found,"
+                            f" with Parameter-Preset={self.ct.p_preset} found,"
                             f" trying Default"
                         )
 
-                        actual_parameter_preset = self.ct.parameter_preset
-                        self.ct.parameter_preset = "Default"
+                        actual_parameter_preset = self.ct.p_preset
+                        self.ct.p_preset = "Default"
                         self.init_paths()
 
                         data = load_func(self, *args, **kwargs)
 
-                        self.ct.parameter_preset = actual_parameter_preset
+                        self.ct.p_preset = actual_parameter_preset
                         self.init_paths()
                     else:
                         raise err
@@ -158,7 +158,7 @@ class BaseLoading:
         # for easier access)
         self.name = name
         self.ct = controller
-        self.params = controller.parameters[controller.parameter_preset]
+        self.params = controller.parameters[controller.p_preset]
 
         self.data_dict = {}
         self.existing_paths = {}
@@ -178,9 +178,9 @@ class BaseLoading:
         # Prepare plot-files-dictionary for Loading-Object
         if self.name not in self.ct.plot_files:
             self.ct.plot_files[self.name] = {}
-        if self.ct.parameter_preset not in self.ct.plot_files[self.name]:
-            self.ct.plot_files[self.name][self.ct.parameter_preset] = {}
-        self.plot_files = self.ct.plot_files[self.name][self.ct.parameter_preset]
+        if self.ct.p_preset not in self.ct.plot_files[self.name]:
+            self.ct.plot_files[self.name][self.ct.p_preset] = {}
+        self.plot_files = self.ct.plot_files[self.name][self.ct.p_preset]
 
     def get_parameter(self, parameter_name):
         """Get parameter from parameter-dictionary."""
@@ -265,9 +265,7 @@ class BaseLoading:
 
             self.file_parameters[file_name]["SIZE"] = getsize(path)
 
-            self.file_parameters[file_name]["parameter_preset"] = (
-                self.ct.parameter_preset
-            )
+            self.file_parameters[file_name]["p_preset"] = self.ct.p_preset
 
         self.save_file_parameter_file()
 
@@ -299,13 +297,7 @@ class BaseLoading:
                 # Make sure there are no spaces left
                 critical_params_str = critical_params_str.replace(" ", "")
                 critical_params = critical_params_str.split(",")
-                critical_params += [
-                    "FUNCTION",
-                    "NAME",
-                    "TIME",
-                    "SIZE",
-                    "parameter_preset",
-                ]
+                critical_params += ["FUNCTION", "NAME", "TIME", "SIZE", "p_preset"]
 
                 for param in self.file_parameters[file_name]:
                     if param not in critical_params:
@@ -370,11 +362,11 @@ class BaseLoading:
         """
         # Take DPI from Settings if not defined by call
         if not dpi:
-            dpi = self.ct.config["dpi"]
+            dpi = self.ct.dpi
 
-        if self.ct.config["save_plots"]:
+        if self.ct.save_plots:
             # Folder is named by plot_name
-            dir_path = join(self.ct.plot_path, self.ct.parameter_preset, plot_name)
+            dir_path = join(self.ct.plot_path, self.ct.p_preset, plot_name)
 
             # Create Subfolder if necessary
             if subfolder:
@@ -389,7 +381,7 @@ class BaseLoading:
                 makedirs(dir_path)
 
             # Get file_name depending on present attributes
-            base_name_sequence = [self.name, self.ct.parameter_preset, plot_name]
+            base_name_sequence = [self.name, self.ct.p_preset, plot_name]
             if trial:
                 base_name_sequence.insert(1, trial)
             if subfolder:
@@ -399,7 +391,7 @@ class BaseLoading:
 
             # Join name-parts together with "--" and append the image-format
             file_name = "--".join(base_name_sequence)
-            file_name += self.ct.config["img_format"]
+            file_name += self.ct.img_format
 
             save_path = join(dir_path, file_name)
             # Get the plot-function and the save the path to the image
@@ -409,7 +401,7 @@ class BaseLoading:
             if calling_func not in self.plot_files:
                 self.plot_files[calling_func] = []
 
-            img_format = img_format or self.ct.config["img_format"]
+            img_format = img_format or self.ct.img_format
 
             if matplotlib_figure:
                 if isinstance(matplotlib_figure, list):
@@ -433,8 +425,8 @@ class BaseLoading:
                 else:
                     matplotlib_figure.savefig(save_path, dpi=dpi)
             elif pyvista_figure:
-                if self.ct.config["img_format"] != ".svg":
-                    file_name = file_name.strip(self.ct.config["img_format"]) + ".svg"
+                if self.ct.img_format != ".svg":
+                    file_name = file_name.strip(self.ct.img_format) + ".svg"
                     save_path = join(dir_path, file_name)
                     logging.info("Pyvista-Plots are saved as .svg")
                 pyvista_figure.plotter.save_graphics(save_path, title=file_name)
@@ -475,7 +467,7 @@ class BaseLoading:
     @load_decorator
     def load_json(self, file_name: str, default: Any = None) -> Any:
         file_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}_{file_name}.json"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{file_name}.json"
         )
         try:
             with open(file_path) as file:
@@ -495,7 +487,7 @@ class BaseLoading:
         if file_name[-5:] == ".json":
             file_name = file_name[:-5]
         file_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}_{file_name}.json"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{file_name}.json"
         )
         try:
             with open(file_path, "w") as file:
@@ -507,7 +499,7 @@ class BaseLoading:
 
     def remove_json(self, file_name):
         file_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}_{file_name}.json"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{file_name}.json"
         )
         try:
             os.remove(file_path)
@@ -681,96 +673,86 @@ class MEEG(BaseLoading):
         # Data-Paths
         self.raw_path = join(self.save_dir, f"{self.name}-raw.fif")
         self.raw_filtered_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-filtered-raw.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-filtered-raw.fif"
         )
         if self.erm:
             self.erm_path = join(self.ct.data_path, self.erm, f"{self.erm}-raw.fif")
             self.old_erm_processed_path = join(
-                self.ct.data_path,
-                self.erm,
-                f"{self.erm}_{self.ct.parameter_preset}-raw.fif",
+                self.ct.data_path, self.erm, f"{self.erm}_{self.ct.p_preset}-raw.fif"
             )
             self.erm_processed_path = join(
                 self.ct.data_path,
                 self.erm,
-                f"{self.erm}-{self.name}_{self.ct.parameter_preset}-processed-raw.fif",
+                f"{self.erm}-{self.name}_{self.ct.p_preset}-processed-raw.fif",
             )
         else:
             self.erm_path = None
             self.erm_processed_path = None
         self.events_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-eve.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-eve.fif"
         )
         self.epochs_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-epo.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-epo.fif"
         )
         self.reject_log_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-arlog.py"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-arlog.py"
         )
-        self.ica_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-ica.fif"
-        )
+        self.ica_path = join(self.save_dir, f"{self.name}_{self.ct.p_preset}-ica.fif")
         self.eog_epochs_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-eog-epo.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-eog-epo.fif"
         )
         self.ecg_epochs_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-ecg-epo.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-ecg-epo.fif"
         )
         self.evokeds_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-ave.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-ave.fif"
         )
         self.psd_raw_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-raw-psd.h5"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-raw-psd.h5"
         )
         self.psd_epochs_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-epo-psd.h5"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-epo-psd.h5"
         )
         tfr_method = self.params.get("tfr_method", self.ct.get_default("tfr_method"))
         self.power_tfr_epochs_path = join(
-            self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_#{tfr_method}-epo-pw-tfr.h5",
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_#{tfr_method}-epo-pw-tfr.h5"
         )
         self.itc_tfr_epochs_path = join(
-            self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-epo-itc-tfr.h5",
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{tfr_method}-epo-itc-tfr.h5"
         )
         self.power_tfr_average_path = join(
-            self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-ave-pw-tfr.h5",
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{tfr_method}-ave-pw-tfr.h5"
         )
         self.itc_tfr_average_path = join(
-            self.save_dir,
-            f"{self.name}_{self.ct.parameter_preset}_{tfr_method}-ave-itc-tfr.h5",
+            self.save_dir, f"{self.name}_{self.ct.p_preset}_{tfr_method}-ave-itc-tfr.h5"
         )
         self.trans_path = join(self.save_dir, f"{self.fsmri.name}-trans.fif")
         self.forward_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-fwd.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-fwd.fif"
         )
         self.source_morph_path = join(
             self.save_dir,
             f"{self.name}--to--{self.params.get('morph_to', self.ct.get_default('morph_to'))}_{self.params.get('src_spacing', self.ct.get_default('src_spacing'))}-morph.h5",
         )
         self.calm_cov_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-calm-cov.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-calm-cov.fif"
         )
         self.erm_cov_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-erm-cov.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-erm-cov.fif"
         )
         self.noise_covariance_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-cov.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-cov.fif"
         )
         self.inverse_path = join(
-            self.save_dir, f"{self.name}_{self.ct.parameter_preset}-inv.fif"
+            self.save_dir, f"{self.name}_{self.ct.p_preset}-inv.fif"
         )
         self.stc_paths = {
-            trial: join(
-                self.save_dir, f"{self.name}_{trial}_{self.ct.parameter_preset}-stc"
-            )
+            trial: join(self.save_dir, f"{self.name}_{trial}_{self.ct.p_preset}-stc")
             for trial in self.sel_trials
         }
         self.morphed_stc_paths = {
             trial: join(
-                self.save_dir, f"{self.name}_{trial}_{self.ct.parameter_preset}-morphed"
+                self.save_dir, f"{self.name}_{trial}_{self.ct.p_preset}-morphed"
             )
             for trial in self.sel_trials
         }
@@ -779,7 +761,7 @@ class MEEG(BaseLoading):
                 dip: join(
                     self.save_dir,
                     "ecd_dipoles",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}_{dip}-ecd-dip.dip",
+                    f"{self.name}_{trial}_{self.ct.p_preset}_{dip}-ecd-dip.dip",
                 )
                 for dip in self.params.get(
                     "ecd_times", self.ct.get_default("ecd_times")
@@ -792,7 +774,7 @@ class MEEG(BaseLoading):
                 label: join(
                     self.save_dir,
                     "label_time_course",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}_{label}-ltc.npy",
+                    f"{self.name}_{trial}_{self.ct.p_preset}_{label}-ltc.npy",
                 )
                 for label in self.params.get(
                     "target_labels", self.ct.get_default("target_labels")
@@ -805,7 +787,7 @@ class MEEG(BaseLoading):
                 con_method: join(
                     self.save_dir,
                     "connectivity",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}_{con_method}-con.nc",
+                    f"{self.name}_{trial}_{self.ct.p_preset}_{con_method}-con.nc",
                 )
                 for con_method in self.params.get(
                     "con_methods", self.ct.get_default("con_methods")
@@ -954,9 +936,7 @@ class MEEG(BaseLoading):
 
         self.deprecated_paths = {
             "stcs": {
-                trial: join(
-                    self.save_dir, f"{self.name}_{trial}_{self.ct.parameter_preset}"
-                )
+                trial: join(self.save_dir, f"{self.name}_{trial}_{self.ct.p_preset}")
                 for trial in self.sel_trials
             }
         }
@@ -1295,7 +1275,7 @@ class MEEG(BaseLoading):
                 mixn_dip_path = join(
                     self.save_dir,
                     "mixn_dipoles",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}-mixn-dip{idx}.dip",
+                    f"{self.name}_{trial}_{self.ct.p_preset}-mixn-dip{idx}.dip",
                 )
                 dip_list.append(mne.read_dipole(mixn_dip_path))
                 idx += 1
@@ -1317,7 +1297,7 @@ class MEEG(BaseLoading):
                 mxn_dip_path = join(
                     self.save_dir,
                     "mixn_dipoles",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}-mixn-dip{idx}.dip",
+                    f"{self.name}_{trial}_{self.ct.p_preset}-mixn-dip{idx}.dip",
                 )
                 dip.save(mxn_dip_path, overwrite=True)
 
@@ -1325,7 +1305,7 @@ class MEEG(BaseLoading):
         mixn_stcs = {}
         for trial in self.sel_trials:
             mx_stc_path = join(
-                self.save_dir, f"{self.name}_{trial}_{self.ct.parameter_preset}-mixn"
+                self.save_dir, f"{self.name}_{trial}_{self.ct.p_preset}-mixn"
             )
             mx_stc = mne.source_estimate.read_source_estimate(mx_stc_path)
             mixn_stcs.update({trial: mx_stc})
@@ -1335,7 +1315,7 @@ class MEEG(BaseLoading):
     def save_mixn_source_estimates(self, stcs):
         for trial in stcs:
             stc_path = join(
-                self.save_dir, f"{self.name}_{trial}_{self.ct.parameter_preset}-mixn"
+                self.save_dir, f"{self.name}_{trial}_{self.ct.p_preset}-mixn"
             )
             stcs[trial].save(stc_path, overwrite=True)
 
@@ -1434,34 +1414,28 @@ class FSMRI(BaseLoading):
                 "path": join(
                     self.save_dir,
                     "bem",
-                    f"{self.name}_{self.ct.parameter_preset}_{self.ct.parameter('src_spacing')}-src.fif",
+                    f"{self.name}_{self.ct.p_preset}_{self.ct.parameter('src_spacing')}-src.fif",
                 ),
                 "load": self.load_source_space,
                 "save": self.save_source_space,
             },
             "bem_model": {
                 "path": join(
-                    self.save_dir,
-                    "bem",
-                    f"{self.name}_{self.ct.parameter_preset}-bem.fif",
+                    self.save_dir, "bem", f"{self.name}_{self.ct.p_preset}-bem.fif"
                 ),
                 "load": self.load_bem_model,
                 "save": self.save_bem_model,
             },
             "bem_solution": {
                 "path": join(
-                    self.save_dir,
-                    "bem",
-                    f"{self.name}_{self.ct.parameter_preset}-bem-sol.fif",
+                    self.save_dir, "bem", f"{self.name}_{self.ct.p_preset}-bem-sol.fif"
                 ),
                 "load": self.load_bem_solution,
                 "save": self.save_bem_solution,
             },
             "volume_src": {
                 "path": join(
-                    self.save_dir,
-                    "bem",
-                    f"{self.name}_{self.ct.parameter_preset}-vol-src.fif",
+                    self.save_dir, "bem", f"{self.name}_{self.ct.p_preset}-vol-src.fif"
                 ),
                 "load": self.load_volume_source_space,
                 "save": self.save_volume_source_space,
@@ -1645,7 +1619,7 @@ class Group(BaseLoading):
             trial: join(
                 self.save_dir,
                 "evokeds",
-                f"{self.name}_{trial}_{self.ct.parameter_preset}-ave.fif",
+                f"{self.name}_{trial}_{self.ct.p_preset}-ave.fif",
             )
             for trial in self.sel_trials
         }
@@ -1653,7 +1627,7 @@ class Group(BaseLoading):
             trial: join(
                 self.save_dir,
                 "time-frequency",
-                f"{self.name}_{trial}_{self.ct.parameter_preset}-tfr.h5",
+                f"{self.name}_{trial}_{self.ct.p_preset}-tfr.h5",
             )
             for trial in self.sel_trials
         }
@@ -1661,7 +1635,7 @@ class Group(BaseLoading):
             trial: join(
                 self.save_dir,
                 "source-estimates",
-                f"{self.name}_{trial}_{self.ct.parameter_preset}",
+                f"{self.name}_{trial}_{self.ct.p_preset}",
             )
             for trial in self.sel_trials
         }
@@ -1670,7 +1644,7 @@ class Group(BaseLoading):
                 label: join(
                     self.save_dir,
                     "label-time-courses",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}_{label}.npy",
+                    f"{self.name}_{trial}_{self.ct.p_preset}_{label}.npy",
                 )
                 for label in self.params["target_labels"]
             }
@@ -1681,7 +1655,7 @@ class Group(BaseLoading):
                 con_method: join(
                     self.save_dir,
                     "connectivity",
-                    f"{self.name}_{trial}_{self.ct.parameter_preset}_{con_method}.nc",
+                    f"{self.name}_{trial}_{self.ct.p_preset}_{con_method}.nc",
                 )
                 for con_method in self.params["con_methods"]
             }

@@ -96,7 +96,7 @@ class Settings:
             with self.lock:
                 return self._load_locked()
         except Timeout:
-            logging.error(
+            logging.warning(
                 f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
             )
             return deepcopy(self._defaults)
@@ -115,15 +115,6 @@ class Settings:
                 f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
             )
             return deepcopy(self._defaults)
-
-    def _save(self) -> None:
-        try:
-            with self.lock:
-                self._save_locked()
-        except Timeout:
-            logging.error(
-                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
-            )
 
     def _save_locked(self, settings) -> None:
         with open(self.settings_path, "w", encoding="utf-8") as f:

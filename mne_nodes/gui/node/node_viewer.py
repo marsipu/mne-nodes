@@ -725,10 +725,10 @@ class NodeViewer(QGraphicsView):
         for node in nodes:
             rect = rect | node.sceneBoundingRect()
         # Add padding
-        rect.setX(rect.x() - self.ct.config["padding"])
-        rect.setY(rect.y() - self.ct.config["padding"])
-        rect.setWidth(rect.width() + self.ct.config["padding"])
-        rect.setHeight(rect.height() + self.ct.config["padding"])
+        rect.setX(rect.x() - self.ct.padding)
+        rect.setY(rect.y() - self.ct.padding)
+        rect.setWidth(rect.width() + self.ct.padding)
+        rect.setHeight(rect.height() + self.ct.padding)
 
         return rect
 
