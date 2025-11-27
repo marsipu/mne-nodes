@@ -87,67 +87,55 @@ class Settings:
         self.settings_path: Path = _platform_settings_path()
         self.settings_path.parent.mkdir(parents=True, exist_ok=True)
         self.lock_path = self.settings_path.with_suffix(".lock")
-        self.lock = FileLock(self.lock_path)
         self.lock_timeout = 5  # seconds
-        self._settings: dict[str, Any] | None = None
+        self.lock = FileLock(self.lock_path, timeout=self.lock_timeout, blocking=True)
 
     # ------------------------- IO Helpers ---------------------------
-    def _backfill_defaults(self, write_on_change: bool) -> None:
-        changed = False
-        for k, v in self._defaults.items():
-            if k not in self._settings:
-                self._settings[k] = v
-                changed = True
-        if changed and write_on_change:
-            self._save_locked()
-
-    def _load(self) -> None:
+    def _load(self) -> dict:
         try:
-            with self.lock.acquire(timeout=self.lock_timeout, blocking=True):
-                self._load_locked()
+            with self.lock:
+                return self._load_locked()
         except Timeout:
             logging.error(
                 f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
             )
-            self._settings = deepcopy(self._defaults)
+            return deepcopy(self._defaults)
 
-    def _load_locked(self) -> None:
-        if self.settings_path.is_file():
-            try:
-                with open(self.settings_path, encoding="utf-8") as f:
-                    self._settings = json.load(f, object_hook=type_json_hook)
-                    self._backfill_defaults(write_on_change=True)
-            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as err:
-                logging.warning(
-                    f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
-                )
-                self._settings = deepcopy(self._defaults)
-        else:
-            self._settings = deepcopy(self._defaults)
-            self._save_locked()
+    def _load_locked(self) -> dict:
+        try:
+            with open(self.settings_path, encoding="utf-8") as f:
+                return json.load(f, object_hook=type_json_hook)
+        except (
+            OSError,
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            FileNotFoundError,
+        ) as err:
+            logging.warning(
+                f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
+            )
+            return deepcopy(self._defaults)
 
     def _save(self) -> None:
         try:
-            with self.lock.acquire(timeout=self.lock_timeout, blocking=True):
+            with self.lock:
                 self._save_locked()
         except Timeout:
             logging.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
-    def _save_locked(self) -> None:
+    def _save_locked(self, settings) -> None:
         with open(self.settings_path, "w", encoding="utf-8") as f:
-            json.dump(self._settings, f, indent=4, cls=TypedJSONEncoder)
+            json.dump(settings, f, indent=4, cls=TypedJSONEncoder)
 
     # ------------------------- Public API ---------------------------
     def default(self, name: str) -> Any:
         return self._defaults.get(name)
 
     def get(self, key: str, default: Any = None) -> Any:
-        self._load()
-        if key in self._settings:
-            return self._settings[key]
-        return self.default(key) if default is None else default
+        settings = self._load()
+        return settings.get(key, self.default(key) if default is None else default)
 
     def set(self, key: str, value: Any) -> None:
         if not any(isinstance(value, t) for t in self.supported_types):
@@ -155,10 +143,10 @@ class Settings:
                 f"Unsupported type {type(value)} for '{key}'. Supported: {self.supported_types}"
             )
         try:
-            with self.lock.acquire(timeout=self.lock_timeout, blocking=True):
-                self._load_locked()
-                self._settings[key] = value
-                self._save_locked()
+            with self.lock:
+                settings = self._load_locked()
+                settings[key] = value
+                self._save_locked(settings)
         except Timeout:
             logging.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
@@ -166,26 +154,16 @@ class Settings:
 
     def remove(self, key: str) -> None:
         try:
-            with self.lock.acquire(timeout=self.lock_timeout, blocking=True):
-                self._load_locked()
-                if key in self._settings:
-                    self._settings.pop(key)
-                    self._save_locked()
+            with self.lock:
+                settings = self._load_locked()
+                if key in settings:
+                    settings.pop(key)
+                    self._save_locked(settings)
         except Timeout:
             logging.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
     def keys(self) -> List[str]:
-        self._load()
-        return list(self._settings.keys())
-
-    def sync(self) -> None:
-        try:
-            with self.lock.acquire(timeout=self.lock_timeout, blocking=True):
-                self._load_locked()
-                self._save_locked()
-        except Timeout:
-            logging.error(
-                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
-            )
+        settings = self._load()
+        return list(settings.keys())
