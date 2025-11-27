@@ -56,7 +56,17 @@ alternative_test_parameters = {
 
 
 @pytest.fixture
-def controller(tmp_path, monkeypatch):
+def settings(tmp_path):
+    """Fixture to create Settings with a temporary settings directory."""
+    from mne_nodes.pipeline.settings import Settings
+
+    os.environ["MNENODES_SETTINGS_DIR"] = str(tmp_path)
+    settings = Settings()
+    return settings
+
+
+@pytest.fixture
+def controller(tmp_path, monkeypatch, settings):
     """Fixture to create a Controller with temporary config, data and subjects
     directories."""
     from mne_nodes.pipeline.controller import Controller
@@ -81,7 +91,7 @@ def controller(tmp_path, monkeypatch):
     monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
     config_path = tmp_path / f"{controller_name}_config.json"
     # Create Controller
-    ct = Controller(config_path=config_path)
+    ct = Controller(config_path=config_path, settings=settings)
     ct.data_path = data_path
     ct.subjects_dir = subjects_dir
 

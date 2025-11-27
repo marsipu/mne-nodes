@@ -46,15 +46,18 @@ class Controller:
         If True, eagerly access path properties (may trigger user prompts).
         Default False so that a Controller can be created safely in a
         headless / non-QApplication context.
+    settings : Settings, optional
+        Settings object to use for device-dependent settings.
     """
 
     def __init__(
         self,
         config_path: Optional[Union[str, Path]] = None,
         initialize_paths: bool = False,
+        settings: Optional[Settings] = None,
     ):
         # The device dependent settings
-        self.settings = Settings()
+        self.settings = settings or Settings()
         # config will be filled when self.config is first called
         self._config = {}
         self._config_path = None
