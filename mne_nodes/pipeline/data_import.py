@@ -68,6 +68,8 @@ datasets = {
 
 
 def import_dataset(controller=None, dataset="testing", group="All"):
+    if controller is None:
+        raise ValueError("The 'controller' argument is required for import_dataset().")
     info = datasets.get(dataset)
     if info is None:
         raise ValueError(f"Dataset {dataset} not supported.")

@@ -221,12 +221,12 @@ class PlotViewSelection(QDialog):
             # where a plot-image already was saved
             if not self.interactive:
                 for ob in target_objects:
-                    if ob in self.ct.pr.plot_files:
+                    if ob in self.ct.plot_files:
                         for p_preset in self.selected_ppresets:
-                            if p_preset in self.ct.pr.plot_files[ob]:
+                            if p_preset in self.ct.plot_files[ob]:
                                 if (
                                     self.selected_func
-                                    in self.ct.pr.plot_files[ob][p_preset]
+                                    in self.ct.plot_files[ob][p_preset]
                                 ):
                                     if ob not in self.objects:
                                         self.objects.append(ob)

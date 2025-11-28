@@ -197,5 +197,5 @@ class MainWindow(QMainWindow):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
         _widgets["main_window"] = None
-        self.controller.save_node_config(self.viewer.to_dict())
+        self.controller.node_config = self.viewer.to_dict()
         event.accept()

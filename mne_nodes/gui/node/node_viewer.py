@@ -546,9 +546,13 @@ class NodeViewer(QGraphicsView):
                     port.connect_to(connected_port)
 
     def load_config(self, config: dict):
+        if not isinstance(config, dict) or not all(k in config for k in ("nodes", "connections")):
+            logging.warning("Invalid configuration dictionary provided.")
+            return
+        if not isinstance(config["nodes"], dict) or not isinstance(config["connections"], dict):
+            logging.warning("Invalid configuration structure: nodes and connections must be dicts.")
+            return
         self.from_dict(config)
-        # If nodes are loaded, we need to re-layout them
-        self.auto_layout_nodes()
         self.zoom_to_nodes()
 
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
@@ -725,10 +729,10 @@ class NodeViewer(QGraphicsView):
         for node in nodes:
             rect = rect | node.sceneBoundingRect()
         # Add padding
-        rect.setX(rect.x() - self.ct.config["padding"])
-        rect.setY(rect.y() - self.ct.config["padding"])
-        rect.setWidth(rect.width() + self.ct.config["padding"])
-        rect.setHeight(rect.height() + self.ct.config["padding"])
+        rect.setX(rect.x() - self.ct.padding)
+        rect.setY(rect.y() - self.ct.padding)
+        rect.setWidth(rect.width() + self.ct.padding)
+        rect.setHeight(rect.height() + self.ct.padding)
 
         return rect
 
