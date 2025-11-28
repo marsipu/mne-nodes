@@ -37,7 +37,7 @@ default_config = {
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
     },
     "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
-    "input_mapping": {},
+    "input_mapping": {"fsmri": {}, "erm": {}},
     "selected_inputs": [],
     # Legacy entries from old Project class
     "all_meeg": [],
@@ -216,8 +216,10 @@ class Controller:
         return config
 
     def _save_config(self, config) -> None:
-        with open(self._config_path, "w") as file:
+        tmp_path = self._config_path.with_suffix(self._config_path.suffix + ".tmp")
+        with open(tmp_path, "w") as file:
             json.dump(config, file, indent=4, cls=TypedJSONEncoder)
+        os.replace(tmp_path, self._config_path)
 
     def default(self, key):
         """Get the default value for a specific key."""
@@ -258,7 +260,10 @@ class Controller:
 
     def __setattr__(self, name, value) -> None:
         """Set attributes in the config-file if possible."""
-        if name in default_config:
+        # Check for instance attributes first to avoid recursion during __init__
+        if name in ('settings', '_config_path', '_config_lock', 'lock_timeout', 'modules', '_process_count'):
+            super().__setattr__(name, value)
+        elif name in default_config:
             self.set(name, value)
         else:
             super().__setattr__(name, value)
@@ -500,6 +505,7 @@ class Controller:
                 "Setting and returning default value."
             )
             parameters[p_preset][parameter_name] = self.get_default(parameter_name)
+            self.set("parameters", parameters)
 
         return parameters[p_preset][parameter_name]
 
