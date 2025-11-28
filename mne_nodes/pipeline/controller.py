@@ -30,6 +30,51 @@ from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
+default_config = {
+    "plot_files": {},
+    "input_data_types": {
+        "raw": {"alias": "MEG/EEG", "import": "import_raw"},
+        "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
+    },
+    "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
+    "input_mapping": {},
+    "selected_inputs": [],
+    # Legacy entries from old Project class
+    "all_meeg": [],
+    "all_fsmri": [],
+    "all_erm": [],
+    "all_groups": {},
+    "sel_meeg": [],
+    "sel_fsmri": [],
+    "bad_channels": {},
+    "event_ids": {},
+    "selected_event_ids": {},
+    "ica_exclude": {},
+    "selected_modules": ["basic_operations", "basic_plot"],
+    "p_preset": "Default",
+    "parameters": {"Default": {}},
+    "module_meta": {},
+    "function_metas": {},
+    "parameter_metas": {},
+    "add_kwargs": {},
+    "show_plots": True,
+    "save_plots": True,
+    "shutdown": False,
+    "img_format": ".png",
+    "dpi": 150,
+    "overwrite": False,
+    "use_plot_manager": False,
+    "log_level": 20,
+    "education": 0,
+    "app_font": "Calibri",
+    "app_font_size": 10,
+    "app_style": "fusion",
+    "app_theme": "auto",
+    "padding": 20,
+    "tab": "    ",
+    "node_config": {"nodes": {}, "connections": {}},
+}
+
 
 class Controller:
     """New controller, that combines the former old controller and project
@@ -70,50 +115,6 @@ class Controller:
         self.lock_timeout = 5  # seconds
         self.modules = {}
         self._process_count = 0
-        self.default_config = {
-            "plot_files": {},
-            "input_data_types": {
-                "raw": {"alias": "MEG/EEG", "import": "import_raw"},
-                "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
-            },
-            "inputs": {},
-            "input_mapping": {},
-            "selected_inputs": [],
-            # Legacy entries from old Project class
-            "all_meeg": [],
-            "all_fsmri": [],
-            "all_erm": [],
-            "all_groups": {},
-            "sel_meeg": [],
-            "sel_fsmri": [],
-            "bad_channels": {},
-            "event_ids": {},
-            "selected_event_ids": {},
-            "ica_exclude": {},
-            "selected_modules": ["basic_operations", "basic_plot"],
-            "p_preset": "Default",
-            "parameters": {"Default": {}},
-            "module_meta": {},
-            "function_metas": {},
-            "parameter_metas": {},
-            "add_kwargs": {},
-            "show_plots": True,
-            "save_plots": True,
-            "shutdown": False,
-            "img_format": ".png",
-            "dpi": 150,
-            "overwrite": False,
-            "use_plot_manager": False,
-            "log_level": 20,
-            "education": 0,
-            "app_font": "Calibri",
-            "app_font_size": 10,
-            "app_style": "fusion",
-            "app_theme": "auto",
-            "padding": 20,
-            "tab": "    ",
-            "node_config": {},
-        }
         self.config_path = config_path or self.settings.get("config_path", default=None)
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
@@ -175,7 +176,7 @@ class Controller:
                 name = get_user_input("Please enter a name for this project", "string")
                 value = join(config_folder, f"{name}_config.json")
                 with open(value, "w", encoding="utf-8") as file:
-                    json.dump(self.default_config, file, indent=4, cls=TypedJSONEncoder)
+                    json.dump(default_config, file, indent=4, cls=TypedJSONEncoder)
             else:
                 logging.info("Using existing config-file.")
                 value = get_user_input(
@@ -210,7 +211,7 @@ class Controller:
             logging.warning(
                 f"Loading config from {self.config_path} failed with:\n{err}\nUsing defaults."
             )
-            config = deepcopy(self.default_config)
+            config = deepcopy(default_config)
 
         return config
 
@@ -220,7 +221,7 @@ class Controller:
 
     def default(self, key):
         """Get the default value for a specific key."""
-        return deepcopy(self.default_config.get(key, None))
+        return deepcopy(default_config.get(key, None))
 
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
@@ -250,14 +251,14 @@ class Controller:
 
     def __getattr__(self, name) -> Any:
         """Get attributes from the config-file if possible."""
-        if name in self.default_config:
+        if name in default_config:
             return self.get(name)
         else:
             raise AttributeError(f"Controller has no attribute '{name}'")
 
-    def __setattr(self, name, value) -> None:
+    def __setattr__(self, name, value) -> None:
         """Set attributes in the config-file if possible."""
-        if name in self.default_config:
+        if name in default_config:
             self.set(name, value)
         else:
             super().__setattr__(name, value)

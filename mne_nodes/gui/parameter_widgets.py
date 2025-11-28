@@ -2200,7 +2200,7 @@ class SettingsDlg(QDialog):
                 gui_kwargs["default"] = self.ct.settings.default(setting)
             else:  # Controller
                 gui_kwargs["data"] = self.ct
-                gui_kwargs["default"] = self.ct.default_config[setting]
+                gui_kwargs["default"] = self.ct.default(setting)
             gui_kwargs["name"] = setting
             gui = gui_handle(**gui_kwargs)
             if details.get("slot"):

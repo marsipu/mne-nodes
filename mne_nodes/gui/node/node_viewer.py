@@ -546,9 +546,10 @@ class NodeViewer(QGraphicsView):
                     port.connect_to(connected_port)
 
     def load_config(self, config: dict):
+        if not all(k in config for k in ("nodes", "connections")):
+            logging.warning("Invalid configuration dictionary provided.")
+            return
         self.from_dict(config)
-        # If nodes are loaded, we need to re-layout them
-        self.auto_layout_nodes()
         self.zoom_to_nodes()
 
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):

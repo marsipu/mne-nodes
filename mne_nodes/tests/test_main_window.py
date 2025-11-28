@@ -6,6 +6,8 @@ Github: https://github.com/marsipu/mne-nodes
 
 import json
 
+
+from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.io import type_json_hook
 
 
@@ -23,11 +25,24 @@ def test_app_start(controller, main_window):
     controller.name = "test2"
     assert main_window.controller.name == "test2"
 
+    # add node
+    epoch_node = main_window.viewer.add_function_node("epoch_raw")
+    epoch_node.input(port_name="raw").connect_to(
+        main_window.viewer.function_node("filter_data").output(port_name="raw")
+    )
+
     # test proper closing
     config_path = controller.config_path
-    controller.p_preset = "test_preset"
+    controller.show_plots = False
     main_window.close()
     with open(config_path) as f:
         config = json.load(f, object_hook=type_json_hook)
         assert config["name"] == "test2"
-        assert config["p_preset"] == "test_preset"
+        assert config["show_plots"] is False
+
+    # test re-opening and loading config
+    new_main_window = MainWindow(controller)
+    assert new_main_window.isVisible()
+    assert new_main_window.controller.name == "test2"
+    assert new_main_window.controller.show_plots is False
+    assert new_main_window.viewer.function_node("epoch_raw") is not None

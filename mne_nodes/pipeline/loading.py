@@ -941,12 +941,6 @@ class MEEG(BaseLoading):
             }
         }
 
-    def init_sample(self):
-        self._init_dataset()
-
-    def init_test(self):
-        self._init_dataset(sample=False)
-
     def rename(self, new_name):
         # Stor old name
         old_name = self.name

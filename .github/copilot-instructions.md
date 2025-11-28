@@ -18,7 +18,7 @@ Outdated instructions can lead to development workflow issues and should be upda
 ## Working Effectively
 
 ### Installation and Setup
-**NEVER CANCEL: Installation can take 15-20 minutes due to large scientific packages (VTK, MNE, Qt). Set timeout to 30+ minutes.**
+**Installation can take 15-20 minutes due to large scientific packages (VTK, MNE, Qt). Set timeout to 30+ minutes.**
 
 Install development environment:
 ```bash
@@ -62,14 +62,11 @@ sleep 3
 ```
 
 ### Building and Testing
-**NEVER CANCEL: Test suite may take 10-15 minutes including data downloads. Set timeout to 30+ minutes.**
+**Test suite may take 10-15 minutes including data downloads. Set timeout to 30+ minutes.**
 
 ```bash
 # Run all tests
 pytest
-
-# Run specific test file
-pytest mne_nodes/tests/test_app.py
 
 # Run tests with verbose output
 pytest -v
@@ -80,7 +77,7 @@ pytest mne_nodes/tests/test_nodes.py
 ```
 
 **Testing Notes:**
-- First test run downloads MNE sample datasets (~500MB+) which takes 5-10 minutes
+- First test run downloads MNE testing datasets (~500MB+) which takes 5-10 minutes
 - Subsequent runs use cached data and are much faster
 - pytest-qt handles GUI component testing
 - Tests require headless display setup in CI/headless environments
@@ -103,9 +100,16 @@ MNENODES_DEBUG=true mne_nodes
 
 ### Coding Standards
 - Don't use "except Exception" without re-raising (except when an exception is captured and shown to the user)
+- Use double quotes for strings
+- Keep line length within 88 characters
+- Use type hints for function signatures
+- Use list/dict/set comprehensions where appropriate
+- Avoid wildcard imports
+- Use pathlib for file paths
 - Use logging module for debug/info/warning messages
 - Write docstrings for all public functions and classes
 - Use f-strings
+- Follow PEP 8 style guidelines
 
 ### Code Quality and Linting
 **Always run before committing to avoid CI failures**

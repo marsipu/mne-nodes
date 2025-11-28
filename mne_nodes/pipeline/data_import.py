@@ -67,7 +67,7 @@ datasets = {
 }
 
 
-def import_dataset(controller=None, dataset="testing", group="All"):
+def import_dataset(controller, dataset="testing", group="All"):
     info = datasets.get(dataset)
     if info is None:
         raise ValueError(f"Dataset {dataset} not supported.")
