@@ -117,8 +117,10 @@ class Settings:
             return deepcopy(self._defaults)
 
     def _save_locked(self, settings) -> None:
-        with open(self.settings_path, "w", encoding="utf-8") as f:
+        tmp = self.settings_path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=4, cls=TypedJSONEncoder)
+        os.replace(tmp, self.settings_path)
 
     # ------------------------- Public API ---------------------------
     def default(self, name: str) -> Any:
