@@ -11,6 +11,7 @@ from functools import partial
 from math import log10
 from pathlib import Path
 from types import NoneType
+from typing import Any, Literal, MutableMapping, Sequence
 
 import mne
 import numpy as np
@@ -91,22 +92,22 @@ class Param(QWidget):
 
     def __init__(
         self,
-        data: dict | Controller | Settings,
+        data: MutableMapping[str, Any] | Controller | Settings,
         name: str,
-        alias: str = None,
-        default: object = None,
-        unit: str = None,
+        alias: str | None = None,
+        default: object | None = None,
+        unit: str | None = None,
         groupbox_layout: bool = True,
         none_select: bool = False,
-        description: str = None,
+        description: str | None = None,
         parent_widget: QWidget | None = None,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ):
         """
         Parameters
         ----------
-        data : dict | Controller | Settings
+        data : MutableMapping[str, Any] | Controller | Settings
             The data-structure, in which the value of the parameter is stored
             (depends on the scenario how the Parameter-Widget is used,
              e.g. displaying parameters from Project or displaying device
@@ -117,7 +118,7 @@ class Param(QWidget):
             An optional alias-name for the parameter for display
             (if you want to use a name, which is more readable, but can't or
             shouldn't be used as a key in Python).
-        default : object
+        default : object | None
             The default value depending on GUI-Type.
         unit : str | None
             Supply an optional suffix with the name of the unit.
@@ -133,9 +134,9 @@ class Param(QWidget):
             is hovered over the Widget.#
         parent_widget : QWidget | None
             The parent widget of the parameter GUI. If None, it has no parent.
-        *args
+        *args : Any
             Additional arguments passed to the QWidget constructor.
-        **kwargs
+        **kwargs : Any
             Additional keyword arguments passed to the QWidget constructor.
         """
 
@@ -203,7 +204,7 @@ class Param(QWidget):
 
     def _on_none_changed(self, checked=None):
         """Handle none selection checkbox/groupbox state changes."""
-        if checked == checked or checked is True:
+        if checked == Qt.CheckState.Checked or checked is True:
             self._set_enabled(True)
             # Restore previous value or get current widget value
             if self._value is None:
@@ -340,7 +341,13 @@ class IntGui(Param):
 
     data_type = int
 
-    def __init__(self, min_val=0, max_val=1000, special_value_text=None, **kwargs):
+    def __init__(
+        self,
+        min_val: int = 0,
+        max_val: int = 1000,
+        special_value_text: str | None = None,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
@@ -350,7 +357,7 @@ class IntGui(Param):
             Set the maximum value, defaults to 100.
         special_value_text : str | None
             Supply an optional text for the value 0.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -382,19 +389,26 @@ class FloatGui(Param):
 
     data_type = float
 
-    def __init__(self, min_val=-1000.0, max_val=1000.0, step=0.1, decimals=2, **kwargs):
+    def __init__(
+        self,
+        min_val: float = -1000.0,
+        max_val: float = 1000.0,
+        step: float = 0.1,
+        decimals: int = 2,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
-        min_val : int | float
+        min_val : float
             Set the minimumx value, defaults to -100..
-        max_val : int | float
+        max_val : float
             Set the maximum value, defaults to 100..
-        step : int | float
+        step : float
             Set the step-size, defaults to 0.1.
         decimals : int
             Set the number of decimals of the value.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -425,12 +439,12 @@ class StringGui(Param):
 
     data_type = str
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         """
 
         Parameters
         ----------
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -462,11 +476,11 @@ class FuncGui(Param):
 
     data_type = object
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any):
         """
         Parameters
         ----------
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
@@ -565,13 +579,14 @@ class BoolGui(Param):
 
     data_type = bool
 
-    def __init__(self, return_integer=False, **kwargs):
+    def __init__(self, return_integer: bool = False, **kwargs: Any):
         """
         Parameters
         ----------
         return_integer : bool
             Set True to return an integer (0|1) instead of a boolean
-            (legacy compatibility when ints were stored).\n        **kwargs
+            (legacy compatibility when ints were stored).
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
@@ -601,17 +616,23 @@ class DualTupleGui(Param):
 
     data_type = tuple
 
-    def __init__(self, min_val=-1000.0, max_val=1000.0, step=0.1, **kwargs):
+    def __init__(
+        self,
+        min_val: float = -1000.0,
+        max_val: float = 1000.0,
+        step: float = 0.1,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
-        min_val : int | float
+        min_val : float
             Set the minimumx value, defaults to -100..
-        max_val : int | float
+        max_val : float
             Set the maximum value, defaults to 100..
-        step : int | float
+        step : float
             Set the amount, one step takes.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -681,20 +702,21 @@ class ComboGui(Param):
 
     data_type = str
 
-    def __init__(self, options, editable=False, **kwargs):
+    def __init__(self, options: Sequence[str], editable: bool = False, **kwargs: Any):
         """
         Parameters
         ----------
-        options : list
-            Supply a list with the options to choose from. Only strings are allowed.
+        options : Sequence[str]
+            Supply a sequence with the options to choose from. Only strings
+            are allowed.
         editable : bool
             Set to True, if the ComboBox should be editable. New values will
             be appended to the option list.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
-        self.options = options
+        self.options = list(options)
         self.param_widget = ComboBox(scrollable=False)
         self.param_widget.setEditable(editable)
         self.param_widget.setInsertPolicy(QComboBox.InsertPolicy.InsertAtBottom)
@@ -760,14 +782,14 @@ class ListGui(Param):
 
     data_type = list
 
-    def __init__(self, value_string_length=30, **kwargs):
+    def __init__(self, value_string_length: int | None = 30, **kwargs: Any):
         """
         Parameters
         ----------
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
             string will be displayed.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -821,11 +843,17 @@ class CheckListGui(Param):
 
     data_type = list
 
-    def __init__(self, options, value_string_length=30, one_check=False, **kwargs):
+    def __init__(
+        self,
+        options: Sequence[str] | None,
+        value_string_length: int | None = 30,
+        one_check: bool = False,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
-        options : list
+        options : Sequence[str] | None
             The items from which to choose
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
@@ -833,15 +861,16 @@ class CheckListGui(Param):
         one_check : bool
             Set to True, if only one item should be selectable
              (or use ComboGUI).
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
-        if not isinstance(options, list) or len(options) == 0:
-            options = ["Empty"]
+        option_list = list(options) if options else []
+        if len(option_list) == 0:
+            option_list = ["Empty"]
 
         super().__init__(**kwargs)
-        self.options = options
+        self.options = option_list
         self.value_string_length = value_string_length
         self.one_check = one_check
         # Cache value to use after selecting None
@@ -920,7 +949,7 @@ class DictGui(Param):
 
     data_type = dict
 
-    def __init__(self, value_string_length=30, **kwargs):
+    def __init__(self, value_string_length: int | None = 30, **kwargs: Any):
         """
 
         Parameters
@@ -928,7 +957,7 @@ class DictGui(Param):
         value_string_length : int | None
             Set the limit of characters to which the value converted
             to a string will be displayed.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -984,21 +1013,28 @@ class SliderGui(Param):
 
     data_type = int | float
 
-    def __init__(self, min_val=0, max_val=100, step=1, tracking=True, **kwargs):
+    def __init__(
+        self,
+        min_val: float = 0.0,
+        max_val: float = 100.0,
+        step: float = 1.0,
+        tracking: bool = True,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
-        min_val : int | float
+        min_val : float
             Set the minimumx value, defaults to 0.
-        max_val : int | float
+        max_val : float
             Set the maximum value, defaults to 100..
-        step : int | float
+        step : float
             Set the step-size, defaults to 1.
         tracking : bool
             Set True if values should be updated constantly while the slider
             is dragged (can cause crashes when heavyweight functions are
             connected to the ParamChanged-Signal).
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
@@ -1074,33 +1110,42 @@ class MultiTypeGui(Param):
 
     data_type = int | float | bool | str | list | dict | tuple
 
-    def __init__(self, types=None, type_kwargs=None, **kwargs):
+    def __init__(
+        self,
+        types: Sequence[str] | None = None,
+        type_kwargs: dict[str, dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
-        types : list of str | None
+        types : Sequence[str] | None
             The type-selection will be limited
             to the given types (type-name as string).
-        type_kwargs : dict | None
+        type_kwargs : dict[str, dict[str, Any]] | None
             Specify keyword-arguments as a dictionary for the different GUIs
             (look into their documentation),
             the key is the name of the GUI (e.g. IntGui).
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
         super().__init__(**kwargs)
-        self.types = types or [
-            "int",
-            "float",
-            "bool",
-            "str",
-            "list",
-            "dict",
-            "tuple",
-            "combo",
-            "checklist",
-            "slider",
-        ]
+        self.types = (
+            list(types)
+            if types
+            else [
+                "int",
+                "float",
+                "bool",
+                "str",
+                "list",
+                "dict",
+                "tuple",
+                "combo",
+                "checklist",
+                "slider",
+            ]
+        )
         self.type_defaults = {
             "int": 0,
             "float": 0.0,
@@ -1576,14 +1621,14 @@ class LabelGui(Param):
 
     data_type = list
 
-    def __init__(self, value_string_length=30, **kwargs):
+    def __init__(self, value_string_length: int | None = 30, **kwargs: Any):
         """
         Parameters
         ----------
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
             string will be displayed.
-        **kwargs
+        **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
@@ -1637,15 +1682,17 @@ class ColorGui(Param):
 
     data_type = dict
 
-    def __init__(self, keys, **kwargs):
+    def __init__(
+        self, keys: dict[str, str] | Sequence[str] | str | None, **kwargs: Any
+    ):
         """
         Parameters
         ----------
-        keys : dict | str | None
+        keys : dict[str, str] | Sequence[str] | str | None
             If you supply a dictionary with keys, you can set a color
             for each key. If you supply the string name of another parameter
             (which must return an iterable!), the values from there are taken.
-        **kwargs
+        **kwargs : Any
             All the parameters for :method:`Param.__init__` go here.
         """
 
@@ -1654,7 +1701,7 @@ class ColorGui(Param):
         if isinstance(keys, str):
             self.keys = self._load_from_data(keys)
         else:
-            self.keys = keys
+            self.keys = list(keys) if keys is not None else []
         self._cached_value = None
         layout = QHBoxLayout()
         self.select_widget = QComboBox()
@@ -1713,13 +1760,13 @@ class PathGui(Param):
 
     data_type = Path
 
-    def __init__(self, pick_mode="file", **kwargs):
+    def __init__(self, pick_mode: Literal["file", "directory"] = "file", **kwargs: Any):
         """
         Parameters
         ----------
-        pick_mode : str
+        pick_mode : Literal["file", "directory"]
             Can be either "file" or "directory".
-        **kwargs
+        **kwargs : Any
             All the parameters for :method:`Param.__init__` go here.
         """
 
