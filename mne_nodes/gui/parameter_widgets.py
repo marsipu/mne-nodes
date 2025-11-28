@@ -73,7 +73,7 @@ class Param(QWidget):
     """Base-Class Parameter-GUIs, not to be called directly Inherited Clases
     should have "Gui" in their name to get identified correctly. Type
     definitions for class parameters are also mandatory to enable configuration
-    in other guis.
+    in other guis. And every class parameter has to have a default.
 
     Attributes
     ----------
@@ -845,7 +845,7 @@ class CheckListGui(Param):
 
     def __init__(
         self,
-        options: Sequence[str] | None,
+        options: Sequence[str],
         value_string_length: int | None = 30,
         one_check: bool = False,
         **kwargs: Any,
@@ -853,7 +853,7 @@ class CheckListGui(Param):
         """
         Parameters
         ----------
-        options : Sequence[str] | None
+        options : Sequence[str]
             The items from which to choose
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
@@ -865,12 +865,8 @@ class CheckListGui(Param):
             All the parameters fo :method:`~Param.__init__` go here.
         """
 
-        option_list = list(options) if options else []
-        if len(option_list) == 0:
-            option_list = ["Empty"]
-
         super().__init__(**kwargs)
-        self.options = option_list
+        self.options = options
         self.value_string_length = value_string_length
         self.one_check = one_check
         # Cache value to use after selecting None

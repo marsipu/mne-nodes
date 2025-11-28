@@ -81,6 +81,7 @@ def test_process_dialog(qtbot):
 
 def test_simple_pipeline(qtbot, main_window, controller):
     # Import testing dataset (controller fixtures should be identical to main_window.controller)
+    # ToDo: Make this test work
     import_dataset(controller, "testing")
     main_window.show()
     qtbot.wait(10000)

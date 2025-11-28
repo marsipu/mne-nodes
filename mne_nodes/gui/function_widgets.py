@@ -7,6 +7,8 @@ Github: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import logging
+from types import UnionType, NoneType
+from typing import get_args
 
 import qtawesome as qta
 from PySide6.QtCore import Qt
@@ -23,7 +25,6 @@ from PySide6.QtWidgets import (
     QLayout,
     QSizePolicy,
     QTabWidget,
-    QLineEdit,
 )
 from mne_nodes.gui.base_widgets import SimpleDialog, CheckList
 from mne_nodes.gui.code_editor import PythonHighlighter
@@ -44,6 +45,7 @@ from mne_nodes.gui.parameter_widgets import (
     LabelGui,
     ColorGui,
     PathGui,
+    Param,
 )
 
 parameter_guis = [
@@ -87,6 +89,7 @@ class FunctionHighlighter(PythonHighlighter):
         super().__init__(parent)
         self.n_args = 0
         # Additional highlighting rules can be added here
+        # ToDo: Highlight function arguments in different colors
 
 
 class Editor(QPlainTextEdit):
@@ -101,25 +104,74 @@ class Editor(QPlainTextEdit):
 class ParameterConfiguration(QDialog):
     def __init__(self, param_name, parent=None):
         super().__init__(parent)
+        self.configuration = {}
         self.setWindowTitle(f"Configure Parameter: {param_name}")
-        layout = QFormLayout(self)
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
         # GUI selection
+        selection_layout = QHBoxLayout()
+        selection_layout.addWidget(TitleLabel("Select GUI:"))
         gui_cmbx = QComboBox()
         gui_cmbx.addItems([gui.__name__ for gui in parameter_guis])
         gui_cmbx.currentTextChanged.connect(self.update_gui_config)
-        layout.addRow("GUI Type", gui_cmbx)
+        selection_layout.addWidget(gui_cmbx)
+        layout.addLayout(selection_layout)
         # GUI config
+        layout.addWidget(TitleLabel("GUI Configuration"))
         self.gui_config_layout = QFormLayout()
-        layout.addRow("GUI Configuration", self.gui_config_layout)
-        # Add widgets for parameter configuration here
-        self.default_edit = QLineEdit()
-        layout.addRow("Default", self.default_edit)
+        base_params = {
+            name: {"default": param.default, "annotation": param.annotation}
+            for name, param in inspect.signature(Param).parameters.items()
+            if param.default != inspect.Parameter.empty
+        }
+        for name, param in base_params.items():
+            gui = self._get_type_gui(name, param)
+            if gui is not None:
+                self.gui_config_layout.addRow(name, gui)
+        layout.addLayout(self.gui_config_layout)
+        # Specific GUI config
+        self.specific_gui_config_layout = QFormLayout()
+        layout.addLayout(self.specific_gui_config_layout)
+        self.setLayout(layout)
+        self.open()
+
+    def _get_type_gui(self, name, param):
+        # Get type for gui configuration items
+        if param["annotation"] == inspect.Parameter.empty:
+            logging.warning(f"No type annotation for parameter '{name}'. Skipping.")
+            return None
+        elif (
+            param["annotation"] == UnionType
+        ):  # alias for typing.Union since Python 3.14
+            logging.info(
+                f"UnionType annotation for parameter '{name}'. Using first not NoneType as type."
+            )
+            args = get_args(param["annotation"])
+            gui_type = next((arg for arg in args if arg is not NoneType), str)
+        else:
+            gui_type = param["annotation"]
+        gui = default_type_guis.get(gui_type, StringGui)(
+            data=self.configuration, name=name
+        )
+        return gui
 
     def update_gui_config(self, gui_name):
-        gui = globals()[gui_name]
-        signature = inspect.signature(gui)
-        print(signature)
+        # Remove existing specific gui config widgets
+        for i in reversed(range(self.specific_gui_config_layout.count())):
+            widget = self.specific_gui_config_layout.itemAt(i).widget()
+            if widget is not None:
+                self.specific_gui_config_layout.removeWidget(widget)
+                widget.deleteLater()
+        # Add new specific gui config widgets
+        gui_class = globals()[gui_name]
+        config_items = {
+            name: {"default": param.default, "annotation": param.annotation}
+            for name, param in inspect.signature(gui_class).parameters.items()
+            if param.default != inspect.Parameter.empty
+        }
+        for name, param in config_items:
+            gui = self._get_type_gui(name, param)
+            if gui is not None:
+                self.specific_gui_config_layout.addRow(name, gui)
 
 
 class FunctionImporter(QDialog):
@@ -175,8 +227,13 @@ class FunctionImporter(QDialog):
         config_layout.addWidget(self.parameter_title)
         # Add parameter configuration
         self.parameter_layout = QFormLayout()
+        self.parameter_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        self.parameter_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        self.parameter_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
         self.parameter_layout.setSizeConstraints(
-            QLayout.SizeConstraint.SetDefaultConstraint,
+            QLayout.SizeConstraint.SetNoConstraint,
             QLayout.SizeConstraint.SetMinimumSize,
         )
         config_layout.addLayout(self.parameter_layout)
@@ -185,7 +242,7 @@ class FunctionImporter(QDialog):
         # Analyze the code and populate the UI
         self.analyze_code(code)
 
-        self.show()
+        self.open()
 
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
@@ -247,9 +304,13 @@ class FunctionImporter(QDialog):
                 self.parameter_layout.removeWidget(widget)
                 widget.deleteLater()
         # Add parameter widgets
-        for param, default in self.funcs[self.current_func]["params"].items():
-            param_bt = QPushButton(qta.icon("fa5s.cog"))
-            param_bt.clicked.connect(lambda: ParameterConfiguration(param, parent=self))
+        for param in self.funcs[self.current_func]["params"]:
+            param_bt = QPushButton()
+            param_bt.setSizePolicy(
+                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
+            )
+            param_bt.setIcon(qta.icon("fa5s.cog"))
+            param_bt.clicked.connect(lambda: self.param_configuration(param))
             self.parameter_layout.addRow(param, param_bt)
 
     def update_scope(self, text):
@@ -257,6 +318,10 @@ class FunctionImporter(QDialog):
             self.dependency_bt.show()
         else:
             self.dependency_bt.hide()
+
+    def param_configuration(self, param_name):
+        # ToDo Next: Configuration button not working
+        ParameterConfiguration(param_name, parent=self)
 
     def select_inputs(self):
         # Open a dialog to select inputs
