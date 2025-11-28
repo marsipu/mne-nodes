@@ -19,7 +19,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.base_widgets import CheckList
-from mne_nodes.gui.code_editor import CodeEditor
+from mne_nodes.gui.code_editor import CodeFileEditor
 from mne_nodes.gui.console import MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
@@ -152,7 +152,7 @@ class DataTerminal(QDialog):
         self.layout.addWidget(self.displayw)
 
         self.sub_layout = QGridLayout()
-        self.inputw = CodeEditor()
+        self.inputw = CodeFileEditor()
         self.inputw.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum
         )

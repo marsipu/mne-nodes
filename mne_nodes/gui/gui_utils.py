@@ -579,3 +579,10 @@ class ColorTester(QDialog):
         with open(self.theme_color_path, "w") as file:
             json.dump(theme_colors, file, indent=4)
         event.accept()
+
+
+def edit_font(widget: QWidget, font_size: int, bold: bool = False) -> None:
+    font = widget.font()
+    font.setPointSize(font_size)
+    font.setBold(bold)
+    widget.setFont(font)

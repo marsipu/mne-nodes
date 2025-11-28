@@ -30,10 +30,10 @@ class InputNode(BaseNode):
     def __init__(self, ct, data_type="raw", name="All", **kwargs):
         super().__init__(ct, name=name, startable=True, **kwargs)
         # Check if data_type is valid
-        if data_type not in ct.input_data_types:
+        if data_type not in ct.input_types:
             raise ValueError(
                 f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {','.join(ct.input_data_types.keys())}"
+                f"Valid types are: {','.join(ct.input_types.keys())}"
             )
         self.data_type = data_type
 

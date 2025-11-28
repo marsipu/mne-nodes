@@ -303,10 +303,10 @@ class NodeViewer(QGraphicsView):
             else:
                 name = f"{len(self.input_nodes[data_type]) + 1}"
         node = InputNode(self.ct, data_type, name=name, **kwargs)
-        if data_type not in self.ct.input_data_types:
+        if data_type not in self.ct.input_types:
             raise ValueError(
                 f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {', '.join(self.ct.input_data_types.keys())}"
+                f"Valid types are: {', '.join(self.ct.input_types.keys())}"
             )
         if data_type not in self.input_nodes:
             self.input_nodes[data_type] = {}

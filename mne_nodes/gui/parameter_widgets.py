@@ -70,7 +70,9 @@ from mne_nodes.pipeline.settings import Settings
 
 class Param(QWidget):
     """Base-Class Parameter-GUIs, not to be called directly Inherited Clases
-    should have "Gui" in their name to get identified correctly.
+    should have "Gui" in their name to get identified correctly. Type
+    definitions for class parameters are also mandatory to enable configuration
+    in other guis.
 
     Attributes
     ----------
@@ -89,15 +91,15 @@ class Param(QWidget):
 
     def __init__(
         self,
-        data,
-        name,
-        alias=None,
-        default=None,
-        unit=None,
-        groupbox_layout=True,
-        none_select=False,
-        description=None,
-        parent_widget=None,
+        data: dict | Controller | Settings,
+        name: str,
+        alias: str = None,
+        default: object = None,
+        unit: str = None,
+        groupbox_layout: bool = True,
+        none_select: bool = False,
+        description: str = None,
+        parent_widget: QWidget | None = None,
         *args,
         **kwargs,
     ):
@@ -131,9 +133,13 @@ class Param(QWidget):
             is hovered over the Widget.#
         parent_widget : QWidget | None
             The parent widget of the parameter GUI. If None, it has no parent.
+        *args
+            Additional arguments passed to the QWidget constructor.
+        **kwargs
+            Additional keyword arguments passed to the QWidget constructor.
         """
 
-        super().__init__(*args, **kwargs)
+        super().__init__(parent=parent_widget, *args, **kwargs)
         self.data = data
         self.name = name
         self.alias = alias if alias else self.name

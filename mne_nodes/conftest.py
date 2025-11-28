@@ -252,3 +252,29 @@ def test_module_config(tmp_path, test_script):
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 
     return test_config_path
+
+
+@pytest.fixture
+def basic_test_function():
+    return (
+        "def test_function(a, b=1, c=2):\n"
+        "    '''\n"
+        "    This is a test function that adds three numbers.\n"
+        "    '''\n"
+        "    result = a + b + c\n"
+        "    return result\n"
+    )
+
+
+@pytest.fixture
+def test_function():
+    return (
+        "def complex_function(raw, highpass=1, lowpass=40):\n"
+        "    '''\n"
+        "    This is a filter function from mne.\n"
+        "    '''\n"
+        "    import mne\n\n"
+        "    # Apply a bandpass filter to the raw data\n"
+        "    raw = mne.filter.filter_data(raw.info['sfreq'], highpass, lowpass)\n"
+        "    return raw\n"
+    )

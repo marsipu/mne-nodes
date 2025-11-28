@@ -6,7 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 from qtpy.QtGui import QTextCursor
 
-from mne_nodes.gui.code_editor import CodeEditorWidget, CodeEditor
+from mne_nodes.gui.code_editor import CodeEditorWidget, CodeFileEditor
 
 
 def test_load_save(qtbot, tmp_path, test_script):
@@ -32,7 +32,7 @@ def test_insert_code(qtbot, tmp_path, test_code, test_module_config, test_script
     code_func1 = "\n".join(test_code.split("\n")[:4])
     code_func2 = "\n".join(test_code.split("\n")[4:])
     print(code_func1)
-    editor = CodeEditor(file_path=test_script, file_section=(0, 4))
+    editor = CodeFileEditor(file_path=test_script, file_section=(0, 4))
     qtbot.addWidget(editor)
     # Assert only section code is shown
     assert editor.toPlainText() == code_func1

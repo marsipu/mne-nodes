@@ -32,10 +32,11 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     "plot_files": {},
-    "input_data_types": {
+    "input_types": {
         "raw": {"alias": "MEG/EEG", "import": "import_raw"},
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
     },
+    "data_types": ["raw", "fsmri", "plot"],
     "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
     "input_mapping": {},
     "selected_inputs": [],
@@ -422,7 +423,7 @@ class Controller:
             Name of the input (e.g., subject name or ID).
         data_type : str
             Type of the input data. Must be one of the keys in
-            self.get("input_data_types") (e.g., "raw", "fsmri").
+            self.get("input_types") (e.g., "raw", "fsmri").
         group : str, optional
             Group name for the input. Default is "All".
         input_path : Path or str or NoneType, optional
@@ -430,7 +431,7 @@ class Controller:
             the data will be imported using the appropriate import function.
             Default is None.
         """
-        if data_type not in self.input_data_types:
+        if data_type not in self.input_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         inputs = self.get("inputs")
         if group not in inputs[data_type]:
@@ -444,13 +445,13 @@ class Controller:
             # ToDo: Implement import functions for other data types
             data_import = import_module("mne_nodes.pipeline.data_import")
             import_func = getattr(
-                data_import, self.get("input_data_types")[data_type]["import"]
+                data_import, self.get("input_types")[data_type]["import"]
             )
             import_func(name=name, import_path=input_path, controller=self)
 
     def remove_data(self, name, data_type, group="All"):
         """Remove an input from the inputs dictionary."""
-        if data_type not in self.input_data_types:
+        if data_type not in self.input_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         inputs = self.get("inputs")
         if group not in inputs[data_type]:
