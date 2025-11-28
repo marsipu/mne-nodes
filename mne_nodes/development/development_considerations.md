@@ -93,3 +93,6 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - Either put the information in the main-call with very long sys.argv or create temporary run-file
 - in favour of latter since config.json should never be accessed directly from QProcess to avoid race-condition
 - in need of separation in __main__.py to forward into run-mode or gui-mode.
+
+## A better CodeEditor
+- Probably a better code-editor could be achieved using QScintilla, but since is currently only available with PyQt6, the project had to be licensed under GPL v3.
