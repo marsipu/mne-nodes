@@ -12,7 +12,7 @@ from mne_nodes.pipeline.pipeline_utils import change_file_section
 from qtpy.QtWidgets import QMessageBox
 
 
-def test_firts_init(tmp_path, monkeypatch, settings):
+def test_first_init(tmp_path, monkeypatch, settings):
     # Monkeypatching to simulate user input
     # Create a new config-file with answering yes
     monkeypatch.setattr(
