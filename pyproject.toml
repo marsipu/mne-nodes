@@ -10,7 +10,7 @@ authors = [
 description = "A GUI with Node-Layout for data analysis MNE-Python"
 readme = "README.md"
 # ToDo: Until vtk is available for Python 3.14
-requires-python = ">=3.10, <=3.13"
+requires-python = ">=3.10, <3.14"
 license = { file = "LICENSE" }
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [

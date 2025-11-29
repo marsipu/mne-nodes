@@ -546,8 +546,17 @@ class NodeViewer(QGraphicsView):
                     port.connect_to(connected_port)
 
     def load_config(self, config: dict):
-        if not all(k in config for k in ("nodes", "connections")):
+        if not isinstance(config, dict) or not all(
+            k in config for k in ("nodes", "connections")
+        ):
             logging.warning("Invalid configuration dictionary provided.")
+            return
+        if not isinstance(config["nodes"], dict) or not isinstance(
+            config["connections"], dict
+        ):
+            logging.warning(
+                "Invalid configuration structure: nodes and connections must be dicts."
+            )
             return
         self.from_dict(config)
         self.zoom_to_nodes()
