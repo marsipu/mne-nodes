@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QPushButton,
     QPlainTextEdit,
-    QLayout,
     QSizePolicy,
     QTabWidget,
 )
@@ -104,7 +103,7 @@ class Editor(QPlainTextEdit):
 class ParameterConfiguration(QDialog):
     def __init__(self, param_name, configuration, parent=None):
         super().__init__(parent)
-        self.configuration = configuration
+        self.config = configuration
         self.setWindowTitle(f"Configure Parameter: {param_name}")
         layout = QVBoxLayout(self)
         # GUI selection
@@ -127,9 +126,11 @@ class ParameterConfiguration(QDialog):
             if gui is not None:
                 layout.addWidget(gui)
         # Specific GUI config
+        layout.addWidget(TitleLabel("Specific GUI Configuration"))
         self.specific_gui_config_layout = QFormLayout()
         layout.addLayout(self.specific_gui_config_layout)
-        self.setLayout(layout)
+        # Initialize with the first GUI
+        self.update_gui_config(gui_cmbx.currentText())
         self.open()
 
     def _get_type_gui(self, name, param):
@@ -148,7 +149,7 @@ class ParameterConfiguration(QDialog):
         else:
             gui_type = param["annotation"]
         gui = default_type_guis.get(gui_type, StringGui)(
-            data=self.configuration, name=name, none_select=True, groupbox_layout=False
+            data=self.config, name=name, none_select=True, groupbox_layout=False
         )
         return gui
 
@@ -166,7 +167,7 @@ class ParameterConfiguration(QDialog):
             for name, param in inspect.signature(gui_class).parameters.items()
             if param.default != inspect.Parameter.empty
         }
-        for name, param in config_items:
+        for name, param in config_items.items():
             gui = self._get_type_gui(name, param)
             if gui is not None:
                 self.specific_gui_config_layout.addRow(name, gui)
@@ -194,9 +195,6 @@ class FunctionImporter(QDialog):
         layout.addLayout(config_layout)
         # Add scope combobox
         scope_layout = QHBoxLayout()
-        scope_layout.setSizeConstraints(
-            QLayout.SizeConstraint.SetMinimumSize, QLayout.SizeConstraint.SetMinimumSize
-        )
         scope_layout.addWidget(TitleLabel("Scope:"))
         self.scope_cmbx = QComboBox()
         self.scope_cmbx.addItems(["subject", "group", "custom"])
@@ -212,15 +210,6 @@ class FunctionImporter(QDialog):
         edit_font(self.dependency_bt, 14)
         config_layout.addWidget(self.dependency_bt)
         self.dependency_bt.hide()
-        # Add (optional) dependency configuration
-        # Add input configuration
-        # self.input_button = QPushButton("Select Inputs")
-        # self.input_button.clicked.connect(self.select_inputs)
-        # edit_font(self.input_button, 14)
-        # self.input_button.setSizePolicy(
-        #     QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
-        # )
-        # config_layout.addWidget(self.input_button)
         self.parameter_title = TitleLabel("Configure Parameters")
         config_layout.addWidget(self.parameter_title)
         # Add parameter configuration
@@ -230,10 +219,6 @@ class FunctionImporter(QDialog):
         )
         self.parameter_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.parameter_layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.parameter_layout.setSizeConstraints(
-            QLayout.SizeConstraint.SetNoConstraint,
-            QLayout.SizeConstraint.SetMinimumSize,
-        )
         config_layout.addLayout(self.parameter_layout)
         config_layout.addStretch()
 
@@ -249,7 +234,7 @@ class FunctionImporter(QDialog):
             node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
         ]
         for func in function_defs:
-            self.func_config[func.name] = {"param_config": {}, "dependencies": []}
+            self.func_config[func.name] = {"parameters": {}, "dependencies": []}
             start_line = func.lineno - 1
             end_line = func.end_lineno
             func_code = "\n".join(code.splitlines()[start_line:end_line])
@@ -262,15 +247,12 @@ class FunctionImporter(QDialog):
             args = func.args.args
             defaults = func.args.defaults
             num_defaults = len(defaults)
-            self.func_config[func.name]["args"] = [a.arg for a in args]
+            # Split args into inputs and parameters
             self.func_config[func.name]["inputs"] = [
                 a.arg for a in args[: len(args) - num_defaults]
             ]
-            self.func_config[func.name]["params"] = [
-                a.arg for a in args[len(args) - num_defaults :]
-            ]
-            self.func_config[func.name]["defaults"] = {
-                a.arg: defaults[i].value
+            self.func_config[func.name]["parameters"] = {
+                a.arg: {"default": defaults[i].value}
                 for i, a in enumerate(args[len(args) - num_defaults :])
             }  # type: ignore[attr-defined]
 
@@ -302,7 +284,7 @@ class FunctionImporter(QDialog):
                 self.parameter_layout.removeWidget(widget)
                 widget.deleteLater()
         # Add parameter widgets
-        for param in self.func_config[self.current_func]["params"]:
+        for param in self.func_config[self.current_func]["parameters"]:
             param_bt = QPushButton()
             param_bt.setSizePolicy(
                 QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
@@ -318,20 +300,8 @@ class FunctionImporter(QDialog):
             self.dependency_bt.hide()
 
     def param_configuration(self, param_name):
-        # ToDo Next: Configuration button not working
-        ParameterConfiguration(param_name, parent=self)
-
-    #
-    # def _update_param_list(self):
-    #     pass  # wip, parameter list need to update when selected from inputs. Maybe not needed if strict rule for args with default = parameters and args without = inputs
-
-    # def select_inputs(self):
-    #     # Open a dialog to select inputs
-    #     # These args and inputs containers should be changed in place
-    #     args = self.func_config[self.current_func]["args"]
-    #     inputs = self.func_config[self.current_func]["inputs"]
-    #     input_list = CheckList(args, inputs, ui_button_pos="bottom")
-    #     SimpleDialog(input_list, parent=self, title="Select Inputs", modal=True)
+        config = self.func_config[self.current_func]["parameters"]
+        ParameterConfiguration(param_name, config, parent=self)
 
     def manage_dependencies(self):
         # Open a dialog to manage dependencies
