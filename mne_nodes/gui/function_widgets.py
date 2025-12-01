@@ -72,6 +72,7 @@ default_type_guis = {
     bool: BoolGui,
     list: ListGui,
     dict: DictGui,
+    object: MultiTypeGui,
 }
 
 
@@ -135,6 +136,7 @@ class ParameterConfiguration(QDialog):
 
     def _get_type_gui(self, name, param):
         # Get type for gui configuration items
+        # ToDo Next: Implement MultiTypeGui
         if param["annotation"] is inspect.Parameter.empty:
             logging.warning(f"No type annotation for parameter '{name}'. Skipping.")
             return None
@@ -300,7 +302,7 @@ class FunctionImporter(QDialog):
             self.dependency_bt.hide()
 
     def param_configuration(self, param_name):
-        config = self.func_config[self.current_func]["parameters"]
+        config = self.func_config[self.current_func]["parameters"][param_name]
         ParameterConfiguration(param_name, config, parent=self)
 
     def manage_dependencies(self):
