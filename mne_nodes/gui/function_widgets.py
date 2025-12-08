@@ -7,6 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import logging
+from functools import partial
 from types import UnionType, NoneType
 from typing import get_args
 
@@ -254,7 +255,7 @@ class FunctionImporter(QDialog):
                 a.arg for a in args[: len(args) - num_defaults]
             ]
             self.func_config[func.name]["parameters"] = {
-                a.arg: {"default": defaults[i].value}
+                a.arg: {"default": ast.literal_eval(defaults[i])}
                 for i, a in enumerate(args[len(args) - num_defaults :])
             }  # type: ignore[attr-defined]
 
@@ -292,7 +293,7 @@ class FunctionImporter(QDialog):
                 QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
             )
             param_bt.setIcon(qta.icon("fa5s.cog"))
-            param_bt.clicked.connect(lambda: self.param_configuration(param))
+            param_bt.clicked.connect(partial(self.param_configuration, param))
             self.parameter_layout.addRow(param, param_bt)
 
     def update_scope(self, text):

@@ -257,11 +257,12 @@ def test_module_config(tmp_path, test_script):
 @pytest.fixture
 def basic_test_function():
     return (
-        "def test_function(a, b=1, c=2):\n"
+        "def test_function(a, b=1, c='test', d=[1,2,3]):\n"
         "    '''\n"
-        "    This is a test function that adds three numbers.\n"
+        "    This is a test function that adds two numbers and has other types as args.\n"
         "    '''\n"
-        "    result = a + b + c\n"
+        "    result = a + b\n"
+        "    print(f'Parameters: c={c}, d={d}')\n"
         "    return result\n"
     )
 
