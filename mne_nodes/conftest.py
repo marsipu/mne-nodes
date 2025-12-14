@@ -255,7 +255,7 @@ def test_module_config(tmp_path, test_script):
 
 
 @pytest.fixture
-def basic_test_function():
+def basic_test_functions():
     return (
         "def test_function(a, b=1, c='test', d=[1,2,3]):\n"
         "    '''\n"
@@ -263,7 +263,15 @@ def basic_test_function():
         "    '''\n"
         "    result = a + b\n"
         "    print(f'Parameters: c={c}, d={d}')\n"
-        "    return result\n"
+        "    return result\n\n"
+        "def another_function(x, flag=True):\n"
+        "    '''\n"
+        "    This function multiplies x by 2 if flag is True, else by 3.\n"
+        "    '''\n"
+        "    if flag:\n"
+        "        return x * 2\n"
+        "    else:\n"
+        "        return x * 3\n"
     )
 
 

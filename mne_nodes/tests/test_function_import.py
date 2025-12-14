@@ -4,10 +4,16 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import pprint
+
 from mne_nodes.gui.function_widgets import FunctionImporter
 
 
-def test_dialog(qtbot, controller, basic_test_function):
-    function_import = FunctionImporter(controller, basic_test_function)
+def test_dialog(qtbot, controller, basic_test_functions):
+    function_import = FunctionImporter(controller, basic_test_functions)
     qtbot.addWidget(function_import)
-    qtbot.wait(10000000)
+
+    # Increase to check functionality
+    qtbot.wait(1000000)
+    function_import.close()
+    pprint.pprint(function_import.func_config)

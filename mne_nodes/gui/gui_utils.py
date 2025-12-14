@@ -220,10 +220,10 @@ def get_user_input(
     return user_input
 
 
-def raise_user_attention(message, message_type="warning"):
+def raise_user_attention(message, message_type="warning", parent=None):
     """Raise a message to the user, either as a warning or an error."""
     if mne_nodes.gui_mode:
-        parent = main_widget()
+        parent = parent or main_widget()
         if message_type == "warning":
             QMessageBox().warning(parent, "Warning", message)
         elif message_type == "error":

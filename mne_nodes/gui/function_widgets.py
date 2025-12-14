@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 from mne_nodes.gui.base_widgets import SimpleDialog, CheckList
 from mne_nodes.gui.code_editor import PythonHighlighter
-from mne_nodes.gui.gui_utils import edit_font
+from mne_nodes.gui.gui_utils import edit_font, raise_user_attention
 from mne_nodes.gui.parameter_widgets import (
     IntGui,
     FloatGui,
@@ -80,7 +80,7 @@ default_type_guis = {
 class TitleLabel(QLabel):
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
-        edit_font(self, 14, True)
+        edit_font(self, 13, True)
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -128,11 +128,18 @@ class ParameterConfiguration(QDialog):
             if gui is not None:
                 layout.addWidget(gui)
         # Specific GUI config
-        layout.addWidget(TitleLabel("Specific GUI Configuration"))
+        self.specific_label = TitleLabel("Specific GUI Configuration")
+        layout.addWidget(self.specific_label)
+        self.specific_label.hide()
         self.specific_gui_config_layout = QFormLayout()
         layout.addLayout(self.specific_gui_config_layout)
-        # Initialize with the first GUI
-        self.update_gui_config(gui_cmbx.currentText())
+        # Initialize with appropriate gui
+        gui_name = configuration.get("gui") or (
+            default_type_guis.get(type(self.config.get("default")), StringGui).__name__
+            if self.config.get("default") is not None
+            else "StringGui"
+        )
+        gui_cmbx.setCurrentText(gui_name)
         self.open()
 
     def _get_type_gui(self, name, param):
@@ -157,6 +164,7 @@ class ParameterConfiguration(QDialog):
         return gui
 
     def update_gui_config(self, gui_name):
+        self.config["gui"] = gui_name
         # Remove existing specific gui config widgets
         for i in reversed(range(self.specific_gui_config_layout.count())):
             widget = self.specific_gui_config_layout.itemAt(i).widget()
@@ -170,10 +178,14 @@ class ParameterConfiguration(QDialog):
             for name, param in inspect.signature(gui_class).parameters.items()
             if param.default != inspect.Parameter.empty
         }
-        for name, param in config_items.items():
-            gui = self._get_type_gui(name, param)
-            if gui is not None:
-                self.specific_gui_config_layout.addRow(name, gui)
+        if len(config_items) == 0:
+            self.specific_label.hide()
+        else:
+            self.specific_label.show()
+            for name, param in config_items.items():
+                gui = self._get_type_gui(name, param)
+                if gui is not None:
+                    self.specific_gui_config_layout.addRow(name, gui)
 
 
 class FunctionImporter(QDialog):
@@ -183,6 +195,7 @@ class FunctionImporter(QDialog):
         self.controller = controller
         self.func_config = {}
         self.current_func = None
+        self.editors = {}
         # UI
         layout = QHBoxLayout(self)
         self.setWindowTitle("Import Function")
@@ -196,6 +209,11 @@ class FunctionImporter(QDialog):
         # Init configuration
         config_layout = QVBoxLayout()
         layout.addLayout(config_layout)
+        analyze_bt = QPushButton("Re-analyze Code")
+        analyze_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        analyze_bt.clicked.connect(partial(self.analyze_code, code))
+        edit_font(analyze_bt, 14)
+        config_layout.addWidget(analyze_bt)
         # Add scope combobox
         scope_layout = QHBoxLayout()
         scope_layout.addWidget(TitleLabel("Scope:"))
@@ -227,23 +245,28 @@ class FunctionImporter(QDialog):
 
         # Analyze the code and populate the UI
         self.analyze_code(code)
+        # Select the first function by default
+        self.update_config(0)
 
         self.open()
 
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
+        # ToDo Next: Complete reanalyze
         tree = ast.parse(code)
         function_defs = [
             node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
         ]
         for func in function_defs:
-            self.func_config[func.name] = {"parameters": {}, "dependencies": []}
+            if func.name not in self.func_config:
+                self.func_config[func.name] = {"parameters": {}, "dependencies": []}
             start_line = func.lineno - 1
             end_line = func.end_lineno
             func_code = "\n".join(code.splitlines()[start_line:end_line])
             self.func_config[func.name]["code"] = func_code
-            # Create a new tab for the function code
+            # Create a new tab with an editor for the function code
             editor = Editor()
+            self.editors[func.name] = editor
             editor.setPlainText(func_code)
             self.tab_widget.addTab(editor, func.name)
             # Extract inputs and parameters from function arguments
@@ -254,10 +277,25 @@ class FunctionImporter(QDialog):
             self.func_config[func.name]["inputs"] = [
                 a.arg for a in args[: len(args) - num_defaults]
             ]
-            self.func_config[func.name]["parameters"] = {
-                a.arg: {"default": ast.literal_eval(defaults[i])}
-                for i, a in enumerate(args[len(args) - num_defaults :])
-            }  # type: ignore[attr-defined]
+            # Get parameters with defaults
+            param_config = self.func_config[func.name]["parameters"]
+            parameters = [a.arg for a in args[len(args) - num_defaults :]]
+            # Remove old parameters if they are not longer present
+            for old_param in [p for p in param_config if p not in parameters]:
+                logging.info(
+                    f"Parameter '{old_param}' no longer present in function '{func.name}'. Removing from configuration."
+                )
+                del param_config[old_param]
+            # Update parameter configuration
+            for i, a in enumerate(parameters):
+                default = ast.literal_eval(defaults[i])
+                gui = default_type_guis.get(type(default))
+                if a not in param_config:
+                    param_config[a] = {}
+                if "default" not in param_config[a]:
+                    param_config[a]["default"] = default
+                if "gui" not in param_config[a]:
+                    param_config[a]["gui"] = gui
 
             # Extract outputs from return statement
             returns = [node for node in ast.walk(func) if isinstance(node, ast.Return)]
@@ -267,15 +305,29 @@ class FunctionImporter(QDialog):
                 )
             elif len(returns) > 1:
                 logging.warning(
-                    f"Multiple return statements found in function '{func.name}'. Only the first one will be set as output. This is not supported and may lead to unexpected behavior."
+                    f"Multiple return statements found in function '{func.name}'. Only the name of the first return value will be set as output. This may lead to unexpected behavior."
                 )
             ret = returns[0]
             if isinstance(ret.value, ast.Tuple):
-                self.func_config[func.name]["outputs"] = [e.id for e in ret.value.elts]  # type: ignore[attr-defined]
+                for val in ret.value.elts:
+                    if not isinstance(val, ast.Constant):
+                        logging.warning(
+                            f"Return value in function '{func.name}' is not a constant. Only constant return values are supported currently."
+                        )
+                        return
+                self.func_config[func.name]["outputs"] = [e.id for e in ret.value.elts]
+            elif isinstance(ret.value, ast.Constant):
+                self.func_config[func.name]["outputs"] = [ret.value.id]
             else:
-                self.func_config[func.name]["outputs"] = [ret.value.id]  # type: ignore[attr-defined]
-        # Select the first function by default
-        self.update_config(0)
+                logging.warning(
+                    f"Return value in function '{func.name}' is not a constant or tuple of constants. Only constant return values are supported currently."
+                )
+
+    def reanalyze(self):
+        # Get code from editors
+        # ToDo Next: Proper do reanalyze
+        code = self.get_code()
+        return code
 
     def update_config(self, idx):
         # Update the configuration based on the loaded function
@@ -302,7 +354,16 @@ class FunctionImporter(QDialog):
         else:
             self.dependency_bt.hide()
 
+    def get_code(self):
+        code = ""
+        for func_name, editor in self.editors.items():
+            code += editor.toPlainText() + "\n\n"
+            self.func_config[func_name]["code"] = editor.toPlainText()
+        return code
+
     def param_configuration(self, param_name):
+        # Passing the configuration dict works since ParameterWidgets will fill
+        # the existing container.
         config = self.func_config[self.current_func]["parameters"][param_name]
         ParameterConfiguration(param_name, config, parent=self)
 
@@ -314,3 +375,29 @@ class FunctionImporter(QDialog):
             ui_button_pos="bottom",
         )
         SimpleDialog(dep_list, parent=self, title="Select Dependencies", modal=True)
+
+    def closeEvent(self, event):
+        # Update the code in the configuration before closing
+        for func_name, editor in self.editors.items():
+            self.func_config[func_name]["code"] = editor.toPlainText()
+        # Check for mandatory configuration items
+        warning_msg = "The following mandatory configuration items are missing:\n"
+        ok = True
+        for func_name, func_config in self.func_config.items():
+            # Check function
+            if len(func_config.get("outputs", [])) == 0:
+                warning_msg += f"Function '{func_name}' has no outputs defined.\n"
+                ok = False
+            elif len(func_config.get("inputs", [])) == 0:
+                logging.warning(f"Function '{func_name}' has no inputs defined.")
+                ok = False
+            # Check parameters
+            for param_name, param_config in func_config["parameters"].items():
+                if "default" not in param_config:
+                    warning_msg += f"Parameter '{param_name}' in function '{func_name}' has no default value defined.\n"
+                    ok = False
+        if ok:
+            super().closeEvent(event)
+        else:
+            raise_user_attention(warning_msg, message_type="warning", parent=self)
+            event.ignore()

@@ -714,6 +714,11 @@ class Controller:
 
         return func_code, start, end
 
+    @staticmethod
+    def tab(num_tabs=1, tab_size=4):
+        """Return a string of tabs for indentation."""
+        return " " * (num_tabs * tab_size)
+
     def convert_to_code(self, instructions, start_name):
         """Convert a list of instructions to a Python code string."""
         # Resolve imports
@@ -736,43 +741,45 @@ class Controller:
             code += f"from {module_name} import *\n"
         # Add function execution code
         code += "\n# Execute pipeline\n"
-        # ToDo: Put into try-except block to catch errors of multiple subjects
+        # ToDo: When changing to inputs/outputs from return-statements, there need to be a new way to save the data in between steps
         loaded_data = set()
         modules = {}
         if instructions[0][0] == "raw":
             code += f"for meeg_name in tqdm(ct.get('inputs')['raw']['{start_name}']):\n"
-            code += self.tab + "meeg = MEEG(meeg_name, ct)\n"
+            code += self.tab() + "meeg = MEEG(meeg_name, ct)\n"
             loaded_data.add(instructions[0][0])
         elif instructions[0][0] == "fsmri":
             code += (
                 f"for fsmri_name in tqdm(ct.get('inputs')['fsmri']['{start_name}']):\n"
             )
-            code += self.tab + "fsmri = FSMRI(fsmri_name, ct)\n"
+            code += self.tab() + "fsmri = FSMRI(fsmri_name, ct)\n"
         elif instructions[0][0] == "group":
             pass  # ToDo: Handle groups
         else:
             raise ValueError(f"Unknown input type: {instructions[0][0]}")
         # Add try-except block for error handling
-        code += self.tab + "try:\n"
+        code += self.tab() + "try:\n"
         for name, kind in instructions:
             if kind == "Input" and name not in loaded_data:
-                code += self.tab * 2 + f'{kind} = meeg.load(data_type="{kind}")\n'
+                code += self.tab() * 2 + f'{kind} = meeg.load(data_type="{kind}")\n'
                 loaded_data.add(name)
             elif kind == "Function":
                 meta = self.get_meta(name)
                 if meta["module"] not in modules:
                     modules[meta["module"]] = []
                 modules[meta["module"]].append(name)
-                code += self.tab * 2 + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
+                code += (
+                    self.tab() * 2 + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
+                )
             else:
                 logging.warning(
                     f"Unknown instruction type '{kind}' for name '{name}'. "
                     "Skipping this instruction."
                 )
-        code += self.tab + "except Exception as e:\n"
-        code += self.tab * 2 + "print(f'[Error] for {meeg_name}: {e}')\n"
-        code += self.tab * 2 + "traceback.print_exc()\n"
-        code += self.tab * 2 + "continue\n"
+        code += self.tab() + "except Exception as e:\n"
+        code += self.tab(2) + "print(f'[Error] for {meeg_name}: {e}')\n"
+        code += self.tab(2) + "traceback.print_exc()\n"
+        code += self.tab(2) + "continue\n"
 
         return code
 
