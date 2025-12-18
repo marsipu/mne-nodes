@@ -158,7 +158,7 @@ class ParameterConfiguration(QDialog):
             gui_type = next((arg for arg in args if arg is not NoneType), str)
         else:
             gui_type = param["annotation"]
-        gui = default_type_guis.get(gui_type, StringGui)(
+        gui = default_type_guis.get(gui_type, MultiTypeGui)(
             data=self.config, name=name, none_select=True, groupbox_layout=False
         )
         return gui
@@ -211,7 +211,7 @@ class FunctionImporter(QDialog):
         layout.addLayout(config_layout)
         analyze_bt = QPushButton("Re-analyze Code")
         analyze_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        analyze_bt.clicked.connect(partial(self.analyze_code, code))
+        analyze_bt.clicked.connect(self.reanalyze)
         edit_font(analyze_bt, 14)
         config_layout.addWidget(analyze_bt)
         # Add scope combobox
@@ -245,8 +245,6 @@ class FunctionImporter(QDialog):
 
         # Analyze the code and populate the UI
         self.analyze_code(code)
-        # Select the first function by default
-        self.update_config(0)
 
         self.open()
 
@@ -322,12 +320,19 @@ class FunctionImporter(QDialog):
                 logging.warning(
                     f"Return value in function '{func.name}' is not a constant or tuple of constants. Only constant return values are supported currently."
                 )
+        # Update parameter configuration
+        self.update_config(self.tab_widget.currentIndex())
 
     def reanalyze(self):
         # Get code from editors
         # ToDo Next: Proper do reanalyze
         code = self.get_code()
-        return code
+        # Clear editor tabs
+        for idx in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(idx)
+            self.tab_widget.removeTab(idx)
+            widget.deleteLater()
+        self.analyze_code(code)
 
     def update_config(self, idx):
         # Update the configuration based on the loaded function
