@@ -269,9 +269,10 @@ def basic_functions():
         "    This function multiplies x by 2 if flag is True, else by 3.\n"
         "    '''\n"
         "    if flag:\n"
-        "        return x * 2\n"
+        "        product = x * 2\n"
         "    else:\n"
-        "        return x * 3\n"
+        "        product = x * 3\n"
+        "    return product\n"
     )
 
 
@@ -290,9 +291,10 @@ def basic_functions_alt():
         "    This function multiplies x by 2 if flag is True, else by 3.\n"
         "    '''\n"
         "    if flag:\n"
-        "        return x * 2\n"
+        "        product = x * 2\n"
         "    else:\n"
-        "        return x * 3\n"
+        "        product = x * 3\n"
+        "    return product\n"
     )
 
 

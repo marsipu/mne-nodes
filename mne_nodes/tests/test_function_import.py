@@ -9,21 +9,12 @@ import pprint
 from mne_nodes.gui.function_widgets import FunctionImporter
 
 
+# ToDo: Proper tests
 def test_dialog(qtbot, controller, basic_functions):
     function_import = FunctionImporter(controller, basic_functions)
     qtbot.addWidget(function_import)
 
     # Increase to check functionality
-    qtbot.wait(1000000)
-    function_import.close()
-    pprint.pprint(function_import.func_config)
-
-
-def test_reanalyze(qtbot, controller, basic_functions, basic_functions_alt):
-    function_import = FunctionImporter(controller, basic_functions)
-    qtbot.addWidget(function_import)
-
-    # Increase to check functionality
-    qtbot.wait(1000000)
+    qtbot.wait(1000)
     function_import.close()
     pprint.pprint(function_import.func_config)

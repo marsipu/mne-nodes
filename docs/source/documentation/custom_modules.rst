@@ -12,6 +12,7 @@ Their name needs to be identical to the names of return statements from other fu
 
 Outputs
 -------
+Outputs need to be a name variable that is returned from the function. If you want to return static values, just define any variable so they can appear as outputs in the nodes.
 
 Parameters
 ----------

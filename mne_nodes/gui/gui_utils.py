@@ -74,14 +74,25 @@ def get_std_icon(icon_name):
     return QApplication.instance().style().standardIcon(getattr(QStyle, icon_name))
 
 
-def ask_user(prompt, cancel_allowed=True, close_on_cancel=False):
+def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     """Ask the user a yes or no question.
 
     The answer is returned as a boolean. If the user cancels the
     operation, None is returned.
+
+    Parameters
+    ----------
+    prompt : str
+        The prompt message to display to the user.
+    cancel_allowed : bool, optional
+        If True, allows the user to cancel the operation. Defaults to True.
+    close_on_cancel : bool, optional
+        If True, the app exits after cancel. Defaults to False.
+    parent : QWidget | None, optional
+        Set the parent of the modal widget.
     """
     if mne_nodes.gui_mode:
-        parent = main_widget()
+        parent = parent or main_widget()
         if cancel_allowed:
             buttons = (
                 QMessageBox.StandardButton.Yes
@@ -134,6 +145,7 @@ def get_user_input(
     file_filter=None,
     cancel_allowed=True,
     exit_on_cancel=False,
+    parent=None,
 ):
     """Get user input either via GUI or terminal, supporting string and path
     input.
@@ -150,6 +162,8 @@ def get_user_input(
         If True, allows the user to cancel the input operation. Defaults to True.
     exit_on_cancel : bool, optional
         If True, the app exits after cancel. Defaults to False.
+    parent : QWidget | None optional
+        Set the parent of the modal widget.
 
     Returns
     -------
@@ -167,7 +181,7 @@ def get_user_input(
         f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
     )
     if mne_nodes.gui_mode:
-        parent = main_widget()
+        parent = parent or main_widget()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
         elif input_type == "folder":
