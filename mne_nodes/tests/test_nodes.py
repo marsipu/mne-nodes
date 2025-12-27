@@ -1,6 +1,8 @@
 from qtpy.QtCore import QPointF, Qt
 
+from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
+from mne_nodes.gui.node.node_viewer import NodeViewer
 
 
 def test_nodes_basic_interaction(nodeviewer):
@@ -55,3 +57,21 @@ def test_show_nodeviewer(nodeviewer):
     assert len(nodeviewer.nodes) > 0
     for node in nodeviewer.nodes.values():
         assert node.isVisible()
+
+
+def test_exec_order(qtbot, controller):
+    viewer = NodeViewer(controller)
+    qtbot.addWidget(viewer)
+    _add_complex_nodes(viewer)
+
+    viewer.show()
+
+    n = viewer.node(node_name="filter_data")[0]
+    print(viewer.node_exec_order(n))
+
+    n = viewer.node(node_name="epoch_raw")[0]
+    print(viewer.node_exec_order(n))
+
+    n = viewer.node(node_idx=0)
+    print(viewer.node_exec_order(n))
+    qtbot.wait(10000)

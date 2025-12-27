@@ -87,12 +87,17 @@ Nodes should improve usability and the representation of the pipeline by the fol
 
 ## Run from Nodes-Layout
 - Each node needs an optional run button (depending on if there is a stored input)
-- Each node needs a save-toggle to determine if the output is stored (only if save-function is available)
-
-## Running in QProcess
-- Either put the information in the main-call with very long sys.argv or create temporary run-file
-- in favour of latter since config.json should never be accessed directly from QProcess to avoid race-condition
-- in need of separation in __main__.py to forward into run-mode or gui-mode.
+- Each node needs a save-toggle to determine if the output is stored (only if save-function is available).
 
 ## A better CodeEditor
 - Probably a better code-editor could be achieved using QScintilla, but since is currently only available with PyQt6, the project had to be licensed under GPL v3.
+
+## Parameter-Presets(legacy)
+- Parameter-Presets are removed, since comparison of different parameters can be achieved by using multiple nodes with different parameters.
+
+## Current ToDo Next:
+- [ ] config-locks on each get/set are too expensive
+- [ ] execution order from node-viewer
+- [ ] parameters by function (config and storage so dict[func][param])
+- [ ] remove p_preset
+- [ ] handle multiple functions with same name in viewer (replacement for p_presets)

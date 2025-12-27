@@ -1,11 +1,8 @@
 Parameters
 ==========
+Parameters are stored per function, thus parameters with the same name can exist in different functions with different values.
+The parameters are configured per function.
 
-Parameter names
----------------
-A parameter-name can only exist once. Should it be used by multiple functions, then it will be updated in all places if updated in one place.
-To avoid this, you should use a different name for a (function-specific) parameter.
-
-Setting to None
----------------
-To set a parameter to None, uncheck the checkbox next to the parameter name.
+Set a parameter to None
+-----------------------
+To set a parameter to None, uncheck the checkbox next to the parameter name. To allow this, *none_select* has to be set to ``True`` in the parameter configuration.

@@ -16,6 +16,7 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
+from time import perf_counter
 from types import NoneType
 from typing import Any, Dict, Optional, Union
 
@@ -111,9 +112,12 @@ class Controller:
     ):
         # The device dependent settings
         self.settings = settings or Settings()
+        self._config = None
         self._config_path = None
         self._config_lock = None
         self.lock_timeout = 5  # seconds
+        self.config_interval = 1.0  # seconds
+        self._last_load = 0
         self.modules = {}
         self._process_count = 0
         self.config_path = config_path or self.settings.get("config_path", default=None)
@@ -228,29 +232,34 @@ class Controller:
 
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
-        try:
-            with self.config_lock:
-                config = self._load_config()
-                return config.get(
-                    key, self.default(key) if default is None else default
+        now = perf_counter()
+        if self._config is None or now - self._last_load > self.config_interval:
+            self._last_load = now
+            try:
+                with self.config_lock:
+                    self._config = self._load_config()
+
+            except Timeout:
+                logging.warning(
+                    f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
                 )
-        except Timeout:
-            logging.warning(
-                f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
-            )
-        return self.default(key)
+                return self.default(key)
+        value = self._config.get(key, self.default(key) if default is None else default)
+        return value
 
     def set(self, key, value) -> None:
         """Set a specific key in the config-file."""
-        try:
-            with self.config_lock:
-                config = self._load_config()
-                config[key] = value
-                self._save_config(config)
-        except Timeout:
-            logging.error(
-                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
-            )
+        self._config[key] = value
+        now = perf_counter()
+        if now - self._last_load > self.config_interval:
+            self._last_load = now
+            try:
+                with self.config_lock:
+                    self._save_config(self._config)
+            except Timeout:
+                logging.error(
+                    f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
+                )
 
     def __getattr__(self, name) -> Any:
         """Get attributes from the config-file if possible."""

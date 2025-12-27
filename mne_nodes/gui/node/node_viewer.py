@@ -561,6 +561,32 @@ class NodeViewer(QGraphicsView):
         self.from_dict(config)
         self.zoom_to_nodes()
 
+    def from_project(self):
+        """Legacy method to load nodes from the project.
+
+        Notes
+        -----
+        This method loads function nodes from the current project's
+        selected functions.
+        """
+        for function in self.ct.pr.sel_functions:
+            node = FunctionNode(self.ct, name=function)
+            self.add_node(node)
+
+        # ToDo: Try making non-cyclic connections
+
+    def clear(self):
+        """Clear the node graph.
+
+        Notes
+        -----
+        This removes all nodes from the graph. List conversion is necessary
+        because self.nodes is mutated during iteration.
+        """
+        # list conversion necessary because self.nodes is mutated
+        for node in list(self.nodes.values()):
+            self.remove_node(node)
+
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
         if visited is None:
             visited = set()
@@ -572,7 +598,6 @@ class NodeViewer(QGraphicsView):
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
                 continue
-            instructions.append((port.name, "Port"))
             for node_id, node_info in port_info.items():
                 if node_id in visited:
                     continue
@@ -603,31 +628,19 @@ class NodeViewer(QGraphicsView):
                     )
                 self._get_execution_from_nodes(instructions, node_info, visited)
 
-    def from_project(self):
-        """Legacy method to load nodes from the project.
+    def node_exec_order(self, node):
+        """Start from a node and create an execution order.
 
-        Notes
-        -----
-        This method loads function nodes from the current project's
-        selected functions.
+        The execution goes downstream from the selected node. Multiple
+        output paths are executed sequentially. If downstream there are
+        multiple inputs, the upstream nodes are executed first. Handling
+        of different node types and activated/deactivated nodes should
+        be done in Controller.
         """
-        for function in self.ct.pr.sel_functions:
-            node = FunctionNode(self.ct, name=function)
-            self.add_node(node)
+        instructions = []
+        self._get_execution_from_nodes(instructions, node.downstream_nodes())
 
-        # ToDo: Try making non-cyclic connections
-
-    def clear(self):
-        """Clear the node graph.
-
-        Notes
-        -----
-        This removes all nodes from the graph. List conversion is necessary
-        because self.nodes is mutated during iteration.
-        """
-        # list conversion necessary because self.nodes is mutated
-        for node in list(self.nodes.values()):
-            self.remove_node(node)
+        return instructions
 
     ####################################################################################
     # Frontend
