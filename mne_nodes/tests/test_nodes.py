@@ -64,14 +64,17 @@ def test_exec_order(qtbot, controller):
     qtbot.addWidget(viewer)
     _add_complex_nodes(viewer)
 
-    viewer.show()
-
     n = viewer.node(node_name="filter_data")[0]
-    print(viewer.node_exec_order(n))
+    eo = viewer.node_exec_order(n)
+    print("filter_data:")
+    print("\n".join([str(e) for e in eo]))
 
     n = viewer.node(node_name="epoch_raw")[0]
-    print(viewer.node_exec_order(n))
+    eo = viewer.node_exec_order(n)
+    print("epoch_raw:")
+    print("\n".join([str(e) for e in eo]))
 
     n = viewer.node(node_idx=0)
-    print(viewer.node_exec_order(n))
-    qtbot.wait(10000)
+    eo = viewer.node_exec_order(n)
+    print("first node:")
+    print("\n".join([str(e) for e in eo]))

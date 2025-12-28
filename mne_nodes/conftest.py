@@ -114,12 +114,18 @@ def _add_nodes(viewer):
 
 
 def _add_complex_nodes(viewer):
+    inputs = viewer.ct.inputs
+    inputs["raw"]["Group 1"] = ["sample_a_raw.fif", "sample_b_raw.fif"]
+    inputs["raw"]["Group 2"] = ["sample_c_raw.fif", "sample_d_raw.fif"]
+    viewer.ct.inputs = inputs
     # Create nodes
-    in_node = viewer.add_input_node("raw")
+    in_node = viewer.add_input_node("raw", name="Group 1")
+    in_node2 = viewer.add_input_node("raw", name="Group 2")
     func_node = viewer.add_function_node("filter_data")
 
     # Establish connection
     in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
+    in_node2.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
 
     # Add more function nodes
     func_node2 = viewer.add_function_node("find_events")
@@ -127,7 +133,7 @@ def _add_complex_nodes(viewer):
     func_node4 = viewer.add_function_node("plot_epochs")
 
     # Connect the nodes
-    viewer.input_node("raw").output(port_name="raw").connect_to(
+    viewer.input_node("raw", name="Group 1").output(port_name="raw").connect_to(
         func_node2.input(port_name="raw")
     )
     viewer.function_node("filter_data").output(port_name="raw").connect_to(
@@ -139,7 +145,9 @@ def _add_complex_nodes(viewer):
     func_node3.output(port_name="epochs").connect_to(
         func_node4.input(port_name="epochs")
     )
-    # ToDo: extend with fsmri-nodes and assignment nodes
+
+    # ToDo Next: Add source space nodes
+
     viewer.auto_layout_nodes()
     viewer.zoom_to_nodes()
 

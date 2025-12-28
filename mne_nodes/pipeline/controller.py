@@ -116,8 +116,9 @@ class Controller:
         self._config_path = None
         self._config_lock = None
         self.lock_timeout = 5  # seconds
-        self.config_interval = 1.0  # seconds
+        self.disk_interval = 1.0  # seconds
         self._last_load = 0
+        self._local_set = False
         self.modules = {}
         self._process_count = 0
         self.config_path = config_path or self.settings.get("config_path", default=None)
@@ -142,6 +143,7 @@ class Controller:
         }
         self.set("module_meta", module_meta)
         self.load_modules()
+        assert len(self.function_metas) > 0
 
     ####################################################################################
     # Initialization and Properties
@@ -233,7 +235,9 @@ class Controller:
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
         now = perf_counter()
-        if self._config is None or now - self._last_load > self.config_interval:
+        if self._config is None or (
+            not self._local_set and now - self._last_load > self.disk_interval
+        ):
             self._last_load = now
             try:
                 with self.config_lock:
@@ -251,7 +255,7 @@ class Controller:
         """Set a specific key in the config-file."""
         self._config[key] = value
         now = perf_counter()
-        if now - self._last_load > self.config_interval:
+        if now - self._last_load > self.disk_interval:
             self._last_load = now
             try:
                 with self.config_lock:
@@ -260,27 +264,28 @@ class Controller:
                 logging.error(
                     f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
                 )
+            self._local_set = False
+        else:
+            # Make sure when setting a variable to config without writing to disk, that it is not overwritten by a load from disk.
+            self._local_set = True
 
     def __getattr__(self, name) -> Any:
-        """Get attributes from the config-file if possible."""
+        """Get attributes from the config-file if possible.
+
+        This is only called for attributes that not already exist.
+        """
         if name in default_config:
             return self.get(name)
         else:
             raise AttributeError(f"Controller has no attribute '{name}'")
 
     def __setattr__(self, name, value) -> None:
-        """Set attributes in the config-file if possible."""
-        # Check for instance attributes first to avoid recursion during __init__
-        if name in (
-            "settings",
-            "_config_path",
-            "_config_lock",
-            "lock_timeout",
-            "modules",
-            "_process_count",
-        ):
-            super().__setattr__(name, value)
-        elif name in default_config:
+        """Set attributes in the config-file if possible.
+
+        Importantly, Controller.set() shouuld never include usage of
+        __setattr__ to avoid infinite recursion.
+        """
+        if name in default_config:
             self.set(name, value)
         else:
             super().__setattr__(name, value)
@@ -581,9 +586,11 @@ class Controller:
         function_metas = self.get("function_metas")
         function_metas.update(config_data["functions"])
         self.set("function_metas", function_metas)
+        assert self.function_metas == function_metas
         parameter_metas = self.get("parameter_metas")
         parameter_metas.update(config_data["parameters"])
         self.set("parameter_metas", parameter_metas)
+        assert self.function_metas == function_metas
 
     def _import_module(self, module_name):
         """Import a module from the given package path."""

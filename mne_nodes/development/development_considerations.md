@@ -96,8 +96,8 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - Parameter-Presets are removed, since comparison of different parameters can be achieved by using multiple nodes with different parameters.
 
 ## Current ToDo Next:
-- [ ] config-locks on each get/set are too expensive
-- [ ] execution order from node-viewer
+- [x] config-locks on each get/set are too expensive
+- [x] execution order from node-viewer
 - [ ] parameters by function (config and storage so dict[func][param])
-- [ ] remove p_preset
 - [ ] handle multiple functions with same name in viewer (replacement for p_presets)
+- [ ] remove p_preset in favor of multiple functions

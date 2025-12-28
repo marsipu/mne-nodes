@@ -587,13 +587,27 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node)
 
+    @staticmethod
+    def _node_description(node):
+        if isinstance(node, InputNode):
+            description = (node.data_type, "Input")
+        elif isinstance(node, FunctionNode):
+            description = (node.name, "Function")
+        else:
+            logging.warning(
+                f"Node {node.name} of type {type(node)} is not a valid "
+                "input or function node."
+            )
+            description = None
+        return description
+
     def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
         if visited is None:
             visited = set()
         for port_id, port_info in node_dict.items():
-            if port_id in visited:
-                continue
-            visited.add(port_id)
+            # if port_id in visited:
+            #     continue
+            # visited.add(port_id)
             port = self.port(port_id=port_id)
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
@@ -617,15 +631,7 @@ class NodeViewer(QGraphicsView):
                         )
                         reverse_exec_order.reverse()
                         instructions.extend(reverse_exec_order)
-                if isinstance(node, InputNode):
-                    instructions.append((node.data_type, "Input"))
-                elif isinstance(node, FunctionNode):
-                    instructions.append((node.name, "Function"))
-                else:
-                    logging.warning(
-                        f"Node {node.name} of type {type(node)} is not a valid "
-                        "input or function node."
-                    )
+                instructions.append(self._node_description(node))
                 self._get_execution_from_nodes(instructions, node_info, visited)
 
     def node_exec_order(self, node):
@@ -638,7 +644,11 @@ class NodeViewer(QGraphicsView):
         be done in Controller.
         """
         instructions = []
-        self._get_execution_from_nodes(instructions, node.downstream_nodes())
+        visited = set()
+        # Add the starting node
+        instructions.append(self._node_description(node))
+        visited.add(node.id)
+        self._get_execution_from_nodes(instructions, node.downstream_nodes(), visited)
 
         return instructions
 
