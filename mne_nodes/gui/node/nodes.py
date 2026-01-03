@@ -86,7 +86,7 @@ class FunctionNode(BaseNode):
 
     def __init__(self, ct, **kwargs):
         super().__init__(ct, checkable=True, **kwargs)
-        self.func_meta = ct.function_metas[self.name]
+        self.func_meta = ct.function_meta[self.name]
         self.parameters = self.func_meta["parameters"]
 
         # Initialize inputs and outputs
@@ -111,7 +111,7 @@ class FunctionNode(BaseNode):
         else:
             layout = QVBoxLayout(widget)
         for param_name in self.func_meta["parameters"]:
-            param_kwargs = self.ct.parameter_metas.get(param_name)
+            param_kwargs = self.ct.get_parameter_meta(param_name, self.name)
             if param_kwargs is not None:
                 param_kwargs = param_kwargs.copy()
                 param_kwargs["groupbox_layout"] = False
@@ -128,7 +128,7 @@ class FunctionNode(BaseNode):
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
-        func_meta = self.ct.get_meta(self.name)
+        func_meta = self.ct.get_function_meta(self.name)
         file_path = self.ct.module_meta[func_meta["module"]]["module"]
         editor_widget = CodeEditorWidget(
             main_widget(), file_section=(start, end), file_path=file_path

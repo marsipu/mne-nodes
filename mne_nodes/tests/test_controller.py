@@ -38,12 +38,13 @@ def test_init(controller):
     bad_channels = controller.get("bad_channels")
     bad_channels["test_subject"] = ["EEG 001", "EEG 002"]
     controller.set("bad_channels", bad_channels)
-    assert "test_subject" in controller.bad_channels
+    assert "test_subject" in controller.get("bad_channels")
     # Test persistence for reloading
     config_path = controller.config_path
+    controller.flush()
     controller2 = Controller(config_path=config_path)
     assert controller2.name == "test2"
-    assert "test_subject" in controller2.bad_channels
+    assert "test_subject" in controller.get("bad_channels")
     # Test parameter set
     controller.set_parameter("param1", 42)
     assert controller.parameter("param1") == 42, (

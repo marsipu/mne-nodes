@@ -250,11 +250,40 @@ def check_none(value):
     return False
 
 
+extra_config = {
+    "n_jobs": {
+        "alias": "Number of jobs for multiprocessing",
+        "default": -1,
+        "unit": None,
+        "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+        "gui": "MultiTypeGui",
+        "types": ["int", "combo"],
+        "type_kwargs": {
+            "IntGui": {"min_val": -1, "special_value_text": "auto"},
+            "ComboGui": {"options": ["cuda"]},
+        },
+    },
+    "show_plots": {
+        "alias": "Show plots",
+        "default": True,
+        "unit": None,
+        "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+        "gui": "BoolGui",
+    },
+    "enable_cuda": {
+        "alias": "Enable CUDA",
+        "default": False,
+        "unit": None,
+        "description": "If set to True, the function will use CUDA for processing. If set to False, the function will use CPU.",
+        "gui": "BoolGui",
+    },
+}
+
+
 def convert_pandas_meta(func_pd, param_pd):
     """Convert pandas DataFrames to a dictionary structure for function and
     parameter configuration."""
     modules = func_pd["module"].unique()
-    input_names = ["meeg", "fsmri", "group"]
     configs = {}
     for module_name in modules:
         module = basic_operations if module_name == "operations" else basic_plot
@@ -262,20 +291,17 @@ def convert_pandas_meta(func_pd, param_pd):
             "module_name": module_name,
             "module_alias": module_name,
             "functions": {},
-            "parameters": {},
         }
-        param_set = set()
-
         for func_name, row in func_pd[func_pd["module"] == module_name].iterrows():
-            row_dict = row.to_dict()
-            if row_dict["mayavi"]:
-                row_dict["thread-safe"] = False
+            func_row_dict = row.to_dict()
+            if func_row_dict["mayavi"]:
+                func_row_dict["thread-safe"] = False
             else:
-                row_dict["thread-safe"] = True
-            if row_dict["matplotlib"] or row_dict["mayavi"]:
-                row_dict["plot"] = True
+                func_row_dict["thread-safe"] = True
+            if func_row_dict["matplotlib"] or func_row_dict["mayavi"]:
+                func_row_dict["plot"] = True
             else:
-                row_dict["plot"] = False
+                func_row_dict["plot"] = False
 
             for pop_key in [
                 "matplotlib",
@@ -285,74 +311,84 @@ def convert_pandas_meta(func_pd, param_pd):
                 "dependencies",
                 "pkg_name",
             ]:
-                row_dict.pop(pop_key)
+                func_row_dict.pop(pop_key)
             if func_name == "plot_grand_avg_connect":
                 pass
-            if check_none(row_dict["alias"]):
-                row_dict.pop("alias")
+            if check_none(func_row_dict["alias"]):
+                func_row_dict.pop("alias")
 
             # Get inputs/outputs and parameters
-            params = row_dict.pop("func_args").split(",")
+            params = func_row_dict.pop("func_args").split(",")
             input = params.pop(0)
             func = getattr(module, func_name)
             code = getsource(func)
-            row_dict["inputs"] = re.findall(rf"{input}\.load_([a-z_]+)\(", code)
-            row_dict["outputs"] = re.findall(rf"{input}\.save_([a-z_]+)\(", code)
-            row_dict["parameters"] = [p for p in params if p not in input_names]
-
-            for key, value in row_dict.items():
+            func_row_dict["inputs"] = re.findall(rf"{input}\.load_([a-z_]+)\(", code)
+            func_row_dict["inputs"] += re.findall(
+                rf"{input}\.fsmri.load_([a-z_]+)\(", code
+            )
+            func_row_dict["outputs"] = re.findall(rf"{input}\.save_([a-z_]+)\(", code)
+            func_row_dict["outputs"] += re.findall(
+                rf"{input}\.fsmri.save_([a-z_]+)\(", code
+            )
+            for key, value in func_row_dict.items():
                 if isinstance(value, float) and math.isnan(value):
-                    row_dict[key] = None
-
-            module_dict["functions"][func_name] = row_dict
-            param_set.update(params)
-
-        for param_name, row in param_pd.iterrows():
-            if param_name not in param_set:
-                continue
-            row_dict = row.to_dict()
-            # Make sure alias, unit and description are removed when None
-            for key in ["alias", "unit", "description", "gui_args"]:
-                if check_none(row_dict[key]):
-                    row_dict.pop(key)
-            eval_dict = {}
-            for key, value in row_dict.items():
-                if key in ["default", "gui_args"]:
-                    try:
-                        value = literal_eval(value)
-                    except (ValueError, SyntaxError):
-                        pass
-                # Rename gui_type to gui
-                if key == "gui_type":
-                    key = "gui"
-                # Convert None values from NaN
-                if isinstance(value, float) and math.isnan(value):
-                    value = None
-                eval_dict[key] = value
-            eval_dict.pop("group")
-            # Convert gui-args
-            gui_args = eval_dict.pop("gui_args", {})
-            if gui_args is not None:
-                for k, v in gui_args.items():
-                    # Remove deprecated type_selection kwarg for MultiTypeGui
-                    if k == "type_selection":
-                        continue
-                    eval_dict[k] = v
-            # Convert tuple types
-            if param_name in [
-                "t_epoch",
-                "baseline",
-                "stc_animation_span",
-                "con_time_window",
-            ]:
-                eval_dict["default"] = tuple(eval_dict["default"])
-
-            # Convert options to list if it's a dict
-            if "options" in eval_dict:
-                if isinstance(eval_dict["options"], dict):
-                    eval_dict["options"] = [k for k in eval_dict["options"]]
-
-            module_dict["parameters"][param_name] = eval_dict
+                    func_row_dict[key] = None
+            func_row_dict["parameters"] = {}
+            # Get Parameters
+            for param_name in params:
+                try:
+                    row = param_pd.loc[param_name]
+                except KeyError:
+                    extra = extra_config.get(param_name, None)
+                    if extra is None:
+                        logging.warning(
+                            f"Parameter {param_name} for function {func_name} not found!"
+                        )
+                    else:
+                        func_row_dict["parameters"][param_name] = deepcopy(extra)
+                    continue
+                param_row_dict = row.to_dict()
+                # Make sure alias, unit and description are removed when None
+                for key in ["alias", "unit", "description", "gui_args"]:
+                    if check_none(param_row_dict[key]):
+                        param_row_dict.pop(key)
+                eval_dict = {}
+                for key, value in param_row_dict.items():
+                    if key in ["default", "gui_args"]:
+                        try:
+                            value = literal_eval(value)
+                        except (ValueError, SyntaxError):
+                            pass
+                    # Rename gui_type to gui
+                    if key == "gui_type":
+                        key = "gui"
+                    # Convert None values from NaN
+                    if isinstance(value, float) and math.isnan(value):
+                        value = None
+                    eval_dict[key] = value
+                eval_dict.pop("group")
+                # Convert gui-args
+                gui_args = eval_dict.pop("gui_args", {})
+                if gui_args is not None:
+                    for k, v in gui_args.items():
+                        # Remove deprecated type_selection kwarg for MultiTypeGui
+                        if k == "type_selection":
+                            continue
+                        eval_dict[k] = v
+                # Convert tuple types
+                if param_name in [
+                    "t_epoch",
+                    "baseline",
+                    "stc_animation_span",
+                    "con_time_window",
+                ]:
+                    eval_dict["default"] = tuple(eval_dict["default"])
+                # Convert options to list if it's a dict
+                if "options" in eval_dict:
+                    if isinstance(eval_dict["options"], dict):
+                        eval_dict["options"] = [k for k in eval_dict["options"]]
+                func_row_dict["parameters"][param_name] = eval_dict
+            module_dict["functions"][func_name] = func_row_dict
         configs[module_name] = module_dict
 
     return configs

@@ -1,7 +1,15 @@
+Functions
+=========
+Function names must be always unique.
+
 Parameters
 ==========
 Parameters are stored per function, thus parameters with the same name can exist in different functions with different values.
 The parameters are configured per function.
+
+Parameter Names
+---------------
+While parameters of different functions can have the same name, parameter names within a function must be unique.
 
 Set a parameter to None
 -----------------------
