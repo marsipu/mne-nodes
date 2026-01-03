@@ -6,8 +6,8 @@ from mne_nodes.gui.node.node_viewer import NodeViewer
 
 
 def test_nodes_basic_interaction(nodeviewer):
-    node1 = nodeviewer.input_node()
-    node2 = nodeviewer.function_node("filter_data")
+    node1 = nodeviewer.get_node_by_input()
+    node2 = nodeviewer.node(node_name="filter_data")
     port1 = node1.output(port_name="raw")
     port2 = node2.input(port_name="raw")
     assert port1.connected(port2)
@@ -78,3 +78,22 @@ def test_exec_order(qtbot, controller):
     eo = viewer.node_exec_order(n)
     print("first node:")
     print("\n".join([str(e) for e in eo]))
+
+
+def test_multiple_func_nodes(nodeviewer):
+    """Test adding multiple function nodes of the same type."""
+    node1 = nodeviewer.node(node_name="filter_data")
+    nodeviewer.add_function_node("filter_data")
+    nodes = nodeviewer.get_node_by_function("filter_data")
+    assert len(nodes) == 2
+    node2 = nodeviewer.node(node_name="filter_data-1")
+    assert node2 is not None
+    # Make sure, that parameters are independent
+    node1.parameter_guis["lowpass"].value = 0.5
+    node2.parameter_guis["lowpass"].value = 1.0
+    assert (
+        node1.parameter_guis["lowpass"].value != node2.parameter_guis["lowpass"].value
+    )
+    assert nodeviewer.ct.parameter("lowpass", node1.name) != nodeviewer.ct.parameter(
+        "lowpass", node2.name
+    )

@@ -8,6 +8,7 @@ import ast
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 from copy import deepcopy
@@ -188,10 +189,12 @@ class Controller:
                     file_filter="JSON files (*.json)",
                     exit_on_cancel=True,
                 )
-        # Set, load and persist
+        # Set the path and initialize the lock
         self._config_path = Path(value)
         self._config_lock = FileLock(Path(self._config_path).with_suffix(".lock"))
         self.settings.set("config_path", value)
+        # Load the config immediately
+        self.load()
 
     @property
     def config_lock(self):
@@ -199,6 +202,11 @@ class Controller:
             logging.info("Config lock not set, initializing config_path.")
             self.config_path = None
         return self._config_lock
+
+    @staticmethod
+    def default(key):
+        """Get the default value for a specific key."""
+        return deepcopy(default_config.get(key, None))
 
     def _load_config(self):
         """Load the configuration from the config-file if necessary."""
@@ -222,10 +230,26 @@ class Controller:
         with open(self._config_path, "w") as file:
             json.dump(config, file, indent=4, cls=TypedJSONEncoder)
 
-    @staticmethod
-    def default(key):
-        """Get the default value for a specific key."""
-        return deepcopy(default_config.get(key, None))
+    def load(self):
+        """Force loading the config from disk."""
+        try:
+            with self.config_lock:
+                self._config = self._load_config()
+
+        except Timeout:
+            logging.warning(
+                f"Could not acquire lock for settings after {self.lock_timeout} seconds."
+            )
+
+    def flush(self):
+        """Force writing the current config to disk."""
+        try:
+            with self.config_lock:
+                self._save_config(self._config)
+        except Timeout:
+            logging.error(
+                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
+            )
 
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
@@ -234,15 +258,7 @@ class Controller:
             not self._local_set and now - self._last_load > self.disk_interval
         ):
             self._last_load = now
-            try:
-                with self.config_lock:
-                    self._config = self._load_config()
-
-            except Timeout:
-                logging.warning(
-                    f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using default value."
-                )
-                return self.default(key)
+            self.load()
         value = self._config.get(key, self.default(key) if default is None else default)
         return value
 
@@ -257,16 +273,6 @@ class Controller:
         else:
             # Make sure when setting a variable to config without writing to disk, that it is not overwritten by a load from disk.
             self._local_set = True
-
-    def flush(self):
-        """Force writing the current config to disk."""
-        try:
-            with self.config_lock:
-                self._save_config(self._config)
-        except Timeout:
-            logging.error(
-                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
-            )
 
     @property
     def data_root(self) -> Path:
@@ -657,7 +663,13 @@ class Controller:
         """Get the metadata for a specific function."""
         function_meta = self.get("function_meta").get(function_name, None)
         if function_meta is None:
-            raise KeyError(f"Function '{function_name}' not found in function meta.")
+            match = re.match(r"([\w]+)-\d+", function_name)
+            if match:
+                function_meta = self.get("function_meta")[match.group(1)]
+            else:
+                raise KeyError(
+                    f"Function '{function_name}' not found in function meta."
+                )
 
         return function_meta
 

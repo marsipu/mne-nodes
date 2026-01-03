@@ -36,7 +36,7 @@ def test_drag_function_from_picker_to_viewer(main_window, qtbot):
     # Verify function node created
     node = None
     try:
-        node = viewer.function_node(fname)
+        node = viewer.node(node_name=fname)
     except KeyError:
         pass
     assert node is not None

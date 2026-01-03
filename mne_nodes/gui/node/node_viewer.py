@@ -6,6 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 import math
+import re
 from collections import OrderedDict
 
 import qtpy
@@ -257,20 +258,7 @@ class NodeViewer(QGraphicsView):
         """
         self.scene().addItem(node)
         self._nodes[node.id] = node
-        if isinstance(node, InputNode):
-            dt = node.data_type
-            if dt not in self.input_nodes:
-                self.input_nodes[dt] = {}  #
-            # For input nodes, the name must be unique while there can be
-            # multiple input-nodes per data-type
-            self.input_nodes[dt][node.name] = node
-        elif isinstance(node, FunctionNode):
-            if node.name not in self.function_nodes:
-                self.function_nodes[node.name] = {}
-            # For function nodes, the name can be the same for multiple nodes but
-            # they need to be distinguishable by their id.
-            self.function_nodes[node.name][node.id] = node
-        # draw node (necessary to redraw after it is added to the scene)
+        # draw node after being added to the scene
         node.draw_node()
 
         return node
@@ -303,10 +291,10 @@ class NodeViewer(QGraphicsView):
             else:
                 name = f"{len(self.input_nodes[data_type]) + 1}"
         node = InputNode(self.ct, data_type, name=name, **kwargs)
-        if data_type not in self.ct.input_types:
+        if data_type not in self.ct.get("input_types"):
             raise ValueError(
                 f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {', '.join(self.ct.input_types.keys())}"
+                f"Valid types are: {', '.join(self.ct.get('input_types').keys())}"
             )
         if data_type not in self.input_nodes:
             self.input_nodes[data_type] = {}
@@ -321,7 +309,8 @@ class NodeViewer(QGraphicsView):
         Parameters
         ----------
         function_name : str
-            Name of the function to create a node for.
+            Name of the function to create a node for. If the name already exists,
+            a numbered suffix is added to the name.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the FunctionNode constructor.
 
@@ -330,11 +319,16 @@ class NodeViewer(QGraphicsView):
         FunctionNode
             The created function node.
         """
-        node = FunctionNode(self.ct, name=function_name, **kwargs)
         if function_name in self.function_nodes:
-            self.function_nodes[function_name].update({node.id: node})
-        else:
-            self.function_nodes[function_name] = {node.id: node}
+            # Get function node index (0-based with 0 not showing)
+            func_idx = len(self.get_node_by_function(function_name))
+            # Add function node index to name
+            function_name = f"{function_name}-{func_idx}"
+            logging.info(
+                f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
+            )
+        node = FunctionNode(self.ct, name=function_name, **kwargs)
+        self.function_nodes[function_name] = node
         self.add_node(node)
 
         return node
@@ -396,7 +390,7 @@ class NodeViewer(QGraphicsView):
 
         Returns
         -------
-        BaseNode or list or None
+        BaseNode or None
             The node that matches the provided index, name, or id. If multiple
             parameters are provided, the method will prioritize them in
             the following order: node_idx, node_name, node_id, old_id.
@@ -406,7 +400,15 @@ class NodeViewer(QGraphicsView):
         if node_idx is not None:
             return list(self.nodes.values())[node_idx]
         elif node_name is not None:
-            return [n for n in self.nodes.values() if n.name == node_name]
+            node_list = [n for n in self.nodes.values() if n.name == node_name]
+            if len(node_list) == 0:
+                logging.warning(f"No node found with name '{node_name}'.")
+            else:
+                if len(node_list) > 1:
+                    logging.warning(
+                        f"Multiple nodes found with name '{node_name}'. Returning the first one."
+                    )
+                return node_list[0]
         elif node_id is not None:
             return self.nodes[node_id]
         elif old_id is not None:
@@ -416,7 +418,7 @@ class NodeViewer(QGraphicsView):
         logging.warning("No node found with the provided parameters.")
         return None
 
-    def input_node(self, data_type="raw", name=None):
+    def get_node_by_input(self, data_type="raw", name=None):
         """Get an input node by data type and name.
 
         Parameters
@@ -441,30 +443,27 @@ class NodeViewer(QGraphicsView):
 
         return self.input_nodes[data_type].get(name, None)
 
-    def function_node(self, name, node_id=None):
-        """Get a function node by its name.
+    def get_node_by_function(self, name):
+        """Get all nodes of a function.
 
         Parameters
         ----------
         name : str
-            Name of the function node.
-        node_id : int, optional
-            Unique identifier of the function node, by default None.
+            Name of the function.
 
         Returns
         -------
-        FunctionNode or dict or None
-            The function node that matches the provided name.
-            If no match is found, returns None.
+        list of FunctionNode
+            The node(s) that match the provided function name.
         """
-        if name not in self.function_nodes:
+        func_nodes = [
+            self.function_nodes[fn]
+            for fn in self.function_nodes
+            if re.match(rf"{name}[-\d]*", fn)
+        ]
+        if len(func_nodes) == 0:
             raise KeyError(f"Function '{name}' not found in project.")
-        if node_id is None:
-            # if no node_id is given, return first node for the function
-            return next(iter(self.function_nodes[name].values()), None)
-        elif node_id not in self.function_nodes[name]:
-            raise KeyError(f"Node with id '{node_id}' for function '{name}' not found.")
-        return self.function_nodes[name].get(node_id, None)
+        return func_nodes
 
     def port(self, **kwargs):
         """Get a port from the node graph based on its properties.
@@ -758,10 +757,10 @@ class NodeViewer(QGraphicsView):
         for node in nodes:
             rect = rect | node.sceneBoundingRect()
         # Add padding
-        rect.setX(rect.x() - self.ct.padding)
-        rect.setY(rect.y() - self.ct.padding)
-        rect.setWidth(rect.width() + self.ct.padding)
-        rect.setHeight(rect.height() + self.ct.padding)
+        rect.setX(rect.x() - self.ct.get("padding"))
+        rect.setY(rect.y() - self.ct.get("padding"))
+        rect.setWidth(rect.width() + self.ct.get("padding"))
+        rect.setHeight(rect.height() + self.ct.get("padding"))
 
         return rect
 

@@ -94,6 +94,7 @@ class Param(QWidget):
         self,
         data: MutableMapping[str, Any] | Controller | Settings,
         name: str,
+        function_name: str | None = None,
         alias: str | None = None,
         default: object | None = None,
         unit: str | None = None,
@@ -114,6 +115,8 @@ class Param(QWidget):
              settings from Main-Window).
         name : str
             The name of the key, which stores the value in the data-structure.
+        function_name : str | None
+            A function name if the parameter belongs to a specific function.
         alias : str | None
             An optional alias-name for the parameter for display
             (if you want to use a name, which is more readable, but can't or
@@ -141,8 +144,13 @@ class Param(QWidget):
         """
 
         super().__init__(parent=parent_widget, *args, **kwargs)
+        if isinstance(data, Controller) and function_name is None:
+            raise RuntimeError(
+                "Function name must be provided when using Controller as data source."
+            )
         self.data = data
         self.name = name
+        self.function_name = function_name
         self.alias = alias if alias else self.name
         self._value = None
         self.default = default
@@ -245,7 +253,7 @@ class Param(QWidget):
         """Load parameter value from the data source."""
         # get data from Parameters in Controller
         if isinstance(self.data, Controller):
-            value = self.data.parameter(name)
+            value = self.data.parameter(name, function_name=self.function_name)
         # get data from dictionary
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
@@ -273,7 +281,7 @@ class Param(QWidget):
     def _save_to_data(self, name, value):
         """Save parameter value to the data source."""
         if isinstance(self.data, Controller):
-            self.data.parameters[self.data.p_preset][name] = value
+            self.data.set_parameter(name, value, function_name=self.function_name)
         elif isinstance(self.data, dict):
             self.data[name] = value
         elif isinstance(self.data, Settings):
@@ -282,7 +290,7 @@ class Param(QWidget):
     def is_key(self, key):
         """Check if the given key is existing inside data."""
         if isinstance(self.data, Controller):
-            return key in self.data.parameters[self.data.p_preset]
+            return key in self.data.get("parameters")[self.function_name]
         elif isinstance(self.data, dict):
             return key in self.data
         elif isinstance(self.data, Settings):

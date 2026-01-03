@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from mne_nodes.pipeline.io import TypedJSONEncoder
+from qtpy.QtWidgets import QMessageBox
 
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
@@ -63,6 +63,7 @@ def settings(tmp_path):
     return settings
 
 
+# ToDo: Create a dummy function-configuration and parameterss
 @pytest.fixture
 def controller(tmp_path, monkeypatch, settings):
     """Fixture to create a Controller with temporary config, data and subjects
@@ -70,21 +71,25 @@ def controller(tmp_path, monkeypatch, settings):
     from mne_nodes.pipeline.controller import Controller
 
     # Create a config_file, data_path and subjects_dir
-    controller_name = "test"
     data_root = tmp_path / "MEEG"
     mkdir(data_root)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
-
     settings.set("data_root", str(data_root))
     settings.set("subjects_dir", str(subjects_dir))
-
-    test_config = {"name": "test", "parameters": {"Default": test_parameters}}
-    config_path = tmp_path / f"{controller_name}_config.json"
-    with open(config_path, "w") as f:
-        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
+    # Simulate user input
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QMessageBox.question",
+        lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
+    )
+    # Set the controller name
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
+    )
+    # set the directory where to save the config-file
+    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
     # Create Controller
-    ct = Controller(config_path=config_path, settings=settings)
+    ct = Controller(settings=settings)
 
     return ct
 
@@ -133,10 +138,10 @@ def _add_complex_nodes(viewer):
     func_node4 = viewer.add_function_node("plot_epochs")
 
     # Connect the nodes
-    viewer.input_node("raw", name="Group 1").output(port_name="raw").connect_to(
+    viewer.get_node_by_input("raw", name="Group 1").output(port_name="raw").connect_to(
         func_node2.input(port_name="raw")
     )
-    viewer.function_node("filter_data").output(port_name="raw").connect_to(
+    viewer.node(node_name="filter_data").output(port_name="raw").connect_to(
         func_node3.input(port_name="raw")
     )
     func_node2.output(port_name="events").connect_to(

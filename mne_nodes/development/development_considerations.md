@@ -99,5 +99,5 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - [x] config-locks on each get/set are too expensive
 - [x] execution order from node-viewer
 - [x] parameters by function (config and storage so dict[func][param])
-- [ ] handle multiple functions with same name in viewer (replacement for p_presets)
-- [ ] remove p_preset in favor of multiple functions
+- [x] handle multiple functions with same name in viewer (replacement for p_presets)
+- [x] remove p_preset in favor of multiple functions
