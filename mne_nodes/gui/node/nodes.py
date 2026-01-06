@@ -4,8 +4,6 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-import logging
-
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -30,10 +28,10 @@ class InputNode(BaseNode):
     def __init__(self, ct, data_type="raw", name="All", **kwargs):
         super().__init__(ct, name=name, startable=True, **kwargs)
         # Check if data_type is valid
-        if data_type not in ct.input_data_types:
+        if data_type not in ct.get("input_types"):
             raise ValueError(
                 f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {','.join(ct.input_data_types.keys())}"
+                f"Valid types are: {','.join(ct.get('input_types').keys())}"
             )
         self.data_type = data_type
 
@@ -52,8 +50,8 @@ class InputNode(BaseNode):
         bt_layout.addWidget(sample_bt)
         layout.addLayout(bt_layout)
         input_list = CheckList(
-            ct.inputs[data_type][name],
-            ct.selected_inputs,
+            ct.get("inputs")[data_type][name],
+            ct.get("selected_inputs"),
             ui_button_pos="bottom",
             show_index=True,
             title=f"Select {data_type}",
@@ -86,21 +84,20 @@ class FunctionNode(BaseNode):
 
     def __init__(self, ct, **kwargs):
         super().__init__(ct, checkable=True, **kwargs)
-        self.func_meta = ct.function_metas[self.name]
-        self.parameters = self.func_meta["parameters"]
-
+        func_meta = ct.get_function_meta(self.name)
         # Initialize inputs and outputs
-        for input_name in self.func_meta["inputs"]:
+        for input_name in func_meta["inputs"]:
             self.add_input(
                 input_name, multi_connection=True, accepted_ports=[input_name]
             )
-        for output_name in self.func_meta["outputs"]:
+        for output_name in func_meta["outputs"]:
             self.add_output(
                 output_name, multi_connection=True, accepted_ports=[output_name]
             )
         # Initialize the parameters
+        self.parameter_guis = {}
         widget = QGroupBox("Parameters")
-        if len(self.func_meta["parameters"]) > 5:
+        if len(func_meta["parameters"]) > 5:
             box_layout = QVBoxLayout(widget)
             scroll_area = QScrollArea()
             scroll_area.setWidgetResizable(True)
@@ -110,32 +107,30 @@ class FunctionNode(BaseNode):
             layout = QVBoxLayout(scroll_widget)
         else:
             layout = QVBoxLayout(widget)
-        for param_name in self.func_meta["parameters"]:
-            param_kwargs = self.ct.parameter_metas.get(param_name)
-            if param_kwargs is not None:
-                param_kwargs = param_kwargs.copy()
-                param_kwargs["groupbox_layout"] = False
-                gui_name = param_kwargs.pop("gui")
-                gui = getattr(parameter_widgets, gui_name)
-                parameter_gui = gui(data=self.ct, name=param_name, **param_kwargs)
-                layout.addWidget(parameter_gui)
-            else:
-                logging.warning(
-                    f"Parameter '{param_name}' not found in parameter metas."
-                )
+        for param_name, param_kwargs in func_meta["parameters"].items():
+            param_kwargs = param_kwargs.copy()
+            param_kwargs["groupbox_layout"] = False
+            gui_name = param_kwargs.pop("gui")
+            gui = getattr(parameter_widgets, gui_name)
+            # Importantly use self.name here to include the index suffix
+            parameter_gui = gui(
+                data=self.ct, name=param_name, function_name=self.name, **param_kwargs
+            )
+            layout.addWidget(parameter_gui)
+            self.parameter_guis[param_name] = parameter_gui
         self.add_widget(widget)
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
-        func_meta = self.ct.get_meta(self.name)
+        func_meta = self.ct.get_function_meta(self.name)
         file_path = self.ct.module_meta[func_meta["module"]]["module"]
         editor_widget = CodeEditorWidget(
             main_widget(), file_section=(start, end), file_path=file_path
         )
         editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
         SimpleDialog(editor_widget)
-        # Get function
+        # ToDo: Get function
 
 
 class AssignmentNode(BaseNode):

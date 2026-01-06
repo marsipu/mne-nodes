@@ -14,9 +14,30 @@
             "outputs": [
                 "raw"
             ],
-            "parameters": [
-                "n_jobs"
-            ]
+            "parameters": {
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "filter_data": {
             "alias": "Filter",
@@ -25,30 +46,152 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                "raw"
+                "erm",
+                "info"
             ],
             "outputs": [
-                "raw"
+                "erm_processed"
             ],
-            "parameters": [
-                "filter_target",
-                "highpass",
-                "lowpass",
-                "filter_length",
-                "l_trans_bandwidth",
-                "h_trans_bandwidth",
-                "filter_method",
-                "iir_params",
-                "fir_phase",
-                "fir_window",
-                "fir_design",
-                "skip_by_annotation",
-                "fir_pad",
-                "n_jobs",
-                "enable_cuda",
-                "erm_t_limit",
-                "bad_interpolation"
-            ]
+            "parameters": {
+                "filter_target": {
+                    "default": "raw",
+                    "description": "The target for Filtering (experimental when other than raw)",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw",
+                        "epochs",
+                        "evoked"
+                    ]
+                },
+                "highpass": {
+                    "alias": "Highpass-Cutoff",
+                    "default": 1,
+                    "unit": "Hz",
+                    "description": "Highpass-Filter",
+                    "gui": "SliderGui",
+                    "min_val": 0,
+                    "max_val": 100,
+                    "step": 0.1,
+                    "none_select": true
+                },
+                "lowpass": {
+                    "alias": "Lowpass-Cutoff",
+                    "default": 100,
+                    "unit": "Hz",
+                    "description": "Lowpass-Filter",
+                    "gui": "SliderGui",
+                    "min_val": 0,
+                    "max_val": 100,
+                    "step": 0.1,
+                    "none_select": true
+                },
+                "filter_length": {
+                    "default": "auto",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "int"
+                    ]
+                },
+                "l_trans_bandwidth": {
+                    "default": "auto",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "float"
+                    ]
+                },
+                "h_trans_bandwidth": {
+                    "default": "auto",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "float"
+                    ]
+                },
+                "filter_method": {
+                    "default": "fir",
+                    "gui": "StringGui"
+                },
+                "iir_params": {
+                    "default": null,
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "fir_phase": {
+                    "default": "zero",
+                    "gui": "StringGui"
+                },
+                "fir_window": {
+                    "default": "hamming",
+                    "gui": "StringGui"
+                },
+                "fir_design": {
+                    "default": "firwin",
+                    "gui": "StringGui"
+                },
+                "skip_by_annotation": {
+                    "default": [
+                        "edge",
+                        "bad_acq_skip"
+                    ],
+                    "gui": "ListGui"
+                },
+                "fir_pad": {
+                    "default": "reflect_limited",
+                    "gui": "StringGui"
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                },
+                "enable_cuda": {
+                    "alias": "Enable CUDA",
+                    "default": false,
+                    "unit": null,
+                    "description": "If set to True, the function will use CUDA for processing. If set to False, the function will use CPU.",
+                    "gui": "BoolGui"
+                },
+                "erm_t_limit": {
+                    "default": 300,
+                    "unit": "s",
+                    "description": "Limits Empty-Room-Measurement-Length[s]",
+                    "gui": "IntGui",
+                    "none_select": true,
+                    "min_val": 0,
+                    "max_val": 10000
+                },
+                "bad_interpolation": {
+                    "alias": "Bad-Channel-Interpolation",
+                    "default": null,
+                    "description": "Choose where to apply bad-channels-interpolation",
+                    "gui": "ComboGui",
+                    "none_select": true,
+                    "options": [
+                        "raw_filtered",
+                        "epochs",
+                        "evoked"
+                    ]
+                }
+            }
         },
         "notch_filter": {
             "alias": "Notch Filter",
@@ -62,10 +205,35 @@
             "outputs": [
                 "filtered"
             ],
-            "parameters": [
-                "notch_frequencies",
-                "n_jobs"
-            ]
+            "parameters": {
+                "notch_frequencies": {
+                    "default": 50,
+                    "description": "Set frequencies for Notch filtering",
+                    "gui": "FuncGui"
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "interpolate_bads": {
             "alias": "Interpolate Bads",
@@ -75,9 +243,20 @@
             "plot": false,
             "inputs": [],
             "outputs": [],
-            "parameters": [
-                "bad_interpolation"
-            ]
+            "parameters": {
+                "bad_interpolation": {
+                    "alias": "Bad-Channel-Interpolation",
+                    "default": null,
+                    "description": "Choose where to apply bad-channels-interpolation",
+                    "gui": "ComboGui",
+                    "none_select": true,
+                    "options": [
+                        "raw_filtered",
+                        "epochs",
+                        "evoked"
+                    ]
+                }
+            }
         },
         "add_erm_ssp": {
             "alias": "Empty-Room SSP",
@@ -92,14 +271,58 @@
             "outputs": [
                 "filtered"
             ],
-            "parameters": [
-                "erm_ssp_duration",
-                "erm_n_grad",
-                "erm_n_mag",
-                "erm_n_eeg",
-                "n_jobs",
-                "show_plots"
-            ]
+            "parameters": {
+                "erm_ssp_duration": {
+                    "default": 1,
+                    "unit": "s",
+                    "description": "The time-chunk to use for ssp",
+                    "gui": "IntGui"
+                },
+                "erm_n_grad": {
+                    "default": 2,
+                    "description": "The number of projections for Gradiometer",
+                    "gui": "IntGui"
+                },
+                "erm_n_mag": {
+                    "default": 2,
+                    "description": "The number of projections for Magnetometer",
+                    "gui": "IntGui"
+                },
+                "erm_n_eeg": {
+                    "default": 0,
+                    "description": "The number of projections for EEG",
+                    "gui": "IntGui"
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "eeg_reference_raw": {
             "alias": "Set EEG Reference",
@@ -114,9 +337,17 @@
             "outputs": [
                 "filtered"
             ],
-            "parameters": [
-                "ref_channels"
-            ]
+            "parameters": {
+                "ref_channels": {
+                    "default": "average",
+                    "description": "Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference()",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                }
+            }
         },
         "find_events": {
             "alias": "Find events",
@@ -130,12 +361,43 @@
             "outputs": [
                 "events"
             ],
-            "parameters": [
-                "stim_channels",
-                "min_duration",
-                "shortest_event",
-                "adjust_timeline_by_msec"
-            ]
+            "parameters": {
+                "stim_channels": {
+                    "alias": "Stimulation-Channels",
+                    "default": [
+                        "STI 001"
+                    ],
+                    "description": "Stimulation Channel(s)",
+                    "gui": "ListGui"
+                },
+                "min_duration": {
+                    "alias": "Minimum Duration",
+                    "default": 0.002,
+                    "unit": "s",
+                    "description": "Minimum-Duration for events",
+                    "gui": "FloatGui",
+                    "min_val": 0,
+                    "step": 0.001,
+                    "decimals": 3
+                },
+                "shortest_event": {
+                    "alias": "Shortest Event",
+                    "default": 2,
+                    "unit": "sample",
+                    "description": "Shortest possible Event",
+                    "gui": "IntGui",
+                    "min_val": 0
+                },
+                "adjust_timeline_by_msec": {
+                    "alias": "Adjust Time",
+                    "default": 0,
+                    "unit": "ms",
+                    "description": "custom delay to stimulus in ms",
+                    "gui": "IntGui",
+                    "min_val": -10000,
+                    "max_val": 10000
+                }
+            }
         },
         "find_6ch_binary_events": {
             "alias": "Find events HD",
@@ -149,11 +411,35 @@
             "outputs": [
                 "events"
             ],
-            "parameters": [
-                "min_duration",
-                "shortest_event",
-                "adjust_timeline_by_msec"
-            ]
+            "parameters": {
+                "min_duration": {
+                    "alias": "Minimum Duration",
+                    "default": 0.002,
+                    "unit": "s",
+                    "description": "Minimum-Duration for events",
+                    "gui": "FloatGui",
+                    "min_val": 0,
+                    "step": 0.001,
+                    "decimals": 3
+                },
+                "shortest_event": {
+                    "alias": "Shortest Event",
+                    "default": 2,
+                    "unit": "sample",
+                    "description": "Shortest possible Event",
+                    "gui": "IntGui",
+                    "min_val": 0
+                },
+                "adjust_timeline_by_msec": {
+                    "alias": "Adjust Time",
+                    "default": 0,
+                    "unit": "ms",
+                    "description": "custom delay to stimulus in ms",
+                    "gui": "IntGui",
+                    "min_val": -10000,
+                    "max_val": 10000
+                }
+            }
         },
         "epoch_raw": {
             "alias": "Get Epochs",
@@ -162,31 +448,187 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                "raw",
-                "events"
+                "filtered",
+                "events",
+                "json"
             ],
             "outputs": [
                 "reject_log",
                 "json",
                 "epochs"
             ],
-            "parameters": [
-                "ch_types",
-                "ch_names",
-                "t_epoch",
-                "baseline",
-                "apply_proj",
-                "reject",
-                "flat",
-                "reject_by_annotation",
-                "bad_interpolation",
-                "use_autoreject",
-                "consensus_percs",
-                "n_interpolates",
-                "overwrite_ar",
-                "decim",
-                "n_jobs"
-            ]
+            "parameters": {
+                "ch_types": {
+                    "alias": "Channel-Types",
+                    "default": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg"
+                    ],
+                    "description": "Specify Channel-Types used in data",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg",
+                        "emg",
+                        "ref_meg",
+                        "misc",
+                        "resp",
+                        "chpi",
+                        "exci",
+                        "ias",
+                        "syst",
+                        "seeg",
+                        "dipole",
+                        "gof",
+                        "bio",
+                        "ecog",
+                        "fnirs",
+                        "csd"
+                    ]
+                },
+                "ch_names": {
+                    "alias": "Channel-Names",
+                    "default": "all",
+                    "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "t_epoch": {
+                    "alias": "Epoch-Timeframe",
+                    "default": {
+                        "tuple_type": [
+                            -0.5,
+                            1.5
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "start and end of epoch",
+                    "gui": "DualTupleGui"
+                },
+                "baseline": {
+                    "alias": "Baseline-Timeframe",
+                    "default": {
+                        "tuple_type": [
+                            -0.5,
+                            0
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "start and end of baseline",
+                    "gui": "DualTupleGui",
+                    "max_val": 0,
+                    "none_select": true
+                },
+                "apply_proj": {
+                    "alias": "Apply Projections",
+                    "default": true,
+                    "description": "If to apply the projections (if present)",
+                    "gui": "BoolGui"
+                },
+                "reject": {
+                    "default": {
+                        "mag": 3e-12,
+                        "grad": 3e-10,
+                        "eeg": 0.0001,
+                        "eog": 0.0002
+                    },
+                    "description": "Chose reject-thresholds if not reject with autoreject_threshold",
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "flat": {
+                    "default": {
+                        "mag": 1e-15,
+                        "grad": 1e-13,
+                        "eeg": 1e-06
+                    },
+                    "description": "Chose flat-thresholds",
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "reject_by_annotation": {
+                    "default": true,
+                    "description": "If to reject by Annotations",
+                    "gui": "BoolGui"
+                },
+                "bad_interpolation": {
+                    "alias": "Bad-Channel-Interpolation",
+                    "default": null,
+                    "description": "Choose where to apply bad-channels-interpolation",
+                    "gui": "ComboGui",
+                    "none_select": true,
+                    "options": [
+                        "raw_filtered",
+                        "epochs",
+                        "evoked"
+                    ]
+                },
+                "use_autoreject": {
+                    "alias": "Autoreject",
+                    "default": null,
+                    "description": "If to use autoreject and if to use it for getting the reject-threshold or for interpolating the epochs",
+                    "gui": "ComboGui",
+                    "none_select": true,
+                    "options": [
+                        "Threshold",
+                        "Interpolation"
+                    ]
+                },
+                "consensus_percs": {
+                    "default": "np.linspace(0, 1.0, 11)",
+                    "description": "k-values for autoreject",
+                    "gui": "FuncGui"
+                },
+                "n_interpolates": {
+                    "default": "np.array([1, 4, 32])",
+                    "description": "p-values for autoreject",
+                    "gui": "FuncGui"
+                },
+                "overwrite_ar": {
+                    "alias": "Overwrite Autoreject(Threshold)",
+                    "default": false,
+                    "description": "if to calculate new threshold or use the previously calculated",
+                    "gui": "BoolGui"
+                },
+                "decim": {
+                    "default": 1,
+                    "description": "Downsampling-Factor for epochs",
+                    "gui": "IntGui"
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "estimate_noise_covariance": {
             "alias": "Noise-Covariance",
@@ -202,12 +644,80 @@
                 "noise_covariance",
                 "noise_covariance"
             ],
-            "parameters": [
-                "baseline",
-                "n_jobs",
-                "noise_cov_mode",
-                "noise_cov_method"
-            ]
+            "parameters": {
+                "baseline": {
+                    "alias": "Baseline-Timeframe",
+                    "default": {
+                        "tuple_type": [
+                            -0.5,
+                            0
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "start and end of baseline",
+                    "gui": "DualTupleGui",
+                    "max_val": 0,
+                    "none_select": true
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                },
+                "noise_cov_mode": {
+                    "alias": "Noise-Covariance Mode",
+                    "default": "Empty-Room",
+                    "description": "Select the origin of the Noise-Covariance",
+                    "gui": "ComboGui",
+                    "options": [
+                        "Empty-Room",
+                        "epochs"
+                    ]
+                },
+                "noise_cov_method": {
+                    "alias": "Noise-Covariance Method",
+                    "default": "auto",
+                    "description": "Select the method for computing the Noise-Covariance",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "ComboGui": {
+                            "options": [
+                                "auto",
+                                "empirical",
+                                "diagonal_fixed",
+                                "shrunk",
+                                "oas",
+                                "ledoit_wolf",
+                                "factor_analysis",
+                                "shrinkage",
+                                "pca"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "run_ica": {
             "alias": "Run ICA",
@@ -230,23 +740,145 @@
                 "json",
                 "ica"
             ],
-            "parameters": [
-                "ica_method",
-                "ica_fitto",
-                "n_components",
-                "ica_noise_cov",
-                "ica_remove_proj",
-                "ica_reject",
-                "ica_autoreject",
-                "overwrite_ar",
-                "ch_types",
-                "ch_names",
-                "reject_by_annotation",
-                "ica_eog",
-                "eog_channel",
-                "ica_ecg",
-                "ecg_channel"
-            ]
+            "parameters": {
+                "ica_method": {
+                    "alias": "ICA-Method",
+                    "default": "fastica",
+                    "description": "The method for calculating ICA",
+                    "gui": "ComboGui",
+                    "options": [
+                        "fastica",
+                        "infomax",
+                        "picard"
+                    ]
+                },
+                "ica_fitto": {
+                    "alias": "Fit ICA to:",
+                    "default": "raw_filtered",
+                    "description": "The data to fit the ICA to",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw",
+                        "raw_filtered",
+                        "epochs"
+                    ]
+                },
+                "n_components": {
+                    "default": 25,
+                    "description": "The number of components for ICA",
+                    "gui": "IntGui"
+                },
+                "ica_noise_cov": {
+                    "alias": "Use Noise-Covariance",
+                    "default": false,
+                    "description": "If to use a noise-covariance for pre-whitening",
+                    "gui": "BoolGui"
+                },
+                "ica_remove_proj": {
+                    "alias": "Remove projections",
+                    "default": false,
+                    "description": "If to remove projections from the data before fitting",
+                    "gui": "BoolGui"
+                },
+                "ica_reject": {
+                    "alias": "Reject-Parameters",
+                    "default": {
+                        "mag": 3e-12,
+                        "grad": 3e-10,
+                        "eeg": 0.0001,
+                        "eog": 0.0002
+                    },
+                    "description": "Reject-Parameters for ICA",
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "ica_autoreject": {
+                    "alias": "Autoreject",
+                    "default": false,
+                    "description": "If to use Autoreject for ICA",
+                    "gui": "BoolGui"
+                },
+                "overwrite_ar": {
+                    "alias": "Overwrite Autoreject(Threshold)",
+                    "default": false,
+                    "description": "if to calculate new threshold or use the previously calculated",
+                    "gui": "BoolGui"
+                },
+                "ch_types": {
+                    "alias": "Channel-Types",
+                    "default": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg"
+                    ],
+                    "description": "Specify Channel-Types used in data",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg",
+                        "emg",
+                        "ref_meg",
+                        "misc",
+                        "resp",
+                        "chpi",
+                        "exci",
+                        "ias",
+                        "syst",
+                        "seeg",
+                        "dipole",
+                        "gof",
+                        "bio",
+                        "ecog",
+                        "fnirs",
+                        "csd"
+                    ]
+                },
+                "ch_names": {
+                    "alias": "Channel-Names",
+                    "default": "all",
+                    "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "reject_by_annotation": {
+                    "default": true,
+                    "description": "If to reject by Annotations",
+                    "gui": "BoolGui"
+                },
+                "ica_eog": {
+                    "alias": "Use EOG",
+                    "default": false,
+                    "description": "If to use EOG-Channels for automatic selection of components",
+                    "gui": "BoolGui"
+                },
+                "eog_channel": {
+                    "default": null,
+                    "description": "Set Qt.Orientation.Vertical EOG-Channel",
+                    "gui": "StringGui"
+                },
+                "ica_ecg": {
+                    "alias": "Use ECG",
+                    "default": false,
+                    "description": "If to use automatic ECG-detection either by ECG-Channel (if provided) or by an artificial ECG-Channel",
+                    "gui": "BoolGui"
+                },
+                "ecg_channel": {
+                    "default": null,
+                    "description": "Set ECG-Channel",
+                    "gui": "StringGui",
+                    "none_select": true
+                }
+            }
         },
         "apply_ica": {
             "alias": "Apply ICA",
@@ -262,10 +894,24 @@
             "outputs": [
                 "erm_processed"
             ],
-            "parameters": [
-                "ica_apply_target",
-                "n_pca_components"
-            ]
+            "parameters": {
+                "ica_apply_target": {
+                    "alias": "Apply ICA to:",
+                    "default": "raw_filtered",
+                    "description": "The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw_filtered",
+                        "epochs",
+                        "evoked"
+                    ]
+                },
+                "n_pca_components": {
+                    "default": null,
+                    "gui": "IntGui",
+                    "none_select": true
+                }
+            }
         },
         "get_evokeds": {
             "alias": "Get Evokeds",
@@ -279,9 +925,18 @@
             "outputs": [
                 "evokeds"
             ],
-            "parameters": [
-                "detrend_order"
-            ]
+            "parameters": {
+                "detrend_order": {
+                    "default": null,
+                    "description": "The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.",
+                    "gui": "ComboGui",
+                    "none_select": true,
+                    "options": [
+                        "DC",
+                        "Linear"
+                    ]
+                }
+            }
         },
         "compute_psd_raw": {
             "alias": "Compute PSD (Raw)",
@@ -295,10 +950,39 @@
             "outputs": [
                 "psd_raw"
             ],
-            "parameters": [
-                "psd_method",
-                "n_jobs"
-            ]
+            "parameters": {
+                "psd_method": {
+                    "default": "welch",
+                    "description": "The method for spectral estimation",
+                    "gui": "ComboGui",
+                    "options": [
+                        "welch",
+                        "multitaper"
+                    ]
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "compute_psd_epochs": {
             "alias": "Compute PSD (Epochs)",
@@ -312,10 +996,39 @@
             "outputs": [
                 "psd_epochs"
             ],
-            "parameters": [
-                "psd_method",
-                "n_jobs"
-            ]
+            "parameters": {
+                "psd_method": {
+                    "default": "welch",
+                    "description": "The method for spectral estimation",
+                    "gui": "ComboGui",
+                    "options": [
+                        "welch",
+                        "multitaper"
+                    ]
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "tfr": {
             "alias": "Time-Frequency",
@@ -332,18 +1045,90 @@
                 "power_tfr_average",
                 "itc_tfr_average"
             ],
-            "parameters": [
-                "tfr_freqs",
-                "tfr_n_cycles",
-                "tfr_average",
-                "tfr_use_fft",
-                "tfr_baseline",
-                "tfr_baseline_mode",
-                "tfr_method",
-                "multitaper_bandwidth",
-                "stockwell_width",
-                "n_jobs"
-            ]
+            "parameters": {
+                "tfr_freqs": {
+                    "default": "np.arange(7,40,3)",
+                    "unit": "Hz",
+                    "description": "Select the frequencies of interest (Array/List)",
+                    "gui": "FuncGui"
+                },
+                "tfr_n_cycles": {
+                    "alias": "n_cycles",
+                    "default": "np.arange(7,40,3) / 2",
+                    "description": "Select the number of cycles for each frequency",
+                    "gui": "FuncGui"
+                },
+                "tfr_average": {
+                    "default": true,
+                    "description": "If to take the average of the Time-Frequency across observations",
+                    "gui": "BoolGui"
+                },
+                "tfr_use_fft": {
+                    "alias": "use_fft",
+                    "default": false,
+                    "description": "If to use fft based convolution",
+                    "gui": "BoolGui"
+                },
+                "tfr_baseline": {
+                    "default": null,
+                    "description": "Check to apply the entered baseline",
+                    "gui": "DualTupleGui",
+                    "none_select": true
+                },
+                "tfr_baseline_mode": {
+                    "default": "mean",
+                    "description": "Select the mode for baseline-application (if enabled)",
+                    "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "ratio",
+                        "logratio",
+                        "percent",
+                        "zscore",
+                        "zlogratio"
+                    ]
+                },
+                "tfr_method": {
+                    "default": "morlet",
+                    "description": "Choose the method to calculate Time-Frequency-Data",
+                    "gui": "ComboGui",
+                    "options": [
+                        "morlet",
+                        "multitaper",
+                        "stockwell"
+                    ]
+                },
+                "multitaper_bandwidth": {
+                    "default": 4.0,
+                    "gui": "FloatGui"
+                },
+                "stockwell_width": {
+                    "default": 1.0,
+                    "gui": "FloatGui"
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "apply_watershed": {
             "group": "MRI-Preprocessing",
@@ -352,7 +1137,7 @@
             "plot": false,
             "inputs": [],
             "outputs": [],
-            "parameters": []
+            "parameters": {}
         },
         "prepare_bem": {
             "group": "MRI-Preprocessing",
@@ -364,10 +1149,23 @@
                 "bem_model",
                 "bem_solution"
             ],
-            "parameters": [
-                "bem_spacing",
-                "bem_conductivity"
-            ]
+            "parameters": {
+                "bem_spacing": {
+                    "default": 4,
+                    "description": "See the MNE-Documentation for further details",
+                    "gui": "IntGui"
+                },
+                "bem_conductivity": {
+                    "alias": "BEM Conductivity",
+                    "default": [
+                        0.3,
+                        0.006,
+                        0.3
+                    ],
+                    "description": "The conductivities for each shell of the bem-model, contain only one element for a one-layer model and three elements for a three-layer model",
+                    "gui": "ListGui"
+                }
+            }
         },
         "setup_src": {
             "group": "MRI-Preprocessing",
@@ -378,11 +1176,44 @@
             "outputs": [
                 "source_space"
             ],
-            "parameters": [
-                "src_spacing",
-                "surface",
-                "n_jobs"
-            ]
+            "parameters": {
+                "src_spacing": {
+                    "default": "ico5",
+                    "description": "See the MNE-Documentation for further details",
+                    "gui": "StringGui"
+                },
+                "surface": {
+                    "default": "white",
+                    "description": "Surface for computing the Source-Space",
+                    "gui": "ComboGui",
+                    "options": [
+                        "white",
+                        "pial"
+                    ]
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "compute_src_distances": {
             "group": "MRI-Preprocessing",
@@ -395,9 +1226,30 @@
             "outputs": [
                 "source_space"
             ],
-            "parameters": [
-                "n_jobs"
-            ]
+            "parameters": {
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "make_dense_scalp_surfaces": {
             "group": "MRI-Preprocessing",
@@ -406,7 +1258,7 @@
             "plot": false,
             "inputs": [],
             "outputs": [],
-            "parameters": []
+            "parameters": {}
         },
         "setup_vol_src": {
             "group": "MRI-Preprocessing",
@@ -419,9 +1271,13 @@
             "outputs": [
                 "volume_source_space"
             ],
-            "parameters": [
-                "vol_src_spacing"
-            ]
+            "parameters": {
+                "vol_src_spacing": {
+                    "default": 5.0,
+                    "description": "Spacing between sources in 3D-Grid",
+                    "gui": "FloatGui"
+                }
+            }
         },
         "create_forward_solution": {
             "group": "Forward",
@@ -430,15 +1286,73 @@
             "plot": false,
             "inputs": [
                 "info",
-                "transformation"
+                "transformation",
+                "bem_solution",
+                "source_space"
             ],
             "outputs": [
                 "forward"
             ],
-            "parameters": [
-                "n_jobs",
-                "ch_types"
-            ]
+            "parameters": {
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                },
+                "ch_types": {
+                    "alias": "Channel-Types",
+                    "default": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg"
+                    ],
+                    "description": "Specify Channel-Types used in data",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg",
+                        "emg",
+                        "ref_meg",
+                        "misc",
+                        "resp",
+                        "chpi",
+                        "exci",
+                        "ias",
+                        "syst",
+                        "seeg",
+                        "dipole",
+                        "gof",
+                        "bio",
+                        "ecog",
+                        "fnirs",
+                        "csd"
+                    ]
+                }
+            }
         },
         "morph_fsmri": {
             "group": "Inverse",
@@ -451,9 +1365,13 @@
             "outputs": [
                 "source_morph"
             ],
-            "parameters": [
-                "morph_to"
-            ]
+            "parameters": {
+                "morph_to": {
+                    "default": "fsaverage",
+                    "description": "name of the freesurfer subject to be morphed to",
+                    "gui": "StringGui"
+                }
+            }
         },
         "morph_labels_from_fsaverage": {
             "group": "MRI-Preprocessing",
@@ -462,7 +1380,7 @@
             "plot": false,
             "inputs": [],
             "outputs": [],
-            "parameters": []
+            "parameters": {}
         },
         "create_inverse_operator": {
             "group": "Inverse",
@@ -477,7 +1395,7 @@
             "outputs": [
                 "inverse_operator"
             ],
-            "parameters": []
+            "parameters": {}
         },
         "source_estimate": {
             "group": "Inverse",
@@ -491,11 +1409,36 @@
             "outputs": [
                 "source_estimates"
             ],
-            "parameters": [
-                "inverse_method",
-                "pick_ori",
-                "lambda2"
-            ]
+            "parameters": {
+                "inverse_method": {
+                    "alias": "Inverse-Method",
+                    "default": "MNE",
+                    "description": "Choose the Inverse-Method for Source-Estimate",
+                    "gui": "ComboGui",
+                    "options": [
+                        "MNE",
+                        "dSPM",
+                        "sLORETA",
+                        "eLORETA"
+                    ]
+                },
+                "pick_ori": {
+                    "alias": "Dipole-Orientation",
+                    "default": null,
+                    "description": "Choose the Dipole-Orientation for Source-Estimate",
+                    "gui": "ComboGui",
+                    "options": [
+                        null,
+                        "normal",
+                        "vector"
+                    ]
+                },
+                "lambda2": {
+                    "default": "1.0 / 3.0 ** 2",
+                    "description": "lambda2 for Source-Estimate",
+                    "gui": "FuncGui"
+                }
+            }
         },
         "apply_morph": {
             "group": "Inverse",
@@ -509,9 +1452,13 @@
             "outputs": [
                 "morphed_source_estimates"
             ],
-            "parameters": [
-                "morph_to"
-            ]
+            "parameters": {
+                "morph_to": {
+                    "default": "fsaverage",
+                    "description": "name of the freesurfer subject to be morphed to",
+                    "gui": "StringGui"
+                }
+            }
         },
         "label_time_course": {
             "group": "Inverse",
@@ -519,15 +1466,32 @@
             "thread-safe": true,
             "plot": false,
             "inputs": [
-                "source_estimates"
+                "source_estimates",
+                "source_space"
             ],
             "outputs": [
                 "ltc"
             ],
-            "parameters": [
-                "target_labels",
-                "extract_mode"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "extract_mode": {
+                    "alias": "Label-Extraction-Mode",
+                    "default": "mean",
+                    "description": "mode for extracting label-time-course from Source-Estimate",
+                    "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "max",
+                        "mean",
+                        "mean_flip",
+                        "pca_flip"
+                    ]
+                }
+            }
         },
         "ecd_fit": {
             "group": "Inverse",
@@ -537,17 +1501,38 @@
             "inputs": [
                 "evokeds",
                 "noise_covariance",
-                "transformation"
+                "transformation",
+                "bem_solution"
             ],
             "outputs": [
                 "ecd"
             ],
-            "parameters": [
-                "ecd_times",
-                "ecd_positions",
-                "ecd_orientations",
-                "t_epoch"
-            ]
+            "parameters": {
+                "ecd_times": {
+                    "default": {},
+                    "gui": "DictGui"
+                },
+                "ecd_positions": {
+                    "default": {},
+                    "gui": "DictGui"
+                },
+                "ecd_orientations": {
+                    "default": {},
+                    "gui": "DictGui"
+                },
+                "t_epoch": {
+                    "alias": "Epoch-Timeframe",
+                    "default": {
+                        "tuple_type": [
+                            -0.5,
+                            1.5
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "start and end of epoch",
+                    "gui": "DualTupleGui"
+                }
+            }
         },
         "src_connectivity": {
             "group": "Time-Frequency",
@@ -561,16 +1546,101 @@
             "outputs": [
                 "connectivity"
             ],
-            "parameters": [
-                "target_labels",
-                "inverse_method",
-                "lambda2",
-                "con_methods",
-                "con_fmin",
-                "con_fmax",
-                "con_time_window",
-                "n_jobs"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "inverse_method": {
+                    "alias": "Inverse-Method",
+                    "default": "MNE",
+                    "description": "Choose the Inverse-Method for Source-Estimate",
+                    "gui": "ComboGui",
+                    "options": [
+                        "MNE",
+                        "dSPM",
+                        "sLORETA",
+                        "eLORETA"
+                    ]
+                },
+                "lambda2": {
+                    "default": "1.0 / 3.0 ** 2",
+                    "description": "lambda2 for Source-Estimate",
+                    "gui": "FuncGui"
+                },
+                "con_methods": {
+                    "default": [
+                        "coh"
+                    ],
+                    "description": "methods for connectivity",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "coh",
+                        "cohy",
+                        "imcoh",
+                        "plv",
+                        "ciplv",
+                        "ppc",
+                        "pli",
+                        "pli2_unbiased",
+                        "wpli",
+                        "wpli2_debiased"
+                    ]
+                },
+                "con_fmin": {
+                    "default": 30,
+                    "description": "lower frequency/frequencies for connectivity",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "float",
+                        "list"
+                    ]
+                },
+                "con_fmax": {
+                    "default": 80,
+                    "description": "upper frequency/frequencies for connectivity",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "float",
+                        "list"
+                    ]
+                },
+                "con_time_window": {
+                    "default": {
+                        "tuple_type": [
+                            0,
+                            0.5
+                        ]
+                    },
+                    "description": "time-window for connectivity",
+                    "gui": "DualTupleGui",
+                    "none_select": true,
+                    "step": 0.001
+                },
+                "n_jobs": {
+                    "alias": "Number of jobs for multiprocessing",
+                    "default": -1,
+                    "unit": null,
+                    "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "int",
+                        "combo"
+                    ],
+                    "type_kwargs": {
+                        "IntGui": {
+                            "min_val": -1,
+                            "special_value_text": "auto"
+                        },
+                        "ComboGui": {
+                            "options": [
+                                "cuda"
+                            ]
+                        }
+                    }
+                }
+            }
         },
         "grand_avg_evokeds": {
             "group": "Grand-Average",
@@ -581,10 +1651,18 @@
             "outputs": [
                 "ga_evokeds"
             ],
-            "parameters": [
-                "ga_interpolate_bads",
-                "ga_drop_bads"
-            ]
+            "parameters": {
+                "ga_interpolate_bads": {
+                    "default": true,
+                    "description": "If to interpolate bad channels for the Grand-Average",
+                    "gui": "BoolGui"
+                },
+                "ga_drop_bads": {
+                    "default": true,
+                    "description": "If to drop bad channels for the Grand-Average",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "grand_avg_tfr": {
             "group": "Grand-Average",
@@ -595,7 +1673,7 @@
             "outputs": [
                 "ga_tfr"
             ],
-            "parameters": []
+            "parameters": {}
         },
         "grand_avg_morphed": {
             "group": "Grand-Average",
@@ -606,9 +1684,13 @@
             "outputs": [
                 "ga_stc"
             ],
-            "parameters": [
-                "morph_to"
-            ]
+            "parameters": {
+                "morph_to": {
+                    "default": "fsaverage",
+                    "description": "name of the freesurfer subject to be morphed to",
+                    "gui": "StringGui"
+                }
+            }
         },
         "grand_avg_ltc": {
             "group": "Grand-Average",
@@ -619,7 +1701,7 @@
             "outputs": [
                 "ga_ltc"
             ],
-            "parameters": []
+            "parameters": {}
         },
         "grand_avg_connect": {
             "group": "Grand-Average",
@@ -630,7 +1712,7 @@
             "outputs": [
                 "ga_con"
             ],
-            "parameters": []
+            "parameters": {}
         },
         "print_info": {
             "alias": "Print Info",
@@ -642,720 +1724,7 @@
                 "info"
             ],
             "outputs": [],
-            "parameters": []
-        }
-    },
-    "parameters": {
-        "ch_types": {
-            "alias": "Channel-Types",
-            "default": [
-                "mag",
-                "grad",
-                "eeg",
-                "stim",
-                "eog",
-                "ecg"
-            ],
-            "description": "Specify Channel-Types used in data",
-            "gui": "CheckListGui",
-            "options": [
-                "mag",
-                "grad",
-                "eeg",
-                "stim",
-                "eog",
-                "ecg",
-                "emg",
-                "ref_meg",
-                "misc",
-                "resp",
-                "chpi",
-                "exci",
-                "ias",
-                "syst",
-                "seeg",
-                "dipole",
-                "gof",
-                "bio",
-                "ecog",
-                "fnirs",
-                "csd"
-            ]
-        },
-        "ch_names": {
-            "alias": "Channel-Names",
-            "default": "all",
-            "description": "Specify Channel-Names to use in data (set all for all depending on what you have selected as channel-types)",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "list"
-            ]
-        },
-        "ref_channels": {
-            "default": "average",
-            "description": "Set the kind of eeg-reference, look at documentation of mne.set_eeg_reference()",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "list"
-            ]
-        },
-        "highpass": {
-            "alias": "Highpass-Cutoff",
-            "default": 1,
-            "unit": "Hz",
-            "description": "Highpass-Filter",
-            "gui": "SliderGui",
-            "min_val": 0,
-            "max_val": 100,
-            "step": 0.1,
-            "none_select": true
-        },
-        "lowpass": {
-            "alias": "Lowpass-Cutoff",
-            "default": 100,
-            "unit": "Hz",
-            "description": "Lowpass-Filter",
-            "gui": "SliderGui",
-            "min_val": 0,
-            "max_val": 100,
-            "step": 0.1,
-            "none_select": true
-        },
-        "filter_target": {
-            "default": "raw",
-            "description": "The target for Filtering (experimental when other than raw)",
-            "gui": "ComboGui",
-            "options": [
-                "raw",
-                "epochs",
-                "evoked"
-            ]
-        },
-        "filter_length": {
-            "default": "auto",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "int"
-            ]
-        },
-        "l_trans_bandwidth": {
-            "default": "auto",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "float"
-            ]
-        },
-        "h_trans_bandwidth": {
-            "default": "auto",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "float"
-            ]
-        },
-        "filter_method": {
-            "default": "fir",
-            "gui": "StringGui"
-        },
-        "iir_params": {
-            "default": null,
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "fir_phase": {
-            "default": "zero",
-            "gui": "StringGui"
-        },
-        "fir_window": {
-            "default": "hamming",
-            "gui": "StringGui"
-        },
-        "fir_design": {
-            "default": "firwin",
-            "gui": "StringGui"
-        },
-        "skip_by_annotation": {
-            "default": [
-                "edge",
-                "bad_acq_skip"
-            ],
-            "gui": "ListGui"
-        },
-        "fir_pad": {
-            "default": "reflect_limited",
-            "gui": "StringGui"
-        },
-        "erm_t_limit": {
-            "default": 300,
-            "unit": "s",
-            "description": "Limits Empty-Room-Measurement-Length[s]",
-            "gui": "IntGui",
-            "none_select": true,
-            "min_val": 0,
-            "max_val": 10000
-        },
-        "stim_channels": {
-            "alias": "Stimulation-Channels",
-            "default": [
-                "STI 001"
-            ],
-            "description": "Stimulation Channel(s)",
-            "gui": "ListGui"
-        },
-        "min_duration": {
-            "alias": "Minimum Duration",
-            "default": 0.002,
-            "unit": "s",
-            "description": "Minimum-Duration for events",
-            "gui": "FloatGui",
-            "min_val": 0,
-            "step": 0.001,
-            "decimals": 3
-        },
-        "shortest_event": {
-            "alias": "Shortest Event",
-            "default": 2,
-            "unit": "sample",
-            "description": "Shortest possible Event",
-            "gui": "IntGui",
-            "min_val": 0
-        },
-        "adjust_timeline_by_msec": {
-            "alias": "Adjust Time",
-            "default": 0,
-            "unit": "ms",
-            "description": "custom delay to stimulus in ms",
-            "gui": "IntGui",
-            "min_val": -10000,
-            "max_val": 10000
-        },
-        "t_epoch": {
-            "alias": "Epoch-Timeframe",
-            "default": {
-                "tuple_type": [
-                    -0.5,
-                    1.5
-                ]
-            },
-            "unit": "s",
-            "description": "start and end of epoch",
-            "gui": "DualTupleGui"
-        },
-        "baseline": {
-            "alias": "Baseline-Timeframe",
-            "default": {
-                "tuple_type": [
-                    -0.5,
-                    0
-                ]
-            },
-            "unit": "s",
-            "description": "start and end of baseline",
-            "gui": "DualTupleGui",
-            "max_val": 0,
-            "none_select": true
-        },
-        "detrend_order": {
-            "default": null,
-            "description": "The order for detrending, 0 for DC and 1 for linear. Set to None if no detrending should be performed.",
-            "gui": "ComboGui",
-            "none_select": true,
-            "options": [
-                "DC",
-                "Linear"
-            ]
-        },
-        "apply_proj": {
-            "alias": "Apply Projections",
-            "default": true,
-            "description": "If to apply the projections (if present)",
-            "gui": "BoolGui"
-        },
-        "bad_interpolation": {
-            "alias": "Bad-Channel-Interpolation",
-            "default": null,
-            "description": "Choose where to apply bad-channels-interpolation",
-            "gui": "ComboGui",
-            "none_select": true,
-            "options": [
-                "raw_filtered",
-                "epochs",
-                "evoked"
-            ]
-        },
-        "reject_by_annotation": {
-            "default": true,
-            "description": "If to reject by Annotations",
-            "gui": "BoolGui"
-        },
-        "use_autoreject": {
-            "alias": "Autoreject",
-            "default": null,
-            "description": "If to use autoreject and if to use it for getting the reject-threshold or for interpolating the epochs",
-            "gui": "ComboGui",
-            "none_select": true,
-            "options": [
-                "Threshold",
-                "Interpolation"
-            ]
-        },
-        "n_interpolates": {
-            "default": "np.array([1, 4, 32])",
-            "description": "p-values for autoreject",
-            "gui": "FuncGui"
-        },
-        "consensus_percs": {
-            "default": "np.linspace(0, 1.0, 11)",
-            "description": "k-values for autoreject",
-            "gui": "FuncGui"
-        },
-        "overwrite_ar": {
-            "alias": "Overwrite Autoreject(Threshold)",
-            "default": false,
-            "description": "if to calculate new threshold or use the previously calculated",
-            "gui": "BoolGui"
-        },
-        "reject": {
-            "default": {
-                "mag": 3e-12,
-                "grad": 3e-10,
-                "eeg": 0.0001,
-                "eog": 0.0002
-            },
-            "description": "Chose reject-thresholds if not reject with autoreject_threshold",
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "flat": {
-            "default": {
-                "mag": 1e-15,
-                "grad": 1e-13,
-                "eeg": 1e-06
-            },
-            "description": "Chose flat-thresholds",
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "decim": {
-            "default": 1,
-            "description": "Downsampling-Factor for epochs",
-            "gui": "IntGui"
-        },
-        "ica_method": {
-            "alias": "ICA-Method",
-            "default": "fastica",
-            "description": "The method for calculating ICA",
-            "gui": "ComboGui",
-            "options": [
-                "fastica",
-                "infomax",
-                "picard"
-            ]
-        },
-        "ica_fitto": {
-            "alias": "Fit ICA to:",
-            "default": "raw_filtered",
-            "description": "The data to fit the ICA to",
-            "gui": "ComboGui",
-            "options": [
-                "raw",
-                "raw_filtered",
-                "epochs"
-            ]
-        },
-        "ica_apply_target": {
-            "alias": "Apply ICA to:",
-            "default": "raw_filtered",
-            "description": "The target object (Raw, Epochs or Evoked) to apply ICA and remove the selected components from",
-            "gui": "ComboGui",
-            "options": [
-                "raw_filtered",
-                "epochs",
-                "evoked"
-            ]
-        },
-        "n_components": {
-            "default": 25,
-            "description": "The number of components for ICA",
-            "gui": "IntGui"
-        },
-        "n_pca_components": {
-            "default": null,
-            "gui": "IntGui",
-            "none_select": true
-        },
-        "ica_noise_cov": {
-            "alias": "Use Noise-Covariance",
-            "default": false,
-            "description": "If to use a noise-covariance for pre-whitening",
-            "gui": "BoolGui"
-        },
-        "ica_remove_proj": {
-            "alias": "Remove projections",
-            "default": false,
-            "description": "If to remove projections from the data before fitting",
-            "gui": "BoolGui"
-        },
-        "ica_reject": {
-            "alias": "Reject-Parameters",
-            "default": {
-                "mag": 3e-12,
-                "grad": 3e-10,
-                "eeg": 0.0001,
-                "eog": 0.0002
-            },
-            "description": "Reject-Parameters for ICA",
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "ica_autoreject": {
-            "alias": "Autoreject",
-            "default": false,
-            "description": "If to use Autoreject for ICA",
-            "gui": "BoolGui"
-        },
-        "ica_eog": {
-            "alias": "Use EOG",
-            "default": false,
-            "description": "If to use EOG-Channels for automatic selection of components",
-            "gui": "BoolGui"
-        },
-        "eog_channel": {
-            "default": null,
-            "description": "Set Qt.Orientation.Vertical EOG-Channel",
-            "gui": "StringGui"
-        },
-        "ica_ecg": {
-            "alias": "Use ECG",
-            "default": false,
-            "description": "If to use automatic ECG-detection either by ECG-Channel (if provided) or by an artificial ECG-Channel",
-            "gui": "BoolGui"
-        },
-        "ecg_channel": {
-            "default": null,
-            "description": "Set ECG-Channel",
-            "gui": "StringGui",
-            "none_select": true
-        },
-        "tfr_freqs": {
-            "default": "np.arange(7,40,3)",
-            "unit": "Hz",
-            "description": "Select the frequencies of interest (Array/List)",
-            "gui": "FuncGui"
-        },
-        "tfr_method": {
-            "default": "morlet",
-            "description": "Choose the method to calculate Time-Frequency-Data",
-            "gui": "ComboGui",
-            "options": [
-                "morlet",
-                "multitaper",
-                "stockwell"
-            ]
-        },
-        "tfr_n_cycles": {
-            "alias": "n_cycles",
-            "default": "np.arange(7,40,3) / 2",
-            "description": "Select the number of cycles for each frequency",
-            "gui": "FuncGui"
-        },
-        "tfr_average": {
-            "default": true,
-            "description": "If to take the average of the Time-Frequency across observations",
-            "gui": "BoolGui"
-        },
-        "tfr_use_fft": {
-            "alias": "use_fft",
-            "default": false,
-            "description": "If to use fft based convolution",
-            "gui": "BoolGui"
-        },
-        "tfr_baseline": {
-            "default": null,
-            "description": "Check to apply the entered baseline",
-            "gui": "DualTupleGui",
-            "none_select": true
-        },
-        "tfr_baseline_mode": {
-            "default": "mean",
-            "description": "Select the mode for baseline-application (if enabled)",
-            "gui": "ComboGui",
-            "options": [
-                "mean",
-                "ratio",
-                "logratio",
-                "percent",
-                "zscore",
-                "zlogratio"
-            ]
-        },
-        "multitaper_bandwidth": {
-            "default": 4.0,
-            "gui": "FloatGui"
-        },
-        "stockwell_width": {
-            "default": 1.0,
-            "gui": "FloatGui"
-        },
-        "bem_spacing": {
-            "default": 4,
-            "description": "See the MNE-Documentation for further details",
-            "gui": "IntGui"
-        },
-        "bem_conductivity": {
-            "alias": "BEM Conductivity",
-            "default": [
-                0.3,
-                0.006,
-                0.3
-            ],
-            "description": "The conductivities for each shell of the bem-model, contain only one element for a one-layer model and three elements for a three-layer model",
-            "gui": "ListGui"
-        },
-        "src_spacing": {
-            "default": "ico5",
-            "description": "See the MNE-Documentation for further details",
-            "gui": "StringGui"
-        },
-        "vol_src_spacing": {
-            "default": 5.0,
-            "description": "Spacing between sources in 3D-Grid",
-            "gui": "FloatGui"
-        },
-        "surface": {
-            "default": "white",
-            "description": "Surface for computing the Source-Space",
-            "gui": "ComboGui",
-            "options": [
-                "white",
-                "pial"
-            ]
-        },
-        "noise_cov_mode": {
-            "alias": "Noise-Covariance Mode",
-            "default": "Empty-Room",
-            "description": "Select the origin of the Noise-Covariance",
-            "gui": "ComboGui",
-            "options": [
-                "Empty-Room",
-                "epochs"
-            ]
-        },
-        "noise_cov_method": {
-            "alias": "Noise-Covariance Method",
-            "default": "auto",
-            "description": "Select the method for computing the Noise-Covariance",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "list",
-                "combo"
-            ],
-            "type_kwargs": {
-                "ComboGui": {
-                    "options": [
-                        "auto",
-                        "empirical",
-                        "diagonal_fixed",
-                        "shrunk",
-                        "oas",
-                        "ledoit_wolf",
-                        "factor_analysis",
-                        "shrinkage",
-                        "pca"
-                    ]
-                }
-            }
-        },
-        "inverse_method": {
-            "alias": "Inverse-Method",
-            "default": "MNE",
-            "description": "Choose the Inverse-Method for Source-Estimate",
-            "gui": "ComboGui",
-            "options": [
-                "MNE",
-                "dSPM",
-                "sLORETA",
-                "eLORETA"
-            ]
-        },
-        "pick_ori": {
-            "alias": "Dipole-Orientation",
-            "default": null,
-            "description": "Choose the Dipole-Orientation for Source-Estimate",
-            "gui": "ComboGui",
-            "options": [
-                null,
-                "normal",
-                "vector"
-            ]
-        },
-        "lambda2": {
-            "default": "1.0 / 3.0 ** 2",
-            "description": "lambda2 for Source-Estimate",
-            "gui": "FuncGui"
-        },
-        "target_labels": {
-            "alias": "Target Labels",
-            "default": [],
-            "gui": "LabelGui"
-        },
-        "extract_mode": {
-            "alias": "Label-Extraction-Mode",
-            "default": "mean",
-            "description": "mode for extracting label-time-course from Source-Estimate",
-            "gui": "ComboGui",
-            "options": [
-                "auto",
-                "max",
-                "mean",
-                "mean_flip",
-                "pca_flip"
-            ]
-        },
-        "con_methods": {
-            "default": [
-                "coh"
-            ],
-            "description": "methods for connectivity",
-            "gui": "CheckListGui",
-            "options": [
-                "coh",
-                "cohy",
-                "imcoh",
-                "plv",
-                "ciplv",
-                "ppc",
-                "pli",
-                "pli2_unbiased",
-                "wpli",
-                "wpli2_debiased"
-            ]
-        },
-        "con_fmin": {
-            "default": 30,
-            "description": "lower frequency/frequencies for connectivity",
-            "gui": "MultiTypeGui",
-            "types": [
-                "float",
-                "list"
-            ]
-        },
-        "con_fmax": {
-            "default": 80,
-            "description": "upper frequency/frequencies for connectivity",
-            "gui": "MultiTypeGui",
-            "types": [
-                "float",
-                "list"
-            ]
-        },
-        "con_time_window": {
-            "default": {
-                "tuple_type": [
-                    0,
-                    0.5
-                ]
-            },
-            "description": "time-window for connectivity",
-            "gui": "DualTupleGui",
-            "none_select": true,
-            "step": 0.001
-        },
-        "ecd_times": {
-            "default": {},
-            "gui": "DictGui"
-        },
-        "ecd_positions": {
-            "default": {},
-            "gui": "DictGui"
-        },
-        "ecd_orientations": {
-            "default": {},
-            "gui": "DictGui"
-        },
-        "morph_to": {
-            "default": "fsaverage",
-            "description": "name of the freesurfer subject to be morphed to",
-            "gui": "StringGui"
-        },
-        "erm_ssp_duration": {
-            "default": 1,
-            "unit": "s",
-            "description": "The time-chunk to use for ssp",
-            "gui": "IntGui"
-        },
-        "erm_n_grad": {
-            "default": 2,
-            "description": "The number of projections for Gradiometer",
-            "gui": "IntGui"
-        },
-        "erm_n_mag": {
-            "default": 2,
-            "description": "The number of projections for Magnetometer",
-            "gui": "IntGui"
-        },
-        "erm_n_eeg": {
-            "default": 0,
-            "description": "The number of projections for EEG",
-            "gui": "IntGui"
-        },
-        "ga_interpolate_bads": {
-            "default": true,
-            "description": "If to interpolate bad channels for the Grand-Average",
-            "gui": "BoolGui"
-        },
-        "ga_drop_bads": {
-            "default": true,
-            "description": "If to drop bad channels for the Grand-Average",
-            "gui": "BoolGui"
-        },
-        "psd_method": {
-            "default": "welch",
-            "description": "The method for spectral estimation",
-            "gui": "ComboGui",
-            "options": [
-                "welch",
-                "multitaper"
-            ]
-        },
-        "notch_frequencies": {
-            "default": 50,
-            "description": "Set frequencies for Notch filtering",
-            "gui": "FuncGui"
-        },
-        "n_jobs": {
-            "alias": "Number of jobs for multiprocessing",
-            "default": -1,
-            "unit": null,
-            "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
-            "gui": "MultiTypeGui",
-            "types": [
-                "int",
-                "combo"
-            ],
-            "type_kwargs": {
-                "IntGui": {
-                    "min_val": -1,
-                    "special_value_text": "auto"
-                },
-                "ComboGui": {
-                    "options": [
-                        "cuda"
-                    ]
-                }
-            }
-        },
-        "enable_cuda": {
-            "alias": "Enable CUDA",
-            "default": false,
-            "unit": null,
-            "description": "If set to True, the function will use CUDA for processing. If set to False, the function will use CPU.",
-            "gui": "BoolGui"
+            "parameters": {}
         }
     }
 }

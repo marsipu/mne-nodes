@@ -44,7 +44,7 @@ default_device_settings = {
     "app_theme": "auto",  # UI theme (auto/light/dark/high_contrast)
     "app_style": "fusion",  # Qt style
     "app_font": "Calibri",  # Default application font family
-    "app_font_size": 10,  # Default application font size
+    "app_font_size": 12,  # Default application font size
 }
 
 

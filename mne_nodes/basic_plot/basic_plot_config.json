@@ -11,9 +11,18 @@
                 "source_space"
             ],
             "outputs": [],
-            "parameters": [
-                "backend_3d"
-            ]
+            "parameters": {
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_bem": {
             "group": "MRI-Preprocessing",
@@ -25,9 +34,15 @@
                 "volume_source_space"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_noise_covariance": {
             "group": "Inverse",
@@ -39,9 +54,15 @@
                 "info"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_transformation": {
             "group": "Forward",
@@ -53,9 +74,18 @@
                 "transformation"
             ],
             "outputs": [],
-            "parameters": [
-                "backend_3d"
-            ]
+            "parameters": {
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_sensitivity_maps": {
             "group": "Inverse",
@@ -66,9 +96,44 @@
                 "forward"
             ],
             "outputs": [],
-            "parameters": [
-                "ch_types"
-            ]
+            "parameters": {
+                "ch_types": {
+                    "alias": "Channel-Types",
+                    "default": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg"
+                    ],
+                    "description": "Specify Channel-Types used in data",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg",
+                        "emg",
+                        "ref_meg",
+                        "misc",
+                        "resp",
+                        "chpi",
+                        "exci",
+                        "ias",
+                        "syst",
+                        "seeg",
+                        "dipole",
+                        "gof",
+                        "bio",
+                        "ecog",
+                        "fnirs",
+                        "csd"
+                    ]
+                }
+            }
         },
         "plot_sensors": {
             "group": "Forward",
@@ -79,11 +144,61 @@
                 "info"
             ],
             "outputs": [],
-            "parameters": [
-                "plot_sensors_kind",
-                "ch_types",
-                "show_plots"
-            ]
+            "parameters": {
+                "plot_sensors_kind": {
+                    "default": "topomap",
+                    "description": "The kind of plot for plot_sensors",
+                    "gui": "ComboGui",
+                    "options": [
+                        "topomap",
+                        "3d",
+                        "select"
+                    ]
+                },
+                "ch_types": {
+                    "alias": "Channel-Types",
+                    "default": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg"
+                    ],
+                    "description": "Specify Channel-Types used in data",
+                    "gui": "CheckListGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg",
+                        "stim",
+                        "eog",
+                        "ecg",
+                        "emg",
+                        "ref_meg",
+                        "misc",
+                        "resp",
+                        "chpi",
+                        "exci",
+                        "ias",
+                        "syst",
+                        "seeg",
+                        "dipole",
+                        "gof",
+                        "bio",
+                        "ecog",
+                        "fnirs",
+                        "csd"
+                    ]
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_raw": {
             "group": "Raw",
@@ -95,9 +210,15 @@
                 "events"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_filtered": {
             "group": "Raw",
@@ -109,10 +230,15 @@
                 "events"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots",
-                "close_func"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_events": {
             "group": "events",
@@ -123,9 +249,15 @@
                 "events"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_power_spectra": {
             "group": "Time-Frequency",
@@ -136,9 +268,15 @@
                 "psd_raw"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_power_spectra_topomap": {
             "group": "Time-Frequency",
@@ -149,10 +287,21 @@
                 "psd_raw"
             ],
             "outputs": [],
-            "parameters": [
-                "psd_topomap_bands",
-                "show_plots"
-            ]
+            "parameters": {
+                "psd_topomap_bands": {
+                    "default": null,
+                    "description": "The frequency bands for the topomap-plot",
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_power_spectra_epochs": {
             "group": "Time-Frequency",
@@ -163,9 +312,15 @@
                 "psd_epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_power_spectra_epochs_topomap": {
             "group": "Time-Frequency",
@@ -176,10 +331,21 @@
                 "psd_epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "psd_topomap_bands",
-                "show_plots"
-            ]
+            "parameters": {
+                "psd_topomap_bands": {
+                    "default": null,
+                    "description": "The frequency bands for the topomap-plot",
+                    "gui": "DictGui",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_tfr": {
             "group": "Time-Frequency",
@@ -191,9 +357,15 @@
                 "itc_tfr_average"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_epochs": {
             "group": "Epochs",
@@ -204,9 +376,15 @@
                 "epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_epochs_image": {
             "group": "Epochs",
@@ -217,9 +395,15 @@
                 "epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_epochs_topo": {
             "group": "Epochs",
@@ -230,9 +414,15 @@
                 "epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_epochs_drop_log": {
             "group": "Epochs",
@@ -243,9 +433,15 @@
                 "epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_autoreject_log": {
             "group": "Epochs",
@@ -257,9 +453,15 @@
                 "epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_topo": {
             "group": "Evoked",
@@ -270,9 +472,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_topomap": {
             "group": "Evoked",
@@ -283,9 +491,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_butterfly": {
             "group": "Evoked",
@@ -296,10 +510,21 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "apply_proj",
-                "show_plots"
-            ]
+            "parameters": {
+                "apply_proj": {
+                    "alias": "Apply Projections",
+                    "default": true,
+                    "description": "If to apply the projections (if present)",
+                    "gui": "BoolGui"
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_joint": {
             "group": "Evoked",
@@ -310,9 +535,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_white": {
             "group": "Evoked",
@@ -324,9 +555,15 @@
                 "noise_covariance"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_evoked_image": {
             "group": "Evoked",
@@ -337,9 +574,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_compare_evokeds": {
             "group": "Evoked",
@@ -350,9 +593,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_gfp": {
             "group": "Evoked",
@@ -363,9 +612,15 @@
                 "evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_stc": {
             "alias": "Plot Source-Estimate",
@@ -377,19 +632,95 @@
                 "source_estimates"
             ],
             "outputs": [],
-            "parameters": [
-                "target_labels",
-                "label_colors",
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "backend_3d"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_stc_interactive": {
             "group": "Inverse",
@@ -400,17 +731,83 @@
                 "source_estimates"
             ],
             "outputs": [],
-            "parameters": [
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "backend_3d"
-            ]
+            "parameters": {
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_labels": {
             "group": "Inverse",
@@ -419,14 +816,63 @@
             "plot": true,
             "inputs": [],
             "outputs": [],
-            "parameters": [
-                "target_labels",
-                "label_colors",
-                "stc_hemi",
-                "stc_surface",
-                "stc_views",
-                "backend_3d"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_animated_stc": {
             "alias": "Plot Source-Estimate Video",
@@ -438,21 +884,111 @@
                 "source_estimates"
             ],
             "outputs": [],
-            "parameters": [
-                "target_labels",
-                "label_colors",
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "stc_animation_span",
-                "stc_animation_dilat",
-                "backend_3d"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_animation_span": {
+                    "default": {
+                        "tuple_type": [
+                            0,
+                            0.5
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "time-span for stc-animation[s]",
+                    "gui": "DualTupleGui"
+                },
+                "stc_animation_dilat": {
+                    "default": 20,
+                    "description": "time-dilation for stc-animation",
+                    "gui": "IntGui"
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_snr": {
             "group": "Inverse",
@@ -464,9 +1000,15 @@
                 "inverse_operator"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_label_time_course": {
             "group": "Inverse",
@@ -477,10 +1019,22 @@
                 "ltc"
             ],
             "outputs": [],
-            "parameters": [
-                "label_colors",
-                "show_plots"
-            ]
+            "parameters": {
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ecd": {
             "group": "Inverse",
@@ -492,7 +1046,7 @@
                 "transformation"
             ],
             "outputs": [],
-            "parameters": []
+            "parameters": {}
         },
         "plot_src_connectivity": {
             "group": "Time-Frequency",
@@ -503,10 +1057,22 @@
                 "connectivity"
             ],
             "outputs": [],
-            "parameters": [
-                "label_colors",
-                "show_plots"
-            ]
+            "parameters": {
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_grand_avg_evokeds": {
             "group": "Grand-Average",
@@ -517,9 +1083,15 @@
                 "ga_evokeds"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_grand_avg_tfr": {
             "group": "Grand-Average",
@@ -530,9 +1102,15 @@
                 "ga_tfr"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_grand_avg_stc": {
             "group": "Grand-Average",
@@ -543,19 +1121,95 @@
                 "ga_stc"
             ],
             "outputs": [],
-            "parameters": [
-                "target_labels",
-                "label_colors",
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "backend_3d"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_grand_avg_stc_anim": {
             "group": "Grand-Average",
@@ -566,21 +1220,111 @@
                 "ga_stc"
             ],
             "outputs": [],
-            "parameters": [
-                "target_labels",
-                "label_colors",
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "stc_animation_span",
-                "stc_animation_dilat",
-                "backend_3d"
-            ]
+            "parameters": {
+                "target_labels": {
+                    "alias": "Target Labels",
+                    "default": [],
+                    "gui": "LabelGui"
+                },
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_animation_span": {
+                    "default": {
+                        "tuple_type": [
+                            0,
+                            0.5
+                        ]
+                    },
+                    "unit": "s",
+                    "description": "time-span for stc-animation[s]",
+                    "gui": "DualTupleGui"
+                },
+                "stc_animation_dilat": {
+                    "default": 20,
+                    "description": "time-dilation for stc-animation",
+                    "gui": "IntGui"
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_grand_average_stc_interactive": {
             "group": "Grand-Average",
@@ -591,18 +1335,90 @@
                 "ga_stc"
             ],
             "outputs": [],
-            "parameters": [
-                "label_colors",
-                "stc_surface",
-                "stc_hemi",
-                "stc_views",
-                "stc_time",
-                "stc_clim",
-                "stc_roll",
-                "stc_azimuth",
-                "stc_elevation",
-                "backend_3d"
-            ]
+            "parameters": {
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "stc_surface": {
+                    "default": "inflated",
+                    "description": "Select the surface type for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "inflated",
+                        "white",
+                        "pial"
+                    ]
+                },
+                "stc_hemi": {
+                    "default": "split",
+                    "description": "Select the hemispheres for Source Estimate Plots",
+                    "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh",
+                        "both",
+                        "split"
+                    ]
+                },
+                "stc_views": {
+                    "default": [
+                        "med",
+                        "lat"
+                    ],
+                    "description": "Select the views for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "list"
+                    ]
+                },
+                "stc_time": {
+                    "default": 0,
+                    "description": "Initial time for Source Estimate Plots",
+                    "gui": "FloatGui"
+                },
+                "stc_clim": {
+                    "default": "auto",
+                    "description": "Colorbar Limits for Source Estimate Plots",
+                    "gui": "MultiTypeGui",
+                    "types": [
+                        "str",
+                        "dict"
+                    ]
+                },
+                "stc_roll": {
+                    "default": 0,
+                    "description": "Roll for view in for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_azimuth": {
+                    "default": 70,
+                    "description": "Azimuth for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "stc_elevation": {
+                    "default": 60,
+                    "description": "Elevation for view for Source Estimate Plots",
+                    "gui": "IntGui",
+                    "max_val": 360
+                },
+                "backend_3d": {
+                    "alias": "3D-Backend",
+                    "default": "pyvistaqt",
+                    "description": "Choose the 3D-Backend for Brain-plots.",
+                    "gui": "ComboGui",
+                    "options": [
+                        "pyvistaqt",
+                        "notebook"
+                    ]
+                }
+            }
         },
         "plot_grand_avg_ltc": {
             "group": "Grand-Average",
@@ -613,10 +1429,22 @@
                 "ga_ltc"
             ],
             "outputs": [],
-            "parameters": [
-                "label_colors",
-                "show_plots"
-            ]
+            "parameters": {
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_grand_avg_connect": {
             "group": "Grand-Average",
@@ -627,10 +1455,22 @@
                 "ga_con"
             ],
             "outputs": [],
-            "parameters": [
-                "label_colors",
-                "show_plots"
-            ]
+            "parameters": {
+                "label_colors": {
+                    "default": {},
+                    "description": "Set custom colors for labels.",
+                    "gui": "ColorGui",
+                    "keys": "target_labels",
+                    "none_select": true
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ica_components": {
             "alias": "Plot ICA-Components",
@@ -642,10 +1482,15 @@
                 "ica"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots",
-                "close_func"
-            ]
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ica_sources": {
             "alias": "Plot ICA-Sources",
@@ -657,11 +1502,30 @@
                 "ica"
             ],
             "outputs": [],
-            "parameters": [
-                "ica_source_data",
-                "show_plots",
-                "close_func"
-            ]
+            "parameters": {
+                "ica_source_data": {
+                    "default": "raw_filtered",
+                    "description": "Which data to plot in sources-plot from ICA",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw",
+                        "raw_filtered",
+                        "epochs",
+                        "epochs_eog",
+                        "epochs_ecg",
+                        "evoked",
+                        "evoked_eog",
+                        "evoked_ecg"
+                    ]
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ica_overlay": {
             "alias": "Plot ICA-Overlay",
@@ -673,10 +1537,27 @@
                 "ica"
             ],
             "outputs": [],
-            "parameters": [
-                "ica_overlay_data",
-                "show_plots"
-            ]
+            "parameters": {
+                "ica_overlay_data": {
+                    "default": "evoked",
+                    "description": "Which data to plot in overlay-plot from ICA",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw",
+                        "raw_filtered",
+                        "evoked",
+                        "evoked_eog",
+                        "evoked_ecg"
+                    ]
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ica_properties": {
             "alias": "Plot ICA-Properties",
@@ -692,10 +1573,26 @@
                 "ecg_epochs"
             ],
             "outputs": [],
-            "parameters": [
-                "ica_fitto",
-                "show_plots"
-            ]
+            "parameters": {
+                "ica_fitto": {
+                    "alias": "Fit ICA to:",
+                    "default": "raw_filtered",
+                    "description": "The data to fit the ICA to",
+                    "gui": "ComboGui",
+                    "options": [
+                        "raw",
+                        "raw_filtered",
+                        "epochs"
+                    ]
+                },
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         },
         "plot_ica_scores": {
             "alias": "Plot ICA-Scores",
@@ -710,217 +1607,15 @@
                 "ica"
             ],
             "outputs": [],
-            "parameters": [
-                "show_plots"
-            ]
-        }
-    },
-    "parameters": {
-        "ch_types": {
-            "alias": "Channel-Types",
-            "default": [
-                "mag",
-                "grad",
-                "eeg",
-                "stim",
-                "eog",
-                "ecg"
-            ],
-            "description": "Specify Channel-Types used in data",
-            "gui": "CheckListGui",
-            "options": [
-                "mag",
-                "grad",
-                "eeg",
-                "stim",
-                "eog",
-                "ecg",
-                "emg",
-                "ref_meg",
-                "misc",
-                "resp",
-                "chpi",
-                "exci",
-                "ias",
-                "syst",
-                "seeg",
-                "dipole",
-                "gof",
-                "bio",
-                "ecog",
-                "fnirs",
-                "csd"
-            ]
-        },
-        "apply_proj": {
-            "alias": "Apply Projections",
-            "default": true,
-            "description": "If to apply the projections (if present)",
-            "gui": "BoolGui"
-        },
-        "ica_fitto": {
-            "alias": "Fit ICA to:",
-            "default": "raw_filtered",
-            "description": "The data to fit the ICA to",
-            "gui": "ComboGui",
-            "options": [
-                "raw",
-                "raw_filtered",
-                "epochs"
-            ]
-        },
-        "stc_surface": {
-            "default": "inflated",
-            "description": "Select the surface type for Source Estimate Plots",
-            "gui": "ComboGui",
-            "options": [
-                "inflated",
-                "white",
-                "pial"
-            ]
-        },
-        "stc_hemi": {
-            "default": "split",
-            "description": "Select the hemispheres for Source Estimate Plots",
-            "gui": "ComboGui",
-            "options": [
-                "lh",
-                "rh",
-                "both",
-                "split"
-            ]
-        },
-        "stc_views": {
-            "default": [
-                "med",
-                "lat"
-            ],
-            "description": "Select the views for Source Estimate Plots",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "list"
-            ]
-        },
-        "stc_time": {
-            "default": 0,
-            "description": "Initial time for Source Estimate Plots",
-            "gui": "FloatGui"
-        },
-        "stc_clim": {
-            "default": "auto",
-            "description": "Colorbar Limits for Source Estimate Plots",
-            "gui": "MultiTypeGui",
-            "types": [
-                "str",
-                "dict"
-            ]
-        },
-        "stc_roll": {
-            "default": 0,
-            "description": "Roll for view in for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_azimuth": {
-            "default": 70,
-            "description": "Azimuth for view for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_elevation": {
-            "default": 60,
-            "description": "Elevation for view for Source Estimate Plots",
-            "gui": "IntGui",
-            "max_val": 360
-        },
-        "stc_animation_span": {
-            "default": {
-                "tuple_type": [
-                    0,
-                    0.5
-                ]
-            },
-            "unit": "s",
-            "description": "time-span for stc-animation[s]",
-            "gui": "DualTupleGui"
-        },
-        "stc_animation_dilat": {
-            "default": 20,
-            "description": "time-dilation for stc-animation",
-            "gui": "IntGui"
-        },
-        "target_labels": {
-            "alias": "Target Labels",
-            "default": [],
-            "gui": "LabelGui"
-        },
-        "label_colors": {
-            "default": {},
-            "description": "Set custom colors for labels.",
-            "gui": "ColorGui",
-            "keys": "target_labels",
-            "none_select": true
-        },
-        "ica_source_data": {
-            "default": "raw_filtered",
-            "description": "Which data to plot in sources-plot from ICA",
-            "gui": "ComboGui",
-            "options": [
-                "raw",
-                "raw_filtered",
-                "epochs",
-                "epochs_eog",
-                "epochs_ecg",
-                "evoked",
-                "evoked_eog",
-                "evoked_ecg"
-            ]
-        },
-        "ica_overlay_data": {
-            "default": "evoked",
-            "description": "Which data to plot in overlay-plot from ICA",
-            "gui": "ComboGui",
-            "options": [
-                "raw",
-                "raw_filtered",
-                "evoked",
-                "evoked_eog",
-                "evoked_ecg"
-            ]
-        },
-        "plot_sensors_kind": {
-            "default": "topomap",
-            "description": "The kind of plot for plot_sensors",
-            "gui": "ComboGui",
-            "options": [
-                "topomap",
-                "3d",
-                "select"
-            ]
-        },
-        "psd_topomap_bands": {
-            "default": null,
-            "description": "The frequency bands for the topomap-plot",
-            "gui": "DictGui",
-            "none_select": true
-        },
-        "backend_3d": {
-            "alias": "3D-Backend",
-            "default": "pyvistaqt",
-            "description": "Choose the 3D-Backend for Brain-plots.",
-            "gui": "ComboGui",
-            "options": [
-                "pyvistaqt",
-                "notebook"
-            ]
-        },
-        "show_plots": {
-            "alias": "Show plots",
-            "default": true,
-            "unit": null,
-            "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
-            "gui": "BoolGui"
+            "parameters": {
+                "show_plots": {
+                    "alias": "Show plots",
+                    "default": true,
+                    "unit": null,
+                    "description": "If set to True, the function will show the plot after execution. If set to False, the plot will not be shown.",
+                    "gui": "BoolGui"
+                }
+            }
         }
     }
 }

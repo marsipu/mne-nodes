@@ -63,7 +63,7 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
         return {param: "missing" for param in target_parameters}
     function = function_dict["FUNCTION"]
     try:
-        func_meta = obj.ct.get_meta(function)
+        func_meta = obj.ct.get_function_meta(function)
     except KeyError:
         return {param: "missing" for param in target_parameters}
     critical_params = func_meta["parameters"]

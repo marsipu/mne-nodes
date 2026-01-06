@@ -22,7 +22,7 @@ class PythonHighlighter(QSyntaxHighlighter):
         self._highlighting_rules = []
         keyword_format = QTextCharFormat()
         keyword_format.setForeground(QColor("#0077aa"))
-        keyword_format.setFontWeight(QFont.Bold)
+        keyword_format.setFontWeight(QFont.Weight.Bold)
         keywords = [
             "and",
             "as",
@@ -83,6 +83,14 @@ class PythonHighlighter(QSyntaxHighlighter):
 
 
 class CodeEditor(QPlainTextEdit):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setFont(QFont("Consolas", 12))
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
+        self.highlighter = PythonHighlighter(self.document())
+
+
+class CodeFileEditor(CodeEditor):
     """An editor for Python code.
 
     Parameters
@@ -101,9 +109,6 @@ class CodeEditor(QPlainTextEdit):
 
     def __init__(self, file_path, parent=None, file_section=None, read_only=False):
         super().__init__(parent)
-        self.setFont(QFont("Consolas", 12))
-        self.highlighter = PythonHighlighter(self.document())
-        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
         self.file_section = file_section
         self.file_path = self._file_path = file_path
         self.setReadOnly(read_only)
@@ -146,7 +151,7 @@ class CodeEditor(QPlainTextEdit):
 class CodeEditorWidget(QWidget):
     def __init__(self, parent=None, **kwargs):
         super().__init__(parent)
-        self.editor = CodeEditor(**kwargs)
+        self.editor = CodeFileEditor(**kwargs)
         self.save_button = QPushButton("Save")
         self.save_button.clicked.connect(self.editor.save)
         layout = QVBoxLayout()

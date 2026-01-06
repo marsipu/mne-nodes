@@ -28,7 +28,7 @@ def test_app_start(controller, main_window):
     # add node
     epoch_node = main_window.viewer.add_function_node("epoch_raw")
     epoch_node.input(port_name="raw").connect_to(
-        main_window.viewer.function_node("filter_data").output(port_name="raw")
+        main_window.viewer.node(node_name="filter_data").output(port_name="raw")
     )
 
     # test proper closing
@@ -45,4 +45,4 @@ def test_app_start(controller, main_window):
     assert new_main_window.isVisible()
     assert new_main_window.controller.name == "test2"
     assert new_main_window.controller.show_plots is False
-    assert new_main_window.viewer.function_node("epoch_raw") is not None
+    assert new_main_window.viewer.node(node_name="epoch_raw") is not None

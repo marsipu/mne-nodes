@@ -1,6 +1,6 @@
 # MNE-Nodes Development Instructions
 
-MNE-Nodes is a PyQt6/PySide6 GUI application for MEG/EEG neurophysiology data processing built on top of MNE-Python. This is a complex scientific application with node-based pipeline workflows for processing brain signals.
+MNE-Nodes is a GUI application for MEG/EEG neurophysiology data processing built on top of MNE-Python. This is a complex scientific application with node-based pipeline workflows for processing brain signals.
 
 **Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.**
 
@@ -24,7 +24,6 @@ Install development environment:
 ```bash
 # Install exactly one Qt backend (required dependency)
 pip install PySide6  # Recommended
-# OR: pip install PyQt6
 
 # Install package in development mode with all dependencies
 pip install -e .[test]  # For testing dependencies
@@ -38,7 +37,7 @@ pre-commit install
 **Installation Notes:**
 - Large packages like VTK (~100MB+) may cause network timeouts
 - If installation fails with timeout, retry with: `pip install --timeout=600 -e .[test]`
-- Qt backend (PySide6 or PyQt6) must be installed explicitly before main package
+- Qt backend PySide6 must be installed explicitly before main package
 - Development dependencies include: pytest, pytest-qt, ruff, pre-commit
 
 ### Headless Display Setup (Required for GUI Testing)
@@ -96,7 +95,7 @@ MNENODES_DEBUG=true mne_nodes
 **Application Notes:**
 - GUI mode requires Qt backend and display
 - Debug mode enables detailed logging
-- Application supports both PyQt6 and PySide6 backends
+- Application supports both PyQt6 and PySide6 backends (but defaults to PySide6)
 
 ### Coding Standards
 - Don't use "except Exception" without re-raising (except when an exception is captured and shown to the user)
@@ -172,7 +171,7 @@ print(f'Platform: Linux={mne_nodes.islin}, Mac={mne_nodes.ismac}, Win={mne_nodes
 "
 
 # Note: Full functionality requires Qt backend installation
-# After installing PySide6/PyQt6, test with: python -c "import mne_nodes.__main__"
+# After installing PySide6, test with: python -c "import mne_nodes.__main__"
 ```
 
 ### GUI Application Testing (requires headless display)
@@ -199,7 +198,7 @@ ruff format --check mne_nodes/
 ### Core Application Structure
 - `mne_nodes/__main__.py` - Application entry point, handles GUI/headless mode
 - `mne_nodes/__init__.py` - Package initialization, platform detection
-- `mne_nodes/gui/` - PyQt GUI components and widgets
+- `mne_nodes/gui/` - Qt GUI components and widgets
 - `mne_nodes/pipeline/` - Data processing pipeline and function execution
 - `mne_nodes/tests/` - Test suite with pytest and pytest-qt
 - `mne_nodes/extra/` - Extra files and development scripts, don't include this when thinking
@@ -233,7 +232,7 @@ ruff format --check mne_nodes/
 - **pip timeouts**: Use `pip install --timeout=600` for large packages
 - **pip connection errors**: PyPI connectivity issues are common due to large scientific packages
 - **VTK installation fails**: May require system graphics libraries or conda instead of pip
-- **Qt backend not found**: Ensure PySide6 or PyQt6 installed first before main package
+- **Qt backend not found**: Ensure PySide6 installed first before main package
 - **Dependency resolution timeout**: Try installing packages individually: `pip install numpy scipy matplotlib` then `pip install -e .`
 
 ### GUI/Display Issues

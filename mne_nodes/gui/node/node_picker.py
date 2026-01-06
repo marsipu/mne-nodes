@@ -28,7 +28,7 @@ class DraggableTableView(QTableView):
 class FunctionTable(DraggableTableView):
     def __init__(self, ct):
         super().__init__()
-        model = FunctionPickerModel(ct.function_metas)
+        model = FunctionPickerModel(ct.get("function_meta"))
         self.setModel(model)
 
 

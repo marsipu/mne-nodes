@@ -8,6 +8,7 @@ import ast
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 from copy import deepcopy
@@ -16,6 +17,7 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
+from time import perf_counter
 from types import NoneType
 from typing import Any, Dict, Optional, Union
 
@@ -32,10 +34,11 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     "plot_files": {},
-    "input_data_types": {
+    "input_types": {
         "raw": {"alias": "MEG/EEG", "import": "import_raw"},
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
     },
+    "data_types": ["raw", "fsmri", "plot"],
     "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
     "input_mapping": {"fsmri": {}, "erm": {}},
     "selected_inputs": [],
@@ -51,11 +54,10 @@ default_config = {
     "selected_event_ids": {},
     "ica_exclude": {},
     "selected_modules": ["basic_operations", "basic_plot"],
-    "p_preset": "Default",
-    "parameters": {"Default": {}},
+    # Parameters
+    "parameters": {},
     "module_meta": {},
-    "function_metas": {},
-    "parameter_metas": {},
+    "function_meta": {},
     "add_kwargs": {},
     "show_plots": True,
     "save_plots": True,
@@ -110,18 +112,20 @@ class Controller:
     ):
         # The device dependent settings
         self.settings = settings or Settings()
+        self._config = None
         self._config_path = None
         self._config_lock = None
         self.lock_timeout = 5  # seconds
+        self.disk_interval = 1.0  # seconds
+        self._last_load = 0
+        self._local_set = False
         self.modules = {}
         self._process_count = 0
+        # Initialize config_path here (may prompt user)
         self.config_path = config_path or self.settings.get("config_path", default=None)
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
-            try:
-                _ = self.data_path  # may trigger lazy initialization
-            except Exception as err:  # noqa: BLE001
-                logging.debug("Deferring data_path initialization: %s", err)
+            _ = self.data_path  # may trigger lazy initialization
         # Initialize modules
         # Legacy: Add basic modules until separated
         module_meta = self.get("module_meta")
@@ -185,10 +189,12 @@ class Controller:
                     file_filter="JSON files (*.json)",
                     exit_on_cancel=True,
                 )
-        # Set, load and persist
+        # Set the path and initialize the lock
         self._config_path = Path(value)
         self._config_lock = FileLock(Path(self._config_path).with_suffix(".lock"))
         self.settings.set("config_path", value)
+        # Load the config immediately
+        self.load()
 
     @property
     def config_lock(self):
@@ -196,6 +202,11 @@ class Controller:
             logging.info("Config lock not set, initializing config_path.")
             self.config_path = None
         return self._config_lock
+
+    @staticmethod
+    def default(key):
+        """Get the default value for a specific key."""
+        return deepcopy(default_config.get(key, None))
 
     def _load_config(self):
         """Load the configuration from the config-file if necessary."""
@@ -216,57 +227,52 @@ class Controller:
         return config
 
     def _save_config(self, config) -> None:
-        tmp_path = self._config_path.with_suffix(self._config_path.suffix + ".tmp")
-        with open(tmp_path, "w") as file:
+        with open(self._config_path, "w") as file:
             json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-        os.replace(tmp_path, self._config_path)
 
-    def default(self, key):
-        """Get the default value for a specific key."""
-        return deepcopy(default_config.get(key, None))
-
-    def get(self, key, default=None) -> Any:
-        """Load a specific key from the config-file."""
+    def load(self):
+        """Force loading the config from disk."""
         try:
             with self.config_lock:
-                config = self._load_config()
-                return config.get(
-                    key, self.default(key) if default is None else default
-                )
+                self._config = self._load_config()
+
         except Timeout:
             logging.warning(
-                f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
+                f"Could not acquire lock for settings after {self.lock_timeout} seconds."
             )
-        return self.default(key)
 
-    def set(self, key, value) -> None:
-        """Set a specific key in the config-file."""
+    def flush(self):
+        """Force writing the current config to disk."""
         try:
             with self.config_lock:
-                config = self._load_config()
-                config[key] = value
-                self._save_config(config)
+                self._save_config(self._config)
         except Timeout:
             logging.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
-    def __getattr__(self, name) -> Any:
-        """Get attributes from the config-file if possible."""
-        if name in default_config:
-            return self.get(name)
-        else:
-            raise AttributeError(f"Controller has no attribute '{name}'")
+    def get(self, key, default=None) -> Any:
+        """Load a specific key from the config-file."""
+        now = perf_counter()
+        if self._config is None or (
+            not self._local_set and now - self._last_load > self.disk_interval
+        ):
+            self._last_load = now
+            self.load()
+        value = self._config.get(key, self.default(key) if default is None else default)
+        return value
 
-    def __setattr__(self, name, value) -> None:
-        """Set attributes in the config-file if possible."""
-        # Check for instance attributes first to avoid recursion during __init__
-        if name in ('settings', '_config_path', '_config_lock', 'lock_timeout', 'modules', '_process_count'):
-            super().__setattr__(name, value)
-        elif name in default_config:
-            self.set(name, value)
+    def set(self, key, value) -> None:
+        """Set a specific key in the config-file."""
+        self._config[key] = value
+        now = perf_counter()
+        if now - self._last_load > self.disk_interval:
+            self._last_load = now
+            self.flush()
+            self._local_set = False
         else:
-            super().__setattr__(name, value)
+            # Make sure when setting a variable to config without writing to disk, that it is not overwritten by a load from disk.
+            self._local_set = True
 
     @property
     def data_root(self) -> Path:
@@ -378,14 +384,13 @@ class Controller:
         if old_name != new_name:
             # Rename the config file if the name changes
             old_path = self._config_path
-            new_path = join(os.path.dirname(old_path), f"{new_name}_config.json")
-            if os.path.exists(old_path):
-                os.rename(old_path, new_path)
+            new_path = self._config_path.parent / f"{new_name}_config.json"
+            os.rename(old_path, new_path)
             self._config_path = new_path
         self.set("name", new_name)
 
     @property
-    def local_config_path(self):
+    def run_script_folder(self):
         """Path to the local config folder."""
         local_config_path = Path.home() / ".mne-nodes"
         local_config_path.mkdir(parents=True, exist_ok=True)
@@ -427,7 +432,7 @@ class Controller:
             Name of the input (e.g., subject name or ID).
         data_type : str
             Type of the input data. Must be one of the keys in
-            self.get("input_data_types") (e.g., "raw", "fsmri").
+            self.get("input_types") (e.g., "raw", "fsmri").
         group : str, optional
             Group name for the input. Default is "All".
         input_path : Path or str or NoneType, optional
@@ -435,7 +440,7 @@ class Controller:
             the data will be imported using the appropriate import function.
             Default is None.
         """
-        if data_type not in self.input_data_types:
+        if data_type not in self.input_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         inputs = self.get("inputs")
         if group not in inputs[data_type]:
@@ -449,13 +454,13 @@ class Controller:
             # ToDo: Implement import functions for other data types
             data_import = import_module("mne_nodes.pipeline.data_import")
             import_func = getattr(
-                data_import, self.get("input_data_types")[data_type]["import"]
+                data_import, self.get("input_types")[data_type]["import"]
             )
             import_func(name=name, import_path=input_path, controller=self)
 
     def remove_data(self, name, data_type, group="All"):
         """Remove an input from the inputs dictionary."""
-        if data_type not in self.input_data_types:
+        if data_type not in self.input_types:
             raise ValueError(f"{data_type} is not valid data-type.")
         inputs = self.get("inputs")
         if group not in inputs[data_type]:
@@ -480,97 +485,83 @@ class Controller:
             data_type_dir = join(self.data_path, name)
         shutil.rmtree(data_type_dir, ignore_errors=True)
 
-    def get_default(self, parameter_name: str) -> Any:
+    def get_default(self, parameter_name: str, function_name: str) -> Any:
         """Get the default value for a given parameter name."""
-        parameter_meta = self.parameter_metas.get(parameter_name)
-        if parameter_meta is None:
-            raise KeyError(f"Parameter '{parameter_name}' not found in Parameter-Meta.")
-        default_value = parameter_meta["default"]
+        parameter_meta = self.get_parameter_meta(parameter_name, function_name)
 
-        return default_value
+        return parameter_meta["default"]
 
-    def parameter(self, parameter_name: str, p_preset: Optional[str] = None) -> Any:
+    def parameter(self, parameter_name: str, function_name: str) -> Any:
         """Get a specific parameter from the project parameters."""
-        p_preset = p_preset or self.p_preset
-        parameters = self.parameters
-        if p_preset not in parameters:
+        parameters = self.get("parameters")
+        if function_name not in parameters:
             logging.warning(
-                f"Parameter preset '{p_preset}' not found in project. "
-                "Using 'Default' preset instead."
+                f"Function '{function_name}' not found in project. Returning default value."
             )
-            p_preset = "Default"
-        if parameter_name not in parameters[p_preset]:
+            return self.get_default(parameter_name, function_name)
+        elif parameter_name not in parameters[function_name]:
             logging.warning(
-                f"Parameter '{parameter_name}' not found in preset '{p_preset}'. "
-                "Setting and returning default value."
+                f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Returning default value."
             )
-            parameters[p_preset][parameter_name] = self.get_default(parameter_name)
-            self.set("parameters", parameters)
+            return self.get_default(parameter_name, function_name)
 
-        return parameters[p_preset][parameter_name]
+        return parameters[function_name][parameter_name]
 
     def set_parameter(
-        self, parameter_name: str, value: Any, p_preset: Optional[str] = None
+        self, parameter_name: str, value: Any, function_name: str
     ) -> None:
         """Set a specific parameter in the project parameters."""
-        p_preset = p_preset or self.p_preset
         parameters = self.get("parameters")
-        if p_preset not in parameters:
-            logging.warning(
-                f"Parameter preset '{p_preset}' not found in project. "
-                "Using 'Default' preset instead."
-            )
-            p_preset = "Default"
-        if parameter_name not in parameters[p_preset]:
-            logging.warning(
-                "You should not create a new parameter with controller.set_parameter. Add the parameter to the parameter-meta first. This function should only be used to modify existing parameters."
-            )
-        parameters[p_preset][parameter_name] = value
+        if function_name not in parameters:
+            parameters[function_name] = {}
+        parameters[function_name][parameter_name] = value
         self.set("parameters", parameters)
 
-    def func_parameters(self, function_name, p_preset=None):
-        """Get the parameters for a specific function from the project
-        parameters."""
-        p_preset = p_preset or self.p_preset
-        if p_preset not in self.parameters:
-            logging.warning(
-                f"Parameter preset '{p_preset}' not found in project. "
-                "Using 'Default' preset instead."
-            )
-            p_preset = "Default"
-        function_metas = self.get("function_metas")
-        if function_name not in function_metas:
-            raise KeyError(f"Function '{function_name}' not found in function meta.")
-
-        func_meta = function_metas[function_name]
-        params = {}
-        for param_name in func_meta["parameters"]:
-            params[param_name] = self.parameter(param_name, p_preset)
+    def func_parameters(self, function_name):
+        """Get the parameters for a specific function from the project."""
+        function_meta = self.get_function_meta(function_name)
+        func_meta = function_meta[function_name]
+        params = {
+            pn: self.parameter(pn, function_name) for pn in func_meta["parameters"]
+        }
 
         return params
+
+    def get_func_from_param(self, parameter_name: str) -> list[str] | str | None:
+        """Get the function name(s) associated with a specific parameter
+        name."""
+        function_meta = self.get("function_meta")
+        associated_functions = [
+            func_name
+            for func_name, func_meta in function_meta.items()
+            if parameter_name in func_meta.get("parameters", {})
+        ]
+        if not associated_functions:
+            return None
+        elif len(associated_functions) == 1:
+            return associated_functions[0]
+        else:
+            return associated_functions
 
     ####################################################################################
     # Modules
     ####################################################################################
     def _load_module_config(self, module_name):
         """Load the configuration file for a module from the package path."""
-        config_file_path = self.module_meta[module_name]["config"]
+        config_file_path = self.get("module_meta")[module_name]["config"]
         if not isfile(config_file_path):
             raise RuntimeError(
                 f"Config file for {module_name} not found at {config_file_path}."
             )
         with open(config_file_path) as file:
             config_data = json.load(file, object_hook=type_json_hook)
-        function_metas = self.get("function_metas")
-        function_metas.update(config_data["functions"])
-        self.set("function_metas", function_metas)
-        parameter_metas = self.get("parameter_metas")
-        parameter_metas.update(config_data["parameters"])
-        self.set("parameter_metas", parameter_metas)
+        function_meta = self.get("function_meta")
+        function_meta.update(config_data["functions"])
+        self.set("function_meta", function_meta)
 
     def _import_module(self, module_name):
         """Import a module from the given package path."""
-        pkg_path = self.module_meta[module_name]["module"].parent
+        pkg_path = self.get("module_meta")[module_name]["module"].parent
         # Add the package path to sys.path if not already present
         if pkg_path not in sys.path:
             sys.path.insert(0, str(pkg_path))
@@ -587,7 +578,7 @@ class Controller:
 
     def load_modules(self) -> None:
         """Load custom modules from their config files."""
-        for module_name in self.module_meta:
+        for module_name in self.get("module_meta"):
             self._import_module(module_name)
 
     def add_custom_module(self, config_file_path: Union[str, Path]):
@@ -668,14 +659,32 @@ class Controller:
             # Update the module in the controller
             self.modules[module_name] = new_module
 
-    def get_meta(self, name: str) -> Dict[str, Any]:
-        """Get the metadata for a specific parameter or function."""
-        if name in self.parameter_metas:
-            return self.parameter_metas[name]
-        elif name in self.function_metas:
-            return self.function_metas[name]
-        else:
-            raise KeyError(f"Metadata for '{name}' not found in project.")
+    def get_function_meta(self, function_name: str) -> Dict[str, Any]:
+        """Get the metadata for a specific function."""
+        function_meta = self.get("function_meta").get(function_name, None)
+        if function_meta is None:
+            match = re.match(r"([\w]+)-\d+", function_name)
+            if match:
+                function_meta = self.get("function_meta")[match.group(1)]
+            else:
+                raise KeyError(
+                    f"Function '{function_name}' not found in function meta."
+                )
+
+        return function_meta
+
+    def get_parameter_meta(
+        self, parameter_name: str, function_name: str
+    ) -> Dict[str, Any]:
+        """Get the metadata for a specific parameter."""
+        function_meta = self.get_function_meta(function_name)
+        parameter_meta = function_meta["parameters"].get(parameter_name, None)
+        if parameter_meta is None:
+            raise KeyError(
+                f"Parameter '{parameter_name}' not found in function '{function_name}' meta."
+            )
+
+        return parameter_meta
 
     @staticmethod
     def _get_func_start_end(function_name, module_code):
@@ -693,7 +702,7 @@ class Controller:
 
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
-        module_name = self.get_meta(function_name)["module"]
+        module_name = self.get_function_meta(function_name)["module"]
         module = self.modules[module_name]
         function = getattr(module, function_name)
         if function is None:
@@ -705,6 +714,11 @@ class Controller:
         start, end = self._get_func_start_end(function_name, module_code)
 
         return func_code, start, end
+
+    @staticmethod
+    def tab(num_tabs=1, tab_size=4):
+        """Return a string of tabs for indentation."""
+        return " " * (num_tabs * tab_size)
 
     def convert_to_code(self, instructions, start_name):
         """Convert a list of instructions to a Python code string."""
@@ -728,50 +742,52 @@ class Controller:
             code += f"from {module_name} import *\n"
         # Add function execution code
         code += "\n# Execute pipeline\n"
-        # ToDo: Put into try-except block to catch errors of multiple subjects
+        # ToDo: When changing to inputs/outputs from return-statements, there need to be a new way to save the data in between steps
         loaded_data = set()
         modules = {}
         if instructions[0][0] == "raw":
             code += f"for meeg_name in tqdm(ct.get('inputs')['raw']['{start_name}']):\n"
-            code += self.tab + "meeg = MEEG(meeg_name, ct)\n"
+            code += self.tab() + "meeg = MEEG(meeg_name, ct)\n"
             loaded_data.add(instructions[0][0])
         elif instructions[0][0] == "fsmri":
             code += (
                 f"for fsmri_name in tqdm(ct.get('inputs')['fsmri']['{start_name}']):\n"
             )
-            code += self.tab + "fsmri = FSMRI(fsmri_name, ct)\n"
+            code += self.tab() + "fsmri = FSMRI(fsmri_name, ct)\n"
         elif instructions[0][0] == "group":
             pass  # ToDo: Handle groups
         else:
             raise ValueError(f"Unknown input type: {instructions[0][0]}")
         # Add try-except block for error handling
-        code += self.tab + "try:\n"
+        code += self.tab() + "try:\n"
         for name, kind in instructions:
             if kind == "Input" and name not in loaded_data:
-                code += self.tab * 2 + f'{kind} = meeg.load(data_type="{kind}")\n'
+                code += self.tab() * 2 + f'{kind} = meeg.load(data_type="{kind}")\n'
                 loaded_data.add(name)
             elif kind == "Function":
-                meta = self.get_meta(name)
+                meta = self.get_function_meta(name)
                 if meta["module"] not in modules:
                     modules[meta["module"]] = []
                 modules[meta["module"]].append(name)
-                code += self.tab * 2 + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
+                code += (
+                    self.tab() * 2 + f"{name}(meeg, **ct.func_parameters('{name}'))\n"
+                )
             else:
                 logging.warning(
                     f"Unknown instruction type '{kind}' for name '{name}'. "
                     "Skipping this instruction."
                 )
-        code += self.tab + "except Exception as e:\n"
-        code += self.tab * 2 + "print(f'[Error] for {meeg_name}: {e}')\n"
-        code += self.tab * 2 + "traceback.print_exc()\n"
-        code += self.tab * 2 + "continue\n"
+        code += self.tab() + "except Exception as e:\n"
+        code += self.tab(2) + "print(f'[Error] for {meeg_name}: {e}')\n"
+        code += self.tab(2) + "traceback.print_exc()\n"
+        code += self.tab(2) + "continue\n"
 
         return code
 
     def start(self, instructions, start_name):
         # Generate code file
         code = self.convert_to_code(instructions, start_name)
-        run_file_path = self.local_config_path / f"{self.name}_pipeline.py"
+        run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)
         # Add Process to ConsoleDock and get Console
@@ -834,14 +850,22 @@ class Controller:
         self.ica_exclude = pr.meeg_ica_exclude
         self.meeg_to_erm = pr.meeg_to_erm
         self.meeg_to_fsmri = pr.meeg_to_fsmri
-        self.parameters = pr.parameters
-        self.p_preset = pr.p_preset
 
         # Get function meta
         new_module_meta = convert_pandas_meta(ct.pd_funcs, ct.pd_params)
         module_meta = self.get("module_meta")
         module_meta.update(new_module_meta)
         self.set("module_meta", module_meta)
+
+        # Convert parameters
+        for param_name, value in pr.parameters.items():
+            func_name = self.get_func_from_param(param_name)
+            if isinstance(func_name, list):
+                logging.warning(
+                    f"Parameter '{param_name}' is associated with multiple functions {func_name}. Using the first one."
+                )
+                func_name = func_name[0]
+            self.set_parameter(param_name, value, func_name)
 
         for func in pr.sel_functions:
             self.viewer.add_function_node(func)

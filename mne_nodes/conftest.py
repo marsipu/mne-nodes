@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from mne_nodes.pipeline.io import TypedJSONEncoder
+from qtpy.QtWidgets import QMessageBox
 
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
@@ -63,6 +63,7 @@ def settings(tmp_path):
     return settings
 
 
+# ToDo: Create a dummy function-configuration and parameterss
 @pytest.fixture
 def controller(tmp_path, monkeypatch, settings):
     """Fixture to create a Controller with temporary config, data and subjects
@@ -70,21 +71,25 @@ def controller(tmp_path, monkeypatch, settings):
     from mne_nodes.pipeline.controller import Controller
 
     # Create a config_file, data_path and subjects_dir
-    controller_name = "test"
     data_root = tmp_path / "MEEG"
     mkdir(data_root)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
-
     settings.set("data_root", str(data_root))
     settings.set("subjects_dir", str(subjects_dir))
-
-    test_config = {"name": "test", "parameters": {"Default": test_parameters}}
-    config_path = tmp_path / f"{controller_name}_config.json"
-    with open(config_path, "w") as f:
-        json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
+    # Simulate user input
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QMessageBox.question",
+        lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
+    )
+    # Set the controller name
+    monkeypatch.setattr(
+        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
+    )
+    # set the directory where to save the config-file
+    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
     # Create Controller
-    ct = Controller(config_path=config_path, settings=settings)
+    ct = Controller(settings=settings)
 
     return ct
 
@@ -114,12 +119,18 @@ def _add_nodes(viewer):
 
 
 def _add_complex_nodes(viewer):
+    inputs = viewer.ct.inputs
+    inputs["raw"]["Group 1"] = ["sample_a_raw.fif", "sample_b_raw.fif"]
+    inputs["raw"]["Group 2"] = ["sample_c_raw.fif", "sample_d_raw.fif"]
+    viewer.ct.inputs = inputs
     # Create nodes
-    in_node = viewer.add_input_node("raw")
+    in_node = viewer.add_input_node("raw", name="Group 1")
+    in_node2 = viewer.add_input_node("raw", name="Group 2")
     func_node = viewer.add_function_node("filter_data")
 
     # Establish connection
     in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
+    in_node2.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
 
     # Add more function nodes
     func_node2 = viewer.add_function_node("find_events")
@@ -127,10 +138,10 @@ def _add_complex_nodes(viewer):
     func_node4 = viewer.add_function_node("plot_epochs")
 
     # Connect the nodes
-    viewer.input_node("raw").output(port_name="raw").connect_to(
+    viewer.get_node_by_input("raw", name="Group 1").output(port_name="raw").connect_to(
         func_node2.input(port_name="raw")
     )
-    viewer.function_node("filter_data").output(port_name="raw").connect_to(
+    viewer.node(node_name="filter_data").output(port_name="raw").connect_to(
         func_node3.input(port_name="raw")
     )
     func_node2.output(port_name="events").connect_to(
@@ -139,7 +150,9 @@ def _add_complex_nodes(viewer):
     func_node3.output(port_name="epochs").connect_to(
         func_node4.input(port_name="epochs")
     )
-    # ToDo: extend with fsmri-nodes and assignment nodes
+
+    # ToDo Next: Add source space nodes
+
     viewer.auto_layout_nodes()
     viewer.zoom_to_nodes()
 
@@ -252,3 +265,61 @@ def test_module_config(tmp_path, test_script):
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 
     return test_config_path
+
+
+@pytest.fixture
+def basic_functions():
+    return (
+        "def test_function(a, b=1, c='test', d=[1,2,3]):\n"
+        "    '''\n"
+        "    This is a test function that adds two numbers and has other types as args.\n"
+        "    '''\n"
+        "    result = a + b\n"
+        "    print(f'Parameters: c={c}, d={d}')\n"
+        "    return result\n\n"
+        "def another_function(x, flag=True):\n"
+        "    '''\n"
+        "    This function multiplies x by 2 if flag is True, else by 3.\n"
+        "    '''\n"
+        "    if flag:\n"
+        "        product = x * 2\n"
+        "    else:\n"
+        "        product = x * 3\n"
+        "    return product\n"
+    )
+
+
+@pytest.fixture
+def basic_functions_alt():
+    return (
+        "def test_function(a, b=1, c='test', d=[1,2,3], e={'a': 1}):\n"
+        "    '''\n"
+        "    This is a test function that adds two numbers and has other types as args.\n"
+        "    '''\n"
+        "    result = a + b\n"
+        "    print(f'Parameters: c={c}, d={d}')\n"
+        "    return result\n\n"
+        "def another_function(x, flag=True):\n"
+        "    '''\n"
+        "    This function multiplies x by 2 if flag is True, else by 3.\n"
+        "    '''\n"
+        "    if flag:\n"
+        "        product = x * 2\n"
+        "    else:\n"
+        "        product = x * 3\n"
+        "    return product\n"
+    )
+
+
+@pytest.fixture
+def test_function():
+    return (
+        "def complex_function(raw, highpass=1, lowpass=40):\n"
+        "    '''\n"
+        "    This is a filter function from mne.\n"
+        "    '''\n"
+        "    import mne\n\n"
+        "    # Apply a bandpass filter to the raw data\n"
+        "    raw = mne.filter.filter_data(raw.info['sfreq'], highpass, lowpass)\n"
+        "    return raw\n"
+    )
