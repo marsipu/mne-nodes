@@ -324,7 +324,7 @@ class FunctionImporter(QDialog):
             ret = returns[0]
             if isinstance(ret.value, ast.Tuple):
                 for val in ret.value.elts:
-                    if not isinstance(val, ast.name):
+                    if not isinstance(val, ast.Name):
                         raise_user_attention(
                             f"Return value in function '{func.name}' is not a name. Only constant return values are supported currently.",
                             "warning",

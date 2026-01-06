@@ -255,7 +255,7 @@ extra_config = {
         "alias": "Number of jobs for multiprocessing",
         "default": -1,
         "unit": None,
-        "description": "The number of jobs to run in parallel for selected fucntions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
+        "description": "The number of jobs to run in parallel for selected functions. When set to 'auto', the number of available cores is selected. Only for some functions, selecting 'cuda', works",
         "gui": "MultiTypeGui",
         "types": ["int", "combo"],
         "type_kwargs": {
