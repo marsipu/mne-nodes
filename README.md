@@ -70,5 +70,5 @@ Prerequisites: You need a [GitHub-Account](https://github.com/) and [git](https:
 - [GitHub Copilot](https://github.com/features/copilot) and [JetBrains Junie](https://www.jetbrains.com/junie/).
 
 ## License
-## License
+
 The `mne-nodes` project is licensed under the BSD\-3\-Clause license. It uses PySide6, which is licensed under the LGPL. When using [`qtpy`](https://github.com/spyder-ide/qtpy) with alternative Qt backends (e.g. PyQt6), the applicable licensing obligations are determined by the chosen backend.
