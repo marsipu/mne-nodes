@@ -9,7 +9,7 @@ import inspect
 import logging
 from functools import partial
 from types import UnionType, NoneType
-from typing import get_args
+from typing import get_args, get_type_hints, get_origin, Union
 
 import qtawesome as qta
 from PySide6.QtCore import Qt
@@ -189,13 +189,14 @@ class ParameterConfiguration(QDialog):
 
 
 class FunctionImporter(QDialog):
-    def __init__(self, controller, code, parent=None):
+    def __init__(self, controller, code, allow_exec=False, parent=None):
         super().__init__(parent)
         # Attributes
         self.controller = controller
         self.func_config = {}
         self.current_func = None
         self.editors = {}
+        self.allow_exec = allow_exec
         # UI
         layout = QHBoxLayout(self)
         self.setWindowTitle("Import Function")
@@ -277,8 +278,8 @@ class FunctionImporter(QDialog):
 
             # Extract inputs and parameters from function arguments
             args = func.args.args
-            defaults = func.args.defaults
-            num_defaults = len(defaults)
+            default_args = func.args.defaults
+            num_defaults = len(default_args)
 
             # Split args into inputs and parameters
             self.func_config[func.name]["inputs"] = [
@@ -296,16 +297,45 @@ class FunctionImporter(QDialog):
                 )
                 del param_config[old_param]
 
+            # Get type-hints from function definition if exec is allowed
+            type_hints = {}
+            if self.allow_exec:
+                namespace = {}
+                exec(func_code, globals=namespace)
+                type_hints.update(get_type_hints(namespace[func.name]))
+
             # Update parameter configuration
-            for i, a in enumerate(parameters):
-                default = ast.literal_eval(defaults[i])
-                gui = default_type_guis.get(type(default))
-                if a not in param_config:
-                    param_config[a] = {}
-                if "default" not in param_config[a]:
-                    param_config[a]["default"] = default
-                if "gui" not in param_config[a]:
-                    param_config[a]["gui"] = gui.__name__
+            for i, p in enumerate(parameters):
+                if p not in param_config:
+                    param_config[p] = {}
+                gui_name = None
+                # Type-hints from the function if exec allowed
+                if p in type_hints:
+                    type_hint = type_hints[p]
+                    if (
+                        isinstance(type_hint, UnionType)
+                        or get_origin(type_hint) is Union
+                    ):
+                        gui_name = MultiTypeGui.__name__
+                        types = get_args(type_hint)
+                        if NoneType in types:
+                            param_config[p]["none_select"] = True
+                        param_config[p]["types"] = [
+                            str(t) for t in types if t is not NoneType
+                        ]
+                    else:
+                        gui_name = default_type_guis[type_hint].__name__
+                try:
+                    default = ast.literal_eval(default_args[i])
+                except (TypeError, ValueError):
+                    logging.warning(
+                        f"Could not evaluate default value for parameter '{p}' in function '{func.name}'. It and the gui type need to be set manually."
+                    )
+                else:
+                    if p not in type_hints:
+                        gui_name = default_type_guis[type(default)].__name__
+                    param_config[p]["default"] = default
+                param_config[p]["gui"] = gui_name
 
             # Extract outputs from return statement
             returns = [node for node in ast.walk(func) if isinstance(node, ast.Return)]
