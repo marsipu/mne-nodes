@@ -666,7 +666,7 @@ class MEEG(BaseLoading):
         selected)"""
 
         # Main save directory
-        self.save_dir = self.ct.data_path / self.name
+        self.save_dir = self.ct.deriv_root / self.name
         if not isdir(self.save_dir):
             os.mkdir(self.save_dir)
 
@@ -676,12 +676,12 @@ class MEEG(BaseLoading):
             self.save_dir, f"{self.name}_{self.ct.p_preset}-filtered-raw.fif"
         )
         if self.erm:
-            self.erm_path = join(self.ct.data_path, self.erm, f"{self.erm}-raw.fif")
+            self.erm_path = join(self.ct.deriv_root, self.erm, f"{self.erm}-raw.fif")
             self.old_erm_processed_path = join(
-                self.ct.data_path, self.erm, f"{self.erm}_{self.ct.p_preset}-raw.fif"
+                self.ct.deriv_root, self.erm, f"{self.erm}_{self.ct.p_preset}-raw.fif"
             )
             self.erm_processed_path = join(
-                self.ct.data_path,
+                self.ct.deriv_root,
                 self.erm,
                 f"{self.erm}-{self.name}_{self.ct.p_preset}-processed-raw.fif",
             )

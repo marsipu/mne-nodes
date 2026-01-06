@@ -125,7 +125,7 @@ class Controller:
         self.config_path = config_path or self.settings.get("config_path", default=None)
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
-            _ = self.data_path  # may trigger lazy initialization
+            _ = self.deriv_root  # may trigger lazy initialization
         # Initialize modules
         # Legacy: Add basic modules until separated
         module_meta = self.get("module_meta")
@@ -275,7 +275,7 @@ class Controller:
             self._local_set = True
 
     @property
-    def data_root(self) -> Path:
+    def bids_root(self) -> Path:
         """Path to the root data directory.
 
         This is the root folder of the processed data.
@@ -289,25 +289,25 @@ class Controller:
             data_root = get_user_input(
                 "Please select/create a folder for the data-root.", "folder"
             )
-            self.data_root = data_root
+            self.bids_root = data_root
 
         return Path(data_root)
 
-    @data_root.setter
-    def data_root(self, value: Optional[Union[str, Path]]) -> None:
+    @bids_root.setter
+    def bids_root(self, value: Optional[Union[str, Path]]) -> None:
         if value is not None:
             if not isdir(value):
                 raise ValueError(f"Path {value} does not exist!")
             self.settings.set("data_root", value)
 
     @property
-    def data_path(self) -> Path:
+    def deriv_root(self) -> Path:
         """Path to the (processed) data directory.
 
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        data_path = self.data_root / self.name
+        data_path = self.bids_root / self.name
         if not isdir(data_path):
             data_path.mkdir(parents=True, exist_ok=True)
         return data_path
@@ -482,7 +482,7 @@ class Controller:
         if data_type == "fsmri":
             data_type_dir = join(self.subjects_dir, name)
         else:
-            data_type_dir = join(self.data_path, name)
+            data_type_dir = join(self.deriv_root, name)
         shutil.rmtree(data_type_dir, ignore_errors=True)
 
     def get_default(self, parameter_name: str, function_name: str) -> Any:
@@ -755,7 +755,7 @@ class Controller:
             )
             code += self.tab() + "fsmri = FSMRI(fsmri_name, ct)\n"
         elif instructions[0][0] == "group":
-            pass  # ToDo: Handle groups
+            pass
         else:
             raise ValueError(f"Unknown input type: {instructions[0][0]}")
         # Add try-except block for error handling
@@ -795,7 +795,7 @@ class Controller:
         process = Process(
             proc_id=self._process_count,
             console=console,
-            working_directory=self.data_path,
+            working_directory=self.deriv_root,
             self_destruct=True,
         )
         self._process_count += 1
@@ -831,7 +831,7 @@ class Controller:
             ct = old_controller
         pr = Project(ct, project_name)
         self.name = pr.name
-        self.data_root = pr.data_path
+        self.bids_root = pr.data_path
         self.subjects_dir = ct.subjects_dir
         self.plot_root = pr.figures_path
         # ToDo Next: Legacy conversion
