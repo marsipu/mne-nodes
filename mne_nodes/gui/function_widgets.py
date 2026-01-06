@@ -433,4 +433,5 @@ class FunctionImporter(QDialog):
             ans = ask_user(warning_msg, parent=self)
             if ans:
                 event.accept()
-            event.ignore()
+            else:
+                event.ignore()
