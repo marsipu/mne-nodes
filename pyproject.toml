@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     # MNE
     "mne",
+    "mne-bids",
     "mne-qt-browser",
     "mne-connectivity",
     # MNE related

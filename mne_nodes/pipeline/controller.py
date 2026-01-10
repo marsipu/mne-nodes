@@ -34,6 +34,7 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     "plot_files": {},
+    # ToDo: Safe remove inputs
     "input_types": {
         "raw": {"alias": "MEG/EEG", "import": "import_raw"},
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
@@ -42,6 +43,8 @@ default_config = {
     "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
     "input_mapping": {"fsmri": {}, "erm": {}},
     "selected_inputs": [],
+    # BIDS Dataset selection
+    "selected": {},
     # Legacy entries from old Project class
     "all_meeg": [],
     "all_fsmri": [],
@@ -110,7 +113,6 @@ class Controller:
         initialize_paths: bool = False,
         settings: Optional[Settings] = None,
     ):
-        # The device dependent settings
         self.settings = settings or Settings()
         self._config = None
         self._config_path = None
@@ -294,11 +296,10 @@ class Controller:
         return Path(data_root)
 
     @bids_root.setter
-    def bids_root(self, value: Optional[Union[str, Path]]) -> None:
-        if value is not None:
-            if not isdir(value):
-                raise ValueError(f"Path {value} does not exist!")
-            self.settings.set("data_root", value)
+    def bids_root(self, value: str | Path) -> None:
+        if not isdir(value):
+            raise ValueError(f"Path {value} does not exist!")
+        self.settings.set("data_root", value)
 
     @property
     def deriv_root(self) -> Path:
@@ -307,10 +308,24 @@ class Controller:
         This contatins all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
-        data_path = self.bids_root / self.name
-        if not isdir(data_path):
-            data_path.mkdir(parents=True, exist_ok=True)
-        return data_path
+        deriv_root = self.settings.get("deriv_root")
+        if deriv_root is not None and not isdir(deriv_root):
+            raise_user_attention(
+                f"Path {deriv_root} does not exist! If you moved from another device, please select the correct folder for data derivatives."
+            )
+        if deriv_root is None or not isdir(deriv_root):
+            deriv_root = get_user_input(
+                "Please select/create a folder for the data-root.", "folder"
+            )
+            self.bids_root = deriv_root
+
+        return Path(deriv_root)
+
+    @deriv_root.setter
+    def deriv_root(self, value: str | Path) -> None:
+        if not isdir(value):
+            raise ValueError(f"Path {value} does not exist!")
+        self.settings.set("deriv_root", value)
 
     @property
     def subjects_dir(self) -> Path:
@@ -417,6 +432,19 @@ class Controller:
             )
         return main_window
 
+    ####################################################################################
+    # BIDS
+    ####################################################################################
+    def get_dataset_name(self) -> str | None:
+        dataset_file = self.bids_root / "dataset_description.json"
+        if not dataset_file.is_file():
+            logging.warning(f"Dataset description file not found at {dataset_file}.")
+            return None
+        else:
+            with open(dataset_file) as file:
+                dataset_description = json.load(file)
+            return dataset_description["Name"]
+
     def add_data(
         self,
         name: str,
@@ -485,6 +513,9 @@ class Controller:
             data_type_dir = join(self.deriv_root, name)
         shutil.rmtree(data_type_dir, ignore_errors=True)
 
+    ####################################################################################
+    # Parameters
+    ####################################################################################
     def get_default(self, parameter_name: str, function_name: str) -> Any:
         """Get the default value for a given parameter name."""
         parameter_meta = self.get_parameter_meta(parameter_name, function_name)
