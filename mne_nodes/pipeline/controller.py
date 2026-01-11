@@ -42,9 +42,8 @@ default_config = {
     "data_types": ["raw", "fsmri", "plot"],
     "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
     "input_mapping": {"fsmri": {}, "erm": {}},
-    "selected_inputs": [],
     # BIDS Dataset selection
-    "selected": {},
+    "selected_inputs": {},
     # Legacy entries from old Project class
     "all_meeg": [],
     "all_fsmri": [],
@@ -118,13 +117,18 @@ class Controller:
         self._config_path = None
         self._config_lock = None
         self.lock_timeout = 5  # seconds
-        self.disk_interval = 1.0  # seconds
+        self.disk_interval = 1  # seconds
         self._last_load = 0
         self._local_set = False
         self.modules = {}
         self._process_count = 0
         # Initialize config_path here (may prompt user)
-        self.config_path = config_path or self.settings.get("config_path", default=None)
+        config_path = self.settings.get("config_path", default=None)
+        if config_path is not None:
+            if not isfile(config_path):
+                raise_user_attention(f"Config file {config_path} does not exist!")
+                config_path = None
+        self.config_path = config_path
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
             _ = self.deriv_root  # may trigger lazy initialization
@@ -143,6 +147,8 @@ class Controller:
         }
         self.set("module_meta", module_meta)
         self.load_modules()
+        # Load selected inputs
+        self.selected_inputs = self.get("selected_inputs", [])
 
     ####################################################################################
     # Initialization and Properties
@@ -160,11 +166,7 @@ class Controller:
     def config_path(self, value):
         """Set the path to the config-file (respects interactive mode)."""
         # Check existence and prompt user for a new config-file if needed
-        if value is None or not isfile(value):
-            if value is None:
-                logging.warning("No config-file path set!")
-            else:
-                logging.warning(f"Config file {value} does not exist!")
+        if value is None:
             ans = ask_user(
                 "Do you want to create a new config-file? (or use an existing one)",
                 close_on_cancel=True,
@@ -183,6 +185,7 @@ class Controller:
                 value = join(config_folder, f"{name}_config.json")
                 with open(value, "w", encoding="utf-8") as file:
                     json.dump(default_config, file, indent=4, cls=TypedJSONEncoder)
+                raise_user_attention(f"New configuration created at:\n{value}", "info")
             else:
                 logging.info("Using existing config-file.")
                 value = get_user_input(
@@ -191,12 +194,18 @@ class Controller:
                     file_filter="JSON files (*.json)",
                     exit_on_cancel=True,
                 )
+                raise_user_attention(
+                    f"Configuration sucessfully loaded from:\n{value}", "info"
+                )
         # Set the path and initialize the lock
         self._config_path = Path(value)
         self._config_lock = FileLock(Path(self._config_path).with_suffix(".lock"))
         self.settings.set("config_path", value)
         # Load the config immediately
-        self.load()
+        if isfile(self._config_path):
+            self.load()
+        else:
+            self.flush()
 
     @property
     def config_lock(self):

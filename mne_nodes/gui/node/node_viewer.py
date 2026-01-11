@@ -366,11 +366,7 @@ class NodeViewer(QGraphicsView):
         elif isinstance(node, FunctionNode):
             function_name = node.name
             if function_name in self.function_nodes:
-                if node.id in self.function_nodes[function_name]:
-                    del self.function_nodes[function_name][node.id]
-                if not self.function_nodes[function_name]:
-                    del self.function_nodes[function_name]
-
+                del self.function_nodes[function_name]
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):

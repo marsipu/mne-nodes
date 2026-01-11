@@ -1065,49 +1065,6 @@ class FunctionPickerModel(PickerModel):
         return super().data(index, role)
 
 
-class InputPickerModel(PickerModel):
-    """Draggable model for input nodes used in NodePicker.
-
-    Columns: data_type, group; Index: label (data_type:group) for reference.
-    """
-
-    def __init__(self, inputs_dict: dict, **kwargs):
-        rows = []
-        for dt, groups in (inputs_dict or {}).items():
-            for group in groups.keys():
-                rows.append({"label": f"{dt}:{group}", "data_type": dt, "group": group})
-        df = (
-            pd.DataFrame(rows)
-            if rows
-            else pd.DataFrame([], columns=["label", "data_type", "group"])
-        )
-        if not df.empty:
-            df = df.set_index("label")
-        super().__init__(
-            df[[c for c in ["data_type", "group"] if c in df.columns]], **kwargs
-        )
-        self._inputs_dict = inputs_dict or {}
-        self._labels = list(df.index) if not df.empty else []
-
-    def mimeData(self, indexes):
-        mime = super().mimeData(indexes)
-        if len(indexes) == 0:
-            return mime
-        row = indexes[0].row()
-        dt = self._data.iloc[row]["data_type"]
-        group = self._data.iloc[row]["group"]
-        md = QMimeData()
-        md.setText(f"mne-nodes/input:{dt}:{group}")
-        return md
-
-    def data(self, index, role=None):
-        if role == Qt.ItemDataRole.ToolTipRole:
-            dt = self._data.iloc[index.row()]["data_type"]
-            group = self._data.iloc[index.row()]["group"]
-            return f"Input node for data_type '{dt}', group '{group}'"
-        return super().data(index, role)
-
-
 class CustomFunctionModel(QAbstractListModel):
     """A Model for the Pandas-DataFrames containing information about new
     custom functions/their paramers to display only their name and if they are

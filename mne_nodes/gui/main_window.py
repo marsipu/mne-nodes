@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
         # Init Node-Viewer
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.load_config(controller.node_config)
+        self.viewer.load_config(controller.get("node_config"))
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -63,6 +63,17 @@ class MainWindow(QMainWindow):
 
         # Init QActions
         self.actions = {}
+        add_meg_help = "Add MEG data"
+        self.actions["add_meg"] = QAction(
+            "&Add MEG Data", parent=self, statusTip=add_meg_help, whatsThis=add_meg_help
+        )
+        bids_root_help = "Change the BIDS root directory for the current project."
+        self.actions["change_bids_root"] = QAction(
+            "&Change BIDS Root",
+            parent=self,
+            statusTip=bids_root_help,
+            whatsThis=bids_root_help,
+        )
         load_help = "Load another project with a new configuration file."
         self.actions["load"] = QAction(
             "&Load Configuration",
@@ -72,8 +83,9 @@ class MainWindow(QMainWindow):
             whatsThis=load_help,
             shortcut=QKeySequence("Ctrl+O"),
         )
-        self.actions["save"] = QAction("&Save Configuration", parent=self)
+        self.actions["load"].triggered.connect(self.load_config)
         self.actions["exit"] = QAction("&Exit", parent=self)
+        self.actions["exit"].triggered.connect(self.close)
         # Viewer actions
         autolayout_help = "Automatically arrange all nodes in the viewer."
         self.actions["autolayout"] = QAction(
@@ -87,6 +99,13 @@ class MainWindow(QMainWindow):
         self.actions["autolayout"].triggered.connect(self.viewer.auto_layout_nodes)
 
         # ToDo: Init Menu
+        # Create a menu which is called "Config"
+        menu_file = self.menuBar().addMenu("&File")
+        menu_file.addAction(self.actions["add_meg"])
+        menu_file.addSeparator()
+        menu_file.addAction(self.actions["change_bids_root"])
+        menu_config = self.menuBar().addMenu("&Config")
+        menu_config.addAction(self.actions["load"])
         # ToDo: Init Toolbar
         self.toolbar = self.addToolBar("Main Toolbar")
         self.toolbar.addAction(self.actions["autolayout"])
@@ -123,6 +142,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    def load_config(self):
+        self.controller.config_path = None
+
     def restart(self):
         self.close()
         restart_program()
@@ -197,5 +219,5 @@ class MainWindow(QMainWindow):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
         _widgets["main_window"] = None
-        self.controller.node_config = self.viewer.to_dict()
+        self.controller.set("node_config", self.viewer.to_dict())
         event.accept()
