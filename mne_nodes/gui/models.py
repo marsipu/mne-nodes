@@ -320,6 +320,52 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
         # in __init__ of CheckDictModel
 
 
+class CheckListProgressModel(CheckListModel):
+    """A Model for a Check-List with progress information.
+
+    Parameters
+    ----------
+    data : list | None
+        list with content to be displayed, defaults to empty list
+    checked : list | None
+        list which stores the checked items from data
+    progress_dict : dict | None
+        dictionary which stores progress information for items in data
+    one_check: bool
+        If True, only one item can be checked at a time
+    show_index: bool
+        Set True if you want to display the list-index in front of each value
+    """
+
+    ProgressRole = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(
+        self,
+        data,
+        checked,
+        progress_dict=None,
+        one_check=False,
+        show_index=False,
+        **kwargs,
+    ):
+        super().__init__(data, checked, one_check, show_index, **kwargs)
+        self._progress_dict = progress_dict or {}
+
+    def data(self, index, role=None):
+        if role == self.ProgressRole:
+            val = self.getData(index)
+            if val is None:
+                return 0
+            return self._progress_dict.get(val, 0)
+        else:
+            return super().data(index, role)
+
+    def roleNames(self):
+        roles = super().roleNames()
+        roles[self.ProgressRole] = b"progress"
+        return roles
+
+
 class BaseDictModel(QAbstractTableModel):
     """Basic Model for Dictonaries.
 
@@ -705,7 +751,7 @@ class TreeModel(QAbstractItemModel):
     ----------
     data : dict
         Dictionary with hierarchical data to be displayed
-    headers : list of str | None
+    headers : list[str] | None
         Headers for the columns. If None, default headers will be used.
     parent : QWidget | None
         Parent widget

@@ -455,3 +455,32 @@ def test_timed_messagebox(qtbot):
     )
     qtbot.wait(150)
     assert ans is None
+
+
+def test_progress_checklist(qtbot):
+    """Test ProgressCheckList."""
+    from mne_nodes.gui.base_widgets import CheckListProgress
+
+    data = [f"item_{i}" for i in range(5)]
+    checked = []
+    progress_dict = {f"item_{i}": 30 for i in range(5)}
+
+    clp = CheckListProgress(data=data, checked=checked, progress_dict=progress_dict)
+    qtbot.addWidget(clp)
+    clp.show()
+
+    # Test initial state
+    assert clp.model._data is data
+    assert clp.model._checked is checked
+    assert clp.progress_dict is not None
+    qtbot.wait(1000)
+
+    # Test checking items and progress update
+    clp.update_progress("item_0", 50)
+    assert clp.progress_dict["item_0"] == 50
+    qtbot.wait(1000)
+
+    for n in range(100):
+        clp.update_progress("item_1", n)
+        qtbot.wait(50)
+    assert clp.progress_dict["item_1"] == 99

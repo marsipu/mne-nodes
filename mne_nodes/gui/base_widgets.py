@@ -11,6 +11,8 @@ import sys
 
 import numpy as np
 import pandas
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QStyledItemDelegate
 from qtpy.QtCore import QItemSelectionModel, QTimer, Signal, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
@@ -47,6 +49,7 @@ from mne_nodes.gui.models import (
     EditPandasModel,
     FileManagementModel,
     TreeModel,
+    CheckListProgressModel,
 )
 from mne_nodes.pipeline.settings import Settings
 
@@ -166,7 +169,7 @@ class SimpleList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
     extended_selection: bool
         Set True, if you want to select more than one item in the list.
@@ -206,7 +209,7 @@ class EditList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
     ui_buttons : bool
         If to display Buttons or not.
@@ -322,9 +325,9 @@ class CheckList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
-    checked : List of str | None
+    checked : list[str] | None
         Input a list, which will contain the checked items
         from data (and which intial items will be checked).
     ui_buttons : bool
@@ -337,6 +340,8 @@ class CheckList(BaseList):
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
         An optional title
+    model : QAbstractItemModel
+        Provide an alternative to CheckListModel.
 
     Notes
     -----
@@ -357,12 +362,14 @@ class CheckList(BaseList):
         show_index=False,
         parent=None,
         title=None,
+        model=None,
     ):
         self.ui_buttons = ui_buttons
         self.ui_button_pos = ui_button_pos
 
+        model = model or CheckListModel(data, checked, one_check, show_index)
         super().__init__(
-            model=CheckListModel(data, checked, one_check, show_index),
+            model=model,
             view=QListView(),
             extended_selection=False,
             parent=parent,
@@ -442,7 +449,7 @@ class CheckDictList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         A list with items to display.
     check_dict : dict | None
         A dictionary that may contain items from data as keys.
@@ -502,7 +509,7 @@ class CheckDictEditList(EditList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         A list with items to display.
     check_dict : dict | None
         A dictionary that may contain items from data as keys.
@@ -566,6 +573,114 @@ class CheckDictEditList(EditList):
         """Replaces model.check_dict with new check_dict."""
         if new_check_dict:
             self.model._check_dict = new_check_dict
+        self.content_changed()
+
+
+class ProgressDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        """Paint an item with a progress background while preserving native
+        checkbox + text rendering.
+
+        Notes
+        -----
+        On some styles/backends (notably on Windows), the incoming `option`
+        isn't guaranteed to be fully initialized for checkable items, and
+        mutating it can result in an empty text rect. We therefore copy and
+        initialize a fresh option, paint our background, then delegate the
+        actual item drawing to Qt.
+        """
+        progress = index.data(CheckListProgressModel.ProgressRole) or 0
+        try:
+            progress = int(progress)
+        except (TypeError, ValueError):
+            progress = 0
+        progress = max(0, min(100, progress))
+
+        # Copy + init style option so checkbox/text geometry is correct.
+        self.initStyleOption(option, index)
+
+        # Draw progress background first on copied rect
+        bar_rect = option.rect.adjusted(0, 0, 0, 0)
+        bar_rect.setWidth(int(bar_rect.width() * (progress / 100)))
+
+        painter.save()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#4CAF50"))
+        painter.drawRect(bar_rect)
+        painter.restore()
+
+        # Let the base delegate draw checkbox + icon + text.
+        super().paint(painter, option, index)
+
+    def sizeHint(self, option, index):
+        opt = type(option)(option)
+        self.initStyleOption(opt, index)
+        return super().sizeHint(opt, index)
+
+
+class CheckListProgress(CheckList):
+    """A List-Widget to display items with a progress bar for each item. The
+    progress in progress_dict is updated on content_changed or by calling
+    update_progress.
+
+    Parameters
+    ----------
+    data : list[str]
+        A list with items to display.
+    checked : list[str] | None
+        Input a list, which will contain the checked items
+        from data (and which intial items will be checked).
+    progress_dict : dict | None
+        A dictionary that may contain items from data as keys and
+        their progress (0-100) as values.
+    ui_buttons : bool
+        If to display Buttons or not.
+    one_check : bool
+        If only one Item in the CheckList can be checked at the same time.
+    show_index: bool
+        Set True if you want to display the list-index in front of each value.
+    parent : QWidget | None
+        Parent Widget (QWidget or inherited) or None if there is no parent.
+    title : str | None
+        An optional title
+    """
+
+    def __init__(
+        self,
+        data,
+        checked=None,
+        progress_dict=None,
+        ui_buttons=True,
+        ui_button_pos="right",
+        one_check=False,
+        show_index=False,
+        parent=None,
+        title=None,
+    ):
+        self.progress_dict = progress_dict or {i: 0 for i in data}
+        model = CheckListProgressModel(
+            data, checked, progress_dict, one_check=one_check, show_index=show_index
+        )
+        super().__init__(
+            ui_buttons=ui_buttons,
+            ui_button_pos=ui_button_pos,
+            parent=parent,
+            title=title,
+            model=model,
+        )
+        self.view.setItemDelegate(ProgressDelegate(self.view))
+
+    def update_progress(self, item, progress):
+        """Update the progress of a specific item.
+
+        Parameters
+        ----------
+        item : str
+            The item to update the progress for.
+        progress : int
+            The new progress value (0-100).
+        """
+        self.progress_dict[item] = progress
         self.content_changed()
 
 
@@ -1220,7 +1335,7 @@ class TreeWidget(Base):
     ----------
     data : dict
         Dictionary with hierarchical data to be displayed
-    headers : list of str | None
+    headers : list[str] | None
         Headers for the columns. If None, default headers ["Key", "Value"] will be used.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
