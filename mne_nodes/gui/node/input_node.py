@@ -5,7 +5,7 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import mne_bids
-from PySide6.QtWidgets import QWidget, QComboBox, QVBoxLayout
+from qtpy.QtWidgets import QWidget, QComboBox, QVBoxLayout
 from mne_bids import BIDSPath
 
 from mne_nodes.gui.base_widgets import CheckListProgress

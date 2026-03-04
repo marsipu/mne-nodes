@@ -10,6 +10,8 @@ from os import mkdir
 from os.path import isdir
 from pathlib import Path
 
+import mne
+import mne_bids
 import numpy as np
 import pytest
 from qtpy.QtWidgets import QMessageBox
@@ -52,6 +54,11 @@ alternative_test_parameters = {
     "path": Path().home() / "test_path",
 }
 
+test_data_path = mne.datasets.testing.data_path()
+tiny_bids_root = (
+    Path(mne_bids.__file__).parent / "mne_bids" / "tests" / "data" / "tiny_bids"
+)
+
 
 @pytest.fixture
 def settings(tmp_path):
@@ -71,11 +78,11 @@ def controller(tmp_path, monkeypatch, settings):
     from mne_nodes.pipeline.controller import Controller
 
     # Create a config_file, data_path and subjects_dir
-    data_root = tmp_path / "MEEG"
-    mkdir(data_root)
+    bids_root = tmp_path / "MEEG"
+    mkdir(bids_root)
     subjects_dir = tmp_path / "FSMRI"
     mkdir(subjects_dir)
-    settings.set("data_root", str(data_root))
+    settings.set("bids_root", str(bids_root))
     settings.set("subjects_dir", str(subjects_dir))
     # Simulate user input
     monkeypatch.setattr(

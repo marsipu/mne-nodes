@@ -291,24 +291,24 @@ class Controller:
 
         This is the root folder of the processed data.
         """
-        data_root = self.settings.get("data_root")
-        if data_root is not None and not isdir(data_root):
+        bids_root = self.settings.get("bids_root")
+        if bids_root is not None and not isdir(bids_root):
             raise_user_attention(
-                f"Path {data_root} does not exist! If you moved from another device, please select the data-root folder."
+                f"Path {bids_root} does not exist! If you moved from another device, please select the data-root folder."
             )
-        if data_root is None or not isdir(data_root):
-            data_root = get_user_input(
+        if bids_root is None or not isdir(bids_root):
+            bids_root = get_user_input(
                 "Please select/create a folder for the data-root.", "folder"
             )
-            self.bids_root = data_root
+            self.bids_root = bids_root
 
-        return Path(data_root)
+        return Path(bids_root)
 
     @bids_root.setter
     def bids_root(self, value: str | Path) -> None:
         if not isdir(value):
             raise ValueError(f"Path {value} does not exist!")
-        self.settings.set("data_root", value)
+        self.settings.set("bids_root", value)
 
     @property
     def deriv_root(self) -> Path:
