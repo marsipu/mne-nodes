@@ -26,7 +26,11 @@ from filelock import FileLock, Timeout
 from mne_nodes import _widgets
 from mne_nodes.basic_operations import basic_operations
 from mne_nodes.basic_plot import basic_plot
-from mne_nodes.gui.gui_utils import get_user_input, ask_user, raise_user_attention
+from mne_nodes.gui.gui_utils import (
+    get_user_input,
+    raise_user_attention,
+    ask_user_custom,
+)
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.pipeline_utils import is_test
@@ -167,8 +171,9 @@ class Controller:
         """Set the path to the config-file (respects interactive mode)."""
         # Check existence and prompt user for a new config-file if needed
         if value is None:
-            ans = ask_user(
-                "Do you want to create a new config-file? (or use an existing one)",
+            ans = ask_user_custom(
+                "Do you want to create a new config-file or use an existing one?",
+                buttons=("Create new", "Use existing"),
                 close_on_cancel=True,
             )
             if ans is None:  # user cancelled
@@ -182,9 +187,11 @@ class Controller:
                     exit_on_cancel=True,
                 )
                 name = get_user_input("Please enter a name for this project", "string")
+                # Keep project name first in JSON for readability.
+                config = {"name": name, **deepcopy(default_config)}
                 value = join(config_folder, f"{name}_config.json")
                 with open(value, "w", encoding="utf-8") as file:
-                    json.dump(default_config, file, indent=4, cls=TypedJSONEncoder)
+                    json.dump(config, file, indent=4, cls=TypedJSONEncoder)
                 raise_user_attention(f"New configuration created at:\n{value}", "info")
             else:
                 logging.info("Using existing config-file.")

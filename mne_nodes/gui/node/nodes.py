@@ -4,6 +4,8 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+from copy import deepcopy
+
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -108,7 +110,7 @@ class FunctionNode(BaseNode):
         else:
             layout = QVBoxLayout(widget)
         for param_name, param_kwargs in func_meta["parameters"].items():
-            param_kwargs = param_kwargs.copy()
+            param_kwargs = deepcopy(param_kwargs)
             param_kwargs["groupbox_layout"] = False
             gui_name = param_kwargs.pop("gui")
             gui = getattr(parameter_widgets, gui_name)
