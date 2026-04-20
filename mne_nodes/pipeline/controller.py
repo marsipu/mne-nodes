@@ -117,6 +117,7 @@ class Controller:
         settings: Optional[Settings] = None,
     ):
         self.settings = settings or Settings()
+        # These hidden attributes should not be set directly
         self._config = None
         self._config_path = None
         self._config_lock = None
@@ -127,11 +128,10 @@ class Controller:
         self.modules = {}
         self._process_count = 0
         # Initialize config_path here (may prompt user)
-        config_path = self.settings.get("config_path", default=None)
-        if config_path is not None:
-            if not isfile(config_path):
-                raise_user_attention(f"Config file {config_path} does not exist!")
-                config_path = None
+        config_path = config_path or self.settings.get("config_path", default=None)
+        if config_path and not isfile(config_path):
+            raise_user_attention(f"Config file {config_path} does not exist!")
+            config_path = None
         self.config_path = config_path
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
