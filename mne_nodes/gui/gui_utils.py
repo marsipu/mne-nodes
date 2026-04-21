@@ -290,7 +290,7 @@ def get_user_input(
         If True, allows the user to cancel the input operation. Defaults to True.
     exit_on_cancel : bool, optional
         If True, the app exits after cancel. Defaults to False.
-    parent : QWidget | None optional
+    parent : QWidget | None, optional
         Set the parent of the modal widget.
 
     Returns
@@ -623,22 +623,6 @@ def set_app_theme():
         icon_name = "mne_pipeline_icon_light.png"
     else:
         icon_name = "mne_pipeline_icon_dark.png"
-    # Set func-button color
-    mw = main_widget()
-    if mw is not None:
-        for func_button in mw.bt_dict.values():
-            if app_theme == "light":
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #a3a3a3; }"
-                )
-            elif app_theme == "high_contrast":
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #ffffff; }"
-                )
-            else:
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #000000; }"
-                )
     icon_path = join(str(resources.files(extra)), icon_name)
     app_icon = QIcon(str(icon_path))
     app.setWindowIcon(app_icon)

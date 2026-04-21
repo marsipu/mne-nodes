@@ -303,11 +303,11 @@ class Controller:
         bids_root = self.settings.get("bids_root")
         if bids_root is not None and not isdir(bids_root):
             raise_user_attention(
-                f"Path {bids_root} does not exist! If you moved from another device, please select the data-root folder."
+                f"Path {bids_root} does not exist! If you moved from another device, please select the bids-root folder."
             )
         if bids_root is None or not isdir(bids_root):
             bids_root = get_user_input(
-                "Please select/create a folder for the data-root.", "folder"
+                "Please select/create a folder for the bids-root.", "folder"
             )
             self.bids_root = bids_root
 

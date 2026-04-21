@@ -25,7 +25,8 @@ from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
-from mne_nodes.gui.node.nodes import FunctionNode, InputNode
+from mne_nodes.gui.node.nodes import FunctionNode
+from mne_nodes.gui.node.input_node import InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, SlicerPipeItem, Pipe
 from mne_nodes.gui.node.ports import Port
 
@@ -296,7 +297,7 @@ class NodeViewer(QGraphicsView):
             If data_type is not in the available input data types.
         """
         if node is None:
-            node = InputNode(self.ct, **kwargs)
+            node = InputNode(ct=self.ct, **kwargs)
         self.input_node = node
         self.add_node(node)
 
