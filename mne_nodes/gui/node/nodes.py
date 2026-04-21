@@ -6,79 +6,87 @@ Github: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-    QScrollArea,
-    QGroupBox,
-    QHBoxLayout,
-)
-
+import mne_bids
+from mne_bids import get_datatypes
 from mne_nodes import main_widget
 from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
+from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
+from mne_nodes.gui.base_widgets import SimpleDialog
 from mne_nodes.gui.code_editor import CodeEditorWidget
-from mne_nodes.gui.loading_widgets import AddFilesWidget, AddMRIWidget
+from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.pipeline.data_import import import_dataset
+from qtpy.QtWidgets import QScrollArea, QGroupBox, QPushButton
+from qtpy.QtWidgets import QWidget, QComboBox, QVBoxLayout
+
+
+class InputWidget(QWidget):
+    def __init__(self, ct, **kwargs):
+        super().__init__(**kwargs)
+        self.ct = ct
+        self.list_widget = None
+        self.setLayout(QVBoxLayout())
+
+        # Initialize Widgets
+        self.root_bt = QPushButton("Set BIDS Root Directory")
+        self.root_bt.clicked.connect(self.set_root)
+        self.group_cmbx = QComboBox()
+        self.group_cmbx.addItems(
+            ["files", "subject", "session", "run", "task", "custom"]
+        )
+        self.group_cmbx.currentTextChanged.connect(self.cmbx_changed)
+        self.layout().addWidget(self.group_cmbx)
+
+    def set_root(self):
+        new_root = get_user_input(
+            "Select BIDS root directory", "folder", cancel_allowed=True
+        )
+        if new_root is not None:
+            self.ct.bids_root = new_root
+
+    def cmbx_changed(self, group_by):
+        # Remove old widget
+        if self.list_widget is not None:
+            self.layout().removeWidget(self.list_widget)
+            self.list_widget.deleteLater()
+        data = mne_bids.get_entity_vals(self.ct.bids_root, group_by)
+        if group_by not in self.ct.selected_inputs:
+            self.ct.selected_inputs[group_by] = []
+        if group_by == "custom":
+            data = self.ct.get("custom_groups")
+            self.list_widget = ShallowTreeWidget(
+                data,
+                checked=self.ct.selected_inputs[group_by],
+                headers=["Group Name", "Subjects"],
+            )
+        else:
+            self.list_widget = CheckListProgress(
+                data, checked=self.ct.selected_inputs[group_by]
+            )
+        # Always save to the config the latest input selection
+        self.list_widget.checkedChanged.connect(self.save_input_selection)
+        self.layout().addWidget(self.list_widget)
+
+    def save_input_selection(self):
+        self.ct.set("selected_inputs", self.ct.selected_inputs)
 
 
 class InputNode(BaseNode):
-    """Node for input data-types."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    def __init__(self, ct, data_type="raw", name="All", **kwargs):
-        super().__init__(ct, name=name, startable=True, **kwargs)
-        # Check if data_type is valid
-        if data_type not in ct.get("input_types"):
-            raise ValueError(
-                f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {','.join(ct.get('input_types').keys())}"
-            )
-        self.data_type = data_type
+        # Set name to dataset name if available
+        dataset_name = self.ct.get_dataset_name()
+        if dataset_name is not None:
+            self.name = dataset_name
 
-        # Add the output port (if not already initialized with kwargs)
-        self.add_output(self.data_type, multi_connection=True)
+        # Add input widget
+        self.input_widget = InputWidget(self.ct)
+        self.add_widget(self.input_widget)
 
-        # Initialize the main widget with the input list
-        self.main_widget = QWidget()
-        layout = QVBoxLayout(self.main_widget)
-        bt_layout = QHBoxLayout()
-        import_bt = QPushButton("Import")
-        import_bt.clicked.connect(self.add_files)
-        bt_layout.addWidget(import_bt)
-        sample_bt = QPushButton("Sample-Data")
-        sample_bt.clicked.connect(self.load_sample)
-        bt_layout.addWidget(sample_bt)
-        layout.addLayout(bt_layout)
-        input_list = CheckList(
-            ct.get("inputs")[data_type][name],
-            ct.get("selected_inputs"),
-            ui_button_pos="bottom",
-            show_index=True,
-            title=f"Select {data_type}",
-        )
-        layout.addWidget(input_list)
-        self.add_widget(self.main_widget)
-
-    def add_files(self):
-        if self.data_type == "raw":
-            widget = AddFilesWidget(self.ct)
-        else:
-            widget = AddMRIWidget(self.ct)
-        SimpleDialog(widget, title="Import Files")
-
-    def to_dict(self):
-        """Serialize the InputNode to a dictionary."""
-        node_dict = super().to_dict()
-        node_dict["data_type"] = self.data_type
-        return node_dict
-
-    def load_sample(self):
-        import_dataset(self.ct, dataset="sample", group="All")
-        # WorkerDialog(parent=main_widget(), function=import_dataset,
-        #              controller=self.ct, dataset="sample",
-        #              show_console=True, close_directly=False)
+        # Add data-types as outputs
+        data_types = get_datatypes(self.ct.bids_root)
+        for dt in data_types:
+            self.add_output(dt, multi_connection=True)
 
 
 class FunctionNode(BaseNode):

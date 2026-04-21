@@ -25,8 +25,7 @@ from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
-from mne_nodes.gui.node.nodes import FunctionNode
-from mne_nodes.gui.node.input_node import InputNode
+from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, SlicerPipeItem, Pipe
 from mne_nodes.gui.node.ports import Port
 
@@ -505,9 +504,9 @@ class NodeViewer(QGraphicsView):
         for node_info in viewer_dict["nodes"].values():
             node_class = getattr(nodes, node_info["class"])
             node = node_class.from_dict(self.ct, node_info)
-            if node_class == "InputNode":
+            if node_info["class"] == "InputNode":
                 self.add_input_node(node)
-            elif node_class == "FunctionNode":
+            elif node_info["class"] == "FunctionNode":
                 self.add_function_node(node)
             else:
                 raise RuntimeError(f"Unknown node type '{node_class}'.")

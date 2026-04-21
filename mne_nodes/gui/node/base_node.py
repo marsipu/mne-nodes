@@ -652,7 +652,7 @@ class BaseNode(QGraphicsItem):
     @classmethod
     def from_dict(cls, ct, node_dict):
         node_kwargs = {k: v for k, v in node_dict.items() if k not in ["class", "pos"]}
-        node = cls(ct, **node_kwargs)
+        node = cls(ct=ct, **node_kwargs)
         node.xy_pos = node_dict["pos"]
 
         return node
