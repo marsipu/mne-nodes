@@ -1216,6 +1216,7 @@ class MultiTypeGui(Param):
             # Set standard parameter-keyword-arguments as given to MultiTypeGui
             kwargs["data"] = {}
             kwargs["name"] = self.name
+            kwargs["function_name"] = self.function_name
             kwargs["alias"] = ""
             kwargs["default"] = self.type_defaults[type_name]
             kwargs["groupbox_layout"] = False

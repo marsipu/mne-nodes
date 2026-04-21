@@ -543,16 +543,13 @@ class Controller:
     def parameter(self, parameter_name: str, function_name: str) -> Any:
         """Get a specific parameter from the project parameters."""
         parameters = self.get("parameters")
-        if function_name not in parameters:
+        if parameter_name not in parameters.get(function_name, {}):
             logging.warning(
-                f"Function '{function_name}' not found in project. Returning default value."
+                f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
             )
-            return self.get_default(parameter_name, function_name)
-        elif parameter_name not in parameters[function_name]:
-            logging.warning(
-                f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Returning default value."
-            )
-            return self.get_default(parameter_name, function_name)
+            value = self.get_default(parameter_name, function_name)
+            self.set_parameter(parameter_name, value, function_name)
+            return value
 
         return parameters[function_name][parameter_name]
 
