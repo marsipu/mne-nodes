@@ -20,22 +20,22 @@ def _test_load_save(obj, available_test_paths, excepted_data_types=[]):
             obj.save(data_type, data)
 
 
-def test_meeg(controller):
+def test_meeg(ct):
     from mne_nodes.pipeline.loading import MEEG, sample_paths
 
-    controller.pr.add_meeg("_sample_")
-    meeg = MEEG("_sample_", controller)
+    ct.pr.add_meeg("_sample_")
+    meeg = MEEG("_sample_", ct)
 
     # Test load/save functions
     _test_load_save(meeg, sample_paths, excepted_data_types=["trans"])
 
 
-def test_fsmri(controller):
+def test_fsmri(ct):
     from mne_nodes.pipeline.loading import FSMRI
     from mne_nodes.pipeline.data_import import fsaverage_paths
 
-    controller.pr.add_fsmri("fsaverage")
-    fsmri = FSMRI("fsaverage", controller)
+    ct.pr.add_fsmri("fsaverage")
+    fsmri = FSMRI("fsaverage", ct)
 
     # Test load/save functions
     _test_load_save(fsmri, fsaverage_paths)

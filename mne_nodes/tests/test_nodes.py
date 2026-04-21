@@ -59,8 +59,8 @@ def test_show_nodeviewer(nodeviewer):
         assert node.isVisible()
 
 
-def test_exec_order(qtbot, controller):
-    viewer = NodeViewer(controller)
+def test_exec_order(qtbot, ct):
+    viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
     _add_complex_nodes(viewer)
 

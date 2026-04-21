@@ -183,10 +183,12 @@ class Controller:
                 logging.info("Creating new config-file.")
                 config_folder = get_user_input(
                     "Set the folder-path to store the config-file",
-                    "folder",
+                    input_type="folder",
                     exit_on_cancel=True,
                 )
-                name = get_user_input("Please enter a name for this project", "string")
+                name = get_user_input(
+                    "Please enter a name for this project", input_type="string"
+                )
                 # Keep project name first in JSON for readability.
                 config = {"name": name, **deepcopy(default_config)}
                 value = join(config_folder, f"{name}_config.json")
@@ -197,7 +199,7 @@ class Controller:
                 logging.info("Using existing config-file.")
                 value = get_user_input(
                     "Please enter the path to an exisiting config-file",
-                    "file",
+                    input_type="file",
                     file_filter="JSON files (*.json)",
                     exit_on_cancel=True,
                 )

@@ -14,7 +14,6 @@ import mne
 import mne_bids
 import numpy as np
 import pytest
-from qtpy.QtWidgets import QMessageBox
 
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
@@ -72,10 +71,35 @@ def settings(tmp_path):
 
 # ToDo: Create a dummy function-configuration and parameterss
 @pytest.fixture
-def controller(tmp_path, monkeypatch, settings):
+def ct(tmp_path, monkeypatch, settings):
     """Fixture to create a Controller with temporary config, data and subjects
     directories."""
     from mne_nodes.pipeline.controller import Controller
+
+    # Simulate user input
+    def dummy_user_input(_, **kwargs):
+        # Set the controller name
+        if kwargs["input_type"] == "string":
+            return "test"
+        # set the directory where to save the config-file
+        elif kwargs["input_type"] == "folder":
+            return tmp_path
+        else:
+            raise RuntimeError(
+                f"Unknown input type: '{kwargs['input_type']}' for dummy function"
+            )
+
+    # Monkeypatch needs to be set on controller-module, since its already imported
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user_custom", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", dummy_user_input
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.raise_user_attention",
+        lambda *args, **kwargs: None,
+    )
 
     # Create a config_file, data_path and subjects_dir
     bids_root = tmp_path / "MEEG"
@@ -84,17 +108,7 @@ def controller(tmp_path, monkeypatch, settings):
     mkdir(subjects_dir)
     settings.set("bids_root", str(bids_root))
     settings.set("subjects_dir", str(subjects_dir))
-    # Simulate user input
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QMessageBox.question",
-        lambda x, y, z, buttons: QMessageBox.StandardButton.Yes,
-    )
-    # Set the controller name
-    monkeypatch.setattr(
-        "qtpy.QtWidgets.QInputDialog.getText", lambda x, y, z: ("test", True)
-    )
-    # set the directory where to save the config-file
-    monkeypatch.setattr("qtpy.compat.getexistingdirectory", lambda x, y: tmp_path)
+
     # Create Controller
     ct = Controller(settings=settings)
 
@@ -165,11 +179,11 @@ def _add_complex_nodes(viewer):
 
 
 @pytest.fixture
-def nodeviewer(qtbot, controller):
+def nodeviewer(qtbot, ct):
     # Lazy import to avoid optional dependency issues when this fixture is unused
     from mne_nodes.gui.node.node_viewer import NodeViewer
 
-    viewer = NodeViewer(controller)
+    viewer = NodeViewer(ct)
     _add_nodes(viewer)
     qtbot.addWidget(viewer)
 
@@ -177,11 +191,11 @@ def nodeviewer(qtbot, controller):
 
 
 @pytest.fixture
-def main_window(controller, qtbot):
+def main_window(ct, qtbot):
     # Lazy import to avoid optional dependency issues when this fixture is unused
     from mne_nodes.gui.main_window import MainWindow
 
-    mw = MainWindow(controller)
+    mw = MainWindow(ct)
     _add_nodes(mw.viewer)
     qtbot.addWidget(mw)
 
