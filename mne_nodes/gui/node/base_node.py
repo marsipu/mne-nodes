@@ -468,7 +468,7 @@ class BaseNode(QGraphicsItem):
 
         return nodes
 
-    def downstream_nodes(self, port_id=None):
+    def downstream_node_dict(self, port_id=None):
         """Returns all nodes downstream from the nodes."""
         down_dict = OrderedDict()
         if port_id is None:
@@ -478,11 +478,11 @@ class BaseNode(QGraphicsItem):
         for port_id, nodes in connected_nodes.items():
             down_dict[port_id] = {}
             for node in nodes:
-                down_dict[port_id][node.id] = node.downstream_nodes()
+                down_dict[port_id][node.id] = node.downstream_node_dict()
 
         return down_dict
 
-    def upstream_nodes(self, port_id=None):
+    def upstream_node_dict(self, port_id=None):
         """Returns all nodes upstream from the nodes."""
         up_dict = OrderedDict()
         if port_id is None:
@@ -492,9 +492,22 @@ class BaseNode(QGraphicsItem):
         for port_id, nodes in connected_nodes.items():
             up_dict[port_id] = {}
             for node in nodes:
-                up_dict[port_id][node.id] = node.upstream_nodes()
+                up_dict[port_id][node.id] = node.upstream_node_dict()
 
         return up_dict
+
+    def _get_connected_input_nodes(self):
+        """Returns all connected input nodes."""
+        from mne_nodes.gui.node.nodes import InputNode
+
+        input_nodes = []
+        for port in self.inputs:
+            for cp in port.connected_ports:
+                node = getattr(cp, "node", None)
+                if isinstance(node, InputNode):
+                    input_nodes.append(node)
+
+        return input_nodes
 
     def start(self):
         """Start pipeline execution from this node using a simple dependency-

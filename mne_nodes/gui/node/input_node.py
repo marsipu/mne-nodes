@@ -8,7 +8,7 @@ import mne_bids
 from qtpy.QtWidgets import QWidget, QComboBox, QVBoxLayout
 from mne_bids import BIDSPath
 
-from mne_nodes.gui.base_widgets import CheckListProgress
+from mne_nodes.gui.base_widgets import CheckListProgress, TreeWidget
 from mne_nodes.gui.node.base_node import BaseNode
 
 
@@ -20,7 +20,7 @@ class InputWidget(QWidget):
         self.list_widget = None
         self.setLayout(QVBoxLayout())
 
-        group_bys = ["file", "subject", "session", "run", "task"]
+        group_bys = ["file", "subject", "session", "run", "task", "custom"]
 
         # Initialize Widgets
         self.group_cmbx = QComboBox()
@@ -36,6 +36,9 @@ class InputWidget(QWidget):
         data = mne_bids.get_entity_vals(self.ct.bids_root, group_by)
         if group_by not in self.ct.selected_inputs:
             self.ct.selected_inputs[group_by] = []
+        if group_by == "custom":
+            data = self.ct.get("custom_groups")
+            self.list_widget = TreeWidget(data)
         self.list_widget = CheckListProgress(data, self.ct.selected_inputs[group_by])
         # Always save to the config the latest input selection
         self.list_widget.checkedChanged.connect(self.save_input_selection)

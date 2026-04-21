@@ -38,16 +38,15 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     "plot_files": {},
-    # ToDo: Safe remove inputs
     "input_types": {
         "raw": {"alias": "MEG/EEG", "import": "import_raw"},
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
     },
-    "data_types": ["raw", "fsmri", "plot"],
-    "inputs": {"raw": {"All": []}, "fsmri": {"All": []}},
-    "input_mapping": {"fsmri": {}, "erm": {}},
-    # BIDS Dataset selection
-    "selected_inputs": {},
+    # BIDS
+    "data_types": [],
+    "selected_inputs": {},  # BIDS entity values as keys for lists
+    "group_by": "subject",
+    "custom_groups": {},
     # Legacy entries from old Project class
     "all_meeg": [],
     "all_fsmri": [],
@@ -59,12 +58,14 @@ default_config = {
     "event_ids": {},
     "selected_event_ids": {},
     "ica_exclude": {},
+    "add_kwargs": {},
+    # Modules
     "selected_modules": ["basic_operations", "basic_plot"],
-    # Parameters
-    "parameters": {},
     "module_meta": {},
     "function_meta": {},
-    "add_kwargs": {},
+    # Parameters
+    "parameters": {},
+    # Application Configuration
     "show_plots": True,
     "save_plots": True,
     "shutdown": False,
@@ -79,7 +80,6 @@ default_config = {
     "app_style": "fusion",
     "app_theme": "auto",
     "padding": 20,
-    "tab": "    ",
     "node_config": {"nodes": {}, "connections": {}},
 }
 
@@ -463,6 +463,7 @@ class Controller:
                 dataset_description = json.load(file)
             return dataset_description["Name"]
 
+    # ToDo: Seems deprecated
     def add_data(
         self,
         name: str,
@@ -781,15 +782,16 @@ class Controller:
             "# Inject modules into global namespace\n"
             "globals().update(ct.modules)\n"
         )
+        # Add module imports
+        for module_name, module in self.modules.items():
+            code += f"from {module_name} import *\n"
         return code
 
     def convert_to_code(self, instructions, start_name):
         """Convert a list of instructions to a Python code string."""
-        # Resolve imports
+        # start code with header and imports
         code = self._build_header()
-        # Add module imports
-        for module_name, module in self.modules.items():
-            code += f"from {module_name} import *\n"
+
         # Add function execution code
         code += "\n# Execute pipeline\n"
         # ToDo: When changing to inputs/outputs from return-statements, there need to be a new way to save the data in between steps

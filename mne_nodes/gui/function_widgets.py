@@ -429,6 +429,7 @@ class FunctionImporter(QDialog):
 
     def manage_dependencies(self):
         # Open a dialog to manage dependencies
+        # ToDo: Not working with new controller
         dep_list = CheckList(
             self.controller.data_types,
             self.func_config[self.current_func]["dependencies"],
