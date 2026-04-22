@@ -30,6 +30,7 @@ class InputWidget(QWidget):
         super().__init__(**kwargs)
         self.ct = ct
         self.setLayout(QVBoxLayout())
+        self.setMinimumSize(400, 300)
 
         # Add bids-root button
         self.root_bt = QPushButton("Set BIDS Root Directory")
@@ -111,7 +112,7 @@ class InputWidget(QWidget):
             checked=self.ct.selected_inputs[group_by],
             headers=["Group Name", "Subjects"],
             ui_buttons=group_by == "custom",
-            ui_button_pos="bottom",
+            ui_button_pos="right",
         )
         # Always save to the config the latest input selection
         self.group_tree.checkedChanged.connect(self.save_input_selection)

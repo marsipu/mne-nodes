@@ -79,6 +79,7 @@ def test_exec_order(qtbot, ct):
     eo = viewer.node_exec_order(n)
     print("first node:")
     print("\n".join([str(e) for e in eo]))
+    viewer.show()
 
 
 def test_multiple_func_nodes(nodeviewer):

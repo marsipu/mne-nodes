@@ -1208,22 +1208,20 @@ class MultiTypeGui(Param):
         for type_name in self.types:
             gui_name = self.gui_types[type_name]
             # Load specifc keyword-arguments if given
-            if gui_name in self.type_kwargs:
-                kwargs = self.type_kwargs[gui_name]
-            else:
-                kwargs = {}
-
             # Set standard parameter-keyword-arguments as given to MultiTypeGui
+            kwargs = {}
             kwargs["data"] = {}
             kwargs["name"] = self.name
             kwargs["function_name"] = self.function_name
-            kwargs["alias"] = ""
+            kwargs["alias"] = self.alias
             kwargs["default"] = self.type_defaults[type_name]
             kwargs["groupbox_layout"] = False
             kwargs["none_select"] = False
             kwargs["description"] = self.description
             kwargs["unit"] = self.unit
             kwargs["parent_widget"] = self
+            if gui_name in self.type_kwargs:
+                kwargs.update(self.type_kwargs[gui_name])
 
             gui_class = globals()[gui_name]
             gui_instance = gui_class(**kwargs)

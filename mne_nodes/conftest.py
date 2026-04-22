@@ -11,7 +11,6 @@ from os.path import isdir
 from pathlib import Path
 
 import mne
-import mne_bids
 import numpy as np
 import pytest
 
@@ -54,9 +53,7 @@ alternative_test_parameters = {
 }
 
 test_data_path = mne.datasets.testing.data_path()
-tiny_bids_root = (
-    Path(mne_bids.__file__).parent / "mne_bids" / "tests" / "data" / "tiny_bids"
-)
+tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"
 
 
 @pytest.fixture
@@ -77,7 +74,7 @@ def ct(tmp_path, monkeypatch, settings):
     from mne_nodes.pipeline.controller import Controller
 
     # Simulate user input
-    def dummy_user_input(_, **kwargs):
+    def dummy_user_input(*args, **kwargs):
         # Set the controller name
         if kwargs["input_type"] == "string":
             return "test"
@@ -100,14 +97,8 @@ def ct(tmp_path, monkeypatch, settings):
         "mne_nodes.pipeline.controller.raise_user_attention",
         lambda *args, **kwargs: None,
     )
-
-    # Create a config_file, data_path and subjects_dir
-    bids_root = tmp_path / "MEEG"
-    mkdir(bids_root)
-    subjects_dir = tmp_path / "FSMRI"
-    mkdir(subjects_dir)
-    settings.set("bids_root", str(bids_root))
-    settings.set("subjects_dir", str(subjects_dir))
+    # add bids_root to settings
+    settings.set("bids_root", tiny_bids_root)
 
     # Create Controller
     ct = Controller(settings=settings)
@@ -129,7 +120,7 @@ def parameter_values_alt():
 
 def _add_nodes(viewer):
     # Create nodes
-    in_node = viewer.add_input_node("raw")
+    in_node = viewer.input_node
     func_node = viewer.add_function_node("filter_data")
 
     # Establish connection
@@ -140,29 +131,16 @@ def _add_nodes(viewer):
 
 
 def _add_complex_nodes(viewer):
-    inputs = viewer.ct.inputs
-    inputs["raw"]["Group 1"] = ["sample_a_raw.fif", "sample_b_raw.fif"]
-    inputs["raw"]["Group 2"] = ["sample_c_raw.fif", "sample_d_raw.fif"]
-    viewer.ct.inputs = inputs
     # Create nodes
-    in_node = viewer.add_input_node("raw", name="Group 1")
-    in_node2 = viewer.add_input_node("raw", name="Group 2")
+    in_node = viewer.add_input_node()
     func_node = viewer.add_function_node("filter_data")
-
-    # Establish connection
-    in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
-    in_node2.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
-
-    # Add more function nodes
     func_node2 = viewer.add_function_node("find_events")
     func_node3 = viewer.add_function_node("epoch_raw")
     func_node4 = viewer.add_function_node("plot_epochs")
 
     # Connect the nodes
-    viewer.get_node_by_input("raw", name="Group 1").output(port_name="raw").connect_to(
-        func_node2.input(port_name="raw")
-    )
-    viewer.node(node_name="filter_data").output(port_name="raw").connect_to(
+    in_node.output(port_idx=0).connect_to(func_node.input(port_name="raw"))
+    viewer.node(node_name="filter_data").output(port_name="erm_processed").connect_to(
         func_node3.input(port_name="raw")
     )
     func_node2.output(port_name="events").connect_to(

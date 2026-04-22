@@ -33,7 +33,8 @@
                         "ComboGui": {
                             "options": [
                                 "cuda"
-                            ]
+                            ],
+                            "default": "cuda"
                         }
                     }
                 }

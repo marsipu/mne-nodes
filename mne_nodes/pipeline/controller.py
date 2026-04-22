@@ -302,6 +302,7 @@ class Controller:
         """
         bids_root = self.settings.get("bids_root")
         if bids_root is not None and not isdir(bids_root):
+            logging.warning(f"Bids root folder does not exist: {bids_root}")
             raise_user_attention(
                 f"Path {bids_root} does not exist! If you moved from another device, please select the bids-root folder."
             )
@@ -887,9 +888,6 @@ class Controller:
         self.subjects_dir = ct.subjects_dir
         self.plot_root = pr.figures_path
         # ToDo Next: Legacy conversion
-        # Add inputs (and split groups into multiple input nodes)
-        for group_name, names in pr.all_groups.items():
-            self.viewer.add_input_node("MEEG", group_name)
         self.all_groups = pr.all_groups
         self.all_meeg = pr.all_meeg
         self.all_fsmri = pr.all_fsmri

@@ -11,10 +11,9 @@ import sys
 
 import numpy as np
 import pandas
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QStyledItemDelegate
+
 from qtpy.QtCore import QItemSelectionModel, QTimer, Signal, Qt
-from qtpy.QtGui import QFont
+from qtpy.QtGui import QFont, QColor
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -33,6 +32,8 @@ from qtpy.QtWidgets import (
     QWidget,
     QComboBox,
     QMessageBox,
+    QStyledItemDelegate,
+    QHeaderView,
 )
 
 from mne_nodes import _widgets
@@ -1399,16 +1400,15 @@ class ShallowTreeWidget(Base):
         view.setAnimated(True)
         view.setIndentation(20)
         view.setUniformRowHeights(True)
-        view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        header = view.header()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         model = ShallowTreeModel(
             data=data, checked=checked, headers=headers, parent=parent
         )
 
         super().__init__(model=model, view=view, parent=parent, title=title)
-
         self.model.dataChanged.connect(self._checked_changed)
-        self.view.expandToDepth(0)
 
     def init_ui(self):
         if self.ui_button_pos in ["top", "bottom"]:
