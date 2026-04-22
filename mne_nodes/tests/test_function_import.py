@@ -15,6 +15,6 @@ def test_dialog(qtbot, ct, basic_functions):
     qtbot.addWidget(function_import)
 
     # Increase to check functionality
-    qtbot.wait(1000)
+    qtbot.wait(100000)
     function_import.close()
     pprint.pprint(function_import.func_config)

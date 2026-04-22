@@ -107,7 +107,7 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - [x] parameters by function (config and storage so dict[func][param])
 - [x] handle multiple functions with same name in viewer (replacement for p_presets)
 - [x] remove p_preset in favor of multiple functions
-- [ ] remove inputs and rewrite as selected(bids)inputs
+- [x] remove inputs and rewrite as selected(bids)inputs
 - [x] Design input node
 - [ ] resolve execution_order from node_viewer (remove deprecated node.start)
 - [ ] implement better execution-order for code creation (like data-type/sub-selection as key/list)
