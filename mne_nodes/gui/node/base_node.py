@@ -29,6 +29,25 @@ class NodeTextItem(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
 
 
+class NodeProxyWidget(QGraphicsProxyWidget):
+    """Proxy widget that notifies its node when its own size changes."""
+
+    def __init__(self, node, parent=None):
+        super().__init__(parent)
+        self._node = node
+
+    def setGeometry(self, rect):
+        old_size = self.size()
+        super().setGeometry(rect)
+        if self.size() != old_size and self._node is not None:
+            self._node._on_proxywidget_resized()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._node is not None:
+            self._node._on_proxywidget_resized()
+
+
 # ToDo:
 # - color-coding of running and completed/error
 # - optionally show parameters (maybe even slide-out down to avoid recalculation of node-layout)
@@ -97,7 +116,7 @@ class BaseNode(QGraphicsItem):
         # Initialize checkbox if checkable
         if self.checkable:
             self.checkbox = QCheckBox()
-            self.checkbox_proxy = QGraphicsProxyWidget(self)
+            self.checkbox_proxy = NodeProxyWidget(self, self)
             self.checkbox_proxy.setWidget(self.checkbox)
         else:
             self.checkbox = None
@@ -110,7 +129,7 @@ class BaseNode(QGraphicsItem):
             self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
             self.start_button.setToolTip("Start from Node")
             self.start_button.clicked.connect(self.start)
-            self.start_button_proxy = QGraphicsProxyWidget(self)
+            self.start_button_proxy = NodeProxyWidget(self, self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
             self.start_button = None
@@ -628,9 +647,23 @@ class BaseNode(QGraphicsItem):
 
     def add_widget(self, widget):
         """Add widget to the node."""
-        proxy_widget = QGraphicsProxyWidget(self)
+        proxy_widget = NodeProxyWidget(self, self)
         proxy_widget.setWidget(widget)
         self.widgets.append(proxy_widget)
+
+    def _on_proxywidget_resized(self):
+        """Update node geometry and auto-layout after embedded widget resize."""
+        if self.scene() is None:
+            return
+
+        old_size = (self.width, self.height)
+        self.draw_node()
+        if (self.width, self.height) == old_size:
+            return
+
+        viewer = self.viewer
+        if viewer is not None:
+            viewer.auto_layout_nodes(nodes=list(viewer.nodes.values()))
 
     def delete(self):
         """Remove node from the scene."""
@@ -773,7 +806,10 @@ class BaseNode(QGraphicsItem):
             add_w (float): add additional width.
             add_h (float): add additional height.
         """
-        self.width, self.height = self.calc_size(add_w, add_h)
+        width, height = self.calc_size(add_w, add_h)
+        if (width, height) != (self.width, self.height):
+            self.prepareGeometryChange()
+        self.width, self.height = width, height
 
     def _set_text_color(self, color):
         """Set text color.

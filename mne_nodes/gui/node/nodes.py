@@ -93,6 +93,7 @@ class InputWidget(QWidget):
             data = self.ct.get("custom_groups")
         else:
             vals = get_entity_vals(self.ct.bids_root, group_by)
+            # ToDo: This might need to get generalized when adapting to other formats
             data = {
                 v: [
                     bp.basename

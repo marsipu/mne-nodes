@@ -1,4 +1,5 @@
 from qtpy.QtCore import QPointF, Qt
+from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
@@ -97,3 +98,26 @@ def test_multiple_func_nodes(nodeviewer):
     assert nodeviewer.ct.parameter("lowpass", node1.name) != nodeviewer.ct.parameter(
         "lowpass", node2.name
     )
+
+
+def test_node_resizes_and_autolayouts_on_proxywidget_resize(qtbot, ct):
+    nodeviewer = NodeViewer(ct)
+    qtbot.addWidget(nodeviewer)
+    node_a = nodeviewer.add_function_node("filter_data")
+    node_b = nodeviewer.add_function_node("find_events")
+    nodeviewer.auto_layout_nodes(nodes=[node_a, node_b])
+
+    label = QLabel("Resize trigger")
+    label.setFixedSize(180, 24)
+    node_a.add_widget(label)
+    node_a.draw_node()
+    nodeviewer.auto_layout_nodes(nodes=[node_a, node_b])
+
+    old_height = node_a.height
+    old_gap = abs(node_b.y() - node_a.y())
+
+    label.setFixedHeight(220)
+    qtbot.waitUntil(lambda: node_a.height > old_height, timeout=2000)
+
+    new_gap = abs(node_b.y() - node_a.y())
+    assert new_gap > old_gap
