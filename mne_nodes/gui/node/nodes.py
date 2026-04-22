@@ -6,8 +6,7 @@ Github: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-import mne_bids
-from mne_bids import get_datatypes
+from mne_bids import BIDSPath, get_datatypes, get_entity_vals
 from mne_nodes import main_widget
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
@@ -15,26 +14,67 @@ from mne_nodes.gui.base_widgets import SimpleDialog
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.node.base_node import BaseNode
-from qtpy.QtWidgets import QScrollArea, QGroupBox, QPushButton
-from qtpy.QtWidgets import QWidget, QComboBox, QVBoxLayout
+from qtpy.QtWidgets import (
+    QScrollArea,
+    QGroupBox,
+    QPushButton,
+    QWidget,
+    QComboBox,
+    QVBoxLayout,
+    QTabWidget,
+)
 
 
 class InputWidget(QWidget):
     def __init__(self, ct, **kwargs):
         super().__init__(**kwargs)
         self.ct = ct
-        self.list_widget = None
         self.setLayout(QVBoxLayout())
 
-        # Initialize Widgets
+        # Add bids-root button
         self.root_bt = QPushButton("Set BIDS Root Directory")
         self.root_bt.clicked.connect(self.set_root)
+        self.layout().addWidget(self.root_bt)
+        # Datatype Tab Widget
+        self.tab_widget = QTabWidget()
+        self.layout().addWidget(self.tab_widget)
+        # Group Widget
+        self.group_widget = QWidget()
+        self.group_tree = None
+        self.group_layout = QVBoxLayout(self.group_widget)
         self.group_cmbx = QComboBox()
-        self.group_cmbx.addItems(
-            ["files", "subject", "session", "run", "task", "custom"]
-        )
+        self.group_cmbx.addItems(["subject", "session", "run", "task", "custom"])
         self.group_cmbx.currentTextChanged.connect(self.cmbx_changed)
-        self.layout().addWidget(self.group_cmbx)
+        self.group_layout.addWidget(self.group_cmbx)
+
+        self.update_widgets()
+
+    def update_widgets(self):
+        # Clear tab widget
+        self.tab_widget.clear()
+        # Populate lists
+        data_types = get_datatypes(self.ct.bids_root)
+        for dt in data_types:
+            data = [
+                f.basename
+                for f in BIDSPath(suffix=dt, root=self.ct.bids_root).match(
+                    ignore_json=True
+                )
+            ]
+            if dt not in self.ct.selected_inputs:
+                self.ct.selected_inputs[dt] = []
+            dt_list = CheckListProgress(
+                data, checked=self.ct.selected_inputs[dt], ui_button_pos="bottom"
+            )
+            dt_list.checkedChanged.connect(self.save_input_selection)
+            self.tab_widget.addTab(dt_list, dt)
+        # Initialize group widget via combobox
+        self.tab_widget.addTab(self.group_widget, "Groups")
+        gb = self.ct.get("group_by")
+        if self.group_cmbx.currentText() != gb:
+            self.group_cmbx.setCurrentText(gb)
+        else:
+            self.cmbx_changed(gb)
 
     def set_root(self):
         new_root = get_user_input(
@@ -42,29 +82,40 @@ class InputWidget(QWidget):
         )
         if new_root is not None:
             self.ct.bids_root = new_root
+        # Update widgets
 
     def cmbx_changed(self, group_by):
         # Remove old widget
-        if self.list_widget is not None:
-            self.layout().removeWidget(self.list_widget)
-            self.list_widget.deleteLater()
-        data = mne_bids.get_entity_vals(self.ct.bids_root, group_by)
-        if group_by not in self.ct.selected_inputs:
-            self.ct.selected_inputs[group_by] = []
+        if self.group_tree is not None:
+            self.group_layout.removeWidget(self.group_tree)
+            self.group_tree.deleteLater()
         if group_by == "custom":
             data = self.ct.get("custom_groups")
-            self.list_widget = ShallowTreeWidget(
-                data,
-                checked=self.ct.selected_inputs[group_by],
-                headers=["Group Name", "Subjects"],
-            )
         else:
-            self.list_widget = CheckListProgress(
-                data, checked=self.ct.selected_inputs[group_by]
-            )
+            vals = get_entity_vals(self.ct.bids_root, group_by)
+            data = {
+                v: [
+                    bp.basename
+                    for bp in BIDSPath(
+                        **{group_by: v, "root": self.ct.bids_root}
+                    ).match()
+                    if bp.extension not in [".tsv"]
+                ]
+                for v in vals
+            }
+        if group_by not in self.ct.selected_inputs:
+            self.ct.selected_inputs[group_by] = []
+        self.group_tree = ShallowTreeWidget(
+            data,
+            checked=self.ct.selected_inputs[group_by],
+            headers=["Group Name", "Subjects"],
+            ui_buttons=group_by == "custom",
+            ui_button_pos="bottom",
+        )
         # Always save to the config the latest input selection
-        self.list_widget.checkedChanged.connect(self.save_input_selection)
-        self.layout().addWidget(self.list_widget)
+        self.group_tree.checkedChanged.connect(self.save_input_selection)
+        self.group_layout.addWidget(self.group_tree)
+        self.group_widget.update()
 
     def save_input_selection(self):
         self.ct.set("selected_inputs", self.ct.selected_inputs)

@@ -152,7 +152,7 @@ class Controller:
         self.set("module_meta", module_meta)
         self.load_modules()
         # Load selected inputs
-        self.selected_inputs = self.get("selected_inputs", [])
+        self.selected_inputs = self.get("selected_inputs", {})
 
     ####################################################################################
     # Initialization and Properties

@@ -505,9 +505,9 @@ class NodeViewer(QGraphicsView):
             node_class = getattr(nodes, node_info["class"])
             node = node_class.from_dict(self.ct, node_info)
             if node_info["class"] == "InputNode":
-                self.add_input_node(node)
+                self.add_input_node(node=node)
             elif node_info["class"] == "FunctionNode":
-                self.add_function_node(node)
+                self.add_function_node(node=node)
             else:
                 raise RuntimeError(f"Unknown node type '{node_class}'.")
         # Initialize connections
@@ -1022,13 +1022,7 @@ class NodeViewer(QGraphicsView):
             node = self.add_function_node(fname)
             node.xy_pos = (pos.x(), pos.y())
         elif text.startswith("mne-nodes/input:"):
-            payload = text[len("mne-nodes/input:") :]
-            parts = payload.split(":")
-            if len(parts) >= 2:
-                dt, group = parts[0], parts[1]
-            else:
-                return
-            node = self.add_input_node(data_type=dt, name=group)
+            node = self.add_input_node()
             node.xy_pos = (pos.x(), pos.y())
         self.zoom_to_nodes()
 
