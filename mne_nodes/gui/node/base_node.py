@@ -529,6 +529,7 @@ class BaseNode(QGraphicsItem):
         return input_nodes
 
     def start(self):
+        # ToDo: Relink to working execution order/ct combination
         """Start pipeline execution from this node using a simple dependency-
         first DFS.
 

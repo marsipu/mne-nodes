@@ -6,10 +6,12 @@ Github: https://github.com/marsipu/mne-nodes
 
 import ast
 import inspect
+import json
 import logging
 from functools import partial
 from os import PathLike
 from os.path import isfile
+from pathlib import Path
 from types import UnionType, NoneType
 from typing import get_args, get_type_hints, get_origin, Union
 
@@ -36,6 +38,7 @@ from mne_nodes.gui.gui_utils import (
     raise_user_attention,
     ask_user,
     get_user_input,
+    ask_user_custom,
 )
 from mne_nodes.gui.parameter_widgets import (
     IntGui,
@@ -56,6 +59,7 @@ from mne_nodes.gui.parameter_widgets import (
     Param,
 )
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 
 parameter_guis = [
     IntGui,
@@ -105,7 +109,7 @@ class FunctionHighlighter(PythonHighlighter):
 class Editor(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFont(QFont("Consolas", 12))
+        self.setFont(QFont("Consolas", 10))
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
         self.highlighter = FunctionHighlighter(self.document())
@@ -154,7 +158,7 @@ class ParameterConfiguration(QDialog):
         selection_layout.addWidget(gui_cmbx)
         layout.addLayout(selection_layout)
         # GUI config
-        excluded_params = ["function_name", "parent_widget"]
+        excluded_params = ["function_name", "parent_widget", "groupbox_layout"]
         layout.addWidget(TitleLabel("GUI Configuration"))
         base_params = {
             name: {"default": param.default, "annotation": param.annotation}
@@ -234,12 +238,15 @@ class ParameterConfiguration(QDialog):
 class FunctionImporter(QDialog):
     def __init__(
         self,
-        code: str | PathLike | None = None,
+        code: str | None = None,
+        file_path: str | PathLike | None = None,
         allow_exec: bool = False,
         parent: QWidget | None = None,
     ):
         super().__init__(parent)
+        # Check code parameter
         # Attributes
+        self.file_path = file_path
         self.func_config = {}
         self.current_func = None
         self.editors = {}
@@ -250,10 +257,11 @@ class FunctionImporter(QDialog):
         self.setWindowTitle("Import Function")
         # Init code editor tabs
         tab_layout = QVBoxLayout()
-        # Load button
-        load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
-        load_bt.clicked.connect(lambda x: self.load_file(None))
-        tab_layout.addWidget(load_bt)
+        # Load button (only if code is None)
+        if file_path is None and code is None:
+            load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
+            load_bt.clicked.connect(lambda x: self.load_file())
+            tab_layout.addWidget(load_bt)
         # Tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.tabBarClicked.connect(self.update_config)
@@ -263,10 +271,19 @@ class FunctionImporter(QDialog):
         tab_layout.addWidget(self.tab_widget)
         layout.addLayout(tab_layout)
         # Reanalyze button
+        bt_layout = QHBoxLayout()
         analyze_bt = QPushButton(qta.icon("mdi6.reload"), "Re-analyze Code")
         analyze_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         analyze_bt.clicked.connect(self.reanalyze)
-        tab_layout.addWidget(analyze_bt)
+        bt_layout.addWidget(analyze_bt)
+        if file_path is not None:
+            save_bt = QPushButton(qta.icon("fa5.save"), "Save Configuration")
+            save_bt.setSizePolicy(
+                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
+            )
+            save_bt.clicked.connect(self.save_config)
+            bt_layout.addWidget(save_bt)
+        tab_layout.addLayout(bt_layout)
         # Init configuration
         config_layout = QFormLayout()
         config_layout.setFieldGrowthPolicy(
@@ -296,26 +313,31 @@ class FunctionImporter(QDialog):
         )
         config_layout.addRow("Parameters", self.parameter_layout)
 
-        # Analyze the code and populate the UI
+        # Analyze the code if given and populate the UI
         if code is not None:
-            if isfile(code):
-                self.load_file(code)
-            else:
-                self.analyze_code(code)
+            self.analyze_code(code)
+        elif file_path is not None:
+            self.load_file(file_path)
         self.open()
 
     def load_file(self, file_path: PathLike | str | None = None):
-        self.clear_editor_tabs()
-        if file_path is None:
-            file_path = get_user_input(
+        self.file_path = file_path
+        if self.file_path is None:
+            self.file_path = get_user_input(
                 "Select File to load",
                 "file",
                 file_filter="Python Files (*.py)",
                 parent=self,
             )
-        if file_path is not None:
-            with open(file_path) as f:
+        if self.file_path is not None:
+            with open(self.file_path) as f:
                 code = f.read()
+            config_path = self._get_config_path()
+            if config_path is not None and isfile(config_path):
+                with open(config_path) as f:
+                    self.func_config = json.load(f, object_hook=type_json_hook)
+                    logging.info(f"Successfully loaded config from {config_path}")
+            self.clear_editor_tabs()
             self.analyze_code(code)
 
     def analyze_code(self, code):
@@ -336,11 +358,14 @@ class FunctionImporter(QDialog):
                 func.name, {"inputs": [], "parameters": []}
             )
             if func.name not in self.func_config:
-                self.func_config[func.name] = {"inputs": {}, "parameters": {}}
+                self.func_config[func.name] = {
+                    "inputs": {},
+                    "parameters": {},
+                    "outputs": {},
+                }
             start_line = func.lineno - 1
             end_line = func.end_lineno
             func_code = "\n".join(code.splitlines()[start_line:end_line])
-            self.func_config[func.name]["code"] = func_code
 
             # Create a new tab with an editor for the function code
             editor = Editor()
@@ -364,7 +389,7 @@ class FunctionImporter(QDialog):
             inputs += fixed["inputs"]
             # Add missing input-configurations
             for new_input in [ip for ip in inputs if ip not in input_config]:
-                input_config[new_input] = {"accepted": [], "optional": False}
+                input_config[new_input] = {"accepted": [new_input], "optional": False}
             # Remove old input-configurations
             for old_input in [ipc for ipc in input_config if ipc not in inputs]:
                 logging.info(
@@ -405,13 +430,15 @@ class FunctionImporter(QDialog):
                         isinstance(type_hint, UnionType)
                         or get_origin(type_hint) is Union
                     ):
-                        gui_name = MultiTypeGui.__name__
-                        types = get_args(type_hint)
-                        if NoneType in types:
+                        types = [t.__name__ for t in get_args(type_hint)]
+                        if "NoneType" in types:
                             param_config[p]["none_select"] = True
-                        param_config[p]["types"] = [
-                            str(t) for t in types if t is not NoneType
-                        ]
+                            types.remove("NoneType")
+                        if len(types) > 1:
+                            gui_name = MultiTypeGui.__name__
+                            param_config[p]["types"] = types
+                        else:
+                            gui_name = default_type_guis[types[0]].__name__
                     else:
                         gui_name = default_type_guis[type_hint.__name__].__name__
                 try:
@@ -471,6 +498,7 @@ class FunctionImporter(QDialog):
     def reanalyze(self):
         # Get code from editors
         code = self.get_code()
+        # ToDo: Save changed code into file if loaded
         self.clear_editor_tabs()
         self.analyze_code(code)
 
@@ -525,7 +553,6 @@ class FunctionImporter(QDialog):
         code = ""
         for func_name, editor in self.editors.items():
             code += editor.toPlainText() + "\n\n"
-            self.func_config[func_name]["code"] = editor.toPlainText()
         return code
 
     def move_item(self, item):
@@ -549,7 +576,7 @@ class FunctionImporter(QDialog):
             self.func_config[self.current_func]["parameters"].pop(item)
             # Add to input configuration
             self.func_config[self.current_func]["inputs"][item] = {
-                "accepted": [],
+                "accepted": [item],
                 "optional": False,
             }
             if item in self.fixed_categories[self.current_func]["parameters"]:
@@ -574,10 +601,22 @@ class FunctionImporter(QDialog):
         config = self.func_config[self.current_func]["parameters"][param_name]
         ParameterConfiguration(param_name, config, parent=self)
 
+    def _get_config_path(self):
+        if self.file_path is not None:
+            path = Path(self.file_path)
+            config_path = path.parent / f"{path.stem}_config.json"
+            return config_path
+        else:
+            return None
+
+    def save_config(self):
+        save_path = self._get_config_path()
+        if save_path is not None:
+            with open(save_path, "w") as f:
+                json.dump(self.func_config, f, indent=4, cls=TypedJSONEncoder)
+                logging.info(f"Saved config to {save_path}")
+
     def closeEvent(self, event):
-        # Update the code in the configuration before closing
-        for func_name, editor in self.editors.items():
-            self.func_config[func_name]["code"] = editor.toPlainText()
         # Check for mandatory configuration items
         warning_msg = "The following mandatory configuration items are missing:\n"
         ok = True
@@ -592,7 +631,27 @@ class FunctionImporter(QDialog):
                     warning_msg += f"Parameter '{param_name}' in function '{func_name}' has no default value defined.\n"
                     ok = False
         if ok:
-            event.accept()
+            # Check if configuration was saved
+            config_path = self._get_config_path()
+            if config_path is not None:
+                if isfile(config_path):
+                    with open(config_path) as f:
+                        loaded_config = json.load(f, object_hook=type_json_hook)
+                    same = json.dumps(
+                        loaded_config, sort_keys=True, cls=TypedJSONEncoder
+                    ) == json.dumps(
+                        self.func_config, sort_keys=True, cls=TypedJSONEncoder
+                    )
+                    if same:
+                        event.accept()
+                        return
+                ans = ask_user_custom(
+                    "You have unsaved config-changes, to you want to save them before closing?",
+                    buttons=["Save and Quit", "Quit without saving"],
+                )
+                if ans:
+                    self.save_config()
+                event.accept()
         else:
             warning_msg += "Do you want to close anyway?"
             ans = ask_user(warning_msg, parent=self)

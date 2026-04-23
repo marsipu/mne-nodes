@@ -572,7 +572,7 @@ class NodeViewer(QGraphicsView):
     @staticmethod
     def _node_description(node):
         if isinstance(node, InputNode):
-            description = (node.data_type, "Input")
+            description = (node.name, "Input")
         elif isinstance(node, FunctionNode):
             description = (node.name, "Function")
         else:
