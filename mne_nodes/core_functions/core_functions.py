@@ -5,7 +5,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import mne
-import numpy as np
 
 
 def filter_bandpass(
@@ -20,7 +19,33 @@ def filter_bandpass(
     return raw
 
 
-def create_epochs(raw, events: np.array = None, event_id: dict | None = None):
+def create_epochs(
+    raw,
+    events=None,
+    event_id: dict | None = None,
+    t_epoch: tuple[float, float] = (0, 1),
+    baseline: tuple[float, float] | None = None,
+):
     # ToDo: Problem what if events as input is not always necessary? Rethink logic of function-recognition?
     if events is None:
         events, event_id = mne.events_from_annotations(raw)
+
+    epochs = mne.Epochs(
+        raw=raw,
+        events=events,
+        event_id=event_id,
+        tmin=t_epoch[0],
+        tmax=t_epoch[1],
+        baseline=baseline,
+    )
+    return epochs
+
+
+def create_evokeds(epochs):
+    evokeds = epochs.average()
+
+    return evokeds
+
+
+def plot_evokeds(evokeds):
+    evokeds.plot()

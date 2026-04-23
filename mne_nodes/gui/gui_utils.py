@@ -11,6 +11,7 @@ import sys
 from functools import partial
 from importlib import resources
 from os.path import join
+from pathlib import Path
 
 import darkdetect
 from qtpy import compat
@@ -295,8 +296,8 @@ def get_user_input(
 
     Returns
     -------
-    user_input : str or None
-        The user input as a string, or None if cancelled or unavailable.
+    user_input : str | PathLike | None
+        The user input as a string/PathLike depending on input_Type, or None if cancelled or unavailable.
 
     Raises
     ------
@@ -358,6 +359,10 @@ def get_user_input(
     if warning_message is not None:
         raise_user_attention(warning_message, message_type="warning")
         return get_user_input(prompt, input_type)
+
+    # Convert path-strings to Path-objects
+    if input_type in ["folder", "file"] and user_input is not None:
+        user_input = Path(user_input)
 
     return user_input
 

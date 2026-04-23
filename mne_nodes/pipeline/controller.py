@@ -43,7 +43,6 @@ default_config = {
         "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
     },
     # BIDS
-    "data_types": [],
     "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},

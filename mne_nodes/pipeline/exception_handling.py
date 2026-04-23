@@ -5,7 +5,6 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import multiprocessing
 import sys
 import traceback
 from contextlib import contextmanager
@@ -30,16 +29,11 @@ class ExceptionTuple:
         return self._data[2]
 
 
-def get_exception_tuple(is_mp: bool = False) -> ExceptionTuple:
+def get_exception_tuple() -> ExceptionTuple:
     traceback.print_exc()
     exctype, value = sys.exc_info()[:2]
     traceback_str = traceback.format_exc(limit=-10)
-    # ToDo: Is this doing what it's supposed to do?
-    if is_mp:
-        logger = multiprocessing.get_logging
-    else:
-        logger = logging.getLogger()
-    logger.error(f"{exctype}: {value}")
+    logging.error(f"{exctype}: {value}")
     exc_tuple = ExceptionTuple(exctype, value, traceback_str)
 
     return exc_tuple

@@ -790,10 +790,17 @@ class ListGui(Param):
 
     data_type = list
 
-    def __init__(self, value_string_length: int | None = 30, **kwargs: Any):
+    def __init__(
+        self,
+        show_edit_bt: bool = True,
+        value_string_length: int | None = 30,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
+        show_edit_bt : bool
+            Set to True (default) to only show an edit button (better for compact layouts). If False, the ListWidget is put directly into the gui.
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
             string will be displayed.
@@ -802,18 +809,27 @@ class ListGui(Param):
         """
 
         super().__init__(**kwargs)
+        self.show_edit_bt = show_edit_bt
         self.value_string_length = value_string_length
         # Cache value to use after selecting None
         self.cached_value = None
-        list_layout = QHBoxLayout()
-        self.value_label = QLabel()
-        list_layout.addWidget(self.value_label)
-        self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
-        )
-        self.param_widget.clicked.connect(self.open_dialog)
-        list_layout.addWidget(self.param_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        if show_edit_bt:
+            list_layout = QHBoxLayout()
+            self.value_label = QLabel()
+            list_layout.addWidget(self.value_label)
+            self.param_widget = QPushButton("Edit")
+            self.param_widget.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            self.param_widget.clicked.connect(self.open_dialog)
+            list_layout.addWidget(
+                self.param_widget, alignment=Qt.AlignmentFlag.AlignCenter
+            )
+        else:
+            list_layout = QVBoxLayout()
+            self.param_widget = EditList(data=self.value)
+            list_layout.addWidget(self.param_widget)
+
         self.init_ui(list_layout)
 
     def open_dialog(self):
@@ -829,9 +845,12 @@ class ListGui(Param):
     def _set_widget_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.value_label.setText(
-            convert_list_to_string(value, self.unit, self.value_string_length)
-        )
+        if self.show_edit_bt:
+            self.value_label.setText(
+                convert_list_to_string(value, self.unit, self.value_string_length)
+            )
+        else:
+            self.param_widget.replace_data(value)
 
     def _get_widget_value(self):
         if self.value is None:
@@ -839,7 +858,8 @@ class ListGui(Param):
                 value = self.cached_value
             else:
                 value = []
-            self.value_label.clear()
+            if self.show_edit_bt:
+                self.value_label.clear()
         else:
             value = self._value
 
