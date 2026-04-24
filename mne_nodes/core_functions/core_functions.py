@@ -41,8 +41,14 @@ def create_epochs(
     return epochs
 
 
-def create_evokeds(epochs):
-    evokeds = epochs.average()
+def create_evokeds(epochs, conditions: list = None):
+    if conditions is not None:
+        evokeds = []
+        for cond in conditions:
+            evoked = epochs[cond].average()
+            evokeds.append(evoked)
+    else:
+        evokeds = epochs.average()
 
     return evokeds
 

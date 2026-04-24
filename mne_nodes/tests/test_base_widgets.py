@@ -528,22 +528,25 @@ def test_timed_messagebox(qtbot):
 
     # Test static methods
     # Test setting default button
-    ans = TimedMessageBox.question(1, defaultButton=TimedMessageBox.Yes)
+    ans = TimedMessageBox.question(1, defaultButton=TimedMessageBox.StandardButton.Yes)
     qtbot.wait(150)
-    assert ans == TimedMessageBox.Yes
+    assert ans == TimedMessageBox.StandardButton.Yes
 
     # Test setting buttons
     ans = TimedMessageBox.critical(
         1,
-        buttons=TimedMessageBox.Save | TimedMessageBox.Cancel,
-        defaultButton=TimedMessageBox.Cancel,
+        buttons=TimedMessageBox.StandardButton.Save
+        | TimedMessageBox.StandardButton.Cancel,
+        defaultButton=TimedMessageBox.StandardButton.Cancel,
     )
     qtbot.wait(150)
-    assert ans == TimedMessageBox.Cancel
+    assert ans == TimedMessageBox.StandardButton.Cancel
 
     # Test setting no default button
     ans = TimedMessageBox.information(
-        1, buttons=TimedMessageBox.Cancel, defaultButton=TimedMessageBox.NoButton
+        1,
+        buttons=TimedMessageBox.StandardButton.Cancel,
+        defaultButton=TimedMessageBox.StandardButton.NoButton,
     )
     qtbot.wait(150)
     assert ans is None

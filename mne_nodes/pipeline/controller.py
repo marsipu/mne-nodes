@@ -24,8 +24,7 @@ from typing import Any, Dict, Optional, Union
 import mne
 from filelock import FileLock, Timeout
 from mne_nodes import _widgets
-from mne_nodes.basic_operations import basic_operations
-from mne_nodes.basic_plot import basic_plot
+from mne_nodes.core_functions import core_functions
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
@@ -58,10 +57,6 @@ default_config = {
     "selected_event_ids": {},
     "ica_exclude": {},
     "add_kwargs": {},
-    # Modules
-    "selected_modules": ["basic_operations", "basic_plot"],
-    "module_meta": {},
-    "function_meta": {},
     # Parameters
     "parameters": {},
     # Application Configuration
@@ -84,18 +79,8 @@ default_config = {
 
 
 class Controller:
-    """New controller, that combines the former old controller and project
-    class and loads a controller for each "project".
-
-    The home-path structure should no longer be as rigid as before, just specifying the
-    path to meeg- and fsmri-data. For each controller, there is a config-file stored,
-    where paths to the meeg-data, the freesurfer-dir and the custom-packages are stored.
-
-    It is possible to get config values by accessing them as attributes of the
-    controller, e.g., controller.data_path. Importantly, setting attributes directly
-    works while setting values inside of containers like controller.inputs doesn't work::
-        controller.data_path = new_path  # works
-        controller.inputs['raw']['subject1'] = new_value  # doesn't work
+    """This is the central organizing structure of a mne-nodes project.
+    It stores all (device-independent) information, to change project set another config_path.
 
     Parameters
     ----------
@@ -125,6 +110,8 @@ class Controller:
         self._last_load = 0
         self._local_set = False
         self.modules = {}
+        self.module_meta = {}
+        self.function_meta = {}
         self._process_count = 0
         # Initialize config_path here (may prompt user)
         config_path = config_path or self.settings.get("config_path", default=None)
@@ -135,20 +122,9 @@ class Controller:
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
             _ = self.deriv_root  # may trigger lazy initialization
+        # Add core functions to modules (until separated)
+        self.settings.set("modules", {"core_functions": Path(core_functions.__file__)})
         # Initialize modules
-        # Legacy: Add basic modules until separated
-        module_meta = self.get("module_meta")
-        module_meta["basic_operations"] = {
-            "module": Path(basic_operations.__file__),
-            "config": Path(basic_operations.__file__).with_name(
-                "basic_operations_config.json"
-            ),
-        }
-        module_meta["basic_plot"] = {
-            "module": Path(basic_plot.__file__),
-            "config": Path(basic_plot.__file__).with_name("basic_plot_config.json"),
-        }
-        self.set("module_meta", module_meta)
         self.load_modules()
         # Load selected inputs
         self.selected_inputs = self.get("selected_inputs", {})
@@ -593,22 +569,21 @@ class Controller:
     ####################################################################################
     # Modules
     ####################################################################################
-    def _load_module_config(self, module_name):
+    def _load_module_config(self, module_name, module_path):
         """Load the configuration file for a module from the package path."""
-        config_file_path = self.get("module_meta")[module_name]["config"]
+        config_file_path = module_path.parent / f"{module_name}_config.json"
         if not isfile(config_file_path):
             raise RuntimeError(
                 f"Config file for {module_name} not found at {config_file_path}."
             )
         with open(config_file_path) as file:
             config_data = json.load(file, object_hook=type_json_hook)
-        function_meta = self.get("function_meta")
-        function_meta.update(config_data["functions"])
-        self.set("function_meta", function_meta)
+        self.module_meta[module_name] = config_data["module"]
+        self.function_meta.update(config_data["functions"])
 
-    def _import_module(self, module_name):
+    def _import_module(self, module_name, module_path):
         """Import a module from the given package path."""
-        pkg_path = self.get("module_meta")[module_name]["module"].parent
+        pkg_path = module_path.parent
         # Add the package path to sys.path if not already present
         if pkg_path not in sys.path:
             sys.path.insert(0, str(pkg_path))
@@ -621,12 +596,13 @@ class Controller:
         else:
             self.modules[module_name] = module
         # Load the config file for the basic module
-        self._load_module_config(module_name)
+        self._load_module_config(module_name, module_path)
 
     def load_modules(self) -> None:
         """Load custom modules from their config files."""
-        for module_name in self.get("module_meta"):
-            self._import_module(module_name)
+        modules = self.settings.get("module_paths")
+        for module_name, module_path in modules.items():
+            self._import_module(module_name, module_path)
 
     def add_custom_module(self, config_file_path: Union[str, Path]):
         """Add a custom module to the controller.

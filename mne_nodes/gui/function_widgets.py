@@ -30,6 +30,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QTabWidget,
     QWidget,
+    QTextEdit,
+    QGridLayout,
 )
 from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
@@ -98,6 +100,32 @@ class TitleLabel(QLabel):
         edit_font(self, 13, True)
         self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+
+class DescriptionEditor(QDialog):
+    def __init__(self, module_config, parent):
+        super().__init__(parent)
+        self.module_config = module_config
+        # Initialize Layout
+        layout = QGridLayout(self)
+        layout.addWidget(TitleLabel("Editor (Markdown)"), 0, 0)
+        self.editor = QTextEdit()
+        self.editor.textChanged.connect(self._update_viewer)
+        layout.addWidget(self.editor, 1, 0)
+        layout.addWidget(TitleLabel("Viewer"), 0, 1)
+        self.viewer = QTextEdit()
+        self.viewer.setReadOnly(True)
+        layout.addWidget(self.viewer, 1, 1)
+        # Initialize text if existing
+        if "description" in module_config:
+            self.editor.setPlainText(module_config["description"])
+        self.setMinimumSize(600, 300)
+        self.open()
+
+    def _update_viewer(self):
+        text = self.editor.toPlainText()
+        self.viewer.setMarkdown(text)
+        self.module_config["description"] = text
 
 
 class FunctionHighlighter(PythonHighlighter):
@@ -173,7 +201,7 @@ class ParameterConfiguration(QDialog):
         self.specific_label = TitleLabel("Specific GUI Configuration")
         layout.addWidget(self.specific_label)
         self.specific_label.hide()
-        self.specific_gui_config_layout = QFormLayout()
+        self.specific_gui_config_layout = QVBoxLayout()
         layout.addLayout(self.specific_gui_config_layout)
         # Initialize with appropriate gui
         gui_name = configuration.get("gui") or (
@@ -188,7 +216,6 @@ class ParameterConfiguration(QDialog):
 
     def _get_type_gui(self, name, param):
         # Get type for gui configuration items
-        # ToDo Next: Refine recognition (none_select etc.) and remove them from parameter-config. Also better special config recognition (like gui-types for MultiTypeGui etc.)
         if param["annotation"] is inspect.Parameter.empty:
             logging.warning(f"No type annotation for parameter '{name}'. Skipping.")
             return None
@@ -213,10 +240,9 @@ class ParameterConfiguration(QDialog):
     def update_gui_config(self, gui_name):
         self.config["gui"] = gui_name
         # Remove existing specific gui config widgets
-        for i in reversed(range(self.specific_gui_config_layout.count())):
-            widget = self.specific_gui_config_layout.itemAt(i).widget()
+        while self.specific_gui_config_layout.count():
+            widget = self.specific_gui_config_layout.takeAt(0).widget()
             if widget is not None:
-                self.specific_gui_config_layout.removeWidget(widget)
                 widget.deleteLater()
         # Add new specific gui config widgets
         gui_class = globals()[gui_name]
@@ -232,7 +258,12 @@ class ParameterConfiguration(QDialog):
             for name, param in config_items.items():
                 gui = self._get_type_gui(name, param)
                 if gui is not None:
-                    self.specific_gui_config_layout.addRow(name, gui)
+                    self.specific_gui_config_layout.addWidget(gui)
+        # Recalculate Dialog size
+        if self.layout() is not None:
+            self.adjustSize()
+            self.setMinimumSize(self.sizeHint())
+            self.resize(self.sizeHint())
 
 
 class FunctionImporter(QDialog):
@@ -247,6 +278,7 @@ class FunctionImporter(QDialog):
         # Check code parameter
         # Attributes
         self.file_path = file_path
+        self.module_config = {}
         self.func_config = {}
         self.current_func = None
         self.editors = {}
@@ -273,14 +305,15 @@ class FunctionImporter(QDialog):
         # Reanalyze button
         bt_layout = QHBoxLayout()
         analyze_bt = QPushButton(qta.icon("mdi6.reload"), "Re-analyze Code")
-        analyze_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         analyze_bt.clicked.connect(self.reanalyze)
         bt_layout.addWidget(analyze_bt)
+        dsc_bt = QPushButton(
+            qta.icon("mdi.file-document-edit"), "Change Module Description"
+        )
+        dsc_bt.clicked.connect(self.change_description)
+        bt_layout.addWidget(dsc_bt)
         if file_path is not None:
             save_bt = QPushButton(qta.icon("fa5.save"), "Save Configuration")
-            save_bt.setSizePolicy(
-                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
-            )
             save_bt.clicked.connect(self.save_config)
             bt_layout.addWidget(save_bt)
         tab_layout.addLayout(bt_layout)
@@ -495,10 +528,13 @@ class FunctionImporter(QDialog):
             widget.deleteLater()
         self.tab_widget.clear()
 
+    def change_description(self):
+        DescriptionEditor(self.module_config, self)
+
     def reanalyze(self):
         # Get code from editors
         code = self.get_code()
-        # ToDo: Save changed code into file if loaded
+        # ToDo: Save changed code back into file if loaded from life
         self.clear_editor_tabs()
         self.analyze_code(code)
 
@@ -611,9 +647,10 @@ class FunctionImporter(QDialog):
 
     def save_config(self):
         save_path = self._get_config_path()
+        config = {"module": self.module_config, "functions": self.func_config}
         if save_path is not None:
             with open(save_path, "w") as f:
-                json.dump(self.func_config, f, indent=4, cls=TypedJSONEncoder)
+                json.dump(config, f, indent=4, cls=TypedJSONEncoder)
                 logging.info(f"Saved config to {save_path}")
 
     def closeEvent(self, event):
@@ -638,7 +675,7 @@ class FunctionImporter(QDialog):
                     with open(config_path) as f:
                         loaded_config = json.load(f, object_hook=type_json_hook)
                     same = json.dumps(
-                        loaded_config, sort_keys=True, cls=TypedJSONEncoder
+                        loaded_config["functions"], sort_keys=True, cls=TypedJSONEncoder
                     ) == json.dumps(
                         self.func_config, sort_keys=True, cls=TypedJSONEncoder
                     )

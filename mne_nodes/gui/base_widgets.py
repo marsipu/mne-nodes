@@ -7,16 +7,13 @@ Github: https://github.com/marsipu/mne-nodes
 import itertools
 import logging
 import re
-import sys
 
 import numpy as np
-import pandas
 
 from qtpy.QtCore import QItemSelectionModel, QTimer, Signal, Qt
 from qtpy.QtGui import QFont, QColor
 from qtpy.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -25,7 +22,6 @@ from qtpy.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
-    QTabWidget,
     QTableView,
     QTreeView,
     QVBoxLayout,
@@ -153,7 +149,9 @@ class BaseList(Base):
         super().__init__(model, view, parent, title)
 
         if extended_selection:
-            self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            self.view.setSelectionMode(
+                QAbstractItemView.SelectionMode.ExtendedSelection
+            )
 
     def select(self, values, clear_selection=True):
         indices = [i for i, x in enumerate(self.model._data) if x in values]
@@ -163,7 +161,9 @@ class BaseList(Base):
 
         for idx in indices:
             index = self.model.createIndex(idx, 0)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimpleList(BaseList):
@@ -764,11 +764,15 @@ class BaseDict(Base):
 
         for idx in key_indices:
             index = self.model.createIndex(idx, 0)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
         for idx in value_indices:
             index = self.model.createIndex(idx, 1)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimpleDict(BaseDict):
@@ -1053,7 +1057,9 @@ class BasePandasTable(Base):
 
         for row, column in indexes:
             index = self.model.createIndex(row, column)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimplePandasTable(BasePandasTable):
@@ -1668,13 +1674,13 @@ class AssignWidget(QWidget):
 
         bt_layout = QHBoxLayout()
         assign_bt = QPushButton("Assign")
-        assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        assign_bt.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         assign_bt.clicked.connect(self.assign)
         bt_layout.addWidget(assign_bt)
 
         show_assign_bt = QPushButton("Show Assignments")
-        show_assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        show_assign_bt.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         show_assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         show_assign_bt.clicked.connect(self.show_assignments)
         bt_layout.addWidget(show_assign_bt)
@@ -1748,6 +1754,7 @@ class TimedMessageBox(QMessageBox):
             else:
                 self.close()
 
+    @staticmethod
     def _static_setup(icon, timeout, parent, title, text, buttons, defaultButton):
         cls = TimedMessageBox(
             timeout=timeout, title=title, text=text, icon=icon, parent=parent
@@ -1770,11 +1777,17 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Critical, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Critical,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
 
     @staticmethod
@@ -1783,11 +1796,11 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Information,
+            QMessageBox.Icon.Information,
             timeout,
             parent,
             title,
@@ -1802,11 +1815,17 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Yes | QMessageBox.No,
-        defaultButton=QMessageBox.No,
+        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        defaultButton=QMessageBox.StandardButton.No,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Question, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Question,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
 
     @staticmethod
@@ -1815,111 +1834,15 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Warning, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Warning,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
-
-
-# ToDo: Proper testing
-# Testing all signals properly emitted (also on row add/remove)
-# Testing when _data is empty and get-Data, what happens?
-class AllBaseWidgets(QWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.exlist = ["Athena", "Hephaistos", "Zeus", "Ares", "Aphrodite", "Poseidon"]
-        self.exattributes = ["strong", "smart", "bossy", "fishy"]
-        self.exassignments = {
-            "Athena": "smart",
-            "Hephaistos": "strong",
-            "Zeus": "bossy",
-            "Poseidon": "fishy",
-        }
-        self.exdict = {
-            "Athena": 231,
-            "Hephaistos": ["44", "333", 34],
-            "Zeus": "Boss",
-            "Ares": self.exassignments,
-        }
-        self.exchecked = ["Athena"]
-        self.expd = pandas.DataFrame(
-            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], columns=["A", "B", "C", "D"]
-        )
-        self.extree = {
-            "A": {"Aa": 2, "Ab": {"Ab1": "Hermes", "Ab2": "Hades"}, "Ac": [1, 2, 3, 4]},
-            "B": ["Appolo", 42, 128],
-            "C": (1, 2, 3),
-        }
-
-        # self.exlist = None
-        # self.exattributes = None
-        # self.exchecked = None
-        # self.expd = None
-        # self.extree = None
-        # self.exdict = None
-
-        self.widget_args = {
-            "SimpleList": [self.exlist],
-            "EditList": [self.exlist],
-            "CheckList": [self.exlist, self.exchecked],
-            "CheckDictList": [self.exlist, self.exdict],
-            "CheckDictEditList": [self.exlist, self.exdict],
-            "SimpleDict": [self.exdict],
-            "EditDict": [self.exdict],
-            "SimplePandasTable": [self.expd],
-            "EditPandasTable": [self.expd],
-            "DictTree": [self.extree],
-            "AssignWidget": [self.exlist, self.exattributes, self.exassignments],
-        }
-
-        self.widget_kwargs = {
-            "SimpleList": {"extended_selection": True, "title": "BaseList"},
-            "EditList": {
-                "ui_button_pos": "bottom",
-                "extended_selection": True,
-                "title": "EditList",
-            },
-            "CheckList": {"one_check": False, "title": "CheckList"},
-            "CheckDictList": {"extended_selection": True, "title": "CheckDictList"},
-            "CheckDictEditList": {"title": "CheckDictEditList"},
-            "SimpleDict": {"title": "BaseDict"},
-            "EditDict": {"ui_button_pos": "left", "title": "EditDict"},
-            "SimplePandasTable": {"title": "BasePandasTable"},
-            "EditPandasTable": {"title": "EditPandasTable"},
-            "DictTree": {"title": "BaseDictTree"},
-            "AssignWidget": {"properties_editable": True, "title": "AssignWidget"},
-        }
-
-        self.tab_widget = QTabWidget()
-
-        self.init_ui()
-
-        self.setGeometry(0, 0, 800, 400)
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        for widget_name in self.widget_args:
-            widget = globals()[widget_name](
-                *self.widget_args[widget_name], **self.widget_kwargs[widget_name]
-            )
-            setattr(self, widget_name, widget)
-            self.tab_widget.addTab(widget, widget_name)
-
-        layout.addWidget(self.tab_widget)
-        self.setLayout(layout)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    testw = AllBaseWidgets()
-    testw.show()
-
-    # Command-Line interrupt with Ctrl+C possible, easier debugging
-    timer = QTimer()
-    timer.timeout.connect(lambda: testw)
-    timer.start(500)
-
-    sys.exit(app.exec())

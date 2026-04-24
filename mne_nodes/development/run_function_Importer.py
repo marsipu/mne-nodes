@@ -14,6 +14,6 @@ from mne_nodes.pipeline.streams import init_logging
 init_logging()
 app = QApplication(sys.argv)
 file_path = Path(__file__).parent.parent / "core_functions" / "core_functions.py"
-fi = FunctionImporter(allow_exec=True)
+fi = FunctionImporter(file_path=file_path, allow_exec=True)
 fi.show()
 sys.exit(app.exec())

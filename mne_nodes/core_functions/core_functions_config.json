@@ -1,104 +1,110 @@
 {
-    "filter_bandpass": {
-        "inputs": {
-            "raw": {
-                "accepted": [
-                    "raw"
-                ],
-                "optional": false
-            }
-        },
-        "parameters": {
-            "l_freq": {
-                "none_select": true,
-                "default": null,
-                "gui": "FloatGui"
-            },
-            "h_freq": {
-                "none_select": true,
-                "default": null,
-                "gui": "FloatGui"
-            },
-            "n_jobs": {
-                "none_select": true,
-                "types": [
-                    "int",
-                    "str"
-                ],
-                "default": -1,
-                "gui": "MultiTypeGui"
-            }
-        },
-        "outputs": [
-            "raw"
-        ]
+    "module": {
+        "description": "# Core functions\nThe basic functions to start analysis in sensor-space."
     },
-    "create_epochs": {
-        "inputs": {
-            "raw": {
-                "accepted": [
-                    "raw"
-                ],
-                "optional": false
-            }
-        },
-        "parameters": {
-            "events": {
-                "default": null,
-                "gui": "MultiTypeGui"
+    "functions": {
+        "filter_bandpass": {
+            "inputs": {
+                "raw": {
+                    "accepted": [
+                        "raw"
+                    ],
+                    "optional": false
+                }
             },
-            "event_id": {
-                "none_select": true,
-                "default": null,
-                "gui": "DictGui"
-            },
-            "t_epoch": {
-                "default": {
-                    "tuple_type": [
-                        0,
-                        1
-                    ]
+            "parameters": {
+                "l_freq": {
+                    "none_select": true,
+                    "default": null,
+                    "gui": "FloatGui"
                 },
-                "gui": "DualTupleGui",
-                "min_val": -5.0,
-                "max_val": 5.0
+                "h_freq": {
+                    "none_select": true,
+                    "default": null,
+                    "gui": "FloatGui"
+                },
+                "n_jobs": {
+                    "none_select": true,
+                    "types": [
+                        "int",
+                        "str"
+                    ],
+                    "default": -1,
+                    "gui": "MultiTypeGui"
+                }
             },
-            "baseline": {
-                "none_select": true,
-                "default": null,
-                "gui": "DualTupleGui",
-                "min_val": -5.0,
-                "max_val": 5.0
-            }
+            "outputs": [
+                "raw"
+            ]
         },
-        "outputs": [
-            "epochs"
-        ]
-    },
-    "create_evokeds": {
-        "inputs": {
-            "epochs": {
-                "accepted": [
-                    "epochs"
-                ],
-                "optional": false
-            }
+        "create_epochs": {
+            "inputs": {
+                "raw": {
+                    "accepted": [
+                        "raw"
+                    ],
+                    "optional": false
+                }
+            },
+            "parameters": {
+                "events": {
+                    "default": null,
+                    "gui": "MultiTypeGui"
+                },
+                "event_id": {
+                    "none_select": true,
+                    "default": null,
+                    "gui": "DictGui"
+                },
+                "t_epoch": {
+                    "default": {
+                        "tuple_type": [
+                            0,
+                            1
+                        ]
+                    },
+                    "gui": "DualTupleGui"
+                },
+                "baseline": {
+                    "none_select": true,
+                    "default": null,
+                    "gui": "DualTupleGui"
+                }
+            },
+            "outputs": [
+                "epochs"
+            ]
         },
-        "parameters": {},
-        "outputs": [
-            "evokeds"
-        ]
-    },
-    "plot_evokeds": {
-        "inputs": {
-            "evokeds": {
-                "accepted": [
-                    "evokeds"
-                ],
-                "optional": false
-            }
+        "create_evokeds": {
+            "inputs": {
+                "epochs": {
+                    "accepted": [
+                        "epochs"
+                    ],
+                    "optional": false
+                }
+            },
+            "parameters": {
+                "conditions": {
+                    "default": null,
+                    "gui": "ListGui"
+                }
+            },
+            "outputs": [
+                "evokeds"
+            ]
         },
-        "parameters": {},
-        "outputs": {}
+        "plot_evokeds": {
+            "inputs": {
+                "evokeds": {
+                    "accepted": [
+                        "evokeds"
+                    ],
+                    "optional": false
+                }
+            },
+            "parameters": {},
+            "outputs": {}
+        }
     }
 }
