@@ -355,17 +355,12 @@ class FunctionImporter(QDialog):
 
     @property
     def module_name(self):
-        name = self.module_config.get("name", None)
-        if name is None:
-            if self.file_path is not None:
-                name = Path(self.file_path).stem
-            else:
-                name = get_user_input(
-                    "What is the name of this module?",
-                    cancel_allowed=False,
-                    parent=self,
-                )
-            self.module_config["name"] = name
+        if self.file_path is not None:
+            name = Path(self.file_path).stem
+        else:
+            name = get_user_input(
+                "What is the name of this module?", cancel_allowed=False, parent=self
+            )
         return name
 
     @property

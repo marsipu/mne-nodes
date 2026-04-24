@@ -41,7 +41,7 @@ def test_module_import(tmp_path, ct, test_module_config, test_script):
     assert list(ct.modules.keys()) == ["basic_operations", "basic_plot"]
 
     # Add a custom module
-    ct.add_custom_module(test_module_config)
+    ct.add_module(test_module_config)
     assert "test_module" in ct.modules, "Custom module should be imported"
 
     # Test custom module reloadw

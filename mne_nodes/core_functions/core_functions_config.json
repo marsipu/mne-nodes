@@ -1,6 +1,5 @@
 {
     "module": {
-        "name": "core_functions"
     },
     "functions": {
         "filter_bandpass": {
