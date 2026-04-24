@@ -242,9 +242,6 @@ class BaseNode(QGraphicsItem):
     def xy_pos(self, pos=None):
         """Set the item scene postion. ("node.pos" conflicted with
         "QGraphicsItem.pos()" so it was refactored to "xy_pos".)
-
-        Args:
-            pos (list[float]): x, y scene position.
         """
         pos = pos or (0.0, 0.0)
         self.setPos(*pos)

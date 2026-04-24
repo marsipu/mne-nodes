@@ -10,6 +10,8 @@ import re
 from collections import OrderedDict
 
 import qtpy
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu
 from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
 from qtpy.QtGui import QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
@@ -251,14 +253,16 @@ class NodeViewer(QGraphicsView):
     ####################################################################################
     # Backend
     ####################################################################################
-    def add_node(self, node):
+    def add_node(self, node, pos=None):
         """Add a node to the node graph.
 
         Parameters
         ----------
         node : BaseNode
             The node to add to the node graph.
-
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         Returns
         -------
         BaseNode
@@ -272,16 +276,21 @@ class NodeViewer(QGraphicsView):
         self._nodes[node.id] = node
         # draw node after being added to the scene
         node.draw_node()
+        if pos is not None:
+            node.setPos(pos)
 
         return node
 
-    def add_input_node(self, node=None, **kwargs):
+    def add_input_node(self, node=None, pos=None, **kwargs):
         """Add a input node to the project. Currently only one is allowed.
 
         Parameters
         ----------
         node : InputNode, optional
             The input node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the BaseNode constructor.
 
@@ -298,11 +307,11 @@ class NodeViewer(QGraphicsView):
         if node is None:
             node = InputNode(ct=self.ct, **kwargs)
         self.input_node = node
-        self.add_node(node)
+        self.add_node(node, pos=pos)
 
         return node
 
-    def add_function_node(self, function_name=None, node=None, **kwargs):
+    def add_function_node(self, function_name=None, node=None, pos=None, **kwargs):
         """Add a new function node to the project.
 
         Parameters
@@ -312,6 +321,9 @@ class NodeViewer(QGraphicsView):
             a numbered suffix is added to the name. Can be None only if node is provided.
         node : FunctionNode, optional
             The function node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the FunctionNode constructor.
 
@@ -333,7 +345,7 @@ class NodeViewer(QGraphicsView):
         else:
             function_name = node.name
         self.function_nodes[function_name] = node
-        self.add_node(node)
+        self.add_node(node, pos=pos)
 
         return node
 
@@ -795,10 +807,20 @@ class NodeViewer(QGraphicsView):
         super().resizeEvent(event)
 
     def contextMenuEvent(self, event):
-        # ToDo: reimplement context menu.
-        pass
+        menu = QMenu(self)
+        pos = self.mapToScene(event.pos())
+        for func_name in self.ct.function_meta:
+            func_action = QAction(func_name, menu)
+            func_action.triggered.connect(
+                lambda checked=False, fn=func_name: self.add_function_node(
+                    function_name=fn, pos=pos
+                )
+            )
+            menu.addAction(func_action)
 
-        return super().contextMenuEvent(event)
+        # ToDo: implement context menu for nodes and pipes
+        menu.exec(event.globalPos())
+        event.accept()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

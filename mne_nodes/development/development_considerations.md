@@ -112,3 +112,4 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - [ ] resolve execution_order from node_viewer (remove deprecated node.start)
 - [ ] implement better execution-order for code creation (like data-type/sub-selection as key/list)
 - [ ] implement optional inputs for nodes
+- [ ] save features (data and plots)

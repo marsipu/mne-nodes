@@ -13,7 +13,6 @@ from mne_nodes import _widgets, iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import center, set_ratio_geometry
-from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.execution import ProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
@@ -57,10 +56,6 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
-        # Init Node-Picker dock
-        self.node_picker = NodePicker(controller, self)
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.node_picker)
-
         # Init QActions
         self.actions = {}
         add_meg_help = "Add MEG data"
@@ -99,7 +94,6 @@ class MainWindow(QMainWindow):
         self.actions["autolayout"].triggered.connect(self.viewer.auto_layout_nodes)
 
         # ToDo: Init Menu
-        # Create a menu which is called "Config"
         menu_file = self.menuBar().addMenu("&File")
         menu_file.addAction(self.actions["add_meg"])
         menu_file.addSeparator()

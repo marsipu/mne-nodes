@@ -123,7 +123,9 @@ class Controller:
         if initialize_paths:
             _ = self.deriv_root  # may trigger lazy initialization
         # Add core functions to modules (until separated)
-        self.settings.set("modules", {"core_functions": Path(core_functions.__file__)})
+        self.settings.set(
+            "module_paths", {"core_functions": Path(core_functions.__file__)}
+        )
         # Initialize modules
         self.load_modules()
         # Load selected inputs
@@ -553,7 +555,7 @@ class Controller:
     def get_func_from_param(self, parameter_name: str) -> list[str] | str | None:
         """Get the function name(s) associated with a specific parameter
         name."""
-        function_meta = self.get("function_meta")
+        function_meta = self.function_meta
         associated_functions = [
             func_name
             for func_name, func_meta in function_meta.items()
@@ -579,6 +581,9 @@ class Controller:
         with open(config_file_path) as file:
             config_data = json.load(file, object_hook=type_json_hook)
         self.module_meta[module_name] = config_data["module"]
+        # Add module-names to function-metas to allow identification
+        for func_dict in config_data["functions"].values():
+            func_dict["module"] = module_name
         self.function_meta.update(config_data["functions"])
 
     def _import_module(self, module_name, module_path):
@@ -684,11 +689,11 @@ class Controller:
 
     def get_function_meta(self, function_name: str) -> Dict[str, Any]:
         """Get the metadata for a specific function."""
-        function_meta = self.get("function_meta").get(function_name, None)
+        function_meta = self.function_meta.get(function_name, None)
         if function_meta is None:
             match = re.match(r"([\w]+)-\d+", function_name)
             if match:
-                function_meta = self.get("function_meta")[match.group(1)]
+                function_meta = self.function_meta[match.group(1)]
             else:
                 raise KeyError(
                     f"Function '{function_name}' not found in function meta."

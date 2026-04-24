@@ -266,6 +266,7 @@ class ParameterConfiguration(QDialog):
             self.resize(self.sizeHint())
 
 
+# ToDo: Function Categories
 class FunctionImporter(QDialog):
     def __init__(
         self,
@@ -277,7 +278,8 @@ class FunctionImporter(QDialog):
         super().__init__(parent)
         # Check code parameter
         # Attributes
-        self.file_path = file_path
+        self._file_path = file_path
+        self._pkg_dir = None
         self.module_config = {}
         self.func_config = {}
         self.current_func = None
@@ -289,11 +291,10 @@ class FunctionImporter(QDialog):
         self.setWindowTitle("Import Function")
         # Init code editor tabs
         tab_layout = QVBoxLayout()
-        # Load button (only if code is None)
-        if file_path is None and code is None:
-            load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
-            load_bt.clicked.connect(lambda x: self.load_file())
-            tab_layout.addWidget(load_bt)
+        # Load button
+        load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
+        load_bt.clicked.connect(lambda x: self.load_file())
+        tab_layout.addWidget(load_bt)
         # Tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.tabBarClicked.connect(self.update_config)
@@ -312,10 +313,9 @@ class FunctionImporter(QDialog):
         )
         dsc_bt.clicked.connect(self.change_description)
         bt_layout.addWidget(dsc_bt)
-        if file_path is not None:
-            save_bt = QPushButton(qta.icon("fa5.save"), "Save Configuration")
-            save_bt.clicked.connect(self.save_config)
-            bt_layout.addWidget(save_bt)
+        save_bt = QPushButton(qta.icon("fa5.save"), "Save")
+        save_bt.clicked.connect(self.save)
+        bt_layout.addWidget(save_bt)
         tab_layout.addLayout(bt_layout)
         # Init configuration
         config_layout = QFormLayout()
@@ -353,6 +353,41 @@ class FunctionImporter(QDialog):
             self.load_file(file_path)
         self.open()
 
+    @property
+    def module_name(self):
+        name = self.module_config.get("name", None)
+        if name is None:
+            if self.file_path is not None:
+                name = Path(self.file_path).stem
+            else:
+                name = get_user_input(
+                    "What is the name of this module?",
+                    cancel_allowed=False,
+                    parent=self,
+                )
+            self.module_config["name"] = name
+        return name
+
+    @property
+    def file_path(self):
+        return self._file_path
+
+    @file_path.setter
+    def file_path(self, value):
+        if isfile(value):
+            self._file_path = value
+            self._pkg_dir = Path(value).parent
+
+    def pkg_dir(self):
+        if self._pkg_dir is None:
+            self._pkg_dir = get_user_input(
+                "What is the package directory?",
+                input_type="folder",
+                cancel_allowed=False,
+                parent=self,
+            )
+        return self._pkg_dir
+
     def load_file(self, file_path: PathLike | str | None = None):
         self.file_path = file_path
         if self.file_path is None:
@@ -366,9 +401,11 @@ class FunctionImporter(QDialog):
             with open(self.file_path) as f:
                 code = f.read()
             config_path = self._get_config_path()
-            if config_path is not None and isfile(config_path):
+            if isfile(config_path):
                 with open(config_path) as f:
-                    self.func_config = json.load(f, object_hook=type_json_hook)
+                    config = json.load(f, object_hook=type_json_hook)
+                    self.module_config = config["module"]
+                    self.func_config = config["functions"]
                     logging.info(f"Successfully loaded config from {config_path}")
             self.clear_editor_tabs()
             self.analyze_code(code)
@@ -471,6 +508,8 @@ class FunctionImporter(QDialog):
                             gui_name = MultiTypeGui.__name__
                             param_config[p]["types"] = types
                         else:
+                            if types[0] == NoneType:
+                                param_config[p]["none_select"] = True
                             gui_name = default_type_guis[types[0]].__name__
                     else:
                         gui_name = default_type_guis[type_hint.__name__].__name__
@@ -478,11 +517,13 @@ class FunctionImporter(QDialog):
                     default = ast.literal_eval(default_args[i])
                 except (TypeError, ValueError):
                     logging.warning(
-                        f"Could not evaluate default value for parameter '{p}' in function '{func.name}'. It and the gui type need to be set manually."
+                        f"Could not evaluate default value for parameter '{p}' in function '{func.name}'. Default and the gui type need to be set manually."
                     )
                 else:
                     if p not in type_hints:
                         gui_name = default_type_guis[type(default).__name__].__name__
+                    if default is None:
+                        param_config[p]["none_select"] = True
                     param_config[p]["default"] = default
                 param_config[p]["gui"] = gui_name
 
@@ -638,20 +679,24 @@ class FunctionImporter(QDialog):
         ParameterConfiguration(param_name, config, parent=self)
 
     def _get_config_path(self):
-        if self.file_path is not None:
-            path = Path(self.file_path)
-            config_path = path.parent / f"{path.stem}_config.json"
-            return config_path
-        else:
-            return None
+        return self._pkg_dir / f"{self.module_name}_config.json"
 
     def save_config(self):
         save_path = self._get_config_path()
         config = {"module": self.module_config, "functions": self.func_config}
-        if save_path is not None:
-            with open(save_path, "w") as f:
-                json.dump(config, f, indent=4, cls=TypedJSONEncoder)
-                logging.info(f"Saved config to {save_path}")
+        with open(save_path, "w") as f:
+            json.dump(config, f, indent=4, cls=TypedJSONEncoder)
+            logging.info(f"Saved config to {save_path}")
+
+    def save(self):
+        # Todo: Implement change of code with existing file (consider imports)
+        if self.file_path is None:
+            self.file_path = f"{self.module_name}.py"
+            code = self.get_code()
+            with open(self.file_path, "w") as f:
+                f.write(code)
+
+        self.save_config()
 
     def closeEvent(self, event):
         # Check for mandatory configuration items
@@ -670,25 +715,22 @@ class FunctionImporter(QDialog):
         if ok:
             # Check if configuration was saved
             config_path = self._get_config_path()
-            if config_path is not None:
-                if isfile(config_path):
-                    with open(config_path) as f:
-                        loaded_config = json.load(f, object_hook=type_json_hook)
-                    same = json.dumps(
-                        loaded_config["functions"], sort_keys=True, cls=TypedJSONEncoder
-                    ) == json.dumps(
-                        self.func_config, sort_keys=True, cls=TypedJSONEncoder
-                    )
-                    if same:
-                        event.accept()
-                        return
-                ans = ask_user_custom(
-                    "You have unsaved config-changes, to you want to save them before closing?",
-                    buttons=["Save and Quit", "Quit without saving"],
-                )
-                if ans:
-                    self.save_config()
-                event.accept()
+            if isfile(config_path):
+                with open(config_path) as f:
+                    loaded_config = json.load(f, object_hook=type_json_hook)
+                same = json.dumps(
+                    loaded_config["functions"], sort_keys=True, cls=TypedJSONEncoder
+                ) == json.dumps(self.func_config, sort_keys=True, cls=TypedJSONEncoder)
+                if same:
+                    event.accept()
+                    return
+            ans = ask_user_custom(
+                "You have unsaved config-changes, to you want to save them before closing?",
+                buttons=["Save and Quit", "Quit without saving"],
+            )
+            if ans:
+                self.save()
+            event.accept()
         else:
             warning_msg += "Do you want to close anyway?"
             ans = ask_user(warning_msg, parent=self)
