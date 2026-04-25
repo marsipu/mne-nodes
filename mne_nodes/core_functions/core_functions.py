@@ -14,6 +14,8 @@ def filter_bandpass(
     n_jobs: int | str | None = -1,
 ):
     """Filter raw data."""
+    if not raw.preload:
+        raw.load_data()
     raw.filter(l_freq=l_freq, h_freq=h_freq, n_jobs=n_jobs)
 
     return raw

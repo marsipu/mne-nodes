@@ -44,7 +44,7 @@ class InputWidget(QWidget):
         self.group_tree = None
         self.group_layout = QVBoxLayout(self.group_widget)
         self.group_cmbx = QComboBox()
-        self.group_cmbx.addItems(["subject", "session", "run", "task", "custom"])
+        self.group_cmbx.addItems(self.ct.scopes)
         self.group_cmbx.currentTextChanged.connect(self.cmbx_changed)
         self.group_layout.addWidget(self.group_cmbx)
 
@@ -56,12 +56,12 @@ class InputWidget(QWidget):
         # Populate lists
         data_types = get_datatypes(self.ct.bids_root)
         for dt in data_types:
-            data = [
-                f.basename
-                for f in BIDSPath(suffix=dt, root=self.ct.bids_root).match(
-                    ignore_json=True
-                )
-            ]
+            bp_kwargs = {"root": self.ct.bids_root}
+            if dt in self.ct.raw_types:
+                bp_kwargs.update({"suffix": dt})
+            else:
+                bp_kwargs.update({"datatype": dt})
+            data = [f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)]
             if dt not in self.ct.selected_inputs:
                 self.ct.selected_inputs[dt] = []
             dt_list = CheckListProgress(
@@ -136,11 +136,17 @@ class InputNode(BaseNode):
         self.input_widget = InputWidget(self.ct)
         self.add_widget(self.input_widget)
 
+        # ToDo: Check for freesurfer-reconstructions
+
         # Add data-types as outputs
-        # ToDo: Only raw for meg/eeg/ieeg? Check for anat/freesurfer recon
         data_types = get_datatypes(self.ct.bids_root)
         for dt in data_types:
-            self.add_output(dt, multi_connection=True)
+            accepted = [dt]
+            if dt in self.ct.raw_types:
+                accepted.append("raw")
+            self.add_output(
+                dt, multi_connection=True, accepted_ports=accepted, warn_existing=False
+            )
 
 
 class FunctionNode(BaseNode):

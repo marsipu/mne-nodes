@@ -581,7 +581,7 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node)
 
-    def _get_execution_from_nodes(self, node_sequence, node_dict, visited=None):
+    def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
         if visited is None:
             visited = set()
         for port_id, port_info in node_dict.items():
@@ -603,13 +603,13 @@ class NodeViewer(QGraphicsView):
                     for oport in other_ports:
                         reverse_exec_order = []
                         up_nodes = node.upstream_nodes(port_id=oport.id)
-                        self._get_execution_from_nodes(
+                        self._iterate_node_sequence(
                             reverse_exec_order, up_nodes, visited
                         )
                         reverse_exec_order.reverse()
                         node_sequence.extend(reverse_exec_order)
-                node_sequence.append((node.name, node.__class__.__name__))
-                self._get_execution_from_nodes(node_sequence, node_info, visited)
+                node_sequence.append(node.get_description())
+                self._iterate_node_sequence(node_sequence, node_info, visited)
 
     def get_node_sequence(self, node):
         """Start from a node and create an execution order.
@@ -624,11 +624,9 @@ class NodeViewer(QGraphicsView):
         node_sequence = []
         visited = set()
         # Add the starting node
-        node_sequence.append((node.name, node.__class__.__name__))
+        node_sequence.append(node.get_description())
         visited.add(node.id)
-        self._get_execution_from_nodes(
-            node_sequence, node.downstream_node_dict(), visited
-        )
+        self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
 
         return node_sequence
 

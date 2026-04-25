@@ -1,6 +1,5 @@
 {
-    "module": {
-    },
+    "module": {},
     "functions": {
         "filter_bandpass": {
             "inputs": {
@@ -34,7 +33,8 @@
             },
             "outputs": [
                 "raw"
-            ]
+            ],
+            "target": "file"
         },
         "create_epochs": {
             "inputs": {
@@ -47,9 +47,9 @@
             },
             "parameters": {
                 "events": {
+                    "none_select": true,
                     "default": null,
-                    "gui": "MultiTypeGui",
-                    "none_select": true
+                    "gui": "MultiTypeGui"
                 },
                 "event_id": {
                     "none_select": true,
@@ -73,7 +73,8 @@
             },
             "outputs": [
                 "epochs"
-            ]
+            ],
+            "target": "file"
         },
         "create_evokeds": {
             "inputs": {
@@ -86,14 +87,15 @@
             },
             "parameters": {
                 "conditions": {
+                    "none_select": true,
                     "default": null,
-                    "gui": "ListGui",
-                    "none_select": true
+                    "gui": "ListGui"
                 }
             },
             "outputs": [
                 "evokeds"
-            ]
+            ],
+            "target": "file"
         },
         "plot_evokeds": {
             "inputs": {
@@ -105,7 +107,8 @@
                 }
             },
             "parameters": {},
-            "outputs": {}
+            "outputs": {},
+            "target": "file"
         }
     }
 }

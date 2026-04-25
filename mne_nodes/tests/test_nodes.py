@@ -1,3 +1,5 @@
+from pprint import pprint
+
 from qtpy.QtCore import QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
@@ -67,18 +69,18 @@ def test_exec_order(qtbot, ct):
 
     n = viewer.node(node_idx=0)
     eo = viewer.get_node_sequence(n)
-    print("first node:")
-    print("\n".join([str(e) for e in eo]))
+    pprint("first node:")
+    pprint(eo)
 
     n = viewer.node(node_name="filter_bandpass")
     eo = viewer.get_node_sequence(n)
-    print("filter_data:")
-    print("\n".join([str(e) for e in eo]))
+    pprint("filter_data:")
+    pprint(eo)
 
     n = viewer.node(node_name="create_epochs")
     eo = viewer.get_node_sequence(n)
-    print("epoch_raw:")
-    print("\n".join([str(e) for e in eo]))
+    pprint("epoch_raw:")
+    pprint(eo)
 
     viewer.show()
 

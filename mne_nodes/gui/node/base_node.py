@@ -135,6 +135,14 @@ class BaseNode(QGraphicsItem):
             self.start_button = None
             self.start_button_proxy = None
 
+    def __repr__(self):
+        des = self.get_description()
+        return (
+            f"{des['name']} ({des['class']}), "
+            f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
+            f"outputs: {len(des['outputs'])} ({[p for p in des['outputs']]}), "
+        )
+
     @property
     def name(self):
         return self._name
@@ -255,7 +263,13 @@ class BaseNode(QGraphicsItem):
     # Logic methods
     # ----------------------------------------------------------------------------------
     def add_port(
-        self, name, port_type, multi_connection=False, accepted_ports=None, old_id=None
+        self,
+        name,
+        port_type,
+        multi_connection=False,
+        accepted_ports=None,
+        old_id=None,
+        warn_existing=True,
     ):
         """Adds a Port QGraphicsItem into the node.
 
@@ -271,6 +285,8 @@ class BaseNode(QGraphicsItem):
             list of accepted port names, if None all ports are accepted.
         old_id : int, None, optional
             old port id for reestablishing connections.
+        warn_existing : bool
+
 
         Returns
         -------
@@ -283,9 +299,10 @@ class BaseNode(QGraphicsItem):
         # port names must be unique for inputs/outputs
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
-            logging.debug(
-                f"Port '{name}' already exists for '{port_type}'. Returning existing port."
-            )
+            if warn_existing:
+                logging.debug(
+                    f"Port '{name}' already exists for '{port_type}'. Returning existing port."
+                )
             return self.port(port_name=name)
         # Create port
         port = Port(
@@ -525,18 +542,31 @@ class BaseNode(QGraphicsItem):
 
         return up_dict
 
-    def _get_connected_input_nodes(self):
-        """Returns all connected input nodes."""
-        from mne_nodes.gui.node.nodes import InputNode
+    def connected_inputs(self):
+        """Returns connected inputs by name."""
+        inputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.inputs
+        }
 
-        input_nodes = []
-        for port in self.inputs:
-            for cp in port.connected_ports:
-                node = getattr(cp, "node", None)
-                if isinstance(node, InputNode):
-                    input_nodes.append(node)
+        return inputs
 
-        return input_nodes
+    def connected_outputs(self):
+        """Returns connected outputs by name."""
+        outputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.outputs
+        }
+
+        return outputs
+
+    def get_description(self):
+        """Returns node description."""
+        description = {
+            "name": self.name,
+            "class": self.__class__.__name__,
+            "inputs": self.connected_inputs(),
+            "outputs": self.connected_outputs(),
+        }
+        return description
 
     def start_clicked(self):
         node_sequence = self.viewer.get_node_sequence(self)

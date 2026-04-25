@@ -323,11 +323,11 @@ class FunctionImporter(QDialog):
             QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
         )
         layout.addLayout(config_layout)
-        # Add scope combobox
-        self.scope_cmbx = QComboBox()
-        self.scope_cmbx.addItems(["subject", "group"])
-        self.scope_cmbx.currentTextChanged.connect(self.scope_cmbx_changed)
-        config_layout.addRow("Scope", self.scope_cmbx)
+        # Add target combobox
+        self.target_cmbx = QComboBox()
+        self.target_cmbx.addItems(["file", "group"])
+        self.target_cmbx.currentTextChanged.connect(self.target_cmbx_changed)
+        config_layout.addRow("target", self.target_cmbx)
         # Inputs Configuration
         self.inputs_layout = QFormLayout()
         self.inputs_layout.setFieldGrowthPolicy(
@@ -400,8 +400,8 @@ class FunctionImporter(QDialog):
             if isfile(config_path):
                 with open(config_path) as f:
                     config = json.load(f, object_hook=type_json_hook)
-                    self.module_config = config["module"]
-                    self.func_config = config["functions"]
+                    self.module_config = config.get("module", {})
+                    self.func_config = config.get("functions", {})
                     logging.info(f"Successfully loaded config from {config_path}")
             self.clear_editor_tabs()
             self.analyze_code(code)
@@ -428,6 +428,7 @@ class FunctionImporter(QDialog):
                     "inputs": {},
                     "parameters": {},
                     "outputs": {},
+                    "target": "file",
                 }
             start_line = func.lineno - 1
             end_line = func.end_lineno
@@ -599,9 +600,9 @@ class FunctionImporter(QDialog):
 
     def update_config(self, idx):
         self.current_func = list(self.func_config.keys())[idx]
-        # Update scope
-        scope = self.func_config[self.current_func].get("scope", "subject")
-        self.scope_cmbx.setCurrentText(scope)
+        # Update target
+        target = self.func_config[self.current_func].get("target", "file")
+        self.target_cmbx.setCurrentText(target)
         # Update inputs
         self._populate_config(
             self.func_config[self.current_func]["inputs"],
@@ -663,8 +664,8 @@ class FunctionImporter(QDialog):
                 self.fixed_categories[self.current_func]["inputs"].append(item)
         self.update_config(self.tab_widget.currentIndex())
 
-    def scope_cmbx_changed(self, text):
-        self.func_config[self.current_func]["scope"] = text
+    def target_cmbx_changed(self, text):
+        self.func_config[self.current_func]["target"] = text
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]
@@ -721,7 +722,9 @@ class FunctionImporter(QDialog):
                 with open(config_path) as f:
                     loaded_config = json.load(f, object_hook=type_json_hook)
                 same = json.dumps(
-                    loaded_config["functions"], sort_keys=True, cls=TypedJSONEncoder
+                    loaded_config.get("functions", {}),
+                    sort_keys=True,
+                    cls=TypedJSONEncoder,
                 ) == json.dumps(self.func_config, sort_keys=True, cls=TypedJSONEncoder)
                 if same:
                     event.accept()
