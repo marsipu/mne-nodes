@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import sys
 from copy import deepcopy
 from importlib import import_module
@@ -18,7 +17,6 @@ from inspect import getsource
 from os.path import isdir, join, isfile
 from pathlib import Path
 from time import perf_counter
-from types import NoneType
 from typing import Any, Dict, Optional, Union
 
 import mne
@@ -30,6 +28,7 @@ from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
     ask_user_custom,
+    ask_user,
 )
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
@@ -125,8 +124,6 @@ class Controller:
         self.add_module(core_functions.__file__)
         # Initialize modules
         self.load_modules()
-        # Load selected inputs
-        self.selected_inputs = self.get("selected_inputs", {})
 
     ####################################################################################
     # Initialization and Properties
@@ -290,9 +287,13 @@ class Controller:
 
     @bids_root.setter
     def bids_root(self, value: str | Path) -> None:
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-        self.settings.set("bids_root", value)
+        ans = ask_user(
+            "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
+        )
+        if ans:
+            if not isdir(value):
+                raise ValueError(f"Path {value} does not exist!")
+            self.settings.set("bids_root", value)
 
     @property
     def deriv_root(self) -> Path:
@@ -437,75 +438,6 @@ class Controller:
             with open(dataset_file) as file:
                 dataset_description = json.load(file)
             return dataset_description["Name"]
-
-    # ToDo: Seems deprecated
-    def add_data(
-        self,
-        name: str,
-        data_type: str,
-        group: str = "All",
-        input_path: Path | str | NoneType = None,
-    ) -> None:
-        """Add an input to the inputs dictionary.
-
-        Parameters
-        ----------
-        name : str
-            Name of the input (e.g., subject name or ID).
-        data_type : str
-            Type of the input data. Must be one of the keys in
-            self.get("input_types") (e.g., "raw", "fsmri").
-        group : str, optional
-            Group name for the input. Default is "All".
-        input_path : Path or str or NoneType, optional
-            Path to the input data file or directory. If provided,
-            the data will be imported using the appropriate import function.
-            Default is None.
-        """
-        if data_type not in self.input_types:
-            raise ValueError(f"{data_type} is not valid data-type.")
-        inputs = self.get("inputs")
-        if group not in inputs[data_type]:
-            inputs[data_type][group] = []
-        if name in inputs[data_type][group]:
-            logging.error(f"The input {name} is already in {group} for{data_type}.")
-            return
-        inputs[data_type][group].append(name)
-        self.set("inputs", inputs)
-        if input_path is not None:
-            # ToDo: Implement import functions for other data types
-            data_import = import_module("mne_nodes.pipeline.data_import")
-            import_func = getattr(
-                data_import, self.get("input_types")[data_type]["import"]
-            )
-            import_func(name=name, import_path=input_path, controller=self)
-
-    def remove_data(self, name, data_type, group="All"):
-        """Remove an input from the inputs dictionary."""
-        if data_type not in self.input_types:
-            raise ValueError(f"{data_type} is not valid data-type.")
-        inputs = self.get("inputs")
-        if group not in inputs[data_type]:
-            logging.error(f"Group {group} does not exist for {data_type}.")
-            return
-        if name not in inputs[data_type][group]:
-            logging.error(f"The input {name} is not in {group} for {data_type}.")
-            return
-        inputs[data_type][group].remove(name)
-        if len(inputs[data_type][group]) == 0:
-            del inputs[data_type][group]
-        self.set("inputs", inputs)
-        for dt in ["fsmri", "erm"]:
-            self.input_mapping[dt].pop(name, None)
-        if name in self.selected_inputs:
-            self.selected_inputs.remove(name)
-        self.bad_channels.pop(name, None)
-        self.event_ids.pop(name, None)
-        if data_type == "fsmri":
-            data_type_dir = join(self.subjects_dir, name)
-        else:
-            data_type_dir = join(self.deriv_root, name)
-        shutil.rmtree(data_type_dir, ignore_errors=True)
 
     ####################################################################################
     # Parameters
