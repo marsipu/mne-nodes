@@ -6,16 +6,25 @@ Github: https://github.com/marsipu/mne-nodes
 
 import math
 
-from mne_nodes.gui.gui_utils import format_color
-from mne_nodes.gui.node.node_defaults import defaults
-from qtpy.QtCore import QPointF, Qt, QLineF, QRectF
-from qtpy.QtGui import QPolygonF, QColor, QPainterPath, QBrush, QTransform, QPen
+from qtpy.QtCore import QPointF, QLineF, QRectF, Qt
+from qtpy.QtGui import (
+    QPolygonF,
+    QColor,
+    QPainterPath,
+    QBrush,
+    QTransform,
+    QPen,
+    QPainter,
+)
 from qtpy.QtWidgets import (
     QGraphicsPathItem,
     QGraphicsItem,
     QGraphicsPolygonItem,
     QGraphicsTextItem,
 )
+
+from mne_nodes.gui.gui_utils import format_color
+from mne_nodes.gui.node.node_defaults import defaults
 
 
 class Pipe(QGraphicsPathItem):
@@ -33,7 +42,7 @@ class Pipe(QGraphicsPathItem):
         self.setZValue(-1)
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
 
         # Hidden attributes
         self._input_port = input_port
@@ -131,7 +140,7 @@ class Pipe(QGraphicsPathItem):
 
         painter.setPen(pen)
         painter.setBrush(self.brush())
-        painter.setRenderHint(painter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.drawPath(self.path())
 
         # QPaintDevice: Cannot destroy paint device that is being painted.
@@ -481,7 +490,7 @@ class SlicerPipeItem(QGraphicsPathItem):
         arrow_size = 4.0
 
         painter.save()
-        painter.setRenderHint(painter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         font = painter.font()
         font.setPointSize(12)

@@ -4,10 +4,11 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.gui.node.node_defaults import defaults
-from qtpy.QtCore import Qt, QLineF
+from qtpy.QtCore import QLineF, Qt
 from qtpy.QtGui import QColor, QPen, QPainter
 from qtpy.QtWidgets import QGraphicsScene
+
+from mne_nodes.gui.node.node_defaults import defaults
 
 
 class NodeScene(QGraphicsScene):

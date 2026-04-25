@@ -62,9 +62,11 @@ Nodes should improve usability and the representation of the pipeline by the fol
 ## Custom Functions Overhaul
 
 - Instead of using meeg/fsmri in functions the data-type (which then should be reserved
-  namespaces like "raw" or "epochs") can be used. Maybe that makes meeg/fsmri obsolete
+  namespaces like "meg" or "epochs") can be used. Maybe that makes meeg/fsmri obsolete
   in the end but for group analysis group is still handy.
-- data-types need to be stored in Controller and visible somewhere
+- meg should be the input-datatype instead of raw, since it is given by bids.
+- the outputs (what is returned) and the inputs are matched by name (meg->meg))
+- use **type-hints** to determine gui-type of parameters!
 
 ## Controller and Project
 
@@ -86,9 +88,28 @@ Nodes should improve usability and the representation of the pipeline by the fol
 
 ## Run from Nodes-Layout
 - Each node needs an optional run button (depending on if there is a stored input)
-- Each node needs a save-toggle to determine if the output is stored (only if save-function is available)
+- Each node needs a save-toggle to determine if the output is stored (only if save-function is available).
 
-## Running in QProcess
-- Either put the information in the main-call with very long sys.argv or create temporary run-file
-- in favour of latter since config.json should never be accessed directly from QProcess to avoid race-condition
-- in need of separation in __main__.py to forward into run-mode or gui-mode.
+## A better CodeEditor
+- Probably a better code-editor could be achieved using QScintilla, but since is currently only available with PyQt6, the project had to be licensed under GPL v3.
+
+## Parameter-Presets(legacy)
+- Parameter-Presets are removed, since comparison of different parameters can be achieved by using multiple nodes with different parameters.
+
+## Input Nodes
+- One input node should represent a bids-root, where all data-entities like meg, mri etc. are stored and assigned to each other
+- in future, multiple input-nodes as of multiple bids-roots is thinkable. at the moment only one input-node is supported (as bids_root and derivatives_root are stored in Controller)
+- For group-analysis, groups can either be determined by the bids-entities (like taks etc.) or there should also be the possibility to assign subjects to groups manually (e.g. for clinical data where the group-entities are not stored in the bids-entities)
+
+## Current ToDo Next:
+- [x] config-locks on each get/set are too expensive
+- [x] execution order from node-viewer
+- [x] parameters by function (config and storage so dict[func][param])
+- [x] handle multiple functions with same name in viewer (replacement for p_presets)
+- [x] remove p_preset in favor of multiple functions
+- [x] remove inputs and rewrite as selected(bids)inputs
+- [x] Design input node
+- [ ] resolve execution_order from node_viewer (remove deprecated node.start)
+- [ ] implement better execution-order for code creation (like data-type/sub-selection as key/list)
+- [ ] implement optional inputs for nodes
+- [ ] save features (data and plots)

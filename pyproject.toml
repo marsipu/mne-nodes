@@ -7,9 +7,9 @@ name = "mne-nodes"
 authors = [
     { name = "Martin G. Schulz", email = "dev@mgschulz.de" }
 ]
-description = "A PyQt-GUI with Node-Layout for MNE-Python"
+description = "A GUI with Node-Layout for data analysis MNE-Python"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [
@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     # MNE
     "mne",
+    "mne-bids",
     "mne-qt-browser",
     "mne-connectivity",
     # MNE related
@@ -31,13 +32,15 @@ dependencies = [
     "autoreject",
     "h5io",
     "h5netcdf",
-    # PyQt
+    # Qt
     "qtpy",
     "darkdetect",
     "qtawesome",
     "pyobjc-framework-Cocoa; sys_platform == 'Darwin'",
     # Other
     "psutil",
+    "tqdm",
+    "filelock",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
@@ -73,7 +76,7 @@ raw-options = { version_scheme = "release-branch-semver" }
 line-length = 88
 fix = true
 show-fixes = true
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -85,8 +88,8 @@ skip-magic-trailing-comma = true
 [tool.pyright.defineConstant]
 PYQT5 = false
 PYSIDE2 = false
-PYQT6 = true
-PYSIDE6 = false
+PYQT6 = false
+PYSIDE6 = true
 
 [tool.docformatter]
 in-place = true

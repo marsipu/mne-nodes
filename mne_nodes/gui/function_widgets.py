@@ -4,621 +4,742 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
+import ast
 import inspect
-import os
-import shutil
-from ast import literal_eval
-from importlib import util
-from os import mkdir
-from os.path import isdir, isfile, join
-from types import FunctionType
+import json
+import logging
+from functools import partial
+from os import PathLike
+from os.path import isfile
+from pathlib import Path
+from types import UnionType, NoneType
+from typing import get_args, get_type_hints, get_origin, Union
 
-import pandas as pd
+import qtawesome as qta
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QMessageBox,
-    QPushButton,
+    QFormLayout,
     QVBoxLayout,
+    QLabel,
+    QComboBox,
+    QPushButton,
+    QPlainTextEdit,
+    QSizePolicy,
+    QTabWidget,
+    QWidget,
+    QTextEdit,
+    QGridLayout,
 )
-
-from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.base_widgets import CheckList, EditDict, EditList, SimpleList
+from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
+from mne_nodes.gui.gui_utils import (
+    edit_font,
+    raise_user_attention,
+    ask_user,
+    get_user_input,
+    ask_user_custom,
+)
+from mne_nodes.gui.parameter_widgets import (
+    IntGui,
+    FloatGui,
+    StringGui,
+    FuncGui,
+    BoolGui,
+    DualTupleGui,
+    ComboGui,
+    ListGui,
+    CheckListGui,
+    DictGui,
+    SliderGui,
+    MultiTypeGui,
+    LabelGui,
+    ColorGui,
+    PathGui,
+    Param,
+)
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+
+parameter_guis = [
+    IntGui,
+    FloatGui,
+    StringGui,
+    FuncGui,
+    BoolGui,
+    DualTupleGui,
+    ComboGui,
+    ListGui,
+    CheckListGui,
+    DictGui,
+    SliderGui,
+    MultiTypeGui,
+    LabelGui,
+    ColorGui,
+    PathGui,
+]
+
+default_type_guis = {
+    "int": IntGui,
+    "float": FloatGui,
+    "str": StringGui,
+    "bool": BoolGui,
+    "list": ListGui,
+    "dict": DictGui,
+    "object": MultiTypeGui,
+    "NoneType": MultiTypeGui,
+    "tuple": DualTupleGui,
+}
 
 
-class EditGuiArgsDlg(QDialog):
-    def __init__(self, cf_dialog):
-        super().__init__(cf_dialog)
-        self.cf = cf_dialog
-        self.gui_args = {}
-        self.default_gui_args = {}
-
-        if self.cf.current_parameter:
-            covered_params = [
-                "data",
-                "name",
-                "alias",
-                "default",
-                "unit",
-                "none_select",
-                "description",
-            ]
-            # Get possible default GUI-Args additional to those
-            # covered by the Main-GUI
-            gui_type = self.cf.add_pd_params.loc[self.cf.current_parameter, "gui_type"]
-            if pd.notna(gui_type):
-                gui_handle = getattr(parameter_widgets, gui_type)
-                psig = inspect.signature(gui_handle).parameters
-                self.default_gui_args = {
-                    p: psig[p].default for p in psig if p not in covered_params
-                }
-
-            # Get current GUI-Args
-            loaded_gui_args = self.cf.add_pd_params.loc[
-                self.cf.current_parameter, "gui_args"
-            ]
-            if pd.notna(loaded_gui_args):
-                self.gui_args = literal_eval(loaded_gui_args)
-            else:
-                self.gui_args = {}
-
-            # Fill in all possible Options, which are not already changed
-            for arg_key in [
-                ak for ak in self.default_gui_args if ak not in self.gui_args
-            ]:
-                self.gui_args[arg_key] = self.default_gui_args[arg_key]
-
-            if len(self.gui_args) > 0:
-                self.init_ui()
-                self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        layout.addWidget(EditDict(data=self.gui_args, ui_buttons=False))
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
-
-        self.setLayout(layout)
-
-    def closeEvent(self, event):
-        # Remove all options which don't differ from the default
-        for arg_key in [
-            ak for ak in self.gui_args if self.gui_args[ak] == self.default_gui_args[ak]
-        ]:
-            self.gui_args.pop(arg_key)
-
-        if len(self.gui_args) > 0:
-            self.cf.pguiargs_changed(self.gui_args)
-
-        event.accept()
+class TitleLabel(QLabel):
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        edit_font(self, 13, True)
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
 
-class ChooseOptions(QDialog):
-    def __init__(self, cf_dialog, gui_type, options):
-        super().__init__(cf_dialog)
-        self.cf = cf_dialog
-        self.gui_type = gui_type
-        self.options = options
+class DescriptionEditor(QDialog):
+    def __init__(self, module_config, parent):
+        super().__init__(parent)
+        self.module_config = module_config
+        # Initialize Layout
+        layout = QGridLayout(self)
+        layout.addWidget(TitleLabel("Editor (Markdown)"), 0, 0)
+        self.editor = QTextEdit()
+        self.editor.textChanged.connect(self._update_viewer)
+        layout.addWidget(self.editor, 1, 0)
+        layout.addWidget(TitleLabel("Viewer"), 0, 1)
+        self.viewer = QTextEdit()
+        self.viewer.setReadOnly(True)
+        layout.addWidget(self.viewer, 1, 1)
+        # Initialize text if existing
+        if "description" in module_config:
+            self.editor.setPlainText(module_config["description"])
+        self.setMinimumSize(600, 300)
+        self.open()
 
-        self.init_ui()
-        # If open(), execution doesn't stop after the dialog
-        self.exec()
+    def _update_viewer(self):
+        text = self.editor.toPlainText()
+        self.viewer.setMarkdown(text)
+        self.module_config["description"] = text
 
-    def init_ui(self):
-        layout = QVBoxLayout()
+
+class FunctionHighlighter(PythonHighlighter):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.n_args = 0  # Additional highlighting rules can be added here  # ToDo: Highlight function arguments in different colors
+
+
+class Editor(QPlainTextEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFont(QFont("Consolas", 10))
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setTabStopDistance(4 * self.fontMetrics().horizontalAdvance(" "))
+        self.highlighter = FunctionHighlighter(self.document())
+        self.setMinimumSize(600, 400)
+
+
+class InputConfiguration(QDialog):
+    def __init__(self, input_name, configuration, parent=None):
+        super().__init__(parent)
+        self.config = configuration
+        self.setWindowTitle(f"Configure Input: {input_name}")
+        layout = QVBoxLayout(self)
         layout.addWidget(
-            QLabel(
-                f"For {self.gui_type}, you need to specify the options to choose from"
+            BoolGui(
+                data=configuration,
+                name="optional",
+                none_select=False,
+                groupbox_layout=False,
             )
         )
-        layout.addWidget(EditList(data=self.options))
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
-        self.setLayout(layout)
-
-
-# ToDo:
-#   Bug1: After saving a new function, the parameters stay in the table-view,
-#   Bug2: When editing existing functions, the proprietary
-#   parameters can not be edited (they land in exising_params)
-#   Bug3: When hitting Enter, the focus still lies on the
-#   AddFunc/EditFunc-Buttons which can disrupt setup
-# ToDo:
-#   Feature1: Code Display in middle with color highlighting
-#   and color coding the parameters etc.
-#   Feature2: Restrict parameter names to make sure they aren't similar
-#   to data-types or something like ct/controller/pr
-
-
-class ImportFuncs(QDialog):
-    def __init__(self, cf_dialog, edit_existing=False):
-        super().__init__(cf_dialog)
-        self.cf = cf_dialog
-        self.edit_existing = edit_existing
-
-        self.module = None
-        self.loaded_cfs = []
-        self.edit_loaded_cfs = []
-        self.selected_cfs = []
-        self.selected_edit_cfs = []
-        self.already_existing_funcs = []
-
-        self.load_function_list()
-        self.init_ui()
-
+        layout.addWidget(
+            ListGui(
+                data=configuration,
+                name="accepted",
+                alias="Accepted connections",
+                none_select=False,
+                groupbox_layout=False,
+                show_edit_bt=False,
+            )
+        )
         self.open()
 
-    def load_function_list(self):
-        # Load .csv-Files if
-        try:
-            if self.edit_existing:
-                self.cf.pkg_name = self.cf.file_path.parent.name
-                pd_funcs_path = join(
-                    self.cf.file_path.parent, f"{self.cf.pkg_name}_functions.csv"
-                )
-                pd_params_path = join(
-                    self.cf.file_path.parent, f"{self.cf.pkg_name}_parameters.csv"
-                )
-                self.cf.add_pd_funcs = pd.read_csv(
-                    pd_funcs_path,
-                    sep=";",
-                    index_col=0,
-                    na_values=[""],
-                    keep_default_na=False,
-                )
-                self.cf.add_pd_params = pd.read_csv(
-                    pd_params_path,
-                    sep=";",
-                    index_col=0,
-                    na_values=[""],
-                    keep_default_na=False,
-                )
 
-                # Can be removed soon, when nobody uses
-                # old packages anymore (10.11.2020)
-                if "target" not in self.cf.add_pd_funcs.columns:
-                    self.cf.add_pd_funcs["target"] = None
-            else:
-                self.cf.pkg_name = None
-            spec = util.spec_from_file_location(
-                self.cf.file_path.stem, self.cf.file_path
-            )
-            self.module = util.module_from_spec(spec)
-            spec.loader.exec_module(self.module)
-        except Exception:
-            err = get_exception_tuple()
-            ErrorDialog(err, self)
-        else:
-            for func_key in self.module.__dict__:
-                func = self.module.__dict__[func_key]
-                # Only functions are allowed
-                # (Classes should be called from function!)
-                if (
-                    isinstance(func, FunctionType)
-                    and func.__module__ == self.module.__name__
-                ):
-                    # Check, if function is already existing
-                    if func_key in self.cf.exst_functions:
-                        if (
-                            self.edit_existing
-                            and func_key in self.cf.add_pd_funcs.index
-                        ):
-                            self.edit_loaded_cfs.append(func_key)
-                        else:
-                            self.already_existing_funcs.append(func_key)
-                    else:
-                        self.loaded_cfs.append(func_key)
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        if len(self.already_existing_funcs) > 0:
-            exst_label = QLabel(
-                f"These functions already exist: {self.already_existing_funcs}"
-            )
-            exst_label.setWordWrap(True)
-            layout.addWidget(exst_label)
-
-        view_layout = QHBoxLayout()
-        load_list = CheckList(
-            self.loaded_cfs,
-            self.selected_cfs,
-            ui_button_pos="bottom",
-            title="New functions",
+class ParameterConfiguration(QDialog):
+    def __init__(self, param_name, configuration, parent=None):
+        super().__init__(parent)
+        self.config = configuration
+        self.setWindowTitle(f"Configure Parameter: {param_name}")
+        layout = QVBoxLayout(self)
+        # GUI selection
+        selection_layout = QHBoxLayout()
+        selection_layout.addWidget(TitleLabel("Select GUI:"))
+        gui_cmbx = QComboBox()
+        gui_cmbx.addItems([gui.__name__ for gui in parameter_guis])
+        gui_cmbx.currentTextChanged.connect(self.update_gui_config)
+        selection_layout.addWidget(gui_cmbx)
+        layout.addLayout(selection_layout)
+        # GUI config
+        excluded_params = ["function_name", "parent_widget", "groupbox_layout"]
+        layout.addWidget(TitleLabel("GUI Configuration"))
+        base_params = {
+            name: {"default": param.default, "annotation": param.annotation}
+            for name, param in inspect.signature(Param).parameters.items()
+            if param.default != inspect.Parameter.empty and name not in excluded_params
+        }
+        for name, param in base_params.items():
+            gui = self._get_type_gui(name, param)
+            if gui is not None:
+                layout.addWidget(gui)
+        # Specific GUI config
+        self.specific_label = TitleLabel("Specific GUI Configuration")
+        layout.addWidget(self.specific_label)
+        self.specific_label.hide()
+        self.specific_gui_config_layout = QVBoxLayout()
+        layout.addLayout(self.specific_gui_config_layout)
+        # Initialize with appropriate gui
+        gui_name = configuration.get("gui") or (
+            default_type_guis.get(
+                type(self.config.get("default")).__name__, StringGui
+            ).__name__
+            if self.config.get("default") is not None
+            else "StringGui"
         )
-        view_layout.addWidget(load_list)
+        gui_cmbx.setCurrentText(gui_name)
+        self.open()
 
-        if len(self.edit_loaded_cfs) > 0:
-            edit_list = CheckList(
-                self.edit_loaded_cfs,
-                self.selected_edit_cfs,
-                ui_button_pos="bottom",
-                title="Functions to edit",
+    def _get_type_gui(self, name, param):
+        # Get type for gui configuration items
+        if param["annotation"] is inspect.Parameter.empty:
+            logging.warning(f"No type annotation for parameter '{name}'. Skipping.")
+            return None
+        elif (
+            type(param["annotation"]) is UnionType
+        ):  # alias for typing.Union since Python 3.14
+            args = get_args(param["annotation"])
+            gui_type = next((arg for arg in args if arg is not NoneType), str)
+            none_select = NoneType in args
+        else:
+            gui_type = param["annotation"]
+            none_select = param["annotation"] == NoneType
+        gui = default_type_guis.get(gui_type.__name__, MultiTypeGui)(
+            data=self.config,
+            name=name,
+            default=param["default"],
+            none_select=none_select,
+            groupbox_layout=False,
+        )
+        return gui
+
+    def update_gui_config(self, gui_name):
+        self.config["gui"] = gui_name
+        # Remove existing specific gui config widgets
+        while self.specific_gui_config_layout.count():
+            widget = self.specific_gui_config_layout.takeAt(0).widget()
+            if widget is not None:
+                widget.deleteLater()
+        # Add new specific gui config widgets
+        gui_class = globals()[gui_name]
+        config_items = {
+            name: {"default": param.default, "annotation": param.annotation}
+            for name, param in inspect.signature(gui_class).parameters.items()
+            if param.default != inspect.Parameter.empty
+        }
+        if len(config_items) == 0:
+            self.specific_label.hide()
+        else:
+            self.specific_label.show()
+            for name, param in config_items.items():
+                gui = self._get_type_gui(name, param)
+                if gui is not None:
+                    self.specific_gui_config_layout.addWidget(gui)
+        # Recalculate Dialog size
+        if self.layout() is not None:
+            self.adjustSize()
+            self.setMinimumSize(self.sizeHint())
+            self.resize(self.sizeHint())
+
+
+# ToDo: Function Categories
+class FunctionImporter(QDialog):
+    def __init__(
+        self,
+        code: str | None = None,
+        file_path: str | PathLike | None = None,
+        allow_exec: bool = False,
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        # Check code parameter
+        # Attributes
+        self._file_path = file_path
+        self._pkg_dir = None
+        self.module_config = {}
+        self.func_config = {}
+        self.current_func = None
+        self.editors = {}
+        self.allow_exec = allow_exec
+        self.fixed_categories = {}
+        # UI
+        layout = QHBoxLayout(self)
+        self.setWindowTitle("Import Function")
+        # Init code editor tabs
+        tab_layout = QVBoxLayout()
+        # Load button
+        load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
+        load_bt.clicked.connect(lambda x: self.load_file())
+        tab_layout.addWidget(load_bt)
+        # Tab widget
+        self.tab_widget = QTabWidget()
+        self.tab_widget.tabBarClicked.connect(self.update_config)
+        self.tab_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        tab_layout.addWidget(self.tab_widget)
+        layout.addLayout(tab_layout)
+        # Reanalyze button
+        bt_layout = QHBoxLayout()
+        analyze_bt = QPushButton(qta.icon("mdi6.reload"), "Re-analyze Code")
+        analyze_bt.clicked.connect(self.reanalyze)
+        bt_layout.addWidget(analyze_bt)
+        dsc_bt = QPushButton(
+            qta.icon("mdi.file-document-edit"), "Change Module Description"
+        )
+        dsc_bt.clicked.connect(self.change_description)
+        bt_layout.addWidget(dsc_bt)
+        save_bt = QPushButton(qta.icon("fa5.save"), "Save")
+        save_bt.clicked.connect(self.save)
+        bt_layout.addWidget(save_bt)
+        tab_layout.addLayout(bt_layout)
+        # Init configuration
+        config_layout = QFormLayout()
+        config_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        layout.addLayout(config_layout)
+        # Add target combobox
+        self.target_cmbx = QComboBox()
+        self.target_cmbx.addItems(["file", "group"])
+        self.target_cmbx.currentTextChanged.connect(self.target_cmbx_changed)
+        config_layout.addRow("target", self.target_cmbx)
+        # Inputs Configuration
+        self.inputs_layout = QFormLayout()
+        self.inputs_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        config_layout.addRow("Inputs", self.inputs_layout)
+        # Outputs Configuration
+        self.outputs_layout = QFormLayout()
+        self.outputs_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        config_layout.addRow("Outputs", self.outputs_layout)
+        # Parameter configuration
+        self.parameter_layout = QFormLayout()
+        self.parameter_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
+        config_layout.addRow("Parameters", self.parameter_layout)
+
+        # Analyze the code if given and populate the UI
+        if code is not None:
+            self.analyze_code(code)
+        elif file_path is not None:
+            self.load_file(file_path)
+        self.open()
+
+    @property
+    def module_name(self):
+        if self.file_path is not None:
+            name = Path(self.file_path).stem
+        else:
+            name = get_user_input(
+                "What is the name of this module?", cancel_allowed=False, parent=self
             )
-            view_layout.addWidget(edit_list)
+        return name
 
-        layout.addLayout(view_layout)
+    @property
+    def file_path(self):
+        return self._file_path
 
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
+    @file_path.setter
+    def file_path(self, value):
+        if isfile(value):
+            self._file_path = value
+            self._pkg_dir = Path(value).parent
 
-        self.setWindowTitle("Choose Functions")
-        self.setLayout(layout)
+    def pkg_dir(self):
+        if self._pkg_dir is None:
+            self._pkg_dir = get_user_input(
+                "What is the package directory?",
+                input_type="folder",
+                cancel_allowed=False,
+                parent=self,
+            )
+        return self._pkg_dir
 
-    def load_selected_functions(self):
-        selected_funcs = [cf for cf in self.loaded_cfs if cf in self.selected_cfs] + [
-            cf for cf in self.edit_loaded_cfs if cf in self.selected_edit_cfs
+    def load_file(self, file_path: PathLike | str | None = None):
+        self.file_path = file_path
+        if self.file_path is None:
+            self.file_path = get_user_input(
+                "Select File to load",
+                "file",
+                file_filter="Python Files (*.py)",
+                parent=self,
+            )
+        if self.file_path is not None:
+            with open(self.file_path) as f:
+                code = f.read()
+            config_path = self._get_config_path()
+            if isfile(config_path):
+                with open(config_path) as f:
+                    config = json.load(f, object_hook=type_json_hook)
+                    self.module_config = config.get("module", {})
+                    self.func_config = config.get("functions", {})
+                    logging.info(f"Successfully loaded config from {config_path}")
+            self.clear_editor_tabs()
+            self.analyze_code(code)
+
+    def analyze_code(self, code):
+        # Analyze the code to extract inputs and parameters
+        namespace = {}
+        if self.allow_exec:
+            try:
+                exec(code, globals=namespace)
+            except Exception:
+                exc_tuple = get_exception_tuple()
+                ErrorDialog(exc_tuple, self, "There was an error executing the code.")
+        tree = ast.parse(code)
+        function_defs = [
+            node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
         ]
-        if self.edit_existing:
-            # Drop Functions which are not selected
-            self.cf.add_pd_funcs.drop(
-                index=[
-                    f for f in self.cf.add_pd_funcs.index if f not in selected_funcs
-                ],
-                inplace=True,
+        for func in function_defs:
+            fixed = self.fixed_categories.get(
+                func.name, {"inputs": [], "parameters": []}
             )
+            if func.name not in self.func_config:
+                self.func_config[func.name] = {
+                    "inputs": {},
+                    "parameters": {},
+                    "outputs": {},
+                    "target": "file",
+                }
+            start_line = func.lineno - 1
+            end_line = func.end_lineno
+            func_code = "\n".join(code.splitlines()[start_line:end_line])
 
-        for func_key in selected_funcs:
-            func = self.module.__dict__[func_key]
+            # Create a new tab with an editor for the function code
+            editor = Editor()
+            self.editors[func.name] = editor
+            editor.setPlainText(func_code)
+            self.tab_widget.addTab(editor, func.name)
 
-            self.cf.add_pd_funcs.loc[func_key, "module"] = self.module.__name__
-            self.cf.add_pd_funcs.loc[func_key, "ready"] = 0
+            # Extract inputs and parameters from function arguments
+            args = func.args.args
+            default_args = func.args.defaults
+            num_defaults = len(default_args)
 
-            self.cf.code_dict[func_key] = inspect.getsource(func)
+            # Configure inputs
+            input_config = self.func_config[func.name]["inputs"]
+            inputs = [
+                a.arg
+                for a in args[: len(args) - num_defaults]
+                if a.arg not in fixed["parameters"]
+            ]
+            # Add fixed inputs moved from parameters
+            inputs += fixed["inputs"]
+            # Add missing input-configurations
+            for new_input in [ip for ip in inputs if ip not in input_config]:
+                input_config[new_input] = {"accepted": [new_input], "optional": False}
+            # Remove old input-configurations
+            for old_input in [ipc for ipc in input_config if ipc not in inputs]:
+                logging.info(
+                    f"Input '{old_input}' no longer present in function '{func.name}'. Removing from configuration."
+                )
+                del input_config[old_input]
 
-            # Get Parameters and divide them in existing and setup
-            all_parameters = list(inspect.signature(func).parameters)
-            self.cf.add_pd_funcs.loc[func_key, "func_args"] = ",".join(all_parameters)
-            existing_parameters = []
+            # Configure parameters
+            param_config = self.func_config[func.name]["parameters"]
+            parameters = [
+                a.arg
+                for a in args[len(args) - num_defaults :]
+                if a.arg not in fixed["inputs"]
+            ]
+            # Add fixed parameters moved from inputs
+            parameters += fixed["parameters"]
+            # Remove old parameters if they are not longer present
+            for old_param in [p for p in param_config if p not in parameters]:
+                logging.info(
+                    f"Parameter '{old_param}' no longer present in function '{func.name}'. Removing from configuration."
+                )
+                del param_config[old_param]
 
-            for param_key in all_parameters:
-                if param_key in self.cf.exst_parameters:
-                    existing_parameters.append(param_key)
-                else:
-                    # Check if ready (possible when editing functions)
-                    self.cf.add_pd_params.loc[param_key, "ready"] = 0
-                    if pd.notna(
-                        self.cf.add_pd_params.loc[param_key, self.cf.oblig_params]
-                    ).all():
-                        self.cf.add_pd_params.loc[param_key, "ready"] = 1
+            # Get type-hints from function definition if exec is allowed
+            type_hints = {}
+            if func.name in namespace:
+                type_hints.update(get_type_hints(namespace[func.name]))
 
-                    # functions (which are using param) is a continuous string
-                    # (because pandas can't store a list as item)
-                    if param_key in self.cf.add_pd_params.index:
-                        if "functions" in self.cf.add_pd_params.columns:
-                            if pd.notna(
-                                self.cf.add_pd_params.loc[param_key, "functions"]
-                            ):
-                                self.cf.add_pd_params.loc[param_key, "functions"] += (
-                                    func_key
-                                )
-                            else:
-                                self.cf.add_pd_params.loc[param_key, "functions"] = (
-                                    func_key
-                                )
+            # Update parameter configuration
+            for i, p in enumerate(parameters):
+                if p not in param_config:
+                    param_config[p] = {}
+                gui_name = None
+                # Type-hints from the function if exec allowed
+                if p in type_hints:
+                    type_hint = type_hints[p]
+                    if (
+                        isinstance(type_hint, UnionType)
+                        or get_origin(type_hint) is Union
+                    ):
+                        types = [t.__name__ for t in get_args(type_hint)]
+                        if "NoneType" in types:
+                            param_config[p]["none_select"] = True
+                            types.remove("NoneType")
+                        if len(types) > 1:
+                            gui_name = MultiTypeGui.__name__
+                            param_config[p]["types"] = types
                         else:
-                            self.cf.add_pd_params.loc[param_key, "functions"] = func_key
+                            if types[0] == NoneType:
+                                param_config[p]["none_select"] = True
+                            gui_name = default_type_guis[types[0]].__name__
                     else:
-                        self.cf.add_pd_params.loc[param_key, "functions"] = func_key
+                        gui_name = default_type_guis[type_hint.__name__].__name__
+                try:
+                    default = ast.literal_eval(default_args[i])
+                except (TypeError, ValueError):
+                    logging.warning(
+                        f"Could not evaluate default value for parameter '{p}' in function '{func.name}'. Default and the gui type need to be set manually."
+                    )
+                else:
+                    if p not in type_hints:
+                        gui_name = default_type_guis[type(default).__name__].__name__
+                    if default is None:
+                        param_config[p]["none_select"] = True
+                    param_config[p]["default"] = default
+                param_config[p]["gui"] = gui_name
 
-            self.cf.param_exst_dict[func_key] = existing_parameters
+            # Extract outputs from return statement
+            returns = [node for node in ast.walk(func) if isinstance(node, ast.Return)]
+            if len(returns) == 0:
+                logging.info(
+                    f"No return statements found in function '{func.name}'. No outputs will be registered and this node will be a dead end."
+                )
+            elif len(returns) > 1:
+                logging.warning(
+                    f"Multiple return statements found in function '{func.name}'. Only the name of the first return value will be set as output. This may lead to unexpected behavior."
+                )
+            else:
+                ret = returns[0]
+                if isinstance(ret.value, ast.Tuple):
+                    for val in ret.value.elts:
+                        if not isinstance(val, ast.Name):
+                            raise_user_attention(
+                                f"Return value in function '{func.name}' is not a name. Only constant return values are supported currently.",
+                                "warning",
+                                self,
+                            )
+                            return
+                    self.func_config[func.name]["outputs"] = [
+                        e.id for e in ret.value.elts
+                    ]
+                elif isinstance(ret.value, ast.Name):
+                    self.func_config[func.name]["outputs"] = [ret.value.id]
+                else:
+                    raise_user_attention(
+                        f"Return value in function '{func.name}' is not a name or tuple of names. Only constant return values are supported currently.",
+                        "warning",
+                        self,
+                    )
+        # Update parameter configuration
+        self.update_config(self.tab_widget.currentIndex())
 
-        # Check, if mandatory columns exist
-        if "ready" not in self.cf.add_pd_params.columns:
-            self.cf.add_pd_params["ready"] = 0
-        if "functions" not in self.cf.add_pd_params.columns:
-            self.cf.add_pd_params["functions"] = ""
+    def clear_editor_tabs(self):
+        # Clear editor tabs
+        for idx in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(idx)
+            widget.deleteLater()
+        self.tab_widget.clear()
+
+    def change_description(self):
+        DescriptionEditor(self.module_config, self)
+
+    def reanalyze(self):
+        # Get code from editors
+        code = self.get_code()
+        # ToDo: Save changed code back into file if loaded from life
+        self.clear_editor_tabs()
+        self.analyze_code(code)
+
+    @staticmethod
+    def _populate_config(config_items, layout, config_slot, move_slot):
+        # Remove existing entries
+        while layout.rowCount() > 0:
+            layout.removeRow(0)
+        # Add entries
+        for item in config_items:
+            bt_layout = QHBoxLayout()
+            move_bt = QPushButton()
+            move_bt.setSizePolicy(
+                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
+            )
+            move_bt.setIcon(qta.icon("fa5s.exchange-alt"))
+            move_bt.clicked.connect(partial(move_slot, item))
+            bt_layout.addWidget(move_bt)
+            ip_bt = QPushButton()
+            ip_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+            ip_bt.setIcon(qta.icon("fa5s.cog"))
+            ip_bt.clicked.connect(partial(config_slot, item))
+            bt_layout.addWidget(ip_bt)
+            layout.addRow(item, bt_layout)
+
+    def update_config(self, idx):
+        self.current_func = list(self.func_config.keys())[idx]
+        # Update target
+        target = self.func_config[self.current_func].get("target", "file")
+        self.target_cmbx.setCurrentText(target)
+        # Update inputs
+        self._populate_config(
+            self.func_config[self.current_func]["inputs"],
+            self.inputs_layout,
+            self.input_configuration,
+            self.move_item,
+        )
+        # Update outputs
+        # ToDo: Change appearance if config unnecessary
+        self._populate_config(
+            self.func_config[self.current_func]["outputs"],
+            self.outputs_layout,
+            self.output_configuration,
+            self.move_item,
+        )
+        # Update parameters
+        self._populate_config(
+            self.func_config[self.current_func]["parameters"],
+            self.parameter_layout,
+            self.param_configuration,
+            self.move_item,
+        )
+
+    def get_code(self):
+        code = ""
+        for func_name, editor in self.editors.items():
+            code += editor.toPlainText() + "\n\n"
+        return code
+
+    def move_item(self, item):
+        """Move item between inputs and parameters."""
+        if self.current_func not in self.fixed_categories:
+            self.fixed_categories[self.current_func] = {"inputs": [], "parameters": []}
+        if item in self.func_config[self.current_func]["inputs"]:
+            # Remove from input configuration
+            self.func_config[self.current_func]["inputs"].pop(item)
+            # Add to parameter configuration
+            self.func_config[self.current_func]["parameters"][item] = {}
+            # Set to fixed container to avoid reset on reanalyze
+            if item in self.fixed_categories[self.current_func]["inputs"]:
+                # If changed before from (origin) parameters
+                self.fixed_categories[self.current_func]["inputs"].remove(item)
+            else:
+                # If origin input and changed to parameters
+                self.fixed_categories[self.current_func]["parameters"].append(item)
+        elif item in self.func_config[self.current_func]["parameters"]:
+            # Remove from configuration
+            self.func_config[self.current_func]["parameters"].pop(item)
+            # Add to input configuration
+            self.func_config[self.current_func]["inputs"][item] = {
+                "accepted": [item],
+                "optional": False,
+            }
+            if item in self.fixed_categories[self.current_func]["parameters"]:
+                # If changed before from (origin) inputs
+                self.fixed_categories[self.current_func]["parameters"].remove(item)
+            else:
+                # If origin parameter and changed to inputs
+                self.fixed_categories[self.current_func]["inputs"].append(item)
+        self.update_config(self.tab_widget.currentIndex())
+
+    def target_cmbx_changed(self, text):
+        self.func_config[self.current_func]["target"] = text
+
+    def input_configuration(self, input_name):
+        config = self.func_config[self.current_func]["inputs"][input_name]
+        InputConfiguration(input_name, config, parent=self)
+
+    def output_configuration(self, output_name):
+        # ToDo: Remove if unnecessary
+        pass
+
+    def param_configuration(self, param_name):
+        # Passing the configuration dict works since ParameterWidgets will fill
+        # the existing container.
+        config = self.func_config[self.current_func]["parameters"][param_name]
+        ParameterConfiguration(param_name, config, parent=self)
+
+    def _get_config_path(self):
+        return self._pkg_dir / f"{self.module_name}_config.json"
+
+    def save_config(self):
+        save_path = self._get_config_path()
+        config = {"module": self.module_config, "functions": self.func_config}
+        with open(save_path, "w") as f:
+            json.dump(config, f, indent=4, cls=TypedJSONEncoder)
+            logging.info(f"Saved config to {save_path}")
+
+    def save(self):
+        # Todo: Implement change of code with existing file (consider imports)
+        if self.file_path is None:
+            self.file_path = f"{self.module_name}.py"
+            code = self.get_code()
+            with open(self.file_path, "w") as f:
+                f.write(code)
+
+        self.save_config()
 
     def closeEvent(self, event):
-        self.load_selected_functions()
-        self.cf.update_func_cmbx()
-        self.cf.update_exst_param_label()
-        if self.cf.code_editor:
-            self.cf.code_editor.update_code()
-        event.accept()
-
-
-class SelectDependencies(QDialog):
-    def __init__(self, cf_dialog):
-        super().__init__(cf_dialog)
-        self.cf_dialog = cf_dialog
-        if pd.notna(
-            cf_dialog.add_pd_funcs.loc[cf_dialog.current_function, "dependencies"]
-        ):
-            self.dpd_list = literal_eval(
-                cf_dialog.add_pd_funcs.loc[cf_dialog.current_function, "dependencies"]
+        # Check for mandatory configuration items
+        warning_msg = "The following mandatory configuration items are missing:\n"
+        ok = True
+        for func_name, func_config in self.func_config.items():
+            # Check function
+            if len(func_config.get("inputs", [])) == 0:
+                logging.warning(f"Function '{func_name}' has no inputs defined.")
+                ok = False
+            # Check parameters
+            for param_name, param_config in func_config["parameters"].items():
+                if "default" not in param_config:
+                    warning_msg += f"Parameter '{param_name}' in function '{func_name}' has no default value defined.\n"
+                    ok = False
+        if ok:
+            # Check if configuration was saved
+            config_path = self._get_config_path()
+            if isfile(config_path):
+                with open(config_path) as f:
+                    loaded_config = json.load(f, object_hook=type_json_hook)
+                same = json.dumps(
+                    loaded_config.get("functions", {}),
+                    sort_keys=True,
+                    cls=TypedJSONEncoder,
+                ) == json.dumps(self.func_config, sort_keys=True, cls=TypedJSONEncoder)
+                if same:
+                    event.accept()
+                    return
+            ans = ask_user_custom(
+                "You have unsaved config-changes, to you want to save them before closing?",
+                buttons=["Save and Quit", "Quit without saving"],
             )
+            if ans:
+                self.save()
+            event.accept()
         else:
-            self.dpd_list = []
-
-        layout = QVBoxLayout()
-        self.listw = QListWidget()
-        self.listw.itemChanged.connect(self.item_checked)
-        layout.addWidget(self.listw)
-
-        ok_bt = QPushButton("OK")
-        ok_bt.clicked.connect(self.close_dlg)
-        layout.addWidget(ok_bt)
-
-        self.populate_listw()
-        self.setLayout(layout)
-        self.open()
-
-    def populate_listw(self):
-        for function in self.cf_dialog.ct.pd_funcs.index:
-            item = QListWidgetItem(function)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            if function in self.dpd_list:
-                item.setCheckState(Qt.Checked)
+            warning_msg += "Do you want to close anyway?"
+            ans = ask_user(warning_msg, parent=self)
+            if ans:
+                event.accept()
             else:
-                item.setCheckState(Qt.Unchecked)
-            self.listw.addItem(item)
-
-    def item_checked(self, item):
-        if item.checkState == Qt.Checked:
-            self.dpd_list.append(item.text())
-        elif item.text() in self.dpd_list:
-            self.dpd_list.remove(item.text())
-
-    def close_dlg(self):
-        self.cf_dialog.add_pd_funcs.loc[
-            self.cf_dialog.current_function, "dependencies"
-        ] = str(self.dpd_list)
-        self.close()
-
-
-class TestParamGui(QDialog):
-    def __init__(self, cf_dialog):
-        super().__init__(cf_dialog)
-        self.cf = cf_dialog
-        # Dict as Replacement for Parameters in Project for Testing
-        self.test_parameters = {}
-
-        default_string = self.cf.add_pd_params.loc[self.cf.current_parameter, "default"]
-        gui_type = self.cf.add_pd_params.loc[self.cf.current_parameter, "gui_type"]
-        try:
-            gui_args = literal_eval(
-                self.cf.add_pd_params.loc[self.cf.current_parameter, "gui_args"]
-            )
-        except (SyntaxError, ValueError):
-            gui_args = {}
-
-        self.result, self.gui = self.cf.test_param_gui(
-            default_string, gui_type, gui_args
-        )
-
-        if not self.result:
-            self.init_ui()
-            self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        # Allow Enter-Press without closing the dialog
-        if (
-            self.cf.add_pd_params.loc[self.cf.current_parameter, "gui_type"]
-            == "FuncGui"
-        ):
-            void_bt = QPushButton()
-            void_bt.setDefault(True)
-            layout.addWidget(void_bt)
-
-        layout.addWidget(self.gui)
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
-        self.setLayout(layout)
-
-
-class SavePkgDialog(QDialog):
-    def __init__(self, cf_dialog):
-        super().__init__(cf_dialog)
-        self.cf_dialog = cf_dialog
-
-        self.my_pkg_name = None
-        self.pkg_path = None
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        self.func_list = SimpleList(
-            list(
-                self.cf_dialog.add_pd_funcs.loc[
-                    self.cf_dialog.add_pd_funcs["ready"] == 1
-                ].index
-            )
-        )
-        layout.addWidget(self.func_list)
-
-        pkg_name_label = QLabel("Package-Name:")
-        layout.addWidget(pkg_name_label)
-
-        self.pkg_le = QLineEdit()
-        if self.cf_dialog.pkg_name:
-            self.pkg_le.setText(self.cf_dialog.pkg_name)
-        self.pkg_le.textEdited.connect(self.pkg_le_changed)
-        layout.addWidget(self.pkg_le)
-
-        save_bt = QPushButton("Save")
-        save_bt.clicked.connect(self.save_pkg)
-        layout.addWidget(save_bt)
-
-        cancel_bt = QPushButton("Cancel")
-        cancel_bt.clicked.connect(self.close)
-        layout.addWidget(cancel_bt)
-        self.setLayout(layout)
-
-    def pkg_le_changed(self, text):
-        if text != "":
-            self.my_pkg_name = text
-
-    def save_pkg(self):
-        if self.my_pkg_name or self.cf_dialog.pkg_name:
-            # Drop all functions with unfinished setup
-            # and add the remaining to the main_window-DataFrame
-            drop_funcs = self.cf_dialog.add_pd_funcs.loc[
-                self.cf_dialog.add_pd_funcs["ready"] == 0
-            ].index
-            final_add_pd_funcs = self.cf_dialog.add_pd_funcs.drop(index=drop_funcs)
-
-            drop_params = []
-            for param in self.cf_dialog.add_pd_params.index:
-                if not any(
-                    [
-                        f in str(self.cf_dialog.add_pd_params.loc[param, "functions"])
-                        for f in final_add_pd_funcs.index
-                    ]
-                ):
-                    drop_params.append(param)
-            final_add_pd_params = self.cf_dialog.add_pd_params.drop(index=drop_params)
-
-            # Remove no longer needed columns
-            del final_add_pd_funcs["ready"]
-            del final_add_pd_params["ready"]
-            del final_add_pd_params["functions"]
-
-            # Todo: Make this more failproof
-            #  (loading and saving already existing packages)
-            # This is only not None, when the function
-            # was imported by edit-functions
-            if self.cf_dialog.pkg_name:
-                # Update and overwrite existing settings for funcs and params
-                self.pkg_path = join(
-                    self.cf_dialog.ct.custom_pkg_path, self.cf_dialog.pkg_name
-                )
-                pd_funcs_path = join(
-                    self.pkg_path, f"{self.cf_dialog.pkg_name}_functions.csv"
-                )
-                pd_params_path = join(
-                    self.pkg_path, f"{self.cf_dialog.pkg_name}_parameters.csv"
-                )
-                if isfile(pd_funcs_path):
-                    read_pd_funcs = pd.read_csv(
-                        pd_funcs_path,
-                        sep=";",
-                        index_col=0,
-                        na_values=[""],
-                        keep_default_na=False,
-                    )
-                    # Replace indexes from file with same name
-                    drop_funcs = [
-                        f for f in read_pd_funcs.index if f in final_add_pd_funcs.index
-                    ]
-                    read_pd_funcs.drop(index=drop_funcs, inplace=True)
-                    final_add_pd_funcs = pd.concat([read_pd_funcs, final_add_pd_funcs])
-                if isfile(pd_params_path):
-                    read_pd_params = pd.read_csv(
-                        pd_params_path,
-                        sep=";",
-                        index_col=0,
-                        na_values=[""],
-                        keep_default_na=False,
-                    )
-                    # Replace indexes from file with same name
-                    drop_params = [
-                        p
-                        for p in read_pd_params.index
-                        if p in final_add_pd_params.index
-                    ]
-                    read_pd_params.drop(index=drop_params, inplace=True)
-                    final_add_pd_params = pd.concat(
-                        [read_pd_params, final_add_pd_params]
-                    )
-
-                if self.my_pkg_name and self.my_pkg_name != self.cf_dialog.pkg_name:
-                    # Rename folder and .csv-files if you enter a new name
-                    new_pkg_path = join(
-                        self.cf_dialog.ct.custom_pkg_path, self.my_pkg_name
-                    )
-                    os.rename(self.pkg_path, new_pkg_path)
-
-                    new_pd_funcs_path = join(
-                        new_pkg_path, f"{self.my_pkg_name}_functions.csv"
-                    )
-                    os.rename(pd_funcs_path, new_pd_funcs_path)
-                    pd_funcs_path = new_pd_funcs_path
-
-                    new_pd_params_path = join(
-                        new_pkg_path, f"{self.my_pkg_name}_parameters.csv"
-                    )
-                    os.rename(pd_params_path, new_pd_params_path)
-                    pd_params_path = new_pd_params_path
-
-            else:
-                self.pkg_path = join(
-                    self.cf_dialog.ct.custom_pkg_path, self.my_pkg_name
-                )
-                if not isdir(self.pkg_path):
-                    mkdir(self.pkg_path)
-                # Create __init__.py to make it a package
-                with open(join(self.pkg_path, "__init__.py"), "w") as f:
-                    f.write("")
-                # Copy Origin-Script to Destination
-                pd_funcs_path = join(self.pkg_path, f"{self.my_pkg_name}_functions.csv")
-                pd_params_path = join(
-                    self.pkg_path, f"{self.my_pkg_name}_parameters.csv"
-                )
-                dest_path = join(self.pkg_path, self.cf_dialog.file_path.name)
-                shutil.copy2(self.cf_dialog.file_path, dest_path)
-
-            # Add pkg_name as column if not already existing
-            if "pkg_name" in final_add_pd_funcs:
-                final_add_pd_funcs["pkg_name"] = self.my_pkg_name
-            else:
-                final_add_pd_funcs.insert(
-                    len(final_add_pd_funcs.columns) - 1, "pkg_name", self.my_pkg_name
-                )
-
-            final_add_pd_funcs.to_csv(pd_funcs_path, sep=";")
-            final_add_pd_params.to_csv(pd_params_path, sep=";")
-
-            for func in [
-                f
-                for f in final_add_pd_funcs.index
-                if f in self.cf_dialog.add_pd_funcs.index
-            ]:
-                self.cf_dialog.add_pd_funcs.drop(index=func, inplace=True)
-            self.cf_dialog.update_func_cmbx()
-            for param in [
-                p
-                for p in final_add_pd_params.index
-                if p in self.cf_dialog.add_pd_params
-            ]:
-                self.cf_dialog.add_pd_params.drop(index=param, inplace=True)
-            self.cf_dialog.clear_func_items()
-            self.cf_dialog.clear_param_items()
-
-            # Add to selected modules
-            self.cf_dialog.ct.settings["selected_modules"].append(
-                self.cf_dialog.file_path.stem
-            )
-            self.cf_dialog.ct.save_settings()
-
-            self.cf_dialog.ct.import_custom_modules()
-            self.cf_dialog.mw.redraw_func_and_param()
-            # ToDo: MP
-            # init_mp_pool()
-            self.close()
-
-        else:
-            # If no valid pkg_name is existing
-            QMessageBox.warning(
-                self,
-                "No valid Package-Name!",
-                "You need to enter a valid Package-Name!",
-            )
+                event.ignore()

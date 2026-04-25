@@ -5,18 +5,18 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import multiprocessing
 import sys
 import traceback
 from contextlib import contextmanager
 
 from qtpy.QtCore import QObject, Signal
 
+from mne_nodes import debug_mode
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
 
 
 class ExceptionTuple:
-    def __init__(self, *args):
+    def __init__(self, *args) -> None:
         self._data = [*args]
 
     def __getitem__(self, idx):
@@ -29,16 +29,11 @@ class ExceptionTuple:
         return self._data[2]
 
 
-def get_exception_tuple(is_mp=False):
+def get_exception_tuple() -> ExceptionTuple:
     traceback.print_exc()
     exctype, value = sys.exc_info()[:2]
     traceback_str = traceback.format_exc(limit=-10)
-    # ToDo: Is this doing what it's supposed to do?
-    if is_mp:
-        logger = multiprocessing.get_logging
-    else:
-        logger = logging.getLogger()
-    logger.error(f"{exctype}: {value}")
+    logging.error(f"{exctype}: {value}")
     exc_tuple = ExceptionTuple(exctype, value, traceback_str)
 
     return exc_tuple
@@ -98,3 +93,6 @@ class UncaughtHook(QObject):
 
             # trigger showing of error-dialog
             self._exception_caught.emit(exc_str)
+
+            if debug_mode():
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)

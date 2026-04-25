@@ -14,7 +14,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from mne.viz import Brain
 from mne_qt_browser._pg_figure import MNEQtBrowser
-from qtpy.QtCore import Qt, QThreadPool
+from qtpy.QtCore import QThreadPool, Qt
 from qtpy.QtGui import QPixmap, QFont
 from qtpy.QtWidgets import (
     QMainWindow,
@@ -39,7 +39,7 @@ try:
     from mne.viz import Figure3D
 except ImportError:
     Figure3D = None
-from mne_nodes import _object_refs
+from mne_nodes import _widgets
 from mne_nodes.gui.base_widgets import SimpleList, CheckList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.execution import Worker
@@ -101,7 +101,7 @@ class PlotManager(QMainWindow):
             if isinstance(subplot, Figure):
                 plot_widget = FigureCanvasQTAgg(subplot)
                 plot_widget.setFocusPolicy(
-                    Qt.FocusPolicy(Qt.StrongFocus | Qt.WheelFocus)
+                    Qt.FocusPolicy.StrongFocus | Qt.FocusPolicy.WheelFocus
                 )
                 plot_widget.setFocus()
             elif isinstance(subplot, MNEQtBrowser):
@@ -111,9 +111,7 @@ class PlotManager(QMainWindow):
             elif isinstance(subplot, Figure3D):
                 plot_widget = subplot
             else:
-                logging.error(
-                    f'Unrecognized type "{type(subplot)}" ' f'for "{func_name}"'
-                )
+                logging.error(f'Unrecognized type "{type(subplot)}" for "{func_name}"')
                 plot_widget = QWidget()
 
             self.plots[name][func_name].append(plot_widget)
@@ -125,16 +123,16 @@ class PlotManager(QMainWindow):
                 self.update_plots(only_add=True)
 
     def closeEvent(self, event):
-        _object_refs["plot_manager"] = None
+        _widgets["plot_manager"] = None
         event.accept()
 
 
 def show_plot_manager():
-    if _object_refs["plot_manager"] is None:
+    if _widgets["plot_manager"] is None:
         plot_manager = PlotManager()
-        _object_refs["plot_manager"] = plot_manager
+        _widgets["plot_manager"] = plot_manager
 
-    return _object_refs["plot_manager"]
+    return _widgets["plot_manager"]
 
 
 class PlotViewSelection(QDialog):
@@ -223,12 +221,12 @@ class PlotViewSelection(QDialog):
             # where a plot-image already was saved
             if not self.interactive:
                 for ob in target_objects:
-                    if ob in self.ct.pr.plot_files:
+                    if ob in self.ct.plot_files:
                         for p_preset in self.selected_ppresets:
-                            if p_preset in self.ct.pr.plot_files[ob]:
+                            if p_preset in self.ct.plot_files[ob]:
                                 if (
                                     self.selected_func
-                                    in self.ct.pr.plot_files[ob][p_preset]
+                                    in self.ct.plot_files[ob][p_preset]
                                 ):
                                     if ob not in self.objects:
                                         self.objects.append(ob)
@@ -238,7 +236,8 @@ class PlotViewSelection(QDialog):
         self.obj_select.replace_data(self.objects)
 
     def func_selected(self, func):
-        """Get selected function and adjust contents of Object-Selection to target."""
+        """Get selected function and adjust contents of Object-Selection to
+        target."""
         self.selected_func = func
         self.target = self.ct.pd_funcs.loc[func, "target"]
         self.update_objects()
@@ -327,13 +326,13 @@ class PlotViewSelection(QDialog):
                     else:
                         try:
                             image_paths = [
-                                join(obj.figures_path, p)
+                                join(obj.plot_path, p)
                                 for p in obj.plot_files[self.selected_func]
                             ]
                         except KeyError as ke:
-                            self.all_images[p_preset][
-                                obj_name
-                            ] = f"{ke} not found for {obj_name}"
+                            self.all_images[p_preset][obj_name] = (
+                                f"{ke} not found for {obj_name}"
+                            )
                             self.thread_finished(None)
                         else:
                             # Load pixmaps from Image-Paths
@@ -348,10 +347,7 @@ class PlotViewSelection(QDialog):
 
                             self.thread_finished(None)
 
-    def thread_finished(
-        self,
-        _,
-    ):
+    def thread_finished(self, _):
         self.prog_cnt += 1
         self.prog_dlg.setValue(self.prog_cnt)
 
@@ -417,7 +413,10 @@ class PlotViewer(QMainWindow):
             p_preset_layout = QVBoxLayout()
             p_preset_label = QLabel(p_preset)
             p_preset_label.setFont(QFont("AnyStlye", 16, QFont.Bold))
-            p_preset_layout.addWidget(p_preset_label, alignment=Qt.AlignHCenter)
+            # Replaced Qt.AlignHCenter with Qt.AlignmentFlag.AlignHCenter
+            p_preset_layout.addWidget(
+                p_preset_label, alignment=Qt.AlignmentFlag.AlignHCenter
+            )
 
             scroll_area = QScrollArea()
             scroll_widget = QWidget()
@@ -435,7 +434,9 @@ class PlotViewer(QMainWindow):
                 if isinstance(obj_items, str):
                     # This displays errors
                     error_layout = QVBoxLayout()
-                    error_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                    error_layout.addWidget(
+                        name_label, alignment=Qt.AlignmentFlag.AlignHCenter
+                    )
                     error_layout.addWidget(QLabel(obj_items))
                     scroll_layout.addLayout(error_layout, row, col)
 
@@ -454,15 +455,17 @@ class PlotViewer(QMainWindow):
                             view_widget.setPixmap(
                                 item.scaled(
                                     item.size() * (self.zoom_factor / 100),
-                                    Qt.KeepAspectRatio,
-                                    Qt.SmoothTransformation,
+                                    Qt.AspectRatioMode.KeepAspectRatio,
+                                    Qt.TransformationMode.SmoothTransformation,
                                 )
                             )
 
                         if len(obj_items) > 1:
                             tab_widget.addTab(view_widget, str(item_idx))
                         else:
-                            obj_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                            obj_layout.addWidget(
+                                name_label, alignment=Qt.AlignmentFlag.AlignHCenter
+                            )
                             # Add view-widget if not enough items
                             # for Tab-Widget
                             obj_layout.addWidget(view_widget)
@@ -471,7 +474,9 @@ class PlotViewer(QMainWindow):
                     if len(obj_items) > 1:
                         frame_widget = QWidget()
                         frame_layout = QVBoxLayout()
-                        frame_layout.addWidget(name_label, alignment=Qt.AlignHCenter)
+                        frame_layout.addWidget(
+                            name_label, alignment=Qt.AlignmentFlag.AlignHCenter
+                        )
                         frame_layout.addWidget(tab_widget)
                         show_bt = QPushButton("Show")
                         show_bt.clicked.connect(

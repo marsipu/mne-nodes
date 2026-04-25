@@ -6,9 +6,10 @@ Github: https://github.com/marsipu/mne-nodes
 
 import pandas as pd
 import pytest
+from qtpy.QtCore import Qt
+from qtpy.QtCore import QItemSelectionModel
 
 from mne_nodes.tests._test_utils import toggle_checked_list_model
-
 
 # Define widget groups for parameterized testing
 list_widgets = [
@@ -21,7 +22,7 @@ dict_widgets = [("SimpleDict", "dict"), ("EditDict", "dict")]
 
 table_widgets = [("SimplePandasTable", "dataframe"), ("EditPandasTable", "dataframe")]
 
-tree_widgets = [("TreeWidget", "tree_dict")]
+tree_widgets = [("TreeWidget", "tree_dict"), ("ShallowTreeWidget", "group_tree")]
 
 checklist_widgets = [
     ("CheckList", "checklist"),
@@ -43,6 +44,7 @@ def test_data():
             "level1_a": {"level2_a": "value_a", "level2_b": "value_b"},
             "level1_b": {"level2_c": {"level3_a": "deep_value"}, "level2_d": "value_d"},
         },
+        "group_tree": {"group_a": ["item_a1", "item_a2"], "group_b": ["item_b1"]},
     }
 
 
@@ -55,6 +57,7 @@ def new_test_data():
         "dict": {"new_key1": "new_value1", "new_key2": "new_value2"},
         "dataframe": pd.DataFrame({"X": [10, 20], "Y": [30, 40]}),
         "tree_dict": {"new_level1": {"new_level2": "new_value"}},
+        "group_tree": {"new_group": ["new_item"]},
     }
 
 
@@ -74,6 +77,7 @@ def test_widget_reference_preservation(
         EditDict,
         SimplePandasTable,
         EditPandasTable,
+        ShallowTreeWidget,
         TreeWidget,
     )
 
@@ -87,6 +91,7 @@ def test_widget_reference_preservation(
         "SimplePandasTable": SimplePandasTable,
         "EditPandasTable": EditPandasTable,
         "TreeWidget": TreeWidget,
+        "ShallowTreeWidget": ShallowTreeWidget,
     }[widget_name]
 
     # Create original data
@@ -97,6 +102,10 @@ def test_widget_reference_preservation(
         checked = []
         widget = widget_class(data=original_data, checked=checked)
         # Verify checked list reference is preserved
+        assert widget.model._checked is checked
+    elif widget_name == "ShallowTreeWidget":
+        checked = []
+        widget = widget_class(data=original_data, checked=checked)
         assert widget.model._checked is checked
     else:
         widget = widget_class(data=original_data)
@@ -120,6 +129,8 @@ def test_widget_reference_preservation(
         original_data.loc[3] = [10, 11, 12]
     elif data_type == "tree_dict":
         original_data["level1_c"] = "new_value"
+    elif data_type == "group_tree":
+        original_data["group_c"] = ["item_c1"]
 
     widget.replace_data(original_data)
     widget.content_changed()
@@ -136,6 +147,86 @@ def test_widget_reference_preservation(
     elif data_type == "tree_dict":
         assert "level1_c" in widget.model._data
         assert widget.model._data["level1_c"] == "new_value"
+    elif data_type == "group_tree":
+        assert "group_c" in widget.model._data
+        assert widget.model._data["group_c"] == ["item_c1"]
+
+
+def test_shallow_tree_widget_checking(qtbot):
+    """Test check handling in ShallowTreeWidget."""
+    from mne_nodes.gui.base_widgets import ShallowTreeWidget
+
+    data = {"g1": ["a", "b"], "g2": ["c"]}
+    checked = []
+    widget = ShallowTreeWidget(data=data, checked=checked)
+    qtbot.addWidget(widget)
+
+    assert widget.model._data is data
+    assert widget.model._checked is checked
+
+    first_group_index = widget.model.index(0, 0)
+    widget.model.setData(
+        first_group_index, Qt.CheckState.Checked, role=Qt.ItemDataRole.CheckStateRole
+    )
+    assert checked == ["g1"]
+
+    widget.select_all()
+    assert checked == ["g1", "g2"]
+
+    widget.clear_all()
+    assert checked == []
+
+
+def test_shallow_tree_widget_editing(qtbot, monkeypatch):
+    """Test add/remove editing operations in ShallowTreeWidget."""
+    from mne_nodes.gui import base_widgets
+
+    data = {"g1": ["a"], "g2": ["b", "c"]}
+    checked = ["g2"]
+    widget = base_widgets.ShallowTreeWidget(data=data, checked=checked)
+    qtbot.addWidget(widget)
+
+    monkeypatch.setattr(base_widgets, "get_user_input", lambda *_: "g3")
+    widget.add_group()
+    assert "g3" in data
+    assert data["g3"] == []
+
+    g2_index = widget.model.index(1, 0)
+    widget.view.selectionModel().clearSelection()
+    widget.view.selectionModel().select(g2_index, QItemSelectionModel.Select)
+    widget.view.setCurrentIndex(g2_index)
+    widget.remove_groups()
+    assert "g2" not in data
+    assert checked == []
+
+    g1_index = widget.model.index(0, 0)
+    widget.view.setCurrentIndex(g1_index)
+    monkeypatch.setattr(base_widgets, "get_user_input", lambda *_: "new_item")
+    widget.add_item()
+    assert data["g1"][-1] == "new_item"
+
+    g1_index = widget.model.index(0, 0)
+    first_item_index = widget.model.index(0, 0, g1_index)
+    widget.view.selectionModel().clearSelection()
+    widget.view.selectionModel().select(first_item_index, QItemSelectionModel.Select)
+    widget.view.setCurrentIndex(first_item_index)
+    widget.remove_items()
+    assert data["g1"] == ["new_item"]
+
+
+def test_tree_widget_content_changed_rebuilds_view(qtbot):
+    """TreeWidget should rebuild its internal tree after data changes."""
+    from mne_nodes.gui.base_widgets import TreeWidget
+
+    data = {"a": {"b": "c"}}
+    widget = TreeWidget(data=data)
+    qtbot.addWidget(widget)
+
+    data["new_top"] = "value"
+    widget.content_changed()
+
+    keys = [widget.model.index(row, 0).data() for row in range(widget.model.rowCount())]
+    assert "new_top" in keys
 
 
 # Parameterized test for widget selection methods
@@ -437,22 +528,54 @@ def test_timed_messagebox(qtbot):
 
     # Test static methods
     # Test setting default button
-    ans = TimedMessageBox.question(1, defaultButton=TimedMessageBox.Yes)
+    ans = TimedMessageBox.question(1, defaultButton=TimedMessageBox.StandardButton.Yes)
     qtbot.wait(150)
-    assert ans == TimedMessageBox.Yes
+    assert ans == TimedMessageBox.StandardButton.Yes
 
     # Test setting buttons
     ans = TimedMessageBox.critical(
         1,
-        buttons=TimedMessageBox.Save | TimedMessageBox.Cancel,
-        defaultButton=TimedMessageBox.Cancel,
+        buttons=TimedMessageBox.StandardButton.Save
+        | TimedMessageBox.StandardButton.Cancel,
+        defaultButton=TimedMessageBox.StandardButton.Cancel,
     )
     qtbot.wait(150)
-    assert ans == TimedMessageBox.Cancel
+    assert ans == TimedMessageBox.StandardButton.Cancel
 
     # Test setting no default button
     ans = TimedMessageBox.information(
-        1, buttons=TimedMessageBox.Cancel, defaultButton=TimedMessageBox.NoButton
+        1,
+        buttons=TimedMessageBox.StandardButton.Cancel,
+        defaultButton=TimedMessageBox.StandardButton.NoButton,
     )
     qtbot.wait(150)
     assert ans is None
+
+
+def test_progress_checklist(qtbot):
+    """Test ProgressCheckList."""
+    from mne_nodes.gui.base_widgets import CheckListProgress
+
+    data = [f"item_{i}" for i in range(5)]
+    checked = []
+    progress_dict = {f"item_{i}": 30 for i in range(5)}
+
+    clp = CheckListProgress(data=data, checked=checked, progress_dict=progress_dict)
+    qtbot.addWidget(clp)
+    clp.show()
+
+    # Test initial state
+    assert clp.model._data is data
+    assert clp.model._checked is checked
+    assert clp.progress_dict is not None
+    qtbot.wait(1000)
+
+    # Test checking items and progress update
+    clp.update_progress("item_0", 50)
+    assert clp.progress_dict["item_0"] == 50
+    qtbot.wait(1000)
+
+    for n in range(100):
+        clp.update_progress("item_1", n)
+        qtbot.wait(50)
+    assert clp.progress_dict["item_1"] == 99

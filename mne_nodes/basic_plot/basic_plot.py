@@ -7,6 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import itertools
 from functools import partial
 from os.path import join
+from typing import Any, Callable, Optional, List, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import mne
@@ -14,7 +15,7 @@ import mne_connectivity
 import numpy as np
 
 # Make use of program also possible with sensor-space installation of mne
-from mne_nodes.pipeline.loading import MEEG
+from mne_nodes.pipeline.loading import MEEG, FSMRI, Group
 
 try:
     from nilearn.plotting import plot_anat
@@ -27,14 +28,7 @@ from mne_nodes.basic_operations import basic_operations as op
 # ==============================================================================
 # PLOTTING FUNCTIONS
 # ==============================================================================
-def _save_raw_on_close(_, meeg, raw, raw_type):
-    # Save bad-channels
-    meeg.set_bad_channels(raw.info["bads"])
-    # Save raw for annotations
-    meeg.save(raw_type, raw)
-
-
-def plot_raw(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
+def plot_raw(meeg: "MEEG", show_plots: bool, **kwargs) -> None:
     raw = meeg.load_raw()
 
     try:
@@ -43,28 +37,18 @@ def plot_raw(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
         events = None
         print("No events found")
 
-    fig = raw.plot(
+    raw.plot(
         events=events,
         bad_color="red",
         scalings="auto",
         title=f"{meeg.name}",
         show=show_plots,
+        block=False,
         **kwargs,
     )
 
-    if hasattr(fig, "canvas"):
-        # Connect to closing of Matplotlib-Figure
-        fig.canvas.mpl_connect(
-            "close_event", partial(close_func, meeg=meeg, raw=raw, raw_type="raw")
-        )
-    else:
-        # Connect to closing of PyQt-Figure
-        fig.gotClosed.connect(
-            partial(close_func, None, meeg=meeg, raw=raw, raw_type="raw")
-        )
 
-
-def plot_filtered(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
+def plot_filtered(meeg: "MEEG", show_plots: bool, **kwargs: Any) -> None:
     raw = meeg.load_filtered()
 
     try:
@@ -77,14 +61,16 @@ def plot_filtered(meeg, show_plots, close_func=_save_raw_on_close, **kwargs):
         events=events,
         bad_color="red",
         scalings="auto",
-        title=f"{meeg.name} highpass={meeg.pa['highpass']} "
-        f"lowpass={meeg.pa['lowpass']}",
+        title=f"{meeg.name} highpass={meeg.params['highpass']} "
+        f"lowpass={meeg.params['lowpass']}",
         show=show_plots,
         **kwargs,
     )
 
 
-def plot_sensors(meeg, plot_sensors_kind, ch_types, show_plots):
+def plot_sensors(
+    meeg: "MEEG", plot_sensors_kind: str, ch_types: List[str], show_plots: bool
+) -> None:
     loaded_info = meeg.load_info()
     if len(ch_types) > 1:
         ch_types = "all"
@@ -102,7 +88,7 @@ def plot_sensors(meeg, plot_sensors_kind, ch_types, show_plots):
     )
 
 
-def plot_events(meeg, show_plots):
+def plot_events(meeg: "MEEG", show_plots: bool) -> None:
     events = meeg.load_events()
 
     if meeg.event_id is None or len(meeg.event_id) == 0:
@@ -118,7 +104,7 @@ def plot_events(meeg, show_plots):
     return fig
 
 
-def plot_power_spectra(meeg, show_plots):
+def plot_power_spectra(meeg: "MEEG", show_plots: bool) -> None:
     psd = meeg.load_psd_raw()
     fig = psd.plot(show=show_plots)
     fig.suptitle(f"Raw: {meeg.name}", x=0.3)
@@ -126,7 +112,9 @@ def plot_power_spectra(meeg, show_plots):
     meeg.plot_save("power_spectra", subfolder="raw", matplotlib_figure=fig)
 
 
-def plot_power_spectra_topomap(meeg, psd_topomap_bands, show_plots):
+def plot_power_spectra_topomap(
+    meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool
+) -> None:
     psd = meeg.load_psd_raw()
     fig = psd.plot_topomap(badns=psd_topomap_bands, show=show_plots)
     fig.suptitle(f"Raw: {meeg.name}", x=0.3)
@@ -134,7 +122,7 @@ def plot_power_spectra_topomap(meeg, psd_topomap_bands, show_plots):
     meeg.plot_save("power_spectra", subfolder="raw_topo", matplotlib_figure=fig)
 
 
-def plot_power_spectra_epochs(meeg, show_plots):
+def plot_power_spectra_epochs(meeg: "MEEG", show_plots: bool) -> None:
     psd = meeg.load_psd_epochs()
     for trial in meeg.sel_trials:
         fig = psd[trial].plot(show=show_plots)
@@ -144,7 +132,9 @@ def plot_power_spectra_epochs(meeg, show_plots):
         )
 
 
-def plot_power_spectra_epochs_topomap(meeg, psd_topomap_bands, show_plots):
+def plot_power_spectra_epochs_topomap(
+    meeg: "MEEG", psd_topomap_bands: List[List[float]], show_plots: bool
+) -> None:
     psd = meeg.load_psd_epochs()
     for trial in meeg.sel_trials:
         fig = psd[trial].plot_topomap(bands=psd_topomap_bands, show=show_plots)
@@ -154,7 +144,7 @@ def plot_power_spectra_epochs_topomap(meeg, psd_topomap_bands, show_plots):
         )
 
 
-def plot_tfr(meeg, show_plots):
+def plot_tfr(meeg: "MEEG", show_plots: bool) -> None:
     powers = meeg.load_power_tfr_average()
 
     for power in powers:
@@ -211,7 +201,7 @@ def plot_tfr(meeg, show_plots):
             )
 
 
-def plot_epochs(meeg, show_plots):
+def plot_epochs(meeg: "MEEG", show_plots: bool) -> None:
     epochs = meeg.load_epochs()
 
     for trial in meeg.sel_trials:
@@ -219,7 +209,7 @@ def plot_epochs(meeg, show_plots):
         fig.suptitle(trial)
 
 
-def plot_epochs_image(meeg, show_plots):
+def plot_epochs_image(meeg: "MEEG", show_plots: bool) -> None:
     epochs = meeg.load_epochs()
     for trial in meeg.sel_trials:
         figures = mne.viz.plot_epochs_image(
@@ -232,7 +222,7 @@ def plot_epochs_image(meeg, show_plots):
             )
 
 
-def plot_epochs_topo(meeg, show_plots):
+def plot_epochs_topo(meeg: "MEEG", show_plots: bool) -> None:
     epochs = meeg.load_epochs()
     for trial in meeg.sel_trials:
         fig = mne.viz.plot_topo_image_epochs(epochs, title=meeg.name, show=show_plots)
@@ -240,14 +230,14 @@ def plot_epochs_topo(meeg, show_plots):
         meeg.plot_save("epochs", subfolder="topo", trial=trial, matplotlib_figure=fig)
 
 
-def plot_epochs_drop_log(meeg, show_plots):
+def plot_epochs_drop_log(meeg: "MEEG", show_plots: bool) -> None:
     epochs = meeg.load_epochs()
     fig = epochs.plot_drop_log(subject=meeg.name, show=show_plots)
 
     meeg.plot_save("epochs", subfolder="drop_log", matplotlib_figure=fig)
 
 
-def plot_autoreject_log(meeg, show_plots):
+def plot_autoreject_log(meeg: "MEEG", show_plots: bool) -> None:
     reject_log = meeg.load_reject_log()
     epochs = meeg.load_epochs()
 
@@ -264,14 +254,14 @@ def plot_autoreject_log(meeg, show_plots):
         print(f"{meeg.name}: No epochs-plot for autoreject-log")
 
 
-def plot_evoked_topo(meeg, show_plots):
+def plot_evoked_topo(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     fig = mne.viz.plot_evoked_topo(evokeds, title=meeg.name, show=show_plots)
 
     meeg.plot_save("evokeds", subfolder="topo", matplotlib_figure=fig, dpi=800)
 
 
-def plot_evoked_topomap(meeg, show_plots):
+def plot_evoked_topomap(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     for evoked in evokeds:
         fig = mne.viz.plot_evoked_topomap(
@@ -286,7 +276,7 @@ def plot_evoked_topomap(meeg, show_plots):
         )
 
 
-def plot_evoked_joint(meeg, show_plots):
+def plot_evoked_joint(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
 
     for evoked in evokeds:
@@ -302,7 +292,7 @@ def plot_evoked_joint(meeg, show_plots):
         )
 
 
-def plot_evoked_butterfly(meeg, apply_proj, show_plots):
+def plot_evoked_butterfly(meeg: "MEEG", apply_proj: bool, show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     figs = []
     for evoked in evokeds:
@@ -331,7 +321,7 @@ def plot_evoked_butterfly(meeg, apply_proj, show_plots):
     return figs
 
 
-def plot_evoked_white(meeg, show_plots):
+def plot_evoked_white(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     noise_covariance = meeg.load_noise_covariance()
 
@@ -349,7 +339,7 @@ def plot_evoked_white(meeg, show_plots):
         )
 
 
-def plot_evoked_image(meeg, show_plots):
+def plot_evoked_image(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
 
     for evoked in evokeds:
@@ -361,7 +351,7 @@ def plot_evoked_image(meeg, show_plots):
         )
 
 
-def plot_compare_evokeds(meeg, show_plots):
+def plot_compare_evokeds(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
 
     evokeds = {f"{evoked.comment}={evoked.nave}": evoked for evoked in evokeds}
@@ -371,7 +361,7 @@ def plot_compare_evokeds(meeg, show_plots):
     meeg.plot_save("evokeds", subfolder="compare", matplotlib_figure=fig)
 
 
-def plot_gfp(meeg, show_plots):
+def plot_gfp(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     for evoked in evokeds:
         gfp_dict = op.calculate_gfp(evoked)
@@ -390,12 +380,14 @@ def plot_gfp(meeg, show_plots):
         meeg.plot_save("evokeds", subfolder="gfp", trial=trial, matplotlib_figure=fig)
 
 
-def _save_ica_on_close(_, meeg, ica):
+def _save_ica_on_close(_, meeg: "MEEG", ica: Any) -> None:
     meeg.set_ica_exclude(ica.exclude)
     meeg.save_ica(ica)
 
 
-def plot_ica_components(meeg, show_plots, close_func=_save_ica_on_close):
+def plot_ica_components(
+    meeg: "MEEG", show_plots: bool, close_func: Optional[Callable] = _save_ica_on_close
+) -> None:
     ica = meeg.load_ica()
     figs = ica.plot_components(title=meeg.name, show=show_plots)
     if not isinstance(figs, list):
@@ -404,7 +396,12 @@ def plot_ica_components(meeg, show_plots, close_func=_save_ica_on_close):
     meeg.plot_save("ica", subfolder="components", matplotlib_figure=figs)
 
 
-def plot_ica_sources(meeg, ica_source_data, show_plots, close_func=_save_ica_on_close):
+def plot_ica_sources(
+    meeg: "MEEG",
+    ica_source_data: str,
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_ica_on_close,
+) -> None:
     ica = meeg.load_ica()
     data = meeg.load(ica_source_data)
 
@@ -419,7 +416,7 @@ def plot_ica_sources(meeg, ica_source_data, show_plots, close_func=_save_ica_on_
         fig.gotClosed.connect(partial(close_func, None, meeg=meeg, ica=ica))
 
 
-def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
+def plot_ica_overlay(meeg: "MEEG", ica_overlay_data: str, show_plots: bool) -> None:
     ica = meeg.load_ica()
     data = meeg.load(ica_overlay_data)
 
@@ -440,12 +437,12 @@ def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
     return overlay_figs
 
 
-def plot_ica_properties(meeg, ica_fitto, show_plots):
+def plot_ica_properties(meeg: "MEEG", ica_fitto: str, show_plots: bool) -> None:
     ica = meeg.load_ica()
 
     eog_indices = meeg.load_json("eog_indices", default=[])
     ecg_indices = meeg.load_json("ecg_indices", default=[])
-    psd_args = {"fmax": meeg.pa["lowpass"]}
+    psd_args = {"fmax": meeg.params["lowpass"]}
 
     if len(eog_indices) > 0:
         eog_epochs = meeg.load_eog_epochs()
@@ -478,7 +475,7 @@ def plot_ica_properties(meeg, ica_fitto, show_plots):
         )
 
 
-def plot_ica_scores(meeg, show_plots):
+def plot_ica_scores(meeg: "MEEG", show_plots: bool) -> None:
     eog_scores = meeg.load_json("eog_scores", default=[])
     if len(eog_scores) > 1:
         ica = meeg.load_ica()
@@ -506,7 +503,7 @@ def plot_ica_scores(meeg, show_plots):
     return eog_score_fig, ecg_score_fig
 
 
-def plot_transformation(meeg, backend_3d):
+def plot_transformation(meeg: "MEEG", backend_3d: str) -> None:
     info = meeg.load_info()
     trans = meeg.load_transformation()
 
@@ -522,13 +519,13 @@ def plot_transformation(meeg, backend_3d):
         )
 
 
-def plot_src(fsmri, backend_3d):
+def plot_src(fsmri: "FSMRI", backend_3d: str) -> None:
     src = fsmri.load_source_space()
     with mne.viz.use_3d_backend(backend_3d):
         src.plot()
 
 
-def plot_bem(fsmri, show_plots):
+def plot_bem(fsmri: "FSMRI", show_plots: bool) -> None:
     src = fsmri.load_source_space()
     fig1 = mne.viz.plot_bem(fsmri.name, fsmri.subjects_dir, src=src, show=show_plots)
 
@@ -546,7 +543,7 @@ def plot_bem(fsmri, show_plots):
         pass
 
 
-def plot_sensitivity_maps(meeg, ch_types):
+def plot_sensitivity_maps(meeg: "MEEG", ch_types: List[str]) -> None:
     fwd = meeg.load_forward()
 
     for ch_type in [ct for ct in ch_types if ct in ["grad", "mag", "eeg"]]:
@@ -560,7 +557,7 @@ def plot_sensitivity_maps(meeg, ch_types):
         meeg.plot_save("sensitivity", trial=ch_type, brain=brain)
 
 
-def plot_noise_covariance(meeg, show_plots):
+def plot_noise_covariance(meeg: "MEEG", show_plots: bool) -> None:
     noise_covariance = meeg.load_noise_covariance()
     info = meeg.load_info()
 
@@ -571,22 +568,22 @@ def plot_noise_covariance(meeg, show_plots):
 
 
 def _brain_plot(
-    meeg,
-    stcs,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    target_labels,
-    label_colors,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    backend_3d="pyvistaqt",
-    interactive=False,
-    **brain_movie_kwargs,
-):
+    meeg: "MEEG",
+    stcs: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    backend_3d: str = "pyvistaqt",
+    interactive: bool = False,
+    **brain_movie_kwargs: Any,
+) -> None:
     for trial, stc in stcs.items():
         title = f"{meeg.name}-{trial}"
         brain = stc.plot(
@@ -624,24 +621,24 @@ def _brain_plot(
                 img_format=img_format,
             )
 
-            if not meeg.ct.settings["show_plots"]:
+            if not meeg.ct.settings.get("show_plots"):
                 brain.close()
 
 
 def plot_stc(
-    meeg,
-    target_labels,
-    label_colors,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    backend_3d,
-):
+    meeg: "MEEG",
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    backend_3d: str,
+) -> None:
     stcs = meeg.load_source_estimates()
     _brain_plot(
         meeg=meeg,
@@ -661,17 +658,17 @@ def plot_stc(
 
 
 def plot_stc_interactive(
-    meeg,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    backend_3d,
-):
+    meeg: "MEEG",
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    backend_3d: str,
+) -> None:
     stcs = meeg.load_source_estimates()
     _brain_plot(
         meeg=meeg,
@@ -692,21 +689,21 @@ def plot_stc_interactive(
 
 
 def plot_animated_stc(
-    meeg,
-    target_labels,
-    label_colors,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    stc_animation_span,
-    stc_animation_dilat,
-    backend_3d,
-):
+    meeg: "MEEG",
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    stc_animation_span: Tuple[float, float],
+    stc_animation_dilat: float,
+    backend_3d: str,
+) -> None:
     stcs = meeg.load_source_estimates()
     _brain_plot(
         meeg=meeg,
@@ -728,8 +725,14 @@ def plot_animated_stc(
 
 
 def plot_labels(
-    fsmri, target_labels, label_colors, stc_hemi, stc_surface, stc_views, backend_3d
-):
+    fsmri: "FSMRI",
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_hemi: str,
+    stc_surface: str,
+    stc_views: List[str],
+    backend_3d: str,
+) -> None:
     with mne.viz.use_3d_backend(backend_3d):
         Brain = mne.viz.get_brain_class()
         brain = Brain(
@@ -753,7 +756,7 @@ def plot_labels(
         fsmri.plot_save("labels", brain=brain)
 
 
-def plot_ecd(meeg):
+def plot_ecd(meeg: "MEEG") -> None:
     ecd_dips = meeg.load_ecd()
     trans = meeg.load_transformation()
 
@@ -781,7 +784,7 @@ def plot_ecd(meeg):
             )
 
             save_path_anat = join(
-                meeg.obj.figures_path,
+                meeg.plot_path,
                 meeg.p_preset,
                 "ECD",
                 dipole,
@@ -807,7 +810,7 @@ def plot_ecd(meeg):
             )
 
 
-def plot_snr(meeg, show_plots):
+def plot_snr(meeg: "MEEG", show_plots: bool) -> None:
     evokeds = meeg.load_evokeds()
     inv = meeg.load_inverse_operator()
 
@@ -820,11 +823,15 @@ def plot_snr(meeg, show_plots):
         meeg.plot_save("snr", trial=trial, matplotlib_figure=fig)
 
 
-def plot_label_time_course(meeg, label_colors, show_plots):
+def plot_label_time_course(
+    meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     ltcs = meeg.load_ltc()
     for trial in ltcs:
         plt.figure()
-        plt.title(f"{meeg.name}-{trial}\nExtraction-Mode: {meeg.pa['extract_mode']}")
+        plt.title(
+            f"{meeg.name}-{trial}\nExtraction-Mode: {meeg.params['extract_mode']}"
+        )
         plt.xlabel("Time in s")
         plt.ylabel("Source amplitude")
         for label_name, data in ltcs[trial].items():
@@ -836,7 +843,7 @@ def plot_label_time_course(meeg, label_colors, show_plots):
         meeg.plot_save("label-time-course", trial=trial)
 
 
-def _get_n_subplots(n_items):
+def _get_n_subplots(n_items: int) -> Tuple[int, int]:
     n_subplots = np.ceil(np.sqrt(n_items)).astype(int)
     if n_items <= 2:
         nrows = 1
@@ -849,7 +856,9 @@ def _get_n_subplots(n_items):
     return nrows, ncols, ax_idxs
 
 
-def _plot_connectivity(obj, con_dict, label_colors, show_plots):
+def _plot_connectivity(
+    obj: Any, con_dict: Dict[str, Any], label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     for trial in con_dict:
         for con_method, con in con_dict[trial].items():
             labels = obj.fsmri.get_labels(con.names)
@@ -934,13 +943,15 @@ def _plot_connectivity(obj, con_dict, label_colors, show_plots):
             )
 
 
-def plot_src_connectivity(meeg, label_colors, show_plots):
+def plot_src_connectivity(
+    meeg: "MEEG", label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     con_dict = meeg.load_connectivity()
     _plot_connectivity(meeg, con_dict, label_colors, show_plots)
 
 
 # %% Grand-Average Plots
-def plot_grand_avg_evokeds(group, show_plots):
+def plot_grand_avg_evokeds(group: Group, show_plots: bool) -> None:
     ga_evokeds = group.load_ga_evokeds()
 
     for trial in ga_evokeds:
@@ -954,7 +965,7 @@ def plot_grand_avg_evokeds(group, show_plots):
         group.plot_save("ga_evokeds", trial=trial, matplotlib_figure=fig)
 
 
-def plot_grand_avg_tfr(group, show_plots):
+def plot_grand_avg_tfr(group: Group, show_plots: bool) -> None:
     ga_dict = group.load_ga_tfr()
 
     for trial in ga_dict:
@@ -981,19 +992,19 @@ def plot_grand_avg_tfr(group, show_plots):
 
 
 def plot_grand_avg_stc(
-    group,
-    target_labels,
-    label_colors,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    backend_3d,
-):
+    group: Group,
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    backend_3d: str,
+) -> None:
     stcs = group.load_ga_stc()
     _brain_plot(
         meeg=group,
@@ -1013,18 +1024,18 @@ def plot_grand_avg_stc(
 
 
 def plot_grand_average_stc_interactive(
-    group,
-    label_colors,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    backend_3d,
-):
+    group: Group,
+    label_colors: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    backend_3d: str,
+) -> None:
     stcs = group.load_ga_stc()
     _brain_plot(
         meeg=group,
@@ -1045,21 +1056,21 @@ def plot_grand_average_stc_interactive(
 
 
 def plot_grand_avg_stc_anim(
-    group,
-    target_labels,
-    label_colors,
-    stc_surface,
-    stc_hemi,
-    stc_views,
-    stc_time,
-    stc_clim,
-    stc_roll,
-    stc_azimuth,
-    stc_elevation,
-    stc_animation_span,
-    stc_animation_dilat,
-    backend_3d,
-):
+    group: Group,
+    target_labels: List[str],
+    label_colors: Dict[str, Any],
+    stc_surface: str,
+    stc_hemi: str,
+    stc_views: List[str],
+    stc_time: float,
+    stc_clim: Dict[str, float],
+    stc_roll: float,
+    stc_azimuth: float,
+    stc_elevation: float,
+    stc_animation_span: Tuple[float, float],
+    stc_animation_dilat: float,
+    backend_3d: str,
+) -> None:
     stcs = group.load_ga_stc()
     _brain_plot(
         meeg=group,
@@ -1080,13 +1091,15 @@ def plot_grand_avg_stc_anim(
     )
 
 
-def plot_grand_avg_ltc(group, label_colors, show_plots):
+def plot_grand_avg_ltc(
+    group: Group, label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     ga_ltc = group.load_ga_ltc()
     for trial in ga_ltc:
         plt.figure()
         plt.title(
             f"Label-Time-Course for {group.name}-{trial}\n"
-            f"with Extraction-Mode: {group.pa['extract_mode']}"
+            f"with Extraction-Mode: {group.params['extract_mode']}"
         )
         plt.xlabel("Time in ms")
         plt.ylabel("Source amplitude")
@@ -1100,6 +1113,8 @@ def plot_grand_avg_ltc(group, label_colors, show_plots):
         group.plot_save("ga_label-time-course", trial=trial)
 
 
-def plot_grand_avg_connect(group, label_colors, show_plots):
+def plot_grand_avg_connect(
+    group: Group, label_colors: Dict[str, Any], show_plots: bool
+) -> None:
     con_dict = group.load_ga_con()
     _plot_connectivity(group, con_dict, label_colors, show_plots)

@@ -3,7 +3,9 @@ Parameter Widgets
 
 .. currentmodule:: mne_nodes.gui.parameter_widgets
 
-:py:mod:`mne.datasets`:
+All parameter GUI classes expose fully typed constructors to simplify
+configuration and documentation. Refer to the class docstrings for the
+annotated arguments.
 
 .. automodule:: mne_nodes.gui.parameter_widgets
    :no-members:
@@ -25,4 +27,4 @@ Parameter Widgets
    MultiTypeGui
    SliderGui
    StringGui
-   TupleGui
+   DualTupleGui

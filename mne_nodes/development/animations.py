@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 import sys
+
+from qtpy.QtCore import QVariantAnimation, Qt
+from qtpy.QtGui import QPen, QColor, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
     QGraphicsPathItem,
     QGraphicsView,
     QGraphicsScene,
 )
-from qtpy.QtGui import QPen, QColor, QPainterPath
-from qtpy.QtCore import Qt, QVariantAnimation
 
 
 class Edge(QGraphicsPathItem):
     def __init__(self):
         super().__init__()
-        self.setPen(QPen(Qt.white, 5, Qt.SolidLine))
+        self.setPen(QPen(Qt.GlobalColor.white, 5, Qt.PenStyle.SolidLine))
 
         self.animation = QVariantAnimation()
         self.animation.setLoopCount(-1)

@@ -6,8 +6,8 @@ Github: https://github.com/marsipu/mne-nodes
 
 import logging
 from collections import OrderedDict
-from functools import partial
 
+import qtawesome as qta
 from qtpy.QtCore import QRectF, Qt
 from qtpy.QtGui import QColor, QPen, QPainterPath
 from qtpy.QtWidgets import (
@@ -17,7 +17,6 @@ from qtpy.QtWidgets import (
     QCheckBox,
     QPushButton,
 )
-import qtawesome as qta
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
@@ -28,6 +27,25 @@ class NodeTextItem(QGraphicsTextItem):
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+
+
+class NodeProxyWidget(QGraphicsProxyWidget):
+    """Proxy widget that notifies its node when its own size changes."""
+
+    def __init__(self, node, parent=None):
+        super().__init__(parent)
+        self._node = node
+
+    def setGeometry(self, rect):
+        old_size = self.size()
+        super().setGeometry(rect)
+        if self.size() != old_size and self._node is not None:
+            self._node._on_proxywidget_resized()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._node is not None:
+            self._node._on_proxywidget_resized()
 
 
 # ToDo:
@@ -98,7 +116,7 @@ class BaseNode(QGraphicsItem):
         # Initialize checkbox if checkable
         if self.checkable:
             self.checkbox = QCheckBox()
-            self.checkbox_proxy = QGraphicsProxyWidget(self)
+            self.checkbox_proxy = NodeProxyWidget(self, self)
             self.checkbox_proxy.setWidget(self.checkbox)
         else:
             self.checkbox = None
@@ -108,16 +126,22 @@ class BaseNode(QGraphicsItem):
         if self.startable:
             self.start_button = QPushButton()
             self.start_button.setFixedSize(24, 22)
-            self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
+            self.start_button.setIcon(qta.icon("fa6s.play"))
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(
-                partial(self.viewer.start_from_node, self)
-            )
-            self.start_button_proxy = QGraphicsProxyWidget(self)
+            self.start_button.clicked.connect(self.start_clicked)
+            self.start_button_proxy = NodeProxyWidget(self, self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
             self.start_button = None
             self.start_button_proxy = None
+
+    def __repr__(self):
+        des = self.get_description()
+        return (
+            f"{des['name']} ({des['class']}), "
+            f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
+            f"outputs: {len(des['outputs'])} ({[p for p in des['outputs']]}), "
+        )
 
     @property
     def name(self):
@@ -226,9 +250,6 @@ class BaseNode(QGraphicsItem):
     def xy_pos(self, pos=None):
         """Set the item scene postion. ("node.pos" conflicted with
         "QGraphicsItem.pos()" so it was refactored to "xy_pos".)
-
-        Args:
-            pos (list[float]): x, y scene position.
         """
         pos = pos or (0.0, 0.0)
         self.setPos(*pos)
@@ -242,7 +263,13 @@ class BaseNode(QGraphicsItem):
     # Logic methods
     # ----------------------------------------------------------------------------------
     def add_port(
-        self, name, port_type, multi_connection=False, accepted_ports=None, old_id=None
+        self,
+        name,
+        port_type,
+        multi_connection=False,
+        accepted_ports=None,
+        old_id=None,
+        warn_existing=True,
     ):
         """Adds a Port QGraphicsItem into the node.
 
@@ -258,6 +285,8 @@ class BaseNode(QGraphicsItem):
             list of accepted port names, if None all ports are accepted.
         old_id : int, None, optional
             old port id for reestablishing connections.
+        warn_existing : bool
+
 
         Returns
         -------
@@ -270,9 +299,10 @@ class BaseNode(QGraphicsItem):
         # port names must be unique for inputs/outputs
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
-            logging.debug(
-                f"Port '{name}' already exists for '{port_type}'. Returning existing port."
-            )
+            if warn_existing:
+                logging.debug(
+                    f"Port '{name}' already exists for '{port_type}'. Returning existing port."
+                )
             return self.port(port_name=name)
         # Create port
         port = Port(
@@ -286,6 +316,17 @@ class BaseNode(QGraphicsItem):
             self.draw_node()
 
         return port
+
+    def remove_port(self, port=None, **port_kwargs):
+        port = port or self.port(**port_kwargs)
+        ports = self._inputs if port.port_type == "in" else self._outputs
+        ports.pop(port.id)
+        if self.scene():
+            self.draw_node()
+
+    def clear_ports(self):
+        for port in self.ports:
+            self.remove_port(port=port)
 
     def add_input(self, name, **kwargs):
         """Adds a Port QGraphicsItem into the node as input.
@@ -332,7 +373,13 @@ class BaseNode(QGraphicsItem):
         return port
 
     def port(
-        self, port_type=None, port_idx=None, port_name=None, port_id=None, old_id=None
+        self,
+        port_type=None,
+        port_idx=None,
+        port_name=None,
+        port_id=None,
+        old_id=None,
+        ignore_warnings=False,
     ):
         """Get port by the name or index.
 
@@ -348,6 +395,8 @@ class BaseNode(QGraphicsItem):
             Id of the port.
         old_id : int, optional
             Old id of the port for reestablishing connections.
+        ignore_warnings : bool
+            If True, warnings will be ignored when port is not found. Default is False.
 
         Returns
         -------
@@ -372,17 +421,19 @@ class BaseNode(QGraphicsItem):
             if port_idx < len(port_list):
                 return port_list[port_idx]
             else:
-                logging.warning(f"{port_type} port {port_idx} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_idx} not found.")
         elif port_name is not None:
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
             port_names = [p for p in port_list if p.name == port_name]
-            if len(port_names) > 1:
+            if len(port_names) > 2:
                 logging.warning(
-                    "More than one port with the same name. This should not be allowed."
+                    "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
-                logging.warning(f"{port_type} port {port_name} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_name} not found.")
             else:
                 return port_names[0]
         elif port_id is not None:
@@ -391,7 +442,8 @@ class BaseNode(QGraphicsItem):
             if port_id in ports:
                 return ports[port_id]
             else:
-                logging.warning(f"{port_type} port {port_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_id} not found.")
         elif old_id is not None:
             if not isinstance(old_id, int):
                 raise ValueError(f"Invalid old port id: {old_id}")
@@ -401,11 +453,13 @@ class BaseNode(QGraphicsItem):
                     "More than one port with the same old id. This should not be allowed."
                 )
             elif len(old_id_ports) == 0:
-                logging.warning(f"{port_type} port with old id {old_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port with old id {old_id} not found.")
             else:
                 return old_id_ports[0]
         else:
             logging.warning("No port identifier provided.")
+        return None
 
     def input(self, **port_kwargs):
         """Get input port by the name, index, id, or old id as in port()."""
@@ -415,51 +469,140 @@ class BaseNode(QGraphicsItem):
         """Get output port by the name, index, id, or old id as in port()."""
         return self.port(port_type="out", **port_kwargs)
 
+    def connected_nodes(self, port_id=None):
+        """Returns all nodes connected to the node.
+
+        Parameters
+        ----------
+        port_id : int, None
+            If None, returns all connected nodes from all ports.
+
+        Returns
+        -------
+        dict
+            List of nodes connected to the node. If port_id is provided,
+            returns nodes connected to the specified port.
+        """
+        nodes = OrderedDict()
+        if port_id is None:
+            # Return all connected nodes from all ports
+            for port in self.inputs + self.outputs:
+                nodes[port.id] = [cp.node for cp in port.connected_ports]
+            return nodes
+        else:
+            port = self.port(port_id=port_id)
+            nodes[port.id] = [cp.node for cp in port.connected_ports]
+
+        return nodes
+
     def connected_input_nodes(self):
         """Returns all nodes connected from the input ports.
 
         Returns:
-            dict: {<input_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<input_port_id>: <node_list>}
+            Returns a dictionary with input port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.inputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
     def connected_output_nodes(self):
         """Returns all nodes connected from the output ports.
 
         Returns:
-            dict: {<output_port>: <node_list>}
+        --------
+        dict or list
+            dict: {<output_port_id>: <node_list>}
+            Returns a dictionary with output port ids as keys and lists of connected nodes
         """
         nodes = OrderedDict()
         for p in self.outputs:
-            nodes[p] = [cp.node for cp in p.connected_ports]
+            nodes[p.id] = [cp.node for cp in p.connected_ports]
+
         return nodes
 
-    def downstream_nodes(self):
+    def downstream_node_dict(self, port_id=None):
         """Returns all nodes downstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_output_nodes():
-            nodes[port_id] = {}
+        down_dict = OrderedDict()
+        if port_id is None:
+            connected_nodes = self.connected_output_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
+            down_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.downstream_nodes()
-        return nodes
+                down_dict[port_id][node.id] = node.downstream_node_dict()
 
-    def upstream_nodes(self):
+        return down_dict
+
+    def upstream_node_dict(self, port_id=None):
         """Returns all nodes upstream from the nodes."""
-        nodes = OrderedDict()
-        for port_id, nodes in self.connected_input_nodes():
-            nodes[port_id] = {}
+        up_dict = OrderedDict()
+        if port_id is None:
+            connected_nodes = self.connected_input_nodes()
+        else:
+            connected_nodes = self.connected_nodes(port_id=port_id)
+        for port_id, nodes in connected_nodes.items():
+            up_dict[port_id] = {}
             for node in nodes:
-                nodes[port_id][node.id] = node.upstream_nodes()
-        return nodes
+                up_dict[port_id][node.id] = node.upstream_node_dict()
+
+        return up_dict
+
+    def connected_inputs(self):
+        """Returns connected inputs by name."""
+        inputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.inputs
+        }
+
+        return inputs
+
+    def connected_outputs(self):
+        """Returns connected outputs by name."""
+        outputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.outputs
+        }
+
+        return outputs
+
+    def get_description(self):
+        """Returns node description."""
+        description = {
+            "name": self.name,
+            "class": self.__class__.__name__,
+            "inputs": self.connected_inputs(),
+            "outputs": self.connected_outputs(),
+        }
+        return description
+
+    def start_clicked(self):
+        if self.viewer is not None:
+            node_sequence = self.viewer.get_node_sequence(self)
+            self.ct.start(node_sequence)
 
     def add_widget(self, widget):
         """Add widget to the node."""
-        proxy_widget = QGraphicsProxyWidget(self)
+        proxy_widget = NodeProxyWidget(self, self)
         proxy_widget.setWidget(widget)
         self.widgets.append(proxy_widget)
+
+    def _on_proxywidget_resized(self):
+        """Update node geometry and auto-layout after embedded widget resize."""
+        if self.scene() is None:
+            return
+
+        old_size = (self.width, self.height)
+        self.draw_node()
+        if (self.width, self.height) == old_size:
+            return
+
+        viewer = self.viewer
+        if viewer is not None:
+            viewer.auto_layout_nodes(nodes=list(viewer.nodes.values()))
 
     def delete(self):
         """Remove node from the scene."""
@@ -481,7 +624,7 @@ class BaseNode(QGraphicsItem):
     @classmethod
     def from_dict(cls, ct, node_dict):
         node_kwargs = {k: v for k, v in node_dict.items() if k not in ["class", "pos"]}
-        node = cls(ct, **node_kwargs)
+        node = cls(ct=ct, **node_kwargs)
         node.xy_pos = node_dict["pos"]
 
         return node
@@ -602,7 +745,10 @@ class BaseNode(QGraphicsItem):
             add_w (float): add additional width.
             add_h (float): add additional height.
         """
-        self.width, self.height = self.calc_size(add_w, add_h)
+        width, height = self.calc_size(add_w, add_h)
+        if (width, height) != (self.width, self.height):
+            self.prepareGeometryChange()
+        self.width, self.height = width, height
 
     def _set_text_color(self, color):
         """Set text color.

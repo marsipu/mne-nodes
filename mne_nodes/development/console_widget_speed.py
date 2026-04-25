@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 import sys
 
 from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
 
-from mne_nodes.gui.console import ConsoleWidget
+from mne_nodes.gui.console import MainConsoleWidget
 
 test_text = """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus.
 Suspendisse lectus tortor, dignissim sit amet, adipiscing nec, ultricies sed,
@@ -36,7 +35,7 @@ class SpeedWidget(QWidget):
         super().__init__()
 
         layout = QVBoxLayout(self)
-        self.cw = ConsoleWidget()
+        self.cw = MainConsoleWidget()
         layout.addWidget(self.cw)
         startbt = QPushButton("Start")
         startbt.clicked.connect(self.start)

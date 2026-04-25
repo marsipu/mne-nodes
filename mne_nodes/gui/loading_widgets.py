@@ -13,6 +13,7 @@ from collections import Counter
 from functools import partial
 from os.path import exists, isfile, join
 from pathlib import Path
+from typing import Optional, Callable
 
 import mne
 import numpy as np
@@ -54,7 +55,6 @@ from mne_nodes.basic_plot.basic_plot import (
     plot_ica_sources,
     plot_ica_overlay,
     plot_ica_properties,
-    plot_raw,
 )
 from mne_nodes.gui.base_widgets import (
     AssignWidget,
@@ -76,6 +76,48 @@ from mne_nodes.pipeline.execution import Worker, WorkerDialog
 from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import compare_filep
 from mne_nodes.pipeline.settings import Settings
+
+
+def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
+    # Save bad-channels
+    meeg.set_bad_channels(raw.info["bads"])
+    # Save raw for annotations
+    meeg.save(raw_type, raw)
+
+
+def plot_raw(
+    meeg: "MEEG",
+    show_plots: bool,
+    close_func: Optional[Callable] = _save_raw_on_close,
+    **kwargs,
+) -> None:
+    raw = meeg.load_raw()
+
+    try:
+        events = meeg.load_events()
+    except FileNotFoundError:
+        events = None
+        print("No events found")
+
+    fig = raw.plot(
+        events=events,
+        bad_color="red",
+        scalings="auto",
+        title=f"{meeg.name}",
+        show=show_plots,
+        **kwargs,
+    )
+
+    if hasattr(fig, "canvas"):
+        # Connect to closing of Matplotlib-Figure
+        fig.canvas.mpl_connect(
+            "close_event", partial(close_func, meeg=meeg, raw=raw, raw_type="raw")
+        )
+    else:
+        # Connect to closing of PyQt-Figure
+        fig.gotClosed.connect(
+            partial(close_func, None, meeg=meeg, raw=raw, raw_type="raw")
+        )
 
 
 def index_parser(index, all_items, groups=None):
@@ -217,7 +259,8 @@ class FileDock(QDockWidget):
         self.meeg_view = meeg_view
         self.fsmri_view = fsmri_view
         self.group_view = group_view
-        self.setAllowedAreas(Qt.LeftDockWidgetArea)
+        # Replace Qt.LeftDockWidgetArea with Qt.DockWidgetArea.LeftDockWidgetArea
+        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea)
 
         self.init_ui()
 
@@ -400,12 +443,14 @@ class GrandAvgWidget(QWidget):
             top_item = QTreeWidgetItem()
             top_item.setText(0, group)
             top_item.setFlags(
-                top_item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEditable
+                top_item.flags()
+                | Qt.ItemFlag.ItemIsUserCheckable
+                | Qt.ItemFlag.ItemIsEditable
             )
             if group in self.mw.ct.pr.sel_groups:
-                top_item.setCheckState(0, Qt.Checked)
+                top_item.setCheckState(0, Qt.CheckState.Checked)
             else:
-                top_item.setCheckState(0, Qt.Unchecked)
+                top_item.setCheckState(0, Qt.CheckState.Unchecked)
             for file in self.mw.ct.pr.all_groups[group]:
                 sub_item = QTreeWidgetItem(top_item)
                 sub_item.setText(0, file)
@@ -422,7 +467,7 @@ class GrandAvgWidget(QWidget):
             for child_idx in range(top_item.childCount()):
                 child_item = top_item.child(child_idx)
                 new_dict[top_text].append(child_item.text(0))
-            if top_item.checkState(0) == Qt.Checked:
+            if top_item.checkState(0) == Qt.CheckState.Checked:
                 self.mw.ct.pr.sel_groups.append(top_text)
         self.mw.ct.pr.all_groups = new_dict
 
@@ -431,8 +476,8 @@ class GrandAvgWidget(QWidget):
         if text is not None:
             top_item = QTreeWidgetItem()
             top_item.setText(0, text)
-            top_item.setFlags(top_item.flags() | Qt.ItemIsUserCheckable)
-            top_item.setCheckState(0, Qt.Checked)
+            top_item.setFlags(top_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            top_item.setCheckState(0, Qt.CheckState.Checked)
             self.treew.addTopLevelItem(top_item)
             self.get_treew()
 
@@ -499,12 +544,12 @@ class GrandAvgFileAdd(QDialog):
 
     def sel_changed(self):
         for list_i in self.listw.selectedItems():
-            list_i.setCheckState(Qt.Checked)
+            list_i.setCheckState(Qt.CheckState.Checked)
 
     def add(self):
         for idx in range(self.listw.count()):
             list_item = self.listw.item(idx)
-            if list_item.checkState() == Qt.Checked:
+            if list_item.checkState() == Qt.CheckState.Checked:
                 tree_item = QTreeWidgetItem()
                 tree_item.setText(0, list_item.text())
                 self.group.insertChild(self.group.childCount(), tree_item)
@@ -517,17 +562,17 @@ class GrandAvgFileAdd(QDialog):
         for item_name in self.mw.ct.pr.all_meeg:
             if item_name not in self.mw.ct.pr.all_groups[self.group.text(0)]:
                 item = QListWidgetItem(item_name)
-                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                item.setCheckState(Qt.Unchecked)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Unchecked)
                 self.listw.addItem(item)
 
     def clear(self):
         for idx in range(self.listw.count()):
-            self.listw.item(idx).setCheckState(Qt.Unchecked)
+            self.listw.item(idx).setCheckState(Qt.CheckState.Unchecked)
 
     def sel_all(self):
         for idx in range(self.listw.count()):
-            self.listw.item(idx).setCheckState(Qt.Checked)
+            self.listw.item(idx).setCheckState(Qt.CheckState.Checked)
 
 
 # Todo: Enable Drag&Drop
@@ -899,7 +944,12 @@ class AddMRIWidget(QWidget):
 
         for index in range(self.list_widget.count()):
             item = self.list_widget.item(index)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsEditable | Qt.ItemIsSelectable)
+            # Replace Qt.ItemIsEnabled | Qt.ItemIsEditable | Qt.ItemIsSelectable
+            item.setFlags(
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsEditable
+                | Qt.ItemFlag.ItemIsSelectable
+            )
 
     def delete_item(self):
         i = self.list_widget.currentRow()
@@ -1174,7 +1224,9 @@ class SubBadsWidget(QWidget):
             file_list, self.pr.meeg_bad_channels, title="Files"
         )
         self.files_widget.currentChanged.connect(self.bad_dict_selected)
-        self.files_widget.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        self.files_widget.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
         self.layout.addWidget(self.files_widget, 0, 0)
 
         self.bt_scroll = QScrollArea()
@@ -1224,7 +1276,7 @@ class SubBadsWidget(QWidget):
         self.info_dict[self.current_obj.name] = info
 
         chbx_w = QWidget()
-        chbx_w.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        chbx_w.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         self.chbx_layout = QGridLayout()
         row = 0
         column = 0
@@ -1238,7 +1290,7 @@ class SubBadsWidget(QWidget):
         # Make Checkboxes for channels in info
         for ch_name in info["ch_names"]:
             chkbt = QCheckBox(ch_name)
-            chkbt.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            chkbt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
             chkbt.clicked.connect(self.bad_ckbx_assigned)
             self.bad_chkbts[ch_name] = chkbt
             h_size += chkbt.sizeHint().width()
@@ -1323,7 +1375,7 @@ class SubBadsWidget(QWidget):
             self,
             find_bads,
             meeg=self.current_obj,
-            n_jobs=Settings().value("n_jobs"),
+            n_jobs=Settings().get("n_jobs"),
             show_console=True,
             show_buttons=True,
             close_directly=False,
@@ -1881,9 +1933,9 @@ class FileManagment(QDialog):
 
         mode_cmbx = QComboBox()
         mode_cmbx.addItems(["Existence", "Time", "Size"])
-        mode_cmbx.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+        mode_cmbx.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         mode_cmbx.currentTextChanged.connect(self.mode_changed)
-        layout.addWidget(mode_cmbx, alignment=Qt.AlignLeft)
+        layout.addWidget(mode_cmbx, alignment=Qt.AlignmentFlag.AlignLeft)
 
         tab_widget = QTabWidget()
 
@@ -2143,7 +2195,7 @@ class ICASelect(QDialog):
         n_components = self.pr.parameters[self.pr.p_preset]["n_components"]
         for idx in range(n_components):
             chkbx = QCheckBox(str(idx))
-            chkbx.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Maximum)
+            chkbx.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
             chkbx.clicked.connect(self.component_selected)
             self.chkbxs[idx] = chkbx
             self.comp_chkbx_layout.addWidget(chkbx, idx // 5, idx % 5)

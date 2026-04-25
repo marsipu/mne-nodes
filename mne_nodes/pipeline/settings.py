@@ -2,73 +2,78 @@
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
+
+Simplified settings management.
+
+Key guarantees:
+- Abrupt termination will not corrupt settings.
+- Atomic writes via temp file + os.replace.
+- Backward compatibility: value/setValue/childKeys/remove/get_default still work.
+
+Environment overrides:
+- MNENODES_SETTINGS_DIR: custom directory or explicit settings.json path.
 """
 
 import json
 import logging
-from ast import literal_eval
+import os
+import sys
 from copy import deepcopy
-from os import mkdir
-from os.path import isfile, isdir
 from pathlib import Path
 from types import NoneType
+from typing import Any, List
 
-from mne_nodes import gui_mode
+from filelock import FileLock, Timeout
 from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder
 
-# ToDo: Next separate settings and enable loading them into parameters (e.g. n_jobs), finally make the node-test run
-# Default Settings/QSettings
+# Default device specific settings (formerly partly stored in QSettings)
+# NOTE: Add new keys here when introducing additional persistent settings.
+# Keep values JSON-serializable (TypedJSONEncoder handles Path objects).
 default_device_settings = {
-    "config_path": None,
-    "log_file_path": None,
-    "fs_path": None,
-    "wls_mne_path": None,
-    "use_qthread": 1,
-    "save_ram": 1,
-    "enable_cuda": 0,
-    "screen_ratio": 0.8,
-    "screen_name": None,
-    "app_theme": "auto",
-    "app_style": "fusion",
-    "app_font_size": 10,
+    "config_path": None,  # Last used project config file
+    "module_meta": {},  # Modules and their config-paths
+    "log_file_path": None,  # Optional custom log file path
+    "data_path": None,  # Project data directory (device specific)
+    "plot_path": None,  # Plot export directory (device specific)
+    "fs_path": None,  # FREESURFER_HOME (legacy / optional)
+    "wls_mne_path": None,  # Legacy WSL MNE path
+    "use_qthread": 1,  # Kept for backwards compatibility
+    "save_ram": 1,  # Memory optimization flag
+    "enable_cuda": 0,  # GPU usage flag
+    "screen_ratio": 0.8,  # GUI screen ratio preference
+    "screen_name": None,  # Preferred screen / monitor name
+    "app_theme": "auto",  # UI theme (auto/light/dark/high_contrast)
+    "app_style": "fusion",  # Qt style
+    "app_font": "Calibri",  # Default application font family
+    "app_font_size": 12,  # Default application font size
 }
 
 
-class Settings:
-    """Unified settings handler that uses Qt's QSettings if available,
-    otherwise falls back to a JSON file in the user's home directory. On
-    initialization, checks for a Qt installation and sets the backend
-    accordingly. Since QSettings does not preserve types, the type is stored
-    with the setting in QSettings.
+def _platform_settings_path() -> Path:
+    """Return an OS-appropriate path for the settings JSON file.
 
-    Methods
-    -------
-    value(setting, defaultValue=None)
-        Returns the value for a given setting, with type conversion
-        and fallback to default values.
-    setValue(setting, value)
-        Sets the value for a given setting.
-    sync()
-        Synchronizes the settings with the backend.
-    childKeys()
-        Returns all existing setting keys.
-    remove(setting)
-        Removes a setting.
-
-    Attributes
-    ----------
-    qsettings : QSettings or None
-        Reference to QSettings if available.
-    settings_path : str
-        Path to the JSON file if Qt is not available.
-    settings : dict
-        Dictionary with current settings (only for JSON backend).
-
-    The class is independent of PyQt/PySide.
+    Override: If the environment variable ``MNENODES_SETTINGS_DIR`` is set,
+    use it (treat it as directory unless it ends with .json). This makes
+    testing and sandboxing easier.
     """
+    override = os.getenv("MNENODES_SETTINGS_DIR")
+    if override:
+        override_path = Path(override)
+        if override_path.suffix.lower() == ".json":
+            return override_path
+        return override_path / "settings.json"
+    if sys.platform.startswith("win"):
+        base = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:  # Linux / other POSIX
+        base = Path(os.getenv("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "mne-nodes" / "settings.json"
 
-    def __init__(self):
-        self.default_qsettings = default_device_settings.copy()
+
+class Settings:
+    def __init__(self) -> None:
+        self._defaults = default_device_settings.copy()
         self.supported_types = [
             int,
             float,
@@ -80,107 +85,79 @@ class Settings:
             NoneType,
             Path,
         ]
-        if gui_mode:
-            from qtpy.QtCore import QSettings  # noqa: F401
+        self.settings_path: Path = _platform_settings_path()
+        self.settings_path.parent.mkdir(parents=True, exist_ok=True)
+        self.lock_path = self.settings_path.with_suffix(".lock")
+        self.lock_timeout = 5  # seconds
+        self.lock = FileLock(self.lock_path, timeout=self.lock_timeout, blocking=True)
 
-            self.qsettings = QSettings()
-            self.settings_path = None
-            self.settings = None
-        else:
-            self.qsettings = None
-            self.settings_path = Path.home() / ".mne-nodes" / ".mne_nodes.json"
-            self.settings = None
-
-    def load_settings(self):
-        """Load settings from the JSON file if Qt is not available."""
-        if not hasattr(self, "settings"):
-            self.settings = deepcopy(self.default_qsettings)
-        if isfile(self.settings_path):
-            with open(self.settings_path) as file:
-                self.settings = json.load(file, object_hook=type_json_hook)
-        else:
-            self.settings = deepcopy(self.default_qsettings)
-
-    def write_settings(self):
-        """Write settings to the JSON file if Qt is not available."""
-        if not isdir(self.settings_path.parent):
-            mkdir(self.settings_path.parent)
-        with open(self.settings_path, "w") as file:
-            json.dump(self.settings, file, indent=4, cls=TypedJSONEncoder)
-
-    def get_default(self, name):
-        if name in self.default_qsettings:
-            return self.default_qsettings[name]
-        logging.warning(f"Setting '{name}' not found in default settings.")
-        return None
-
-    def value(self, setting, defaultValue=None):
-        if gui_mode:
-            loaded_value = self.qsettings.value(
-                setting,
-                defaultValue=defaultValue or self.default_qsettings.get(setting),
+    # ------------------------- IO Helpers ---------------------------
+    def _load(self) -> dict:
+        try:
+            with self.lock:
+                return self._load_locked()
+        except Timeout:
+            logging.warning(
+                f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
             )
-            # Check if the type is stored in QSettings
-            type_key = f"type_{setting}_type"
-            type_str = self.qsettings.value(type_key, None)
-            if type_str is not None and type(loaded_value).__name__ != type_str:
-                if type_str == "bool":
-                    loaded_value = loaded_value == "true"
-                elif type_str == "Path":
-                    loaded_value = Path(loaded_value)
-                else:
-                    try:
-                        loaded_value = literal_eval(loaded_value)
-                    except (SyntaxError, ValueError):
-                        return self.get_default(setting)
-            return loaded_value
-        else:
-            self.load_settings()
-            if setting in self.settings:
-                return self.settings[setting]
-            if defaultValue is None:
-                return self.get_default(setting)
-            else:
-                return defaultValue
+            return deepcopy(self._defaults)
 
-    def setValue(self, setting, value):
+    def _load_locked(self) -> dict:
+        try:
+            with open(self.settings_path, encoding="utf-8") as f:
+                return json.load(f, object_hook=type_json_hook)
+        except (
+            OSError,
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            FileNotFoundError,
+        ) as err:
+            logging.warning(
+                f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
+            )
+            return deepcopy(self._defaults)
+
+    def _save_locked(self, settings) -> None:
+        tmp = self.settings_path.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4, cls=TypedJSONEncoder)
+        os.replace(tmp, self.settings_path)
+
+    # ------------------------- Public API ---------------------------
+    def default(self, name: str) -> Any:
+        return self._defaults.get(name)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        settings = self._load()
+        return settings.get(key, self.default(key) if default is None else default)
+
+    def set(self, key: str, value: Any) -> None:
         if not any(isinstance(value, t) for t in self.supported_types):
             raise TypeError(
-                f"Unsupported type {type(value)} for setting '{setting}'. "
-                f"Supported types are: {self.supported_types}"
+                f"Unsupported type {type(value)} for '{key}'. Supported: {self.supported_types}"
             )
-        if gui_mode:
-            if isinstance(value, Path):
-                value_type = "Path"
-            else:
-                value_type = type(value).__name__
-            self.qsettings.setValue(setting, value)
-            # Store the type of the value in the QSettings too
-            self.qsettings.setValue(f"type_{setting}_type", value_type)
-        else:
-            # Always load the settings to allow synchronization across multiple instances
-            self.load_settings()
-            self.settings[setting] = value
-            self.write_settings()
+        try:
+            with self.lock:
+                settings = self._load_locked()
+                settings[key] = value
+                self._save_locked(settings)
+        except Timeout:
+            logging.error(
+                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
+            )
 
-    def sync(self):
-        if gui_mode:
-            self.qsettings.sync()
-        else:
-            self.write_settings()
-            self.load_settings()
+    def remove(self, key: str) -> None:
+        try:
+            with self.lock:
+                settings = self._load_locked()
+                if key in settings:
+                    settings.pop(key)
+                    self._save_locked(settings)
+        except Timeout:
+            logging.error(
+                f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
+            )
 
-    def childKeys(self):
-        if gui_mode:
-            return self.qsettings.childKeys()
-        else:
-            self.load_settings()
-            return self.settings.keys()
-
-    def remove(self, setting):
-        if gui_mode:
-            self.qsettings.remove(setting)
-        else:
-            self.load_settings()
-            self.settings.pop(setting, None)
-            self.write_settings()
+    def keys(self) -> List[str]:
+        settings = self._load()
+        return list(settings.keys())

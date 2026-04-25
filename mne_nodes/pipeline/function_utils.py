@@ -17,12 +17,12 @@ from matplotlib import pyplot as plt
 from qtpy.QtCore import QThreadPool, QRunnable, Slot, QObject, Signal
 from qtpy.QtWidgets import QAbstractItemView
 
+from mne_nodes import ismac
 from mne_nodes.gui.base_widgets import TimedMessageBox
 from mne_nodes.pipeline.exception_handling import ExceptionTuple, get_exception_tuple
 from mne_nodes.pipeline.execution import Worker
 from mne_nodes.pipeline.loading import BaseLoading, FSMRI, Group, MEEG
 from mne_nodes.pipeline.pipeline_utils import shutdown
-from mne_nodes import ismac
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -119,12 +119,12 @@ def get_arguments(func, obj):
 
     # Get the values for parameter-names
     for arg_name in arguments:
-        if arg_name in obj.pa:
-            arguments[arg_name] = obj.pa[arg_name]
+        if arg_name in obj.params:
+            arguments[arg_name] = obj.params[arg_name]
         elif arg_name in obj.ct.settings:
-            arguments[arg_name] = obj.ct.settings[arg_name]
-        elif arg_name in Settings().childKeys():
-            arguments[arg_name] = Settings().value(arg_name)
+            arguments[arg_name] = obj.ct.settings.get(arg_name)
+        elif arg_name in Settings().keys():
+            arguments[arg_name] = Settings().get(arg_name)
 
     # Add additional keyword-arguments if added for function by user
     if func.__name__ in obj.pr.add_kwargs:
@@ -164,7 +164,7 @@ class RunController:
 
         self.init_lists()
 
-    def init_lists(self):
+    def init_lists(self) -> None:
         # Lists dividing the
         self.meeg_funcs = self.ct.pd_funcs[self.ct.pd_funcs["target"] == "MEEG"]
         self.fsmri_funcs = self.ct.pd_funcs[self.ct.pd_funcs["target"] == "FSMRI"]
@@ -237,7 +237,7 @@ class RunController:
             status
         )
 
-    def get_object(self):
+    def get_object(self) -> None:
         self.current_type = self.all_objects[self.current_obj_name]["type"]
 
         # Load object if the preceding object is not the same
@@ -364,7 +364,7 @@ class QRunController(RunController):
         super().get_object()
         # Print Headline for object if new
         if old_obj_name != self.current_obj_name:
-            self.rd.console_widget.write_html(
+            self.rd.console_widget.appendHtml(
                 f"<br><h1>{self.current_obj_name}</h1><br>"
             )
         # Load functions for object into func_model
@@ -374,15 +374,15 @@ class QRunController(RunController):
         self.rd.func_model.layoutChanged.emit()
 
         # Print Headline for function
-        self.rd.console_widget.write_html(f"<h2>{self.current_func}</h2><br>")
+        self.rd.console_widget.appendHtml(f"<h2>{self.current_func}</h2><br>")
 
     def process_finished(self, result):
         self.prog_count += 1
-        self.rd.pgbar.setValue(self.prog_count)
+        self.rd.pgbar.set(self.prog_count)
         self.mark_current_items(0)
         # Process
         if self.paused:
-            self.rd.console_widget.write_html("<b><big>Paused</big></b><br>")
+            self.rd.console_widget.appendHtml("<b><big>Paused</big></b><br>")
             # Enable/Disable Buttons
             self.rd.continue_bt.setEnabled(True)
             self.rd.pause_bt.setEnabled(False)
@@ -401,7 +401,7 @@ class QRunController(RunController):
 
                 # Insert Error-Number into console-widget as an anchor
                 # for later inspection
-                self.rd.console_widget.write_html(
+                self.rd.console_widget.appendHtml(
                     f"<b>Error-No. {self.error_count} (above)</b><br>"
                 )
                 # Increase Error-Count by one
@@ -411,7 +411,7 @@ class QRunController(RunController):
             self.start()
 
     def finished(self):
-        self.rd.console_widget.write_html("<b><big>Finished</big></b><br>")
+        self.rd.console_widget.appendHtml("<b><big>Finished</big></b><br>")
         # Enable/Disable Buttons
         self.rd.continue_bt.setEnabled(False)
         self.rd.pause_bt.setEnabled(False)
@@ -442,7 +442,7 @@ class QRunController(RunController):
             ismayavi = self.ct.pd_funcs.loc[self.current_func, "mayavi"]
             ismpl = self.ct.pd_funcs.loc[self.current_func, "matplotlib"]
             show_plots = self.ct.get_setting("show_plots")
-            use_qthread = Settings().value("use_qthread")
+            use_qthread = Settings().get("use_qthread")
             if (
                 ismayavi
                 or (ismpl and show_plots and use_qthread)
@@ -452,7 +452,7 @@ class QRunController(RunController):
                 result = run_func(**kwds)
                 self.process_finished(result)
 
-            elif Settings().value("use_qthread"):
+            elif Settings().get("use_qthread"):
                 logging.info("Starting in separate Thread.")
                 worker = Worker(function=run_func, **kwds)
                 worker.signals.error.connect(self.process_finished)
