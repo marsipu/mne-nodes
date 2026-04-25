@@ -68,7 +68,7 @@ Prerequisites: You need a [GitHub-Account](https://github.com/) and [git](https:
 - [mne-bids-pipeline](https://mne.tools/mne-bids-pipeline/) served as inspiration for the processing steps and their implementation of bids-derivatives.
 - Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used to implement the node-gui.
 - The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](https://github.com/5yutan5/PyQtDarkTheme).
-- The development was supported by Code Completion and Coding Agents through GitHub Copilot (inlcuding GPT-Codex, Anthropic Sonnet).
+- The development was supported by Code Completion and Coding Agents through GitHub Copilot (including GPT-Codex, Anthropic Sonnet).
 
 ## License
 

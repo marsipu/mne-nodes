@@ -1003,6 +1003,7 @@ class ShallowTreeModel(TreeModel):
 
         self._data[key] = []
         self.rebuild_tree()
+        # ToDo: Somehow rowsInserted doesn't seem to be emitted here
         return key
 
     def remove_groups(self, keys):

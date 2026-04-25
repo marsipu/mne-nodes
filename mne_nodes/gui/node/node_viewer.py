@@ -10,15 +10,14 @@ import re
 from collections import OrderedDict
 
 import qtpy
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu
 from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
-from qtpy.QtGui import QColor, QPainter, QPainterPath
+from qtpy.QtGui import QColor, QPainter, QPainterPath, QAction
 from qtpy.QtWidgets import (
     QGraphicsView,
     QRubberBand,
     QGraphicsTextItem,
     QGraphicsPathItem,
+    QMenu,
 )
 
 from mne_nodes import _widgets, debug_mode

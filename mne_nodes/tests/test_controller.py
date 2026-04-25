@@ -108,4 +108,6 @@ def test_config_change(tmp_path, ct, monkeypatch):
     )
 
 
+# ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference
+
 # ToDo: add a test about accessing and modifying config from multiple processes without data loss or race conditions

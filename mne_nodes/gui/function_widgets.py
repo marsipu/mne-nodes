@@ -16,9 +16,9 @@ from types import UnionType, NoneType
 from typing import get_args, get_type_hints, get_origin, Union
 
 import qtawesome as qta
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QFormLayout,
@@ -206,7 +206,7 @@ class ParameterConfiguration(QDialog):
         # Initialize with appropriate gui
         gui_name = configuration.get("gui") or (
             default_type_guis.get(
-                type(self.config.get("default").__name__), StringGui
+                type(self.config.get("default")).__name__, StringGui
             ).__name__
             if self.config.get("default") is not None
             else "StringGui"

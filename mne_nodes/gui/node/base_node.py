@@ -128,7 +128,7 @@ class BaseNode(QGraphicsItem):
             self.start_button.setFixedSize(24, 22)
             self.start_button.setIcon(qta.icon("fa6s.play"))
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(self.start_clicked, self)
+            self.start_button.clicked.connect(self.start_clicked)
             self.start_button_proxy = NodeProxyWidget(self, self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
@@ -316,6 +316,17 @@ class BaseNode(QGraphicsItem):
             self.draw_node()
 
         return port
+
+    def remove_port(self, port=None, **port_kwargs):
+        port = port or self.port(**port_kwargs)
+        ports = self._inputs if port.port_type == "in" else self._outputs
+        ports.pop(port.id)
+        if self.scene():
+            self.draw_node()
+
+    def clear_ports(self):
+        for port in self.ports:
+            self.remove_port(port=port)
 
     def add_input(self, name, **kwargs):
         """Adds a Port QGraphicsItem into the node as input.
@@ -569,8 +580,9 @@ class BaseNode(QGraphicsItem):
         return description
 
     def start_clicked(self):
-        node_sequence = self.viewer.get_node_sequence(self)
-        self.ct.start(node_sequence)
+        if self.viewer is not None:
+            node_sequence = self.viewer.get_node_sequence(self)
+            self.ct.start(node_sequence)
 
     def add_widget(self, widget):
         """Add widget to the node."""

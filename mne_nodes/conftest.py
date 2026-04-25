@@ -124,7 +124,7 @@ def _add_nodes(viewer):
     func_node = viewer.add_function_node("filter_bandpass")
 
     # Establish connection
-    in_node.output(port_name="meg").connect_to(func_node.input(port_name="raw"))
+    in_node.output(port_name="eeg").connect_to(func_node.input(port_name="raw"))
 
     viewer.auto_layout_nodes()
     viewer.zoom_to_nodes()

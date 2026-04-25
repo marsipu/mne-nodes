@@ -16,11 +16,32 @@ from typing import Any, Literal, MutableMapping, Sequence
 import mne
 import numpy as np
 import pandas as pd
-from PySide6.QtGui import QFontDatabase
+from mne_nodes import iswin
+from mne_nodes.gui.base_widgets import (
+    CheckList,
+    EditDict,
+    EditList,
+    SimpleList,
+    SimpleDialog,
+    ComboBox,
+)
+from mne_nodes.gui.dialogs import CheckListDlg
+from mne_nodes.gui.gui_utils import (
+    get_std_icon,
+    center,
+    set_app_theme,
+    set_app_font_size,
+    get_user_input,
+)
+from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.execution import WorkerDialog
+from mne_nodes.pipeline.loading import FSMRI
+from mne_nodes.pipeline.settings import Settings
 from mne_qt_browser._pg_figure import _get_color
 from qtpy import compat
 from qtpy.QtCore import Signal, Qt
-from qtpy.QtGui import QFont, QPixmap
+from qtpy.QtGui import QFontDatabase, QFont, QPixmap
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -44,29 +65,6 @@ from qtpy.QtWidgets import (
     QStackedLayout,
     QSizePolicy,
 )
-
-from mne_nodes import iswin
-from mne_nodes.gui.base_widgets import (
-    CheckList,
-    EditDict,
-    EditList,
-    SimpleList,
-    SimpleDialog,
-    ComboBox,
-)
-from mne_nodes.gui.dialogs import CheckListDlg
-from mne_nodes.gui.gui_utils import (
-    get_std_icon,
-    center,
-    set_app_theme,
-    set_app_font_size,
-    get_user_input,
-)
-from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.exception_handling import get_exception_tuple
-from mne_nodes.pipeline.execution import WorkerDialog
-from mne_nodes.pipeline.loading import FSMRI
-from mne_nodes.pipeline.settings import Settings
 
 
 class Param(QWidget):

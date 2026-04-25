@@ -266,7 +266,7 @@ class Controller:
             self._local_set = True
 
     @property
-    def bids_root(self) -> Path:
+    def bids_root(self) -> os.PathLike | None:
         """Path to the root data directory.
 
         This is the root folder of the processed data.
@@ -279,27 +279,34 @@ class Controller:
             )
         if bids_root is None or not isdir(bids_root):
             bids_root = get_user_input(
-                "Please select/create a folder for the bids-root.", "folder"
+                "Please select/create a folder for the bids-root.",
+                "folder",
+                cancel_allowed=False,
             )
-            self.bids_root = bids_root
+            self.settings.set("bids_root", bids_root)
 
-        return Path(bids_root)
+        return bids_root
 
     @bids_root.setter
-    def bids_root(self, value: str | Path) -> None:
+    def bids_root(self, value: os.PathLike) -> None:
+        if not isdir(value):
+            raise ValueError(f"Path {value} does not exist!")
         ans = ask_user(
             "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
         )
         if ans:
-            if not isdir(value):
-                raise ValueError(f"Path {value} does not exist!")
+            # Clear selected inputs and custom groups
+            self.get("selected_inputs").clear()
+            self.get("custom_groups").clear()
+            # Update input widget
+            self.viewer().input_node.update_widgets()
             self.settings.set("bids_root", value)
 
     @property
     def deriv_root(self) -> Path:
         """Path to the (processed) data directory.
 
-        This contatins all data, mne-nodes works with. The original data
+        This contains all data, mne-nodes works with. The original data
         are generally left unchanged.
         """
         deriv_root = self.settings.get("deriv_root")
@@ -309,11 +316,13 @@ class Controller:
             )
         if deriv_root is None or not isdir(deriv_root):
             deriv_root = get_user_input(
-                "Please select/create a folder for the derivatives root.", "folder"
+                "Please select/create a folder for the derivatives root.",
+                "folder",
+                cancel_allowed=False,
             )
-            self.bids_root = deriv_root
+            self.settings.set("deriv_root", deriv_root)
 
-        return Path(deriv_root)
+        return deriv_root
 
     @deriv_root.setter
     def deriv_root(self, value: str | Path) -> None:

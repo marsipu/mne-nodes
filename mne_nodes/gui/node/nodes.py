@@ -62,12 +62,13 @@ class InputWidget(QWidget):
             else:
                 bp_kwargs.update({"datatype": dt})
             data = [f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)]
-            if dt not in self.ct.selected_inputs:
-                self.ct.selected_inputs[dt] = []
+            selected_inputs = self.ct.get("selected_inputs")
+            if dt not in selected_inputs:
+                selected_inputs[dt] = []
             dt_list = CheckListProgress(
-                data, checked=self.ct.selected_inputs[dt], ui_button_pos="bottom"
+                data, checked=selected_inputs[dt], ui_button_pos="bottom"
             )
-            dt_list.checkedChanged.connect(self.save_input_selection)
+            dt_list.checkedChanged.connect(self.ct.flush)
             self.tab_widget.addTab(dt_list, dt)
         # Initialize group widget via combobox
         self.tab_widget.addTab(self.group_widget, "Groups")
@@ -84,6 +85,7 @@ class InputWidget(QWidget):
         if new_root is not None:
             self.ct.bids_root = new_root
         # Update widgets
+        self.update_widgets()
 
     def cmbx_changed(self, group_by):
         # Remove old widget
@@ -105,39 +107,45 @@ class InputWidget(QWidget):
                 ]
                 for v in vals
             }
-        if group_by not in self.ct.selected_inputs:
-            self.ct.selected_inputs[group_by] = []
+        if group_by not in self.ct.get("selected_inputs"):
+            self.ct.get("selected_inputs")[group_by] = []
         self.group_tree = ShallowTreeWidget(
             data,
-            checked=self.ct.selected_inputs[group_by],
+            checked=self.ct.get("selected_inputs")[group_by],
             headers=["Group Name", "Subjects"],
             ui_buttons=group_by == "custom",
             ui_button_pos="right",
         )
         # Always save to the config the latest input selection
-        self.group_tree.checkedChanged.connect(self.save_input_selection)
+        self.group_tree.dataChanged.connect(self.ct.flush)
+        self.group_tree.checkedChanged.connect(self.ct.flush)
         self.group_layout.addWidget(self.group_tree)
         self.group_widget.update()
-
-    def save_input_selection(self):
-        self.ct.set("selected_inputs", self.ct.selected_inputs)
 
 
 class InputNode(BaseNode):
     def __init__(self, **kwargs):
         super().__init__(startable=True, **kwargs)
+        self.input_widget = None
+        self.update_widgets()
 
+    def update_widgets(self):
         # Set name to dataset name if available
         dataset_name = self.ct.get_dataset_name()
         if dataset_name is not None:
             self.name = dataset_name
 
         # Add input widget
-        self.input_widget = InputWidget(self.ct)
-        self.add_widget(self.input_widget)
+        if self.input_widget is None:
+            self.input_widget = InputWidget(self.ct)
+            self.add_widget(self.input_widget)
+        else:
+            self.input_widget.update_widgets()
 
         # ToDo: Check for freesurfer-reconstructions
 
+        # Clear existing ports
+        self.clear_ports()
         # Add data-types as outputs
         data_types = get_datatypes(self.ct.bids_root)
         for dt in data_types:

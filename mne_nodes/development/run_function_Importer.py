@@ -7,7 +7,7 @@ Github: https://github.com/marsipu/mne-nodes
 import sys
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.pipeline.streams import init_logging
 
