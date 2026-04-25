@@ -64,23 +64,22 @@ def test_exec_order(qtbot, ct):
     viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
     _add_complex_nodes(viewer)
-    viewer.show()
-    qtbot.wait(1000000)
 
-    n = viewer.node(node_name="filter_data")
-    eo = viewer.node_exec_order(n)
+    n = viewer.node(node_idx=0)
+    eo = viewer.get_node_sequence(n)
+    print("first node:")
+    print("\n".join([str(e) for e in eo]))
+
+    n = viewer.node(node_name="filter_bandpass")
+    eo = viewer.get_node_sequence(n)
     print("filter_data:")
     print("\n".join([str(e) for e in eo]))
 
-    n = viewer.node(node_name="epoch_raw")
-    eo = viewer.node_exec_order(n)
+    n = viewer.node(node_name="create_epochs")
+    eo = viewer.get_node_sequence(n)
     print("epoch_raw:")
     print("\n".join([str(e) for e in eo]))
 
-    n = viewer.node(node_idx=0)
-    eo = viewer.node_exec_order(n)
-    print("first node:")
-    print("\n".join([str(e) for e in eo]))
     viewer.show()
 
 

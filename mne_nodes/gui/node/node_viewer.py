@@ -464,9 +464,9 @@ class NodeViewer(QGraphicsView):
             returns None.
         """
         ports = [
-            node.port(**kwargs)
+            node.port(ignore_warnings=True, **kwargs)
             for node in self.nodes.values()
-            if node.port(**kwargs) is not None
+            if node.port(ignore_warnings=True, **kwargs) is not None
         ]
         if len(ports) == 0:
             logging.warning("No port found with the provided parameters.")
@@ -581,27 +581,10 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node)
 
-    @staticmethod
-    def _node_description(node):
-        if isinstance(node, InputNode):
-            description = (node.name, "Input")
-        elif isinstance(node, FunctionNode):
-            description = (node.name, "Function")
-        else:
-            logging.warning(
-                f"Node {node.name} of type {type(node)} is not a valid "
-                "input or function node."
-            )
-            description = None
-        return description
-
-    def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
+    def _get_execution_from_nodes(self, node_sequence, node_dict, visited=None):
         if visited is None:
             visited = set()
         for port_id, port_info in node_dict.items():
-            # if port_id in visited:
-            #     continue
-            # visited.add(port_id)
             port = self.port(port_id=port_id)
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
@@ -624,11 +607,11 @@ class NodeViewer(QGraphicsView):
                             reverse_exec_order, up_nodes, visited
                         )
                         reverse_exec_order.reverse()
-                        instructions.extend(reverse_exec_order)
-                instructions.append(self._node_description(node))
-                self._get_execution_from_nodes(instructions, node_info, visited)
+                        node_sequence.extend(reverse_exec_order)
+                node_sequence.append((node.name, node.__class__.__name__))
+                self._get_execution_from_nodes(node_sequence, node_info, visited)
 
-    def node_exec_order(self, node):
+    def get_node_sequence(self, node):
         """Start from a node and create an execution order.
 
         The execution goes downstream from the selected node. Multiple
@@ -637,16 +620,17 @@ class NodeViewer(QGraphicsView):
         of different node types and activated/deactivated nodes should
         be done in Controller.
         """
-        instructions = []
+        # ToDoNext: NodeSequence has to tell me each step what are the inputs and to which preceding node are they connected
+        node_sequence = []
         visited = set()
         # Add the starting node
-        instructions.append(self._node_description(node))
+        node_sequence.append((node.name, node.__class__.__name__))
         visited.add(node.id)
         self._get_execution_from_nodes(
-            instructions, node.downstream_node_dict(), visited
+            node_sequence, node.downstream_node_dict(), visited
         )
 
-        return instructions
+        return node_sequence
 
     ####################################################################################
     # Frontend

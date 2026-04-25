@@ -121,10 +121,10 @@ def parameter_values_alt():
 def _add_nodes(viewer):
     # Create nodes
     in_node = viewer.input_node
-    func_node = viewer.add_function_node("filter_data")
+    func_node = viewer.add_function_node("filter_bandpass")
 
     # Establish connection
-    in_node.output(port_name="raw").connect_to(func_node.input(port_name="raw"))
+    in_node.output(port_name="meg").connect_to(func_node.input(port_name="raw"))
 
     viewer.auto_layout_nodes()
     viewer.zoom_to_nodes()
@@ -133,21 +133,19 @@ def _add_nodes(viewer):
 def _add_complex_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node()
-    func_node = viewer.add_function_node("filter_data")
-    func_node2 = viewer.add_function_node("find_events")
-    func_node3 = viewer.add_function_node("epoch_raw")
-    func_node4 = viewer.add_function_node("plot_epochs")
+    filter_node = viewer.add_function_node("filter_bandpass")
+    epochs_node = viewer.add_function_node("create_epochs")
+    evokeds_node = viewer.add_function_node("create_evokeds")
+    plot_node = viewer.add_function_node("plot_evokeds")
 
     # Connect the nodes
-    in_node.output(port_idx=0).connect_to(func_node.input(port_name="raw"))
-    viewer.node(node_name="filter_data").output(port_name="erm_processed").connect_to(
-        func_node3.input(port_name="raw")
+    in_node.output(port_idx=0).connect_to(filter_node.input(port_name="raw"))
+    filter_node.output(port_name="raw").connect_to(epochs_node.input(port_name="raw"))
+    epochs_node.output(port_name="epochs").connect_to(
+        evokeds_node.input(port_name="epochs")
     )
-    func_node2.output(port_name="events").connect_to(
-        func_node3.input(port_name="events")
-    )
-    func_node3.output(port_name="epochs").connect_to(
-        func_node4.input(port_name="epochs")
+    evokeds_node.output(port_name="evokeds").connect_to(
+        plot_node.input(port_name="evokeds")
     )
 
     # ToDo Next: Add source space nodes

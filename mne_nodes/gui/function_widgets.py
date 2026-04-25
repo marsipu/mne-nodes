@@ -325,7 +325,8 @@ class FunctionImporter(QDialog):
         layout.addLayout(config_layout)
         # Add scope combobox
         self.scope_cmbx = QComboBox()
-        self.scope_cmbx.addItems(["subject", "group", "custom"])
+        self.scope_cmbx.addItems(["subject", "group"])
+        self.scope_cmbx.currentTextChanged.connect(self.scope_cmbx_changed)
         config_layout.addRow("Scope", self.scope_cmbx)
         # Inputs Configuration
         self.inputs_layout = QFormLayout()
@@ -598,6 +599,9 @@ class FunctionImporter(QDialog):
 
     def update_config(self, idx):
         self.current_func = list(self.func_config.keys())[idx]
+        # Update scope
+        scope = self.func_config[self.current_func].get("scope", "subject")
+        self.scope_cmbx.setCurrentText(scope)
         # Update inputs
         self._populate_config(
             self.func_config[self.current_func]["inputs"],
@@ -658,6 +662,9 @@ class FunctionImporter(QDialog):
                 # If origin parameter and changed to inputs
                 self.fixed_categories[self.current_func]["inputs"].append(item)
         self.update_config(self.tab_widget.currentIndex())
+
+    def scope_cmbx_changed(self, text):
+        self.func_config[self.current_func]["scope"] = text
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]

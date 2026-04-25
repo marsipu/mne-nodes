@@ -126,9 +126,9 @@ class BaseNode(QGraphicsItem):
         if self.startable:
             self.start_button = QPushButton()
             self.start_button.setFixedSize(24, 22)
-            self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
+            self.start_button.setIcon(qta.icon("fa6s.play"))
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(self.start)
+            self.start_button.clicked.connect(self.start_clicked, self)
             self.start_button_proxy = NodeProxyWidget(self, self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
@@ -345,7 +345,13 @@ class BaseNode(QGraphicsItem):
         return port
 
     def port(
-        self, port_type=None, port_idx=None, port_name=None, port_id=None, old_id=None
+        self,
+        port_type=None,
+        port_idx=None,
+        port_name=None,
+        port_id=None,
+        old_id=None,
+        ignore_warnings=False,
     ):
         """Get port by the name or index.
 
@@ -361,6 +367,8 @@ class BaseNode(QGraphicsItem):
             Id of the port.
         old_id : int, optional
             Old id of the port for reestablishing connections.
+        ignore_warnings : bool
+            If True, warnings will be ignored when port is not found. Default is False.
 
         Returns
         -------
@@ -385,7 +393,8 @@ class BaseNode(QGraphicsItem):
             if port_idx < len(port_list):
                 return port_list[port_idx]
             else:
-                logging.warning(f"{port_type} port {port_idx} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_idx} not found.")
         elif port_name is not None:
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
@@ -395,7 +404,8 @@ class BaseNode(QGraphicsItem):
                     "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
-                logging.warning(f"{port_type} port {port_name} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_name} not found.")
             else:
                 return port_names[0]
         elif port_id is not None:
@@ -404,7 +414,8 @@ class BaseNode(QGraphicsItem):
             if port_id in ports:
                 return ports[port_id]
             else:
-                logging.warning(f"{port_type} port {port_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_id} not found.")
         elif old_id is not None:
             if not isinstance(old_id, int):
                 raise ValueError(f"Invalid old port id: {old_id}")
@@ -414,11 +425,13 @@ class BaseNode(QGraphicsItem):
                     "More than one port with the same old id. This should not be allowed."
                 )
             elif len(old_id_ports) == 0:
-                logging.warning(f"{port_type} port with old id {old_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port with old id {old_id} not found.")
             else:
                 return old_id_ports[0]
         else:
             logging.warning("No port identifier provided.")
+        return None
 
     def input(self, **port_kwargs):
         """Get input port by the name, index, id, or old id as in port()."""
@@ -525,8 +538,9 @@ class BaseNode(QGraphicsItem):
 
         return input_nodes
 
-    def start(self):
-        self.viewer.start()
+    def start_clicked(self):
+        node_sequence = self.viewer.get_node_sequence(self)
+        self.ct.start(node_sequence)
 
     def add_widget(self, widget):
         """Add widget to the node."""
