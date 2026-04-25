@@ -16,11 +16,32 @@ from typing import Any, Literal, MutableMapping, Sequence
 import mne
 import numpy as np
 import pandas as pd
-from PySide6.QtGui import QFontDatabase
+from mne_nodes import iswin
+from mne_nodes.gui.base_widgets import (
+    CheckList,
+    EditDict,
+    EditList,
+    SimpleList,
+    SimpleDialog,
+    ComboBox,
+)
+from mne_nodes.gui.dialogs import CheckListDlg
+from mne_nodes.gui.gui_utils import (
+    get_std_icon,
+    center,
+    set_app_theme,
+    set_app_font_size,
+    get_user_input,
+)
+from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.execution import WorkerDialog
+from mne_nodes.pipeline.loading import FSMRI
+from mne_nodes.pipeline.settings import Settings
 from mne_qt_browser._pg_figure import _get_color
 from qtpy import compat
 from qtpy.QtCore import Signal, Qt
-from qtpy.QtGui import QFont, QPixmap
+from qtpy.QtGui import QFontDatabase, QFont, QPixmap
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -44,29 +65,6 @@ from qtpy.QtWidgets import (
     QStackedLayout,
     QSizePolicy,
 )
-
-from mne_nodes import iswin
-from mne_nodes.gui.base_widgets import (
-    CheckList,
-    EditDict,
-    EditList,
-    SimpleList,
-    SimpleDialog,
-    ComboBox,
-)
-from mne_nodes.gui.dialogs import CheckListDlg
-from mne_nodes.gui.gui_utils import (
-    get_std_icon,
-    center,
-    set_app_theme,
-    set_app_font_size,
-    get_user_input,
-)
-from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.exception_handling import get_exception_tuple
-from mne_nodes.pipeline.execution import WorkerDialog
-from mne_nodes.pipeline.loading import FSMRI
-from mne_nodes.pipeline.settings import Settings
 
 
 class Param(QWidget):
@@ -790,10 +788,17 @@ class ListGui(Param):
 
     data_type = list
 
-    def __init__(self, value_string_length: int | None = 30, **kwargs: Any):
+    def __init__(
+        self,
+        show_edit_bt: bool = True,
+        value_string_length: int | None = 30,
+        **kwargs: Any,
+    ):
         """
         Parameters
         ----------
+        show_edit_bt : bool
+            Set to True (default) to only show an edit button (better for compact layouts). If False, the ListWidget is put directly into the gui.
         value_string_length : int | None
             Set the limit of characters to which the value converted to a
             string will be displayed.
@@ -802,18 +807,27 @@ class ListGui(Param):
         """
 
         super().__init__(**kwargs)
+        self.show_edit_bt = show_edit_bt
         self.value_string_length = value_string_length
         # Cache value to use after selecting None
         self.cached_value = None
-        list_layout = QHBoxLayout()
-        self.value_label = QLabel()
-        list_layout.addWidget(self.value_label)
-        self.param_widget = QPushButton("Edit")
-        self.param_widget.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
-        )
-        self.param_widget.clicked.connect(self.open_dialog)
-        list_layout.addWidget(self.param_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        if show_edit_bt:
+            list_layout = QHBoxLayout()
+            self.value_label = QLabel()
+            list_layout.addWidget(self.value_label)
+            self.param_widget = QPushButton("Edit")
+            self.param_widget.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            self.param_widget.clicked.connect(self.open_dialog)
+            list_layout.addWidget(
+                self.param_widget, alignment=Qt.AlignmentFlag.AlignCenter
+            )
+        else:
+            list_layout = QVBoxLayout()
+            self.param_widget = EditList(data=self.value)
+            list_layout.addWidget(self.param_widget)
+
         self.init_ui(list_layout)
 
     def open_dialog(self):
@@ -829,9 +843,12 @@ class ListGui(Param):
     def _set_widget_value(self, value):
         if value is not None:
             self.cached_value = value
-        self.value_label.setText(
-            convert_list_to_string(value, self.unit, self.value_string_length)
-        )
+        if self.show_edit_bt:
+            self.value_label.setText(
+                convert_list_to_string(value, self.unit, self.value_string_length)
+            )
+        else:
+            self.param_widget.replace_data(value)
 
     def _get_widget_value(self):
         if self.value is None:
@@ -839,7 +856,8 @@ class ListGui(Param):
                 value = self.cached_value
             else:
                 value = []
-            self.value_label.clear()
+            if self.show_edit_bt:
+                self.value_label.clear()
         else:
             value = self._value
 
@@ -1208,21 +1226,20 @@ class MultiTypeGui(Param):
         for type_name in self.types:
             gui_name = self.gui_types[type_name]
             # Load specifc keyword-arguments if given
-            if gui_name in self.type_kwargs:
-                kwargs = self.type_kwargs[gui_name]
-            else:
-                kwargs = {}
-
             # Set standard parameter-keyword-arguments as given to MultiTypeGui
+            kwargs = {}
             kwargs["data"] = {}
             kwargs["name"] = self.name
-            kwargs["alias"] = ""
+            kwargs["function_name"] = self.function_name
+            kwargs["alias"] = self.alias
             kwargs["default"] = self.type_defaults[type_name]
             kwargs["groupbox_layout"] = False
             kwargs["none_select"] = False
             kwargs["description"] = self.description
             kwargs["unit"] = self.unit
             kwargs["parent_widget"] = self
+            if gui_name in self.type_kwargs:
+                kwargs.update(self.type_kwargs[gui_name])
 
             gui_class = globals()[gui_name]
             gui_instance = gui_class(**kwargs)

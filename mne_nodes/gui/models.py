@@ -320,6 +320,52 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
         # in __init__ of CheckDictModel
 
 
+class CheckListProgressModel(CheckListModel):
+    """A Model for a Check-List with progress information.
+
+    Parameters
+    ----------
+    data : list | None
+        list with content to be displayed, defaults to empty list
+    checked : list | None
+        list which stores the checked items from data
+    progress_dict : dict | None
+        dictionary which stores progress information for items in data
+    one_check: bool
+        If True, only one item can be checked at a time
+    show_index: bool
+        Set True if you want to display the list-index in front of each value
+    """
+
+    ProgressRole = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(
+        self,
+        data,
+        checked,
+        progress_dict=None,
+        one_check=False,
+        show_index=False,
+        **kwargs,
+    ):
+        super().__init__(data, checked, one_check, show_index, **kwargs)
+        self._progress_dict = progress_dict or {}
+
+    def data(self, index, role=None):
+        if role == self.ProgressRole:
+            val = self.getData(index)
+            if val is None:
+                return 0
+            return self._progress_dict.get(val, 0)
+        else:
+            return super().data(index, role)
+
+    def roleNames(self):
+        roles = super().roleNames()
+        roles[self.ProgressRole] = b"progress"
+        return roles
+
+
 class BaseDictModel(QAbstractTableModel):
     """Basic Model for Dictonaries.
 
@@ -705,7 +751,7 @@ class TreeModel(QAbstractItemModel):
     ----------
     data : dict
         Dictionary with hierarchical data to be displayed
-    headers : list of str | None
+    headers : list[str] | None
         Headers for the columns. If None, default headers will be used.
     parent : QWidget | None
         Parent widget
@@ -734,6 +780,12 @@ class TreeModel(QAbstractItemModel):
 
         # Create the root item
         self.root_item = self._build_tree(self._data)
+
+    def rebuild_tree(self):
+        """Rebuild the internal tree from ``self._data`` and notify views."""
+        self.layoutAboutToBeChanged.emit()
+        self.root_item = self._build_tree(self._data)
+        self.layoutChanged.emit()
 
     def _build_tree(self, data):
         """Build the tree structure from the hierarchical dictionary data."""
@@ -790,6 +842,8 @@ class TreeModel(QAbstractItemModel):
         return None
 
     def index(self, row, column, parent=None, *args, **kwargs):
+        if parent is None:
+            parent = QModelIndex()
         if not self.hasIndex(row, column, parent):
             return QModelIndex()
 
@@ -816,6 +870,8 @@ class TreeModel(QAbstractItemModel):
         return self.createIndex(parent_item.row(), 0, parent_item)
 
     def rowCount(self, parent=None, *args, **kwargs):
+        if parent is None:
+            parent = QModelIndex()
         if parent.column() > 0:
             return 0
 
@@ -834,6 +890,207 @@ class TreeModel(QAbstractItemModel):
             return Qt.ItemFlag.NoItemFlags
 
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+
+class ShallowTreeModel(TreeModel):
+    """A model for grouped ``dict[str, list]`` data with checkable keys.
+
+    Top-level dictionary keys are displayed as parent rows and can be checked.
+    List values are shown as leaf children under each key.
+    """
+
+    def __init__(self, data=None, checked=None, headers=None, parent=None):
+        if checked is None:
+            self._checked = []
+        elif not isinstance(checked, list):
+            logging.warning(
+                "ShallowTreeModel expects a list for 'checked', got %s. Initializing empty list.",
+                type(checked).__name__,
+            )
+            self._checked = []
+        else:
+            self._checked = checked
+
+        super().__init__(data=data, headers=headers, parent=parent)
+
+    def _build_tree(self, data):
+        """Build a two-level tree from ``dict[str, list]`` data."""
+        root = TreeItem(self._headers)
+
+        for key, values in data.items():
+            if isinstance(values, list):
+                normalized_values = values
+            else:
+                logging.warning(
+                    "ShallowTreeModel expects list values, got %s for key '%s'. Treating as empty list.",
+                    type(values).__name__,
+                    key,
+                )
+                normalized_values = []
+
+            key_item = TreeItem([key, f"{len(normalized_values)} items"], root)
+            root._children.append(key_item)
+
+            for value in normalized_values:
+                key_item._children.append(TreeItem([str(value), ""], key_item))
+
+        return root
+
+    def _is_checkable_key(self, index):
+        if not index.isValid() or index.column() != 0:
+            return False
+        item = index.internalPointer()
+        return item is not None and item._parent == self.root_item
+
+    def _group_keys(self):
+        return list(self._data.keys())
+
+    def _group_key_by_row(self, row):
+        group_keys = self._group_keys()
+        if 0 <= row < len(group_keys):
+            return group_keys[row]
+        return None
+
+    def group_key_for_index(self, index):
+        """Return the top-level group key represented by ``index``."""
+        if index is None or not index.isValid():
+            return None
+
+        item = index.internalPointer()
+        if item is None:
+            return None
+
+        if item._parent == self.root_item:
+            return self._group_key_by_row(index.row())
+
+        parent = index.parent()
+        if parent.isValid():
+            return self._group_key_by_row(parent.row())
+        return None
+
+    def is_group_index(self, index):
+        """Return ``True`` if index points to a top-level group row."""
+        if index is None or not index.isValid():
+            return False
+        item = index.internalPointer()
+        return item is not None and item._parent == self.root_item
+
+    def is_item_index(self, index):
+        """Return ``True`` if index points to a leaf item row."""
+        if index is None or not index.isValid():
+            return False
+        item = index.internalPointer()
+        if item is None or item._parent is None:
+            return False
+        return item._parent != self.root_item
+
+    def _next_unique_group_name(self, base="__new_group"):
+        n = 0
+        group_name = f"{base}{n}__"
+        while group_name in self._data:
+            n += 1
+            group_name = f"{base}{n}__"
+        return group_name
+
+    def add_group(self, key=None):
+        """Add a new group key with an empty item list."""
+        if key is None or str(key).strip() == "":
+            key = self._next_unique_group_name()
+        else:
+            key = str(key)
+            if key in self._data:
+                key = self._next_unique_group_name(base=key)
+
+        self._data[key] = []
+        self.rebuild_tree()
+        # ToDo: Somehow rowsInserted doesn't seem to be emitted here
+        return key
+
+    def remove_groups(self, keys):
+        """Remove groups by key and keep ``_checked`` synchronized in place."""
+        removed = []
+        for key in keys:
+            if key in self._data:
+                self._data.pop(key)
+                removed.append(key)
+
+        if not removed:
+            return []
+
+        for key in removed:
+            if key in self._checked:
+                self._checked.remove(key)
+
+        self.rebuild_tree()
+        return removed
+
+    def _next_unique_item_name(self, group_key, base="__new_item"):
+        n = 0
+        item_name = f"{base}{n}__"
+        while item_name in self._data[group_key]:
+            n += 1
+            item_name = f"{base}{n}__"
+        return item_name
+
+    def add_item(self, group_key, item=None):
+        """Add an item to a group list."""
+        if group_key not in self._data or not isinstance(self._data[group_key], list):
+            return None
+
+        if item is None or str(item).strip() == "":
+            item = self._next_unique_item_name(group_key)
+        else:
+            item = str(item)
+
+        self._data[group_key].append(item)
+        self.rebuild_tree()
+        return item
+
+    def remove_items(self, group_key, item_rows):
+        """Remove items from a group list by their row indices."""
+        if group_key not in self._data or not isinstance(self._data[group_key], list):
+            return 0
+
+        items = self._data[group_key]
+        removed_count = 0
+        for row in sorted(set(item_rows), reverse=True):
+            if 0 <= row < len(items):
+                items.pop(row)
+                removed_count += 1
+
+        if removed_count > 0:
+            self.rebuild_tree()
+        return removed_count
+
+    def data(self, index, role=None):
+        if role == Qt.ItemDataRole.CheckStateRole and self._is_checkable_key(index):
+            key = index.internalPointer().data(0)
+            return (
+                Qt.CheckState.Checked
+                if key in self._checked
+                else Qt.CheckState.Unchecked
+            )
+        return super().data(index, role=role)
+
+    def setData(self, index, value, role=None):
+        if role != Qt.ItemDataRole.CheckStateRole or not self._is_checkable_key(index):
+            return False
+
+        key = index.internalPointer().data(0)
+        if value in [Qt.CheckState.Checked, 2]:
+            if key not in self._checked:
+                self._checked.append(key)
+        elif key in self._checked:
+            self._checked.remove(key)
+
+        self.dataChanged.emit(index, index)
+        return True
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if self._is_checkable_key(index):
+            flags |= Qt.ItemFlag.ItemIsUserCheckable
+        return flags
 
 
 class AddFilesModel(BasePandasModel):
@@ -1016,49 +1273,6 @@ class FunctionPickerModel(PickerModel):
                 f"Outputs: {', '.join(meta.get('outputs', []))}\n"
                 f"Parameters: {nparams}\nPlot: {plot}  Thread-safe: {tsafe}"
             )
-        return super().data(index, role)
-
-
-class InputPickerModel(PickerModel):
-    """Draggable model for input nodes used in NodePicker.
-
-    Columns: data_type, group; Index: label (data_type:group) for reference.
-    """
-
-    def __init__(self, inputs_dict: dict, **kwargs):
-        rows = []
-        for dt, groups in (inputs_dict or {}).items():
-            for group in groups.keys():
-                rows.append({"label": f"{dt}:{group}", "data_type": dt, "group": group})
-        df = (
-            pd.DataFrame(rows)
-            if rows
-            else pd.DataFrame([], columns=["label", "data_type", "group"])
-        )
-        if not df.empty:
-            df = df.set_index("label")
-        super().__init__(
-            df[[c for c in ["data_type", "group"] if c in df.columns]], **kwargs
-        )
-        self._inputs_dict = inputs_dict or {}
-        self._labels = list(df.index) if not df.empty else []
-
-    def mimeData(self, indexes):
-        mime = super().mimeData(indexes)
-        if len(indexes) == 0:
-            return mime
-        row = indexes[0].row()
-        dt = self._data.iloc[row]["data_type"]
-        group = self._data.iloc[row]["group"]
-        md = QMimeData()
-        md.setText(f"mne-nodes/input:{dt}:{group}")
-        return md
-
-    def data(self, index, role=None):
-        if role == Qt.ItemDataRole.ToolTipRole:
-            dt = self._data.iloc[index.row()]["data_type"]
-            group = self._data.iloc[index.row()]["group"]
-            return f"Input node for data_type '{dt}', group '{group}'"
         return super().data(index, role)
 
 

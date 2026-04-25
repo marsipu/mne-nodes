@@ -31,7 +31,7 @@ def test_process(qtbot):
 
 
 @pytest.mark.timeout(10)
-def test_main_window_process(qtbot, main_window, controller, tmp_path):
+def test_main_window_process(qtbot, main_window, ct, tmp_path):
     """Test launching a process through Controller/MainWindow integration.
 
     Uses a trivial Python one-shot command that writes to stdout &
@@ -79,9 +79,9 @@ def test_process_dialog(qtbot):
     assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
 
 
-def test_simple_pipeline(qtbot, main_window, controller):
+def test_simple_pipeline(qtbot, main_window, ct):
     # Import testing dataset (controller fixtures should be identical to main_window.controller)
     # ToDo: Make this test work
-    import_dataset(controller, "testing")
+    import_dataset(ct, "testing")
     main_window.show()
     qtbot.wait(10000)

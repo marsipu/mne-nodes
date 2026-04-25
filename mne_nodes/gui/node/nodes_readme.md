@@ -1,5 +1,5 @@
 ## Using code from NodeGraphQt
-The code for nodes in mne-nodes is partially copied and heavily inspired by code from
+The code for the nodes in PyQt is based on code from
 [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt).
 For the following reasons this package is not directly used.
 This usecase requires some heavy customization for node creation and

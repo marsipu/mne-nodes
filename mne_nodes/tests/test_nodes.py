@@ -1,4 +1,7 @@
+from pprint import pprint
+
 from qtpy.QtCore import QPointF, Qt
+from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
@@ -59,25 +62,27 @@ def test_show_nodeviewer(nodeviewer):
         assert node.isVisible()
 
 
-def test_exec_order(qtbot, controller):
-    viewer = NodeViewer(controller)
+def test_exec_order(qtbot, ct):
+    viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
     _add_complex_nodes(viewer)
 
-    n = viewer.node(node_name="filter_data")[0]
-    eo = viewer.node_exec_order(n)
-    print("filter_data:")
-    print("\n".join([str(e) for e in eo]))
-
-    n = viewer.node(node_name="epoch_raw")[0]
-    eo = viewer.node_exec_order(n)
-    print("epoch_raw:")
-    print("\n".join([str(e) for e in eo]))
-
     n = viewer.node(node_idx=0)
-    eo = viewer.node_exec_order(n)
-    print("first node:")
-    print("\n".join([str(e) for e in eo]))
+    eo = viewer.get_node_sequence(n)
+    pprint("first node:")
+    pprint(eo)
+
+    n = viewer.node(node_name="filter_bandpass")
+    eo = viewer.get_node_sequence(n)
+    pprint("filter_data:")
+    pprint(eo)
+
+    n = viewer.node(node_name="create_epochs")
+    eo = viewer.get_node_sequence(n)
+    pprint("epoch_raw:")
+    pprint(eo)
+
+    viewer.show()
 
 
 def test_multiple_func_nodes(nodeviewer):
@@ -97,3 +102,26 @@ def test_multiple_func_nodes(nodeviewer):
     assert nodeviewer.ct.parameter("lowpass", node1.name) != nodeviewer.ct.parameter(
         "lowpass", node2.name
     )
+
+
+def test_node_resizes_and_autolayouts_on_proxywidget_resize(qtbot, ct):
+    nodeviewer = NodeViewer(ct)
+    qtbot.addWidget(nodeviewer)
+    node_a = nodeviewer.add_function_node("filter_data")
+    node_b = nodeviewer.add_function_node("find_events")
+    nodeviewer.auto_layout_nodes(nodes=[node_a, node_b])
+
+    label = QLabel("Resize trigger")
+    label.setFixedSize(180, 24)
+    node_a.add_widget(label)
+    node_a.draw_node()
+    nodeviewer.auto_layout_nodes(nodes=[node_a, node_b])
+
+    old_height = node_a.height
+    old_gap = abs(node_b.y() - node_a.y())
+
+    label.setFixedHeight(220)
+    qtbot.waitUntil(lambda: node_a.height > old_height, timeout=2000)
+
+    new_gap = abs(node_b.y() - node_a.y())
+    assert new_gap > old_gap

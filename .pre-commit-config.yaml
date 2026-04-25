@@ -11,7 +11,7 @@ repos:
 
   # Pyupgrade
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    rev: v3.21.2
     hooks:
     -   id: pyupgrade
 
@@ -22,12 +22,12 @@ repos:
       - id: ruff-check
       - id: ruff-format
 
-  # docformatter
-  - repo: https://github.com/PyCQA/docformatter
-    rev: v1.7.7
-    hooks:
-      - id: docformatter
-        additional_dependencies: [ tomli ]
+  # docformatter (disabled until fixed for Python 3.14)
+#  - repo: https://github.com/PyCQA/docformatter
+#    rev: v1.7.7
+#    hooks:
+#      - id: docformatter
+#        additional_dependencies: [ tomli ]
 
   # doc8
   - repo: https://github.com/PyCQA/doc8

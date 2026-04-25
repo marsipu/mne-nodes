@@ -11,12 +11,13 @@ from collections import OrderedDict
 
 import qtpy
 from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
-from qtpy.QtGui import QColor, QPainter, QPainterPath
+from qtpy.QtGui import QColor, QPainter, QPainterPath, QAction
 from qtpy.QtWidgets import (
     QGraphicsView,
     QRubberBand,
     QGraphicsTextItem,
     QGraphicsPathItem,
+    QMenu,
 )
 
 from mne_nodes import _widgets, debug_mode
@@ -62,7 +63,7 @@ class NodeViewer(QGraphicsView):
 
         # attributes
         self._nodes = OrderedDict()
-        self._input_nodes = {}
+        self._input_node = None
         self._function_nodes = {}
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._last_size = self.size()
@@ -186,16 +187,28 @@ class NodeViewer(QGraphicsView):
         return self._nodes
 
     @property
-    def input_nodes(self):
-        """Return the input nodes in the node graph.
+    def input_node(self):
+        """Return the (only) input node in the node graph.
 
         Returns
         -------
-        dict
-            Dictionary of InputNode instances with first key being the data-type
-            and second key being the (group)name.
+        InputNode
+            The input node in the node graph.
         """
-        return self._input_nodes
+        return self._input_node
+
+    @input_node.setter
+    def input_node(self, input_node):
+        """Set the input node in the node graph.
+        Parameters
+        ----------
+        input_node : InputNode
+            The input node to set in the node graph.
+        """
+        if self._input_node is not None:
+            logging.info("Replacing existing input node.")
+            self.remove_node(self._input_node)
+        self._input_node = input_node
 
     @property
     def function_nodes(self):
@@ -239,14 +252,16 @@ class NodeViewer(QGraphicsView):
     ####################################################################################
     # Backend
     ####################################################################################
-    def add_node(self, node):
+    def add_node(self, node, pos=None):
         """Add a node to the node graph.
 
         Parameters
         ----------
         node : BaseNode
             The node to add to the node graph.
-
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         Returns
         -------
         BaseNode
@@ -260,18 +275,21 @@ class NodeViewer(QGraphicsView):
         self._nodes[node.id] = node
         # draw node after being added to the scene
         node.draw_node()
+        if pos is not None:
+            node.setPos(pos)
 
         return node
 
-    def add_input_node(self, data_type="raw", name=None, **kwargs):
-        """Add a new input node to the project.
+    def add_input_node(self, node=None, pos=None, **kwargs):
+        """Add a input node to the project. Currently only one is allowed.
 
         Parameters
         ----------
-        data_type : str, optional
-            The type of data (e.g. raw, fsmri) for the input node, by default "raw".
-        name : str, optional
-            The name for the input node for example a group name, by default None.
+        node : InputNode, optional
+            The input node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the BaseNode constructor.
 
@@ -285,32 +303,26 @@ class NodeViewer(QGraphicsView):
         ValueError
             If data_type is not in the available input data types.
         """
-        if name is None:
-            if len(self.input_nodes) == 0:
-                name = "All"
-            else:
-                name = f"{len(self.input_nodes[data_type]) + 1}"
-        node = InputNode(self.ct, data_type, name=name, **kwargs)
-        if data_type not in self.ct.get("input_types"):
-            raise ValueError(
-                f"Invalid data_type '{data_type}'. "
-                f"Valid types are: {', '.join(self.ct.get('input_types').keys())}"
-            )
-        if data_type not in self.input_nodes:
-            self.input_nodes[data_type] = {}
-        self.input_nodes[data_type][name] = node
-        self.add_node(node)
+        if node is None:
+            node = InputNode(ct=self.ct, **kwargs)
+        self.input_node = node
+        self.add_node(node, pos=pos)
 
         return node
 
-    def add_function_node(self, function_name, **kwargs):
+    def add_function_node(self, function_name=None, node=None, pos=None, **kwargs):
         """Add a new function node to the project.
 
         Parameters
         ----------
-        function_name : str
+        function_name : str, optional
             Name of the function to create a node for. If the name already exists,
-            a numbered suffix is added to the name.
+            a numbered suffix is added to the name. Can be None only if node is provided.
+        node : FunctionNode, optional
+            The function node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the FunctionNode constructor.
 
@@ -319,17 +331,20 @@ class NodeViewer(QGraphicsView):
         FunctionNode
             The created function node.
         """
-        if function_name in self.function_nodes:
-            # Get function node index (0-based with 0 not showing)
-            func_idx = len(self.get_node_by_function(function_name))
-            # Add function node index to name
-            function_name = f"{function_name}-{func_idx}"
-            logging.info(
-                f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
-            )
-        node = FunctionNode(self.ct, name=function_name, **kwargs)
+        if node is None:
+            if function_name in self.function_nodes:
+                # Get function node index (0-based with 0 not showing)
+                func_idx = len(self.get_node_by_function(function_name))
+                # Add function node index to name
+                function_name = f"{function_name}-{func_idx}"
+                logging.info(
+                    f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
+                )
+            node = FunctionNode(self.ct, name=function_name, **kwargs or {})
+        else:
+            function_name = node.name
         self.function_nodes[function_name] = node
-        self.add_node(node)
+        self.add_node(node, pos=pos)
 
         return node
 
@@ -340,9 +355,12 @@ class NodeViewer(QGraphicsView):
         ----------
         node : BaseNode, optional
             Node instance to remove.
-        **kwargs : dict, optional
+        **kwargs : dict
             Keyword arguments to find node with self.node by index, name, or id.
         """
+        if isinstance(node, InputNode):
+            logging.info("Removing the input node is not allowed.")
+            return
         if node is None:
             self.node(**kwargs)
         # Remove connected pipes
@@ -355,22 +373,11 @@ class NodeViewer(QGraphicsView):
         # Deliberately with room for KeyError to detect,
         # if nodes are not correctly added in the first place
         self.nodes.pop(node.id)
-        # Also remove from input-nodes or function-nodes
-        if isinstance(node, InputNode):
-            data_type = node.data_type
-            if data_type in self.input_nodes:
-                if node.name in self.input_nodes[data_type]:
-                    del self.input_nodes[data_type][node.name]
-                if not self.input_nodes[data_type]:
-                    del self.input_nodes[data_type]
-        elif isinstance(node, FunctionNode):
+        # Also remove from unction-nodes container
+        if isinstance(node, FunctionNode):
             function_name = node.name
             if function_name in self.function_nodes:
-                if node.id in self.function_nodes[function_name]:
-                    del self.function_nodes[function_name][node.id]
-                if not self.function_nodes[function_name]:
-                    del self.function_nodes[function_name]
-
+                del self.function_nodes[function_name]
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
@@ -418,31 +425,6 @@ class NodeViewer(QGraphicsView):
         logging.warning("No node found with the provided parameters.")
         return None
 
-    def get_node_by_input(self, data_type="raw", name=None):
-        """Get an input node by data type and name.
-
-        Parameters
-        ----------
-        data_type : str, optional
-            The type of data (e.g. raw, fsmri) for the input node, by default "raw".
-        name : str, optional
-            The name of the input node, by default None.
-
-        Returns
-        -------
-        InputNode or None
-            The input node that matches the provided data type and name.
-            If no match is found, returns None.
-        """
-        if name is None:
-            name = "All"
-        if data_type not in self.input_nodes:
-            raise ValueError(f"Data type {data_type} not found in inputs.")
-        if name not in self.input_nodes[data_type]:
-            raise ValueError(f"Group {name} not found in inputs for {data_type}.")
-
-        return self.input_nodes[data_type].get(name, None)
-
     def get_node_by_function(self, name):
         """Get all nodes of a function.
 
@@ -481,9 +463,9 @@ class NodeViewer(QGraphicsView):
             returns None.
         """
         ports = [
-            node.port(**kwargs)
+            node.port(ignore_warnings=True, **kwargs)
             for node in self.nodes.values()
-            if node.port(**kwargs) is not None
+            if node.port(ignore_warnings=True, **kwargs) is not None
         ]
         if len(ports) == 0:
             logging.warning("No port found with the provided parameters.")
@@ -533,7 +515,12 @@ class NodeViewer(QGraphicsView):
         for node_info in viewer_dict["nodes"].values():
             node_class = getattr(nodes, node_info["class"])
             node = node_class.from_dict(self.ct, node_info)
-            self.add_node(node)
+            if node_info["class"] == "InputNode":
+                self.add_input_node(node=node)
+            elif node_info["class"] == "FunctionNode":
+                self.add_function_node(node=node)
+            else:
+                raise RuntimeError(f"Unknown node type '{node_class}'.")
         # Initialize connections
         for node_id, port_dict in viewer_dict["connections"].items():
             node = self.node(old_id=node_id)
@@ -543,6 +530,10 @@ class NodeViewer(QGraphicsView):
                     connected_node = self.node(old_id=con_node_id)
                     connected_port = connected_node.port(old_id=con_port_id)
                     port.connect_to(connected_port)
+
+        # Check if an input node exists
+        if self.input_node is None:
+            self.add_input_node()
 
     def load_config(self, config: dict):
         if not isinstance(config, dict) or not all(
@@ -558,6 +549,9 @@ class NodeViewer(QGraphicsView):
             )
             return
         self.from_dict(config)
+
+        # Check if
+
         self.zoom_to_nodes()
 
     def from_project(self):
@@ -586,27 +580,10 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node)
 
-    @staticmethod
-    def _node_description(node):
-        if isinstance(node, InputNode):
-            description = (node.data_type, "Input")
-        elif isinstance(node, FunctionNode):
-            description = (node.name, "Function")
-        else:
-            logging.warning(
-                f"Node {node.name} of type {type(node)} is not a valid "
-                "input or function node."
-            )
-            description = None
-        return description
-
-    def _get_execution_from_nodes(self, instructions, node_dict, visited=None):
+    def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
         if visited is None:
             visited = set()
         for port_id, port_info in node_dict.items():
-            # if port_id in visited:
-            #     continue
-            # visited.add(port_id)
             port = self.port(port_id=port_id)
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
@@ -625,15 +602,15 @@ class NodeViewer(QGraphicsView):
                     for oport in other_ports:
                         reverse_exec_order = []
                         up_nodes = node.upstream_nodes(port_id=oport.id)
-                        self._get_execution_from_nodes(
+                        self._iterate_node_sequence(
                             reverse_exec_order, up_nodes, visited
                         )
                         reverse_exec_order.reverse()
-                        instructions.extend(reverse_exec_order)
-                instructions.append(self._node_description(node))
-                self._get_execution_from_nodes(instructions, node_info, visited)
+                        node_sequence.extend(reverse_exec_order)
+                node_sequence.append(node.get_description())
+                self._iterate_node_sequence(node_sequence, node_info, visited)
 
-    def node_exec_order(self, node):
+    def get_node_sequence(self, node):
         """Start from a node and create an execution order.
 
         The execution goes downstream from the selected node. Multiple
@@ -642,14 +619,15 @@ class NodeViewer(QGraphicsView):
         of different node types and activated/deactivated nodes should
         be done in Controller.
         """
-        instructions = []
+        # ToDoNext: NodeSequence has to tell me each step what are the inputs and to which preceding node are they connected
+        node_sequence = []
         visited = set()
         # Add the starting node
-        instructions.append(self._node_description(node))
+        node_sequence.append(node.get_description())
         visited.add(node.id)
-        self._get_execution_from_nodes(instructions, node.downstream_nodes(), visited)
+        self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
 
-        return instructions
+        return node_sequence
 
     ####################################################################################
     # Frontend
@@ -810,10 +788,20 @@ class NodeViewer(QGraphicsView):
         super().resizeEvent(event)
 
     def contextMenuEvent(self, event):
-        # ToDo: reimplement context menu.
-        pass
+        menu = QMenu(self)
+        pos = self.mapToScene(event.pos())
+        for func_name in self.ct.function_meta:
+            func_action = QAction(func_name, menu)
+            func_action.triggered.connect(
+                lambda checked=False, fn=func_name: self.add_function_node(
+                    function_name=fn, pos=pos
+                )
+            )
+            menu.addAction(func_action)
 
-        return super().contextMenuEvent(event)
+        # ToDo: implement context menu for nodes and pipes
+        menu.exec(event.globalPos())
+        event.accept()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1037,13 +1025,7 @@ class NodeViewer(QGraphicsView):
             node = self.add_function_node(fname)
             node.xy_pos = (pos.x(), pos.y())
         elif text.startswith("mne-nodes/input:"):
-            payload = text[len("mne-nodes/input:") :]
-            parts = payload.split(":")
-            if len(parts) >= 2:
-                dt, group = parts[0], parts[1]
-            else:
-                return
-            node = self.add_input_node(data_type=dt, name=group)
+            node = self.add_input_node()
             node.xy_pos = (pos.x(), pos.y())
         self.zoom_to_nodes()
 

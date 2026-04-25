@@ -5,9 +5,9 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDockWidget, QTabWidget, QTableView, QAbstractItemView
+from qtpy.QtWidgets import QDockWidget, QTableView, QAbstractItemView
 
-from mne_nodes.gui.models import FunctionPickerModel, InputPickerModel
+from mne_nodes.gui.models import FunctionPickerModel
 
 
 class DraggableTableView(QTableView):
@@ -28,33 +28,13 @@ class DraggableTableView(QTableView):
 class FunctionTable(DraggableTableView):
     def __init__(self, ct):
         super().__init__()
-        model = FunctionPickerModel(ct.get("function_meta"))
-        self.setModel(model)
-
-
-class InputTable(DraggableTableView):
-    def __init__(self, ct):
-        super().__init__()
-        model = InputPickerModel(ct.inputs)
+        model = FunctionPickerModel(ct.function_meta)
         self.setModel(model)
 
 
 class NodePicker(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__(parent)
-        self.ct = controller
-        self.tab_widget = QTabWidget()
         self.setWindowTitle("Node Picker")
-        self.setWidget(self.tab_widget)
-
-        # Build tabs
-        self._init_functions_tab()
-        self._init_inputs_tab()
-
-    def _init_functions_tab(self):
-        self.functions_view = FunctionTable(self.ct)
-        self.tab_widget.addTab(self.functions_view, "Functions")
-
-    def _init_inputs_tab(self):
-        self.inputs_view = InputTable(self.ct)
-        self.tab_widget.addTab(self.inputs_view, "Inputs")
+        self.functions_view = FunctionTable(controller)
+        self.setWidget(self.functions_view)

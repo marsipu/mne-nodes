@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 
+
 # Global variables to check the platform
 ismac = sys.platform.startswith("darwin")
 iswin = sys.platform.startswith("win32")
@@ -24,11 +25,18 @@ def debug_mode():
 
 
 def main_widget():
+    from qtpy.QtWidgets import QApplication
+
     if _widgets["main_window"] is not None:
         return _widgets["main_window"]
     else:
         logging.warning("MainWindow hasn't been initialized yet!")
-        return None
+        active_window = QApplication.activeWindow()
+        if active_window is not None:
+            return active_window
+        else:
+            logging.warning("There is no active window!")
+            return None
 
 
 # Keep reference to Qt-objects without parent for tests

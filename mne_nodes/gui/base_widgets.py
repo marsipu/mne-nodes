@@ -7,15 +7,13 @@ Github: https://github.com/marsipu/mne-nodes
 import itertools
 import logging
 import re
-import sys
 
 import numpy as np
-import pandas
+
 from qtpy.QtCore import QItemSelectionModel, QTimer, Signal, Qt
-from qtpy.QtGui import QFont
+from qtpy.QtGui import QFont, QColor
 from qtpy.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -24,13 +22,14 @@ from qtpy.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
-    QTabWidget,
     QTableView,
     QTreeView,
     QVBoxLayout,
     QWidget,
     QComboBox,
     QMessageBox,
+    QStyledItemDelegate,
+    QHeaderView,
 )
 
 from mne_nodes import _widgets
@@ -46,7 +45,9 @@ from mne_nodes.gui.models import (
     EditListModel,
     EditPandasModel,
     FileManagementModel,
+    ShallowTreeModel,
     TreeModel,
+    CheckListProgressModel,
 )
 from mne_nodes.pipeline.settings import Settings
 
@@ -148,7 +149,9 @@ class BaseList(Base):
         super().__init__(model, view, parent, title)
 
         if extended_selection:
-            self.view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            self.view.setSelectionMode(
+                QAbstractItemView.SelectionMode.ExtendedSelection
+            )
 
     def select(self, values, clear_selection=True):
         indices = [i for i, x in enumerate(self.model._data) if x in values]
@@ -158,7 +161,9 @@ class BaseList(Base):
 
         for idx in indices:
             index = self.model.createIndex(idx, 0)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimpleList(BaseList):
@@ -166,7 +171,7 @@ class SimpleList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
     extended_selection: bool
         Set True, if you want to select more than one item in the list.
@@ -206,7 +211,7 @@ class EditList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
     ui_buttons : bool
         If to display Buttons or not.
@@ -322,9 +327,9 @@ class CheckList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         Input a list with contents to display.
-    checked : List of str | None
+    checked : list[str] | None
         Input a list, which will contain the checked items
         from data (and which intial items will be checked).
     ui_buttons : bool
@@ -337,6 +342,8 @@ class CheckList(BaseList):
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
         An optional title
+    model : QAbstractItemModel
+        Provide an alternative to CheckListModel.
 
     Notes
     -----
@@ -357,12 +364,14 @@ class CheckList(BaseList):
         show_index=False,
         parent=None,
         title=None,
+        model=None,
     ):
         self.ui_buttons = ui_buttons
         self.ui_button_pos = ui_button_pos
 
+        model = model or CheckListModel(data, checked, one_check, show_index)
         super().__init__(
-            model=CheckListModel(data, checked, one_check, show_index),
+            model=model,
             view=QListView(),
             extended_selection=False,
             parent=parent,
@@ -442,7 +451,7 @@ class CheckDictList(BaseList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         A list with items to display.
     check_dict : dict | None
         A dictionary that may contain items from data as keys.
@@ -502,7 +511,7 @@ class CheckDictEditList(EditList):
 
     Parameters
     ----------
-    data : List of str | None
+    data : list[str] | None
         A list with items to display.
     check_dict : dict | None
         A dictionary that may contain items from data as keys.
@@ -566,6 +575,114 @@ class CheckDictEditList(EditList):
         """Replaces model.check_dict with new check_dict."""
         if new_check_dict:
             self.model._check_dict = new_check_dict
+        self.content_changed()
+
+
+class ProgressDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        """Paint an item with a progress background while preserving native
+        checkbox + text rendering.
+
+        Notes
+        -----
+        On some styles/backends (notably on Windows), the incoming `option`
+        isn't guaranteed to be fully initialized for checkable items, and
+        mutating it can result in an empty text rect. We therefore copy and
+        initialize a fresh option, paint our background, then delegate the
+        actual item drawing to Qt.
+        """
+        progress = index.data(CheckListProgressModel.ProgressRole) or 0
+        try:
+            progress = int(progress)
+        except (TypeError, ValueError):
+            progress = 0
+        progress = max(0, min(100, progress))
+
+        # Copy + init style option so checkbox/text geometry is correct.
+        self.initStyleOption(option, index)
+
+        # Draw progress background first on copied rect
+        bar_rect = option.rect.adjusted(0, 0, 0, 0)
+        bar_rect.setWidth(int(bar_rect.width() * (progress / 100)))
+
+        painter.save()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#4CAF50"))
+        painter.drawRect(bar_rect)
+        painter.restore()
+
+        # Let the base delegate draw checkbox + icon + text.
+        super().paint(painter, option, index)
+
+    def sizeHint(self, option, index):
+        opt = type(option)(option)
+        self.initStyleOption(opt, index)
+        return super().sizeHint(opt, index)
+
+
+class CheckListProgress(CheckList):
+    """A List-Widget to display items with a progress bar for each item. The
+    progress in progress_dict is updated on content_changed or by calling
+    update_progress.
+
+    Parameters
+    ----------
+    data : list[str]
+        A list with items to display.
+    checked : list[str] | None
+        Input a list, which will contain the checked items
+        from data (and which intial items will be checked).
+    progress_dict : dict | None
+        A dictionary that may contain items from data as keys and
+        their progress (0-100) as values.
+    ui_buttons : bool
+        If to display Buttons or not.
+    one_check : bool
+        If only one Item in the CheckList can be checked at the same time.
+    show_index: bool
+        Set True if you want to display the list-index in front of each value.
+    parent : QWidget | None
+        Parent Widget (QWidget or inherited) or None if there is no parent.
+    title : str | None
+        An optional title
+    """
+
+    def __init__(
+        self,
+        data,
+        checked=None,
+        progress_dict=None,
+        ui_buttons=True,
+        ui_button_pos="right",
+        one_check=False,
+        show_index=False,
+        parent=None,
+        title=None,
+    ):
+        self.progress_dict = progress_dict or {i: 0 for i in data}
+        model = CheckListProgressModel(
+            data, checked, progress_dict, one_check=one_check, show_index=show_index
+        )
+        super().__init__(
+            ui_buttons=ui_buttons,
+            ui_button_pos=ui_button_pos,
+            parent=parent,
+            title=title,
+            model=model,
+        )
+        self.view.setItemDelegate(ProgressDelegate(self.view))
+
+    def update_progress(self, item, progress):
+        """Update the progress of a specific item.
+
+        Parameters
+        ----------
+        item : str
+            The item to update the progress for.
+        progress : int
+            The new progress value (0-100).
+        """
+        self.progress_dict[item] = progress
         self.content_changed()
 
 
@@ -647,11 +764,15 @@ class BaseDict(Base):
 
         for idx in key_indices:
             index = self.model.createIndex(idx, 0)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
         for idx in value_indices:
             index = self.model.createIndex(idx, 1)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimpleDict(BaseDict):
@@ -936,7 +1057,9 @@ class BasePandasTable(Base):
 
         for row, column in indexes:
             index = self.model.createIndex(row, column)
-            self.view.selectionModel().select(index, QItemSelectionModel.Select)
+            self.view.selectionModel().select(
+                index, QItemSelectionModel.SelectionFlag.Select
+            )
 
 
 class SimplePandasTable(BasePandasTable):
@@ -1220,7 +1343,7 @@ class TreeWidget(Base):
     ----------
     data : dict
         Dictionary with hierarchical data to be displayed
-    headers : list of str | None
+    headers : list[str] | None
         Headers for the columns. If None, default headers ["Key", "Value"] will be used.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
@@ -1250,6 +1373,198 @@ class TreeWidget(Base):
 
         # Expand the first level by default
         self.view.expandToDepth(0)
+
+    def content_changed(self):
+        """Informs ModelView about external change made in data."""
+        self.model.rebuild_tree()
+
+
+class ShallowTreeWidget(Base):
+    """A shallow grouped tree for ``dict[str, list]`` data with checkable keys.
+
+    Top-level keys are checkable and mirrored in ``checked`` similarly to
+    :class:`CheckList`.
+    """
+
+    checkedChanged = Signal(list)
+
+    def __init__(
+        self,
+        data=None,
+        checked=None,
+        ui_buttons=True,
+        ui_button_pos="right",
+        headers=None,
+        parent=None,
+        title=None,
+    ):
+        self.ui_buttons = ui_buttons
+        self.ui_button_pos = ui_button_pos
+
+        view = QTreeView()
+        view.setAlternatingRowColors(True)
+        view.setAnimated(True)
+        view.setIndentation(20)
+        view.setUniformRowHeights(True)
+        header = view.header()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+
+        model = ShallowTreeModel(
+            data=data, checked=checked, headers=headers, parent=parent
+        )
+
+        super().__init__(model=model, view=view, parent=parent, title=title)
+        self.model.dataChanged.connect(self._checked_changed)
+
+    def init_ui(self):
+        if self.ui_button_pos in ["top", "bottom"]:
+            layout = QVBoxLayout()
+            bt_layout = QHBoxLayout()
+        else:
+            layout = QHBoxLayout()
+            bt_layout = QVBoxLayout()
+
+        if self.ui_buttons:
+            add_group_bt = QPushButton("Add Group")
+            add_group_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            add_group_bt.clicked.connect(self.add_group)
+            bt_layout.addWidget(add_group_bt)
+
+            rm_group_bt = QPushButton("Remove Group")
+            rm_group_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            rm_group_bt.clicked.connect(self.remove_groups)
+            bt_layout.addWidget(rm_group_bt)
+
+            add_item_bt = QPushButton("Add Item")
+            add_item_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            add_item_bt.clicked.connect(self.add_item)
+            bt_layout.addWidget(add_item_bt)
+
+            rm_item_bt = QPushButton("Remove Item")
+            rm_item_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            rm_item_bt.clicked.connect(self.remove_items)
+            bt_layout.addWidget(rm_item_bt)
+
+            all_bt = QPushButton("All")
+            all_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+            all_bt.clicked.connect(self.select_all)
+            bt_layout.addWidget(all_bt)
+
+            clear_bt = QPushButton("Clear")
+            clear_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            clear_bt.clicked.connect(self.clear_all)
+            bt_layout.addWidget(clear_bt)
+
+            layout.addLayout(bt_layout)
+
+        if self.ui_button_pos in ["top", "left"]:
+            layout.addWidget(self.view)
+        else:
+            layout.insertWidget(0, self.view)
+
+        if self.title:
+            super_layout = QVBoxLayout()
+            title_label = QLabel(self.title)
+            title_label.setFont(QFont(Settings().get("app_font"), 14))
+            super_layout.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+            super_layout.addLayout(layout)
+            self.setLayout(super_layout)
+        else:
+            self.setLayout(layout)
+
+    def _checked_changed(self):
+        self.checkedChanged.emit(self.model._checked)
+        logging.debug("Changed groups: %s", self.model._checked)
+
+    def get_checked(self):
+        return self.model._checked
+
+    def _get_selected_group_keys(self):
+        group_keys = set()
+        for index in self.view.selectionModel().selectedIndexes():
+            key = self.model.group_key_for_index(index)
+            if key is not None:
+                group_keys.add(key)
+
+        if not group_keys:
+            key = self.model.group_key_for_index(self.view.currentIndex())
+            if key is not None:
+                group_keys.add(key)
+
+        return group_keys
+
+    def _get_current_group_key(self):
+        return self.model.group_key_for_index(self.view.currentIndex())
+
+    def add_group(self):
+        key = get_user_input("New group key:", "string")
+        self.model.add_group(key)
+        self.view.expandToDepth(0)
+
+    def remove_groups(self):
+        group_keys = self._get_selected_group_keys()
+        removed = self.model.remove_groups(group_keys)
+        if removed:
+            self.checkedChanged.emit(self.model._checked)
+
+    def add_item(self):
+        group_key = self._get_current_group_key()
+        if group_key is None:
+            return
+
+        item = get_user_input(f"New item for group '{group_key}':", "string")
+        self.model.add_item(group_key, item)
+        self.view.expandToDepth(0)
+
+    def remove_items(self):
+        grouped_rows = {}
+        for index in self.view.selectionModel().selectedIndexes():
+            if not self.model.is_item_index(index):
+                continue
+            group_key = self.model.group_key_for_index(index)
+            grouped_rows.setdefault(group_key, set()).add(index.row())
+
+        current = self.view.currentIndex()
+        if not grouped_rows and self.model.is_item_index(current):
+            group_key = self.model.group_key_for_index(current)
+            grouped_rows[group_key] = {current.row()}
+
+        for group_key, rows in grouped_rows.items():
+            self.model.remove_items(group_key, rows)
+
+    def replace_checked(self, new_checked):
+        """Replaces ``model._checked`` with a new checked list."""
+        self.model._checked = new_checked
+        self.content_changed()
+        self.checkedChanged.emit(self.model._checked)
+
+    def select_all(self):
+        """Check all top-level keys while preserving checked list reference."""
+        for key in self.model._data:
+            if key not in self.model._checked:
+                self.model._checked.append(key)
+        self.content_changed()
+        self.checkedChanged.emit(self.model._checked)
+
+    def clear_all(self):
+        """Uncheck all keys while preserving checked list reference."""
+        self.model._checked.clear()
+        self.content_changed()
+        self.checkedChanged.emit(self.model._checked)
+
+    def content_changed(self):
+        """Informs ModelView about external change made in data."""
+        self.model.rebuild_tree()
 
 
 class ComboBox(QComboBox):
@@ -1359,13 +1674,13 @@ class AssignWidget(QWidget):
 
         bt_layout = QHBoxLayout()
         assign_bt = QPushButton("Assign")
-        assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        assign_bt.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         assign_bt.clicked.connect(self.assign)
         bt_layout.addWidget(assign_bt)
 
         show_assign_bt = QPushButton("Show Assignments")
-        show_assign_bt.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        show_assign_bt.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         show_assign_bt.setFont(QFont(Settings().get("app_font"), 13))
         show_assign_bt.clicked.connect(self.show_assignments)
         bt_layout.addWidget(show_assign_bt)
@@ -1439,6 +1754,7 @@ class TimedMessageBox(QMessageBox):
             else:
                 self.close()
 
+    @staticmethod
     def _static_setup(icon, timeout, parent, title, text, buttons, defaultButton):
         cls = TimedMessageBox(
             timeout=timeout, title=title, text=text, icon=icon, parent=parent
@@ -1461,11 +1777,17 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Critical, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Critical,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
 
     @staticmethod
@@ -1474,11 +1796,11 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Information,
+            QMessageBox.Icon.Information,
             timeout,
             parent,
             title,
@@ -1493,11 +1815,17 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Yes | QMessageBox.No,
-        defaultButton=QMessageBox.No,
+        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        defaultButton=QMessageBox.StandardButton.No,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Question, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Question,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
 
     @staticmethod
@@ -1506,111 +1834,15 @@ class TimedMessageBox(QMessageBox):
         parent=None,
         title=None,
         text=None,
-        buttons=QMessageBox.Ok,
-        defaultButton=QMessageBox.NoButton,
+        buttons=QMessageBox.StandardButton.Ok,
+        defaultButton=QMessageBox.StandardButton.NoButton,
     ):
         return TimedMessageBox._static_setup(
-            QMessageBox.Warning, timeout, parent, title, text, buttons, defaultButton
+            QMessageBox.Icon.Warning,
+            timeout,
+            parent,
+            title,
+            text,
+            buttons,
+            defaultButton,
         )
-
-
-# ToDo: Proper testing
-# Testing all signals properly emitted (also on row add/remove)
-# Testing when _data is empty and get-Data, what happens?
-class AllBaseWidgets(QWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.exlist = ["Athena", "Hephaistos", "Zeus", "Ares", "Aphrodite", "Poseidon"]
-        self.exattributes = ["strong", "smart", "bossy", "fishy"]
-        self.exassignments = {
-            "Athena": "smart",
-            "Hephaistos": "strong",
-            "Zeus": "bossy",
-            "Poseidon": "fishy",
-        }
-        self.exdict = {
-            "Athena": 231,
-            "Hephaistos": ["44", "333", 34],
-            "Zeus": "Boss",
-            "Ares": self.exassignments,
-        }
-        self.exchecked = ["Athena"]
-        self.expd = pandas.DataFrame(
-            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], columns=["A", "B", "C", "D"]
-        )
-        self.extree = {
-            "A": {"Aa": 2, "Ab": {"Ab1": "Hermes", "Ab2": "Hades"}, "Ac": [1, 2, 3, 4]},
-            "B": ["Appolo", 42, 128],
-            "C": (1, 2, 3),
-        }
-
-        # self.exlist = None
-        # self.exattributes = None
-        # self.exchecked = None
-        # self.expd = None
-        # self.extree = None
-        # self.exdict = None
-
-        self.widget_args = {
-            "SimpleList": [self.exlist],
-            "EditList": [self.exlist],
-            "CheckList": [self.exlist, self.exchecked],
-            "CheckDictList": [self.exlist, self.exdict],
-            "CheckDictEditList": [self.exlist, self.exdict],
-            "SimpleDict": [self.exdict],
-            "EditDict": [self.exdict],
-            "SimplePandasTable": [self.expd],
-            "EditPandasTable": [self.expd],
-            "DictTree": [self.extree],
-            "AssignWidget": [self.exlist, self.exattributes, self.exassignments],
-        }
-
-        self.widget_kwargs = {
-            "SimpleList": {"extended_selection": True, "title": "BaseList"},
-            "EditList": {
-                "ui_button_pos": "bottom",
-                "extended_selection": True,
-                "title": "EditList",
-            },
-            "CheckList": {"one_check": False, "title": "CheckList"},
-            "CheckDictList": {"extended_selection": True, "title": "CheckDictList"},
-            "CheckDictEditList": {"title": "CheckDictEditList"},
-            "SimpleDict": {"title": "BaseDict"},
-            "EditDict": {"ui_button_pos": "left", "title": "EditDict"},
-            "SimplePandasTable": {"title": "BasePandasTable"},
-            "EditPandasTable": {"title": "EditPandasTable"},
-            "DictTree": {"title": "BaseDictTree"},
-            "AssignWidget": {"properties_editable": True, "title": "AssignWidget"},
-        }
-
-        self.tab_widget = QTabWidget()
-
-        self.init_ui()
-
-        self.setGeometry(0, 0, 800, 400)
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        for widget_name in self.widget_args:
-            widget = globals()[widget_name](
-                *self.widget_args[widget_name], **self.widget_kwargs[widget_name]
-            )
-            setattr(self, widget_name, widget)
-            self.tab_widget.addTab(widget, widget_name)
-
-        layout.addWidget(self.tab_widget)
-        self.setLayout(layout)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    testw = AllBaseWidgets()
-    testw.show()
-
-    # Command-Line interrupt with Ctrl+C possible, easier debugging
-    timer = QTimer()
-    timer.timeout.connect(lambda: testw)
-    timer.start(500)
-
-    sys.exit(app.exec())

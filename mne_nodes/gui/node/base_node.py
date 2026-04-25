@@ -29,6 +29,25 @@ class NodeTextItem(QGraphicsTextItem):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
 
 
+class NodeProxyWidget(QGraphicsProxyWidget):
+    """Proxy widget that notifies its node when its own size changes."""
+
+    def __init__(self, node, parent=None):
+        super().__init__(parent)
+        self._node = node
+
+    def setGeometry(self, rect):
+        old_size = self.size()
+        super().setGeometry(rect)
+        if self.size() != old_size and self._node is not None:
+            self._node._on_proxywidget_resized()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._node is not None:
+            self._node._on_proxywidget_resized()
+
+
 # ToDo:
 # - color-coding of running and completed/error
 # - optionally show parameters (maybe even slide-out down to avoid recalculation of node-layout)
@@ -97,7 +116,7 @@ class BaseNode(QGraphicsItem):
         # Initialize checkbox if checkable
         if self.checkable:
             self.checkbox = QCheckBox()
-            self.checkbox_proxy = QGraphicsProxyWidget(self)
+            self.checkbox_proxy = NodeProxyWidget(self, self)
             self.checkbox_proxy.setWidget(self.checkbox)
         else:
             self.checkbox = None
@@ -107,14 +126,22 @@ class BaseNode(QGraphicsItem):
         if self.startable:
             self.start_button = QPushButton()
             self.start_button.setFixedSize(24, 22)
-            self.start_button.setIcon(qta.icon("fa6s.play"))  # qtawesome Play-Icon
+            self.start_button.setIcon(qta.icon("fa6s.play"))
             self.start_button.setToolTip("Start from Node")
-            self.start_button.clicked.connect(self.start)
-            self.start_button_proxy = QGraphicsProxyWidget(self)
+            self.start_button.clicked.connect(self.start_clicked)
+            self.start_button_proxy = NodeProxyWidget(self, self)
             self.start_button_proxy.setWidget(self.start_button)
         else:
             self.start_button = None
             self.start_button_proxy = None
+
+    def __repr__(self):
+        des = self.get_description()
+        return (
+            f"{des['name']} ({des['class']}), "
+            f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
+            f"outputs: {len(des['outputs'])} ({[p for p in des['outputs']]}), "
+        )
 
     @property
     def name(self):
@@ -223,9 +250,6 @@ class BaseNode(QGraphicsItem):
     def xy_pos(self, pos=None):
         """Set the item scene postion. ("node.pos" conflicted with
         "QGraphicsItem.pos()" so it was refactored to "xy_pos".)
-
-        Args:
-            pos (list[float]): x, y scene position.
         """
         pos = pos or (0.0, 0.0)
         self.setPos(*pos)
@@ -239,7 +263,13 @@ class BaseNode(QGraphicsItem):
     # Logic methods
     # ----------------------------------------------------------------------------------
     def add_port(
-        self, name, port_type, multi_connection=False, accepted_ports=None, old_id=None
+        self,
+        name,
+        port_type,
+        multi_connection=False,
+        accepted_ports=None,
+        old_id=None,
+        warn_existing=True,
     ):
         """Adds a Port QGraphicsItem into the node.
 
@@ -255,6 +285,8 @@ class BaseNode(QGraphicsItem):
             list of accepted port names, if None all ports are accepted.
         old_id : int, None, optional
             old port id for reestablishing connections.
+        warn_existing : bool
+
 
         Returns
         -------
@@ -267,9 +299,10 @@ class BaseNode(QGraphicsItem):
         # port names must be unique for inputs/outputs
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
-            logging.debug(
-                f"Port '{name}' already exists for '{port_type}'. Returning existing port."
-            )
+            if warn_existing:
+                logging.debug(
+                    f"Port '{name}' already exists for '{port_type}'. Returning existing port."
+                )
             return self.port(port_name=name)
         # Create port
         port = Port(
@@ -283,6 +316,17 @@ class BaseNode(QGraphicsItem):
             self.draw_node()
 
         return port
+
+    def remove_port(self, port=None, **port_kwargs):
+        port = port or self.port(**port_kwargs)
+        ports = self._inputs if port.port_type == "in" else self._outputs
+        ports.pop(port.id)
+        if self.scene():
+            self.draw_node()
+
+    def clear_ports(self):
+        for port in self.ports:
+            self.remove_port(port=port)
 
     def add_input(self, name, **kwargs):
         """Adds a Port QGraphicsItem into the node as input.
@@ -329,7 +373,13 @@ class BaseNode(QGraphicsItem):
         return port
 
     def port(
-        self, port_type=None, port_idx=None, port_name=None, port_id=None, old_id=None
+        self,
+        port_type=None,
+        port_idx=None,
+        port_name=None,
+        port_id=None,
+        old_id=None,
+        ignore_warnings=False,
     ):
         """Get port by the name or index.
 
@@ -345,6 +395,8 @@ class BaseNode(QGraphicsItem):
             Id of the port.
         old_id : int, optional
             Old id of the port for reestablishing connections.
+        ignore_warnings : bool
+            If True, warnings will be ignored when port is not found. Default is False.
 
         Returns
         -------
@@ -369,7 +421,8 @@ class BaseNode(QGraphicsItem):
             if port_idx < len(port_list):
                 return port_list[port_idx]
             else:
-                logging.warning(f"{port_type} port {port_idx} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_idx} not found.")
         elif port_name is not None:
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
@@ -379,7 +432,8 @@ class BaseNode(QGraphicsItem):
                     "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
-                logging.warning(f"{port_type} port {port_name} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_name} not found.")
             else:
                 return port_names[0]
         elif port_id is not None:
@@ -388,7 +442,8 @@ class BaseNode(QGraphicsItem):
             if port_id in ports:
                 return ports[port_id]
             else:
-                logging.warning(f"{port_type} port {port_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port {port_id} not found.")
         elif old_id is not None:
             if not isinstance(old_id, int):
                 raise ValueError(f"Invalid old port id: {old_id}")
@@ -398,11 +453,13 @@ class BaseNode(QGraphicsItem):
                     "More than one port with the same old id. This should not be allowed."
                 )
             elif len(old_id_ports) == 0:
-                logging.warning(f"{port_type} port with old id {old_id} not found.")
+                if not ignore_warnings:
+                    logging.warning(f"{port_type} port with old id {old_id} not found.")
             else:
                 return old_id_ports[0]
         else:
             logging.warning("No port identifier provided.")
+        return None
 
     def input(self, **port_kwargs):
         """Get input port by the name, index, id, or old id as in port()."""
@@ -468,7 +525,7 @@ class BaseNode(QGraphicsItem):
 
         return nodes
 
-    def downstream_nodes(self, port_id=None):
+    def downstream_node_dict(self, port_id=None):
         """Returns all nodes downstream from the nodes."""
         down_dict = OrderedDict()
         if port_id is None:
@@ -478,11 +535,11 @@ class BaseNode(QGraphicsItem):
         for port_id, nodes in connected_nodes.items():
             down_dict[port_id] = {}
             for node in nodes:
-                down_dict[port_id][node.id] = node.downstream_nodes()
+                down_dict[port_id][node.id] = node.downstream_node_dict()
 
         return down_dict
 
-    def upstream_nodes(self, port_id=None):
+    def upstream_node_dict(self, port_id=None):
         """Returns all nodes upstream from the nodes."""
         up_dict = OrderedDict()
         if port_id is None:
@@ -492,132 +549,60 @@ class BaseNode(QGraphicsItem):
         for port_id, nodes in connected_nodes.items():
             up_dict[port_id] = {}
             for node in nodes:
-                up_dict[port_id][node.id] = node.upstream_nodes()
+                up_dict[port_id][node.id] = node.upstream_node_dict()
 
         return up_dict
 
-    def start(self):
-        """Start pipeline execution from this node using a simple dependency-
-        first DFS.
+    def connected_inputs(self):
+        """Returns connected inputs by name."""
+        inputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.inputs
+        }
 
-        Rules:
-        - Determine a primary InputNode (self if InputNode, else the first upstream InputNode).
-        - Emit exactly one Input instruction for the primary InputNode's data_type.
-        - For each downstream FunctionNode, ensure all its upstream FunctionNode
-          dependencies (recursively) are emitted before the node itself.
-        - Multi-input functions cause all other upstream branches to be traversed.
-        - Downstream traversal proceeds breadth-first after dependency emission to
-          cover later stages.
-        """
-        try:
-            from mne_nodes.gui.node.nodes import InputNode, FunctionNode  # type: ignore
-        except Exception:  # pragma: no cover
-            logging.error("Node classes not importable; cannot start pipeline.")
-            return
+        return inputs
 
-        # ------------------------------------------------------------------
-        # Helper: find a primary upstream InputNode if needed
-        # ------------------------------------------------------------------
-        def find_upstream_input(start):
-            visited = set()
-            stack = [start]
-            while stack:
-                node = stack.pop()
-                if node in visited:
-                    continue
-                visited.add(node)
-                if isinstance(node, InputNode):
-                    return node
-                for port in getattr(node, "inputs", []):
-                    for cp in getattr(port, "connected_ports", []):
-                        up = getattr(cp, "node", None)
-                        if up is not None and up not in visited:
-                            stack.append(up)
-            return None
+    def connected_outputs(self):
+        """Returns connected outputs by name."""
+        outputs = {
+            p.name: [cp.node.name for cp in p.connected_ports] for p in self.outputs
+        }
 
-        primary_input = (
-            self if isinstance(self, InputNode) else find_upstream_input(self)
-        )
-        if primary_input is None:
-            logging.error("No upstream InputNode found; cannot start pipeline.")
-            return
+        return outputs
 
-        # ------------------------------------------------------------------
-        # Collect downstream function nodes starting from a seed list
-        # ------------------------------------------------------------------
-        def downstream_functions(seed):
-            out = []
-            visited = set()
-            queue = [seed]
-            while queue:
-                node = queue.pop(0)
-                if node in visited:
-                    continue
-                visited.add(node)
-                for port in getattr(node, "outputs", []):
-                    for cp in getattr(port, "connected_ports", []):
-                        dn = getattr(cp, "node", None)
-                        if dn is None:
-                            continue
-                        if isinstance(dn, FunctionNode):
-                            out.append(dn)
-                        queue.append(dn)
-            return out
+    def get_description(self):
+        """Returns node description."""
+        description = {
+            "name": self.name,
+            "class": self.__class__.__name__,
+            "inputs": self.connected_inputs(),
+            "outputs": self.connected_outputs(),
+        }
+        return description
 
-        seed_funcs = (
-            downstream_functions(primary_input)
-            if isinstance(primary_input, InputNode)
-            else [self]
-        )  # type: ignore[arg-type]
-
-        # Sets to prevent duplication
-        emitted_funcs: set[str] = set()
-
-        # Dependency-first emission ------------------------------------------------
-        def emit_function(fn):
-            if fn.name in emitted_funcs:
-                return
-            # Ensure all upstream dependencies first
-            for in_port in fn.inputs:
-                for cp in in_port.connected_ports:
-                    up = getattr(cp, "node", None)
-                    if up is None:
-                        continue
-                    if isinstance(up, FunctionNode):
-                        emit_function(up)
-                    # If another InputNode feeds this function and it's *not* the primary one,
-                    # we intentionally ignore adding a second Input instruction to keep the
-                    # execution model (single primary loop) consistent.
-            # Emit this function
-            if fn.name not in emitted_funcs:
-                instructions.append((fn.name, "Function"))
-                emitted_funcs.add(fn.name)
-
-        instructions = [(primary_input.data_type, "Input")]
-        # Traverse seed functions and their downstream chain
-        visited_seed = set()
-        queue = list(seed_funcs)
-        while queue:
-            fn = queue.pop(0)
-            if fn in visited_seed:
-                continue
-            visited_seed.add(fn)
-            emit_function(fn)
-            # Enqueue downstream function nodes
-            for port in fn.outputs:
-                for cp in port.connected_ports:
-                    dn = getattr(cp, "node", None)
-                    if isinstance(dn, FunctionNode):
-                        queue.append(dn)
-
-        # Delegate to controller
-        self.ct.start(instructions, primary_input.name)
+    def start_clicked(self):
+        if self.viewer is not None:
+            node_sequence = self.viewer.get_node_sequence(self)
+            self.ct.start(node_sequence)
 
     def add_widget(self, widget):
         """Add widget to the node."""
-        proxy_widget = QGraphicsProxyWidget(self)
+        proxy_widget = NodeProxyWidget(self, self)
         proxy_widget.setWidget(widget)
         self.widgets.append(proxy_widget)
+
+    def _on_proxywidget_resized(self):
+        """Update node geometry and auto-layout after embedded widget resize."""
+        if self.scene() is None:
+            return
+
+        old_size = (self.width, self.height)
+        self.draw_node()
+        if (self.width, self.height) == old_size:
+            return
+
+        viewer = self.viewer
+        if viewer is not None:
+            viewer.auto_layout_nodes(nodes=list(viewer.nodes.values()))
 
     def delete(self):
         """Remove node from the scene."""
@@ -639,7 +624,7 @@ class BaseNode(QGraphicsItem):
     @classmethod
     def from_dict(cls, ct, node_dict):
         node_kwargs = {k: v for k, v in node_dict.items() if k not in ["class", "pos"]}
-        node = cls(ct, **node_kwargs)
+        node = cls(ct=ct, **node_kwargs)
         node.xy_pos = node_dict["pos"]
 
         return node
@@ -760,7 +745,10 @@ class BaseNode(QGraphicsItem):
             add_w (float): add additional width.
             add_h (float): add additional height.
         """
-        self.width, self.height = self.calc_size(add_w, add_h)
+        width, height = self.calc_size(add_w, add_h)
+        if (width, height) != (self.width, self.height):
+            self.prepareGeometryChange()
+        self.width, self.height = width, height
 
     def _set_text_color(self, color):
         """Set text color.

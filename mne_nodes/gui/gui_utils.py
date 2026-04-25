@@ -11,6 +11,7 @@ import sys
 from functools import partial
 from importlib import resources
 from os.path import join
+from pathlib import Path
 
 import darkdetect
 from qtpy import compat
@@ -139,6 +140,134 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     return ans
 
 
+def ask_user_custom(
+    prompt, buttons=None, cancel_allowed=True, close_on_cancel=False, parent=None
+):
+    """Ask the user a question with custom labels.
+
+    If exactly two labels are provided, this keeps backward compatible
+    behavior and returns a boolean (`True` for the first label,
+    `False` for the second label). If more than two labels are provided,
+    the selected label is returned. If the user cancels the operation,
+    None is returned.
+
+    Parameters
+    ----------
+    prompt : str
+        The prompt message to display to the user.
+    buttons : list[str] | tuple[str, ...] | None
+        Labels for decision buttons. If None, defaults to ["yes", "no"].
+    cancel_allowed : bool, optional
+        If True, allows the user to cancel the operation. Defaults to True.
+    close_on_cancel : bool, optional
+        If True, the app exits after cancel. Defaults to False.
+    parent : QWidget | None, optional
+        Set the parent of the modal widget.
+    """
+    if buttons is None:
+        button_labels = ["yes", "no"]
+    else:
+        button_labels = list(buttons)
+    if len(button_labels) < 2:
+        raise ValueError("buttons must contain at least two labels")
+
+    label_map = {
+        label.strip().lower(): label
+        for label in button_labels
+        if isinstance(label, str) and label.strip()
+    }
+    if len(label_map) != len(button_labels):
+        raise ValueError("buttons must contain unique, non-empty string labels")
+
+    normalized_labels = list(label_map.keys())
+    first_label = button_labels[0]
+    second_label = button_labels[1]
+
+    if mne_nodes.gui_mode:
+        parent = parent or main_widget()
+        msg_box = QMessageBox(parent)
+        msg_box.setWindowTitle("Question")
+        msg_box.setText(prompt)
+        qt_buttons = {}
+        for idx, label in enumerate(button_labels):
+            if idx == 0:
+                role = QMessageBox.ButtonRole.YesRole
+            elif idx == 1:
+                role = QMessageBox.ButtonRole.NoRole
+            else:
+                role = QMessageBox.ButtonRole.ActionRole
+            qt_button = msg_box.addButton(label, role)
+            qt_buttons[qt_button] = label
+        cancel_button = None
+        if cancel_allowed:
+            cancel_button = msg_box.addButton(QMessageBox.StandardButton.Cancel)
+        msg_box.exec()
+        clicked_button = msg_box.clickedButton()
+        ok = clicked_button in qt_buttons
+        cancel = cancel_allowed and clicked_button == cancel_button
+        ans = qt_buttons.get(clicked_button)
+    else:
+        options = "/".join(button_labels)
+        if cancel_allowed:
+            options += "/cancel"
+        prompt_text = f"{prompt} ({options}): "
+        # Use input() for terminal interaction
+        ans_text = input(prompt_text).strip().lower()
+        alias_map = {label: label_map[label] for label in normalized_labels}
+        first_char_counts = {}
+        for label in normalized_labels:
+            first_char = label[:1]
+            first_char_counts[first_char] = first_char_counts.get(first_char, 0) + 1
+        for label in normalized_labels:
+            first_char = label[:1]
+            if first_char_counts.get(first_char, 0) == 1:
+                alias_map[first_char] = label_map[label]
+            if label == "yes":
+                alias_map["y"] = label_map[label]
+            if label == "no":
+                alias_map["n"] = label_map[label]
+
+        ok = ans_text in alias_map
+        cancel = ans_text in ["cancel", "c"]
+        ans = alias_map.get(ans_text)
+    if cancel and cancel_allowed:
+        if close_on_cancel:
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        else:
+            logging.info("User cancelled the operation.")
+            return None
+    if not ok or ans is None:
+        if len(button_labels) == 2:
+            warning_message = (
+                "You need to provide an appropriate input to proceed "
+                f"({first_label} or {second_label})!"
+            )
+        else:
+            warning_message = (
+                "You need to provide an appropriate input to proceed "
+                f"({', '.join(button_labels)})!"
+            )
+    else:
+        warning_message = None
+    if warning_message is not None:
+        if mne_nodes.gui_mode:
+            parent = main_widget()
+            QMessageBox().warning(parent, "Warning", warning_message)
+        else:
+            logging.warning(warning_message)
+        return ask_user_custom(
+            prompt,
+            buttons=button_labels,
+            cancel_allowed=cancel_allowed,
+            close_on_cancel=close_on_cancel,
+            parent=parent,
+        )
+    if len(button_labels) == 2:
+        return ans == first_label
+    return ans
+
+
 def get_user_input(
     prompt,
     input_type="string",
@@ -162,13 +291,13 @@ def get_user_input(
         If True, allows the user to cancel the input operation. Defaults to True.
     exit_on_cancel : bool, optional
         If True, the app exits after cancel. Defaults to False.
-    parent : QWidget | None optional
+    parent : QWidget | None, optional
         Set the parent of the modal widget.
 
     Returns
     -------
-    user_input : str or None
-        The user input as a string, or None if cancelled or unavailable.
+    user_input : str | PathLike | None
+        The user input as a string/PathLike depending on input_Type, or None if cancelled or unavailable.
 
     Raises
     ------
@@ -230,6 +359,10 @@ def get_user_input(
     if warning_message is not None:
         raise_user_attention(warning_message, message_type="warning")
         return get_user_input(prompt, input_type)
+
+    # Convert path-strings to Path-objects
+    if input_type in ["folder", "file"] and user_input is not None:
+        user_input = Path(user_input)
 
     return user_input
 
@@ -495,22 +628,6 @@ def set_app_theme():
         icon_name = "mne_pipeline_icon_light.png"
     else:
         icon_name = "mne_pipeline_icon_dark.png"
-    # Set func-button color
-    mw = main_widget()
-    if mw is not None:
-        for func_button in mw.bt_dict.values():
-            if app_theme == "light":
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #a3a3a3; }"
-                )
-            elif app_theme == "high_contrast":
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #ffffff; }"
-                )
-            else:
-                func_button.setStyleSheet(
-                    "QPushButton:checked { background-color: #000000; }"
-                )
     icon_path = join(str(resources.files(extra)), icon_name)
     app_icon = QIcon(str(icon_path))
     app.setWindowIcon(app_icon)

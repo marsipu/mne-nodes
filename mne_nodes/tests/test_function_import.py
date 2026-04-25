@@ -10,11 +10,11 @@ from mne_nodes.gui.function_widgets import FunctionImporter
 
 
 # ToDo: Proper tests
-def test_dialog(qtbot, controller, basic_functions):
-    function_import = FunctionImporter(controller, basic_functions)
+def test_dialog(qtbot, basic_functions):
+    function_import = FunctionImporter(basic_functions)
     qtbot.addWidget(function_import)
 
     # Increase to check functionality
-    qtbot.wait(1000)
+    qtbot.wait(100000)
     function_import.close()
     pprint.pprint(function_import.func_config)

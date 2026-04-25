@@ -151,6 +151,7 @@ class StreamWorker(QRunnable):
             data = data.replace("<", "&lt;")
             data = data.replace(">", "&gt;")
             data = data.replace("\n", "<br>")
+            # ToDo: Convert ANSI codes to HTML maybe with nbconvert.filters.ansi2html and pretty print the output with rich.Console
             data = data.replace("\x1b[A", "")
             data = data.replace("\x1b[0m", "")
 
