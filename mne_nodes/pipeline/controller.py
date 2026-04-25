@@ -37,11 +37,6 @@ from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
 default_config = {
-    "plot_files": {},
-    "input_types": {
-        "raw": {"alias": "MEG/EEG", "import": "import_raw"},
-        "fsmri": {"alias": "Freesurfer MRI", "import": "import_fsmri"},
-    },
     # BIDS
     "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
