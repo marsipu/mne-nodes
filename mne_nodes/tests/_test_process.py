@@ -9,8 +9,8 @@ import tqdm
 import traceback
 
 print("Test1")
-for _ in tqdm.tqdm(range(20), desc="Progress"):
-    time.sleep(0.05)
+for _ in tqdm.tqdm(range(10), desc="Progress"):
+    time.sleep(0.01)
 try:
     raise RuntimeError("Test-Error")
 except RuntimeError:
