@@ -5,11 +5,11 @@ Github: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import sys
 from importlib import resources
 
 from mne_nodes import extra
 from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.pipeline.streams import get_redirected_stream
 from qtpy.QtWidgets import QDialog, QPushButton, QTextEdit, QVBoxLayout, QApplication
 
 
@@ -26,7 +26,8 @@ class SysInfoMsg(QDialog):
         layout.addWidget(close_bt)
         self.setLayout(layout)
         # Connect to stdout
-        sys.stdout.signal.text_written.connect(self.add_text)
+        stdout_stream = get_redirected_stream("stdout")
+        stdout_stream.signal.text_written.connect(self.add_text)
         # Set geometry to ratio of screen-geometry
         set_ratio_geometry(0.4, self)
         self.show()
