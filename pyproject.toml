@@ -4,6 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mne-nodes"
+version = "0.1.0-alpha.1"
 authors = [
     { name = "Martin G. Schulz", email = "dev@mgschulz.de" }
 ]
