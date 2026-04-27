@@ -1,92 +1,14 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-import sys
-from collections import Counter
-from importlib import resources
-from pathlib import Path
 
-from qtpy.QtWidgets import (
-    QDialog,
-    QGridLayout,
-    QLabel,
-    QListView,
-    QPushButton,
-    QTextEdit,
-    QVBoxLayout,
-    QApplication,
-    QSizePolicy,
-)
-
-from mne_nodes import extra
-from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
-from mne_nodes.gui.models import CheckListModel
-from mne_nodes.pipeline.loading import MEEG
-
-
-class CheckListDlg(QDialog):
-    def __init__(self, parent, data, checked):
-        """BaseClass for A Dialog with a Check-List, open() has to be called in
-        SubClass or directly.
-
-        Parameters
-        ----------
-        parent: QWidget or None
-            parent-Widget.
-        data: list or None
-            Data for the Check-List.
-        checked: list or None
-            List, where checked Data-Items are stored.
-        """
-        super().__init__(parent)
-        self.data = data
-        self.checked = checked
-
-        self.init_ui()
-
-    def init_ui(self):
-        self.layout = QGridLayout()
-
-        self.lv = QListView()
-        self.lm = CheckListModel(self.data, self.checked)
-        self.lv.setModel(self.lm)
-        self.layout.addWidget(self.lv, 0, 0, 1, 2)
-
-        self.do_bt = QPushButton("<Do Something>")
-        self.do_bt.clicked.connect(lambda: None)
-        self.layout.addWidget(self.do_bt, 1, 0)
-
-        self.quit_bt = QPushButton("Quit")
-        self.quit_bt.clicked.connect(self.close)
-        self.layout.addWidget(self.quit_bt, 1, 1)
-
-        self.setLayout(self.layout)
-
-
-class RemoveProjectsDlg(CheckListDlg):
-    def __init__(self, main_win, controller):
-        self.mw = main_win
-        self.ct = controller
-        self.rm_list = []
-        super().__init__(main_win, self.ct.projects, self.rm_list)
-
-        self.do_bt.setText("Remove Projects")
-        self.do_bt.clicked.connect(self.remove_selected)
-
-        self.open()
-
-    def remove_selected(self):
-        for project in self.rm_list:
-            self.ct.remove_project(project)
-        self.lm.layoutChanged.emit()
-        self.mw.update_project_ui()
-
-        self.close()
+from mne_nodes.pipeline.streams import get_redirected_stream
+from qtpy.QtWidgets import QDialog, QPushButton, QTextEdit, QVBoxLayout, QApplication
 
 
 class SysInfoMsg(QDialog):
@@ -102,7 +24,8 @@ class SysInfoMsg(QDialog):
         layout.addWidget(close_bt)
         self.setLayout(layout)
         # Connect to stdout
-        sys.stdout.signal.text_written.connect(self.add_text)
+        stdout_stream = get_redirected_stream("stdout")
+        stdout_stream.signal.text_written.connect(self.add_text)
         # Set geometry to ratio of screen-geometry
         set_ratio_geometry(0.4, self)
         self.show()
@@ -111,142 +34,14 @@ class SysInfoMsg(QDialog):
         self.show_widget.insertPlainText(text)
 
 
-class QuickGuide(QDialog):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-        layout = QVBoxLayout()
-
-        text = (
-            "<b>Quick-Guide</b><br>"
-            "1. Use the Subject-Wizard to add Subjects "
-            "and the Subject-Dicts<br>"
-            "2. Select the files you want to execute<br>"
-            "3. Select the functions to execute<br>"
-            "4. If you want to show plots, check Show Plots<br>"
-            "5. For Source-Space-Operations, you need to run "
-            "MRI-Coregistration from the Input-Menu<br>"
-            "6. For Grand-Averages add a group and add the files, "
-            "to which you want apply the grand-average"
-        )
-
-        self.label = QLabel(text)
-        layout.addWidget(self.label)
-
-        ok_bt = QPushButton("OK")
-        ok_bt.clicked.connect(self.close)
-        layout.addWidget(ok_bt)
-
-        self.setLayout(layout)
-        self.open()
-
-
-class RawInfo(QDialog):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-        self.mw = main_win
-        self.info_string = None
-
-        set_ratio_geometry(0.6, self)
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QGridLayout()
-        meeg_list = SimpleList(self.mw.ct.pr.all_meeg)
-        meeg_list.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
-        )
-        meeg_list.currentChanged.connect(self.meeg_selected)
-        layout.addWidget(meeg_list, 0, 0)
-
-        self.info_label = QTextEdit()
-        self.info_label.setReadOnly(True)
-        self.info_label.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding
-        )
-        layout.addWidget(self.info_label, 0, 1)
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt, 1, 0, 1, 2)
-
-        self.setLayout(layout)
-
-    # ToDo: Just parse/reformat repr(info) instead of rewriting all keys
-    def meeg_selected(self, meeg_name):
-        # Get size in Mebibytes of all files associated to this
-        meeg = MEEG(meeg_name, self.mw.ct)
-        info = meeg.load_info()
-        fp = meeg.file_parameters
-        meeg.get_existing_paths()
-        other_infos = {}
-
-        sizes = []
-        for path_type in meeg.existing_paths:
-            for path in meeg.existing_paths[path_type]:
-                file_name = Path(path).name
-                if file_name in fp and "SIZE" in fp[file_name]:
-                    sizes.append(fp[file_name]["SIZE"])
-        other_infos["no_files"] = len(sizes)
-
-        sizes_sum = sum(sizes)
-        if sizes_sum / 1024 < 1000:
-            other_infos["size"] = f"{int(sizes_sum / 1024)}"
-            size_unit = "KB"
-        else:
-            other_infos["size"] = f"{int(sizes_sum / 1024**2)}"
-            size_unit = "MB"
-
-        ch_type_counter = Counter(info.get_channel_types())
-        other_infos["ch_types"] = ", ".join(
-            [f"{key}: {value}" for key, value in ch_type_counter.items()]
-        )
-
-        key_list = [
-            ("no_files", "Number associated files"),
-            ("size", "Size of all associated files", size_unit),
-            ("proj_name", "Project-Name"),
-            ("experimenter", "Experimenter"),
-            ("line_freq", "Powerline-Frequency", "Hz"),
-            ("sfreq", "Samplerate", "Hz"),
-            ("highpass", "Highpass", "Hz"),
-            ("lowpass", "Lowpass", "Hz"),
-            ("nchan", "Number of channels"),
-            ("ch_types", "Channel-Types"),
-            ("subject_info", "Subject-Info"),
-            ("device_info", "Device-Info"),
-            ("helium_info", "Helium-Info"),
-        ]
-
-        self.info_string = f"<h1>{meeg_name}</h1>"
-
-        for key_tuple in key_list:
-            key = key_tuple[0]
-            if key in info:
-                value = info[key]
-            elif key in other_infos:
-                value = other_infos[key]
-            else:
-                value = None
-
-            if len(key_tuple) == 2:
-                self.info_string += f"<b>{key_tuple[1]}:</b> {value}<br>"
-            else:
-                self.info_string += (
-                    f"<b>{key_tuple[1]}:</b> {value} <i>{key_tuple[2]}</i><br>"
-                )
-
-        self.info_label.setHtml(self.info_string)
-
-
+# ToDo:Rewrite About Dialog (maybe automatic copy from README.md with setMarkdown)
 class AboutDialog(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
         self.mw = main_win
-        with open(resources.files(extra) / "license.txt") as file:
-            license_text = file.read()
-        license_text = license_text.replace("\n", "<br>")
+        # with open(resources.files(extra) / "license.txt") as file:
+        #     license_text = file.read()
+        # license_text = license_text.replace("\n", "<br>")
         text = (
             "<h1>MNE-Pipeline HD</h1>"
             "<b>A Pipeline-GUI for MNE-Python</b><br>"
@@ -271,7 +66,7 @@ class AboutDialog(QDialog):
             "<a href=https://github.com/5yutan5/PyQtDarkTheme>"
             "pyqtdarktheme</a><br>"
             "<br>"
-            "<b>Licensed under:</b><br>" + license_text
+            # "<b>Licensed under:</b><br>" + license_text
         )
 
         layout = QVBoxLayout()

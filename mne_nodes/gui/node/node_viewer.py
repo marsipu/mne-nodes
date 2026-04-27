@@ -1,7 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
@@ -524,8 +524,12 @@ class NodeViewer(QGraphicsView):
         # Initialize connections
         for node_id, port_dict in viewer_dict["connections"].items():
             node = self.node(old_id=node_id)
+            if node is None:
+                continue
             for port_id, connected_dict in port_dict.items():
                 port = node.port(old_id=port_id)
+                if port is None:
+                    continue
                 for con_node_id, con_port_id in connected_dict.items():
                     connected_node = self.node(old_id=con_node_id)
                     connected_port = connected_node.port(old_id=con_port_id)

@@ -1,81 +1,159 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
 import os
-import re
 import shutil
 import time
-from collections import Counter
 from functools import partial
-from os.path import exists, isfile, join
+from os.path import isfile, join
 from pathlib import Path
 from typing import Optional, Callable
 
 import mne
 import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
 from qtpy import compat
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDialog,
-    QDockWidget,
     QGridLayout,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QTabWidget,
-    QTableView,
-    QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
-    QWizard,
-    QWizardPage,
 )
 
-from mne_nodes.basic_operations.basic_operations import find_bads
-from mne_nodes.basic_plot.basic_plot import (
-    plot_ica_components,
-    plot_ica_sources,
-    plot_ica_overlay,
-    plot_ica_properties,
-)
 from mne_nodes.gui.base_widgets import (
     AssignWidget,
     CheckDictList,
     CheckList,
     EditDict,
-    EditList,
-    FilePandasTable,
-    SimpleDialog,
     SimpleList,
-    SimplePandasTable,
 )
-from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.gui_utils import center, set_ratio_geometry, get_user_input
-from mne_nodes.gui.models import AddFilesModel
+from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
-from mne_nodes.pipeline.execution import Worker, WorkerDialog
-from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
-from mne_nodes.pipeline.pipeline_utils import compare_filep
+from mne_nodes.pipeline.execution import WorkerDialog
+from mne_nodes.pipeline.pipeline_utils import get_n_jobs
 from mne_nodes.pipeline.settings import Settings
+
+MEEG = None
+
+
+def find_bads(meeg, n_jobs, **kwargs):
+    raw = meeg.load_raw()
+
+    if raw.info["dev_head_t"] is None:
+        coord_frame = "meg"
+    else:
+        coord_frame = "head"
+
+    # Set number of CPU-cores to use
+    os.environ["OMP_NUM_THREADS"] = str(get_n_jobs(n_jobs))
+
+    noisy_chs, flat_chs = mne.preprocessing.find_bad_channels_maxwell(
+        raw, coord_frame=coord_frame, **kwargs
+    )
+    logging.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
+    raw.info["bads"] = noisy_chs + flat_chs + raw.info["bads"]
+    meeg.set_bad_channels(raw.info["bads"])
+    meeg.save_raw(raw)
+
+
+def _save_ica_on_close(_, meeg, ica):
+    meeg.set_ica_exclude(ica.exclude)
+    meeg.save_ica(ica)
+
+
+def plot_ica_components(meeg, show_plots, close_func=_save_ica_on_close):
+    ica = meeg.load_ica()
+    figs = ica.plot_components(title=meeg.name, show=show_plots)
+    if not isinstance(figs, list):
+        figs = [figs]
+    figs[0].canvas.mpl_connect("close_event", partial(close_func, meeg=meeg, ica=ica))
+    meeg.plot_save("ica", subfolder="components", matplotlib_figure=figs)
+
+
+def plot_ica_sources(meeg, ica_source_data, show_plots, close_func=_save_ica_on_close):
+    ica = meeg.load_ica()
+    data = meeg.load(ica_source_data)
+
+    fig = ica.plot_sources(data, title=meeg.name, show=show_plots)
+    if hasattr(fig, "canvas"):
+        # Connect to closing of Matplotlib-Figure
+        fig.canvas.mpl_connect("close_event", partial(close_func, meeg=meeg, ica=ica))
+        # Save plot as image
+        meeg.plot_save("ica", subfolder="sources", matplotlib_figure=fig)
+    else:
+        # Connect to closing of PyQt-Figure
+        fig.gotClosed.connect(partial(close_func, None, meeg=meeg, ica=ica))
+
+
+def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
+    ica = meeg.load_ica()
+    data = meeg.load(ica_overlay_data)
+
+    overlay_figs = []
+
+    if ica_overlay_data == "evoked":
+        for evoked in [e for e in data if e.comment in meeg.sel_trials]:
+            ovl_fig = ica.plot_overlay(
+                evoked, title=f"{meeg.name}-{evoked.comment}", show=show_plots
+            )
+            overlay_figs.append(ovl_fig)
+    else:
+        ovl_fig = ica.plot_overlay(data, title=meeg.name, show=show_plots)
+        overlay_figs.append(ovl_fig)
+
+    meeg.plot_save("ica", subfolder="overlay", matplotlib_figure=overlay_figs)
+
+    return overlay_figs
+
+
+def plot_ica_properties(meeg, ica_fitto, show_plots):
+    ica = meeg.load_ica()
+
+    eog_indices = meeg.load_json("eog_indices", default=list())
+    ecg_indices = meeg.load_json("ecg_indices", default=list())
+    psd_args = {"fmax": meeg.pa["lowpass"]}
+
+    if len(eog_indices) > 0:
+        eog_epochs = meeg.load_eog_epochs()
+        eog_prop_figs = ica.plot_properties(
+            eog_epochs, eog_indices, psd_args=psd_args, show=show_plots
+        )
+        meeg.plot_save(
+            "ica", subfolder="properties", trial="eog", matplotlib_figure=eog_prop_figs
+        )
+
+    if len(ecg_indices) > 0:
+        ecg_epochs = meeg.load_ecg_epochs()
+        ecg_prop_figs = ica.plot_properties(
+            ecg_epochs, ecg_indices, psd_args=psd_args, show=show_plots
+        )
+        meeg.plot_save(
+            "ica", subfolder="properties", trial="ecg", matplotlib_figure=ecg_prop_figs
+        )
+
+    remaining_indices = [
+        ix for ix in ica.exclude if ix not in eog_indices + ecg_indices
+    ]
+    if len(remaining_indices) > 0:
+        data = meeg.load(ica_fitto)
+        prop_figs = ica.plot_properties(
+            data, remaining_indices, psd_args=psd_args, show=show_plots
+        )
+        meeg.plot_save(
+            "ica", subfolder="properties", trial="manually", matplotlib_figure=prop_figs
+        )
 
 
 def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
@@ -207,848 +285,6 @@ def index_parser(index, all_items, groups=None):
         return []
 
 
-class RemoveDialog(QDialog):
-    def __init__(self, parentw, mode):
-        super().__init__(parentw)
-        self.pw = parentw
-        self.pr = parentw.mw.ct.pr
-        self.mode = mode
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        label = QLabel(f"Do you really want to remove the selected {self.mode}?")
-        layout.addWidget(label)
-
-        if self.mode == "MEEG":
-            layout.addWidget(SimpleList(self.pr.sel_meeg))
-        elif self.mode == "FSMRI":
-            layout.addWidget(SimpleList(self.pr.sel_fsmri))
-
-        only_list_bt = QPushButton("Remove only from List")
-        only_list_bt.clicked.connect(partial(self.remove_objects, False))
-        layout.addWidget(only_list_bt)
-        remove_files_bt = QPushButton("Remove with all Files")
-        remove_files_bt.clicked.connect(partial(self.remove_objects, True))
-        layout.addWidget(remove_files_bt)
-        cancel_bt = QPushButton("Cancel")
-        cancel_bt.clicked.connect(self.close)
-        layout.addWidget(cancel_bt)
-        self.setLayout(layout)
-
-    def remove_objects(self, remove_files):
-        if self.mode == "MEEG":
-            self.pr.remove_meeg(remove_files)
-            self.pw.meeg_list.content_changed()
-        elif self.mode == "FSMRI":
-            self.pr.remove_fsmri(remove_files)
-            self.pw.fsmri_list.content_changed()
-        self.close()
-
-
-# Todo: File-Selection depending on existence of data-objects
-class FileDock(QDockWidget):
-    def __init__(self, main_win, meeg_view=True, fsmri_view=True, group_view=True):
-        super().__init__("Object-Selection", main_win)
-        # Maintain main-window as top-level object from which the references to
-        # the objects of controller and project are taken.
-        self.mw = main_win
-
-        self.meeg_view = meeg_view
-        self.fsmri_view = fsmri_view
-        self.group_view = group_view
-        # Replace Qt.LeftDockWidgetArea with Qt.DockWidgetArea.LeftDockWidgetArea
-        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea)
-
-        self.init_ui()
-
-    def init_ui(self):
-        self.central_widget = QWidget(self)
-        layout = QVBoxLayout()
-        tab_widget = QTabWidget(self)
-
-        idx_example = (
-            "Examples:\n"
-            "'5' (One File)\n"
-            "'1,7,28' (Several Files)\n"
-            "'1-5' (From File x to File y)\n"
-            "'1-4,7,20-26' (The last two combined)\n"
-            "'1-20,!4-6' (1-20 except 4-6)\n"
-            "'all' (All files in file_list.py)\n"
-            "'all,!4-6' (All files except 4-6)\n"
-            "<group-name> (All files in group)"
-        )
-
-        if self.meeg_view:
-            # MEEG-List + Index-Line-Edit
-            meeg_widget = QWidget()
-            meeg_layout = QVBoxLayout()
-            self.meeg_list = CheckList(
-                self.mw.ct.pr.all_meeg,
-                self.mw.ct.pr.sel_meeg,
-                ui_button_pos="top",
-                show_index=True,
-                title="Select MEG/EEG",
-            )
-            meeg_layout.addWidget(self.meeg_list)
-
-            self.meeg_ledit = QLineEdit()
-            self.meeg_ledit.setPlaceholderText("MEEG-Index")
-            self.meeg_ledit.textEdited.connect(self.select_meeg)
-            self.meeg_ledit.setToolTip(idx_example)
-            meeg_layout.addWidget(self.meeg_ledit)
-
-            # Add and Remove-Buttons
-            meeg_bt_layout = QHBoxLayout()
-            file_add_bt = QPushButton("Add MEEG")
-            file_add_bt.clicked.connect(partial(AddFilesDialog, self.mw))
-            meeg_bt_layout.addWidget(file_add_bt)
-            rename_bt = QPushButton("Rename")
-            rename_bt.clicked.connect(self._rename_meeg)
-            meeg_bt_layout.addWidget(rename_bt)
-            file_rm_bt = QPushButton("Remove MEEG")
-            file_rm_bt.clicked.connect(self.remove_meeg)
-            meeg_bt_layout.addWidget(file_rm_bt)
-
-            meeg_layout.addLayout(meeg_bt_layout)
-            meeg_widget.setLayout(meeg_layout)
-
-            tab_widget.addTab(meeg_widget, "MEG/EEG")
-
-        if self.fsmri_view:
-            # MRI-Subjects-List + Index-Line-Edit
-            fsmri_widget = QWidget()
-            fsmri_layout = QVBoxLayout()
-            self.fsmri_list = CheckList(
-                self.mw.ct.pr.all_fsmri,
-                self.mw.ct.pr.sel_fsmri,
-                ui_button_pos="top",
-                show_index=True,
-                title="Select Freesurfer-MRI",
-            )
-            fsmri_layout.addWidget(self.fsmri_list)
-
-            self.fsmri_ledit = QLineEdit()
-            self.fsmri_ledit.setPlaceholderText("FS-MRI-Index")
-            self.fsmri_ledit.textEdited.connect(self.select_fsmri)
-            self.fsmri_ledit.setToolTip(idx_example)
-            fsmri_layout.addWidget(self.fsmri_ledit)
-
-            # Add and Remove-Buttons
-            fsmri_bt_layout = QHBoxLayout()
-            mri_add_bt = QPushButton("Add FS-MRI")
-            mri_add_bt.clicked.connect(partial(AddMRIDialog, self.mw))
-            fsmri_bt_layout.addWidget(mri_add_bt)
-            mri_rm_bt = QPushButton("Remove FS-MRI")
-            mri_rm_bt.clicked.connect(self.remove_fsmri)
-            fsmri_bt_layout.addWidget(mri_rm_bt)
-
-            fsmri_layout.addLayout(fsmri_bt_layout)
-            fsmri_widget.setLayout(fsmri_layout)
-
-            tab_widget.addTab(fsmri_widget, "FS-MRI")
-
-        if self.group_view:
-            self.ga_widget = GrandAvgWidget(self.mw)
-            tab_widget.addTab(self.ga_widget, "Groups")
-
-        layout.addWidget(tab_widget)
-        self.central_widget.setLayout(layout)
-        self.setWidget(self.central_widget)
-
-    def update_dock(self):
-        # Update lists when rereferenced elsewhere
-        self.meeg_list.replace_data(self.mw.ct.pr.all_meeg)
-        self.meeg_list.replace_checked(self.mw.ct.pr.sel_meeg)
-
-        self.fsmri_list.replace_data(self.mw.ct.pr.all_fsmri)
-        self.fsmri_list.replace_checked(self.mw.ct.pr.sel_fsmri)
-
-        self.ga_widget.update_treew()
-
-    def reload_dock(self):
-        self.init_ui()
-        self.central_widget.show()
-
-    def select_meeg(self):
-        index = self.meeg_ledit.text()
-        self.mw.ct.pr.sel_meeg = index_parser(
-            index, self.mw.ct.pr.all_meeg, self.mw.ct.pr.all_groups
-        )
-        # Replace _checked in CheckListModel because of rereferencing above
-        self.meeg_list.replace_checked(self.mw.ct.pr.sel_meeg)
-
-    def select_fsmri(self):
-        index = self.fsmri_ledit.text()
-        self.mw.ct.pr.sel_fsmri = index_parser(index, self.mw.ct.pr.all_fsmri)
-        # Replace _checked in CheckListModel because of rereferencing above
-        self.fsmri_list.replace_checked(self.mw.ct.pr.sel_fsmri)
-
-    def _rename_meeg(self):
-        current_meeg = self.meeg_list.get_current()
-        if current_meeg is not None:
-            meeg = MEEG(current_meeg, self.mw.ct)
-            new_name = get_user_input("Enter new name:", "string")
-            if new_name is not None:
-                meeg.rename(new_name)
-                self.update_dock()
-
-    def remove_meeg(self):
-        if len(self.mw.ct.pr.sel_meeg) > 0:
-            RemoveDialog(self, "MEEG")
-
-    def remove_fsmri(self):
-        if len(self.mw.ct.pr.sel_fsmri) > 0:
-            RemoveDialog(self, "FSMRI")
-
-
-class GrandAvgWidget(QWidget):
-    def __init__(self, main_win):
-        super().__init__()
-        self.mw = main_win
-
-        self.init_layout()
-        self.update_treew()
-        self.get_treew()
-
-    def init_layout(self):
-        self.layout = QVBoxLayout()
-        self.treew = QTreeWidget()
-        self.treew.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.treew.itemChanged.connect(self.get_treew)
-        self.treew.setColumnCount(1)
-        self.treew.setHeaderLabel("Groups:")
-        self.layout.addWidget(self.treew)
-
-        self.bt_layout = QHBoxLayout()
-        add_g_bt = QPushButton("Add Group")
-        add_g_bt.clicked.connect(self.add_group)
-        self.bt_layout.addWidget(add_g_bt)
-        add_file_bt = QPushButton("Add Files")
-        add_file_bt.clicked.connect(self.add_files)
-        self.bt_layout.addWidget(add_file_bt)
-        self.rm_bt = QPushButton("Remove")
-        self.rm_bt.clicked.connect(self.remove_item)
-        self.bt_layout.addWidget(self.rm_bt)
-        self.layout.addLayout(self.bt_layout)
-
-        self.setLayout(self.layout)
-
-    def update_treew(self):
-        self.treew.clear()
-        top_items = []
-        for group in self.mw.ct.pr.all_groups:
-            top_item = QTreeWidgetItem()
-            top_item.setText(0, group)
-            top_item.setFlags(
-                top_item.flags()
-                | Qt.ItemFlag.ItemIsUserCheckable
-                | Qt.ItemFlag.ItemIsEditable
-            )
-            if group in self.mw.ct.pr.sel_groups:
-                top_item.setCheckState(0, Qt.CheckState.Checked)
-            else:
-                top_item.setCheckState(0, Qt.CheckState.Unchecked)
-            for file in self.mw.ct.pr.all_groups[group]:
-                sub_item = QTreeWidgetItem(top_item)
-                sub_item.setText(0, file)
-            top_items.append(top_item)
-        self.treew.addTopLevelItems(top_items)
-
-    def get_treew(self):
-        new_dict = {}
-        self.mw.ct.pr.sel_groups = []
-        for top_idx in range(self.treew.topLevelItemCount()):
-            top_item = self.treew.topLevelItem(top_idx)
-            top_text = top_item.text(0)
-            new_dict.update({top_text: []})
-            for child_idx in range(top_item.childCount()):
-                child_item = top_item.child(child_idx)
-                new_dict[top_text].append(child_item.text(0))
-            if top_item.checkState(0) == Qt.CheckState.Checked:
-                self.mw.ct.pr.sel_groups.append(top_text)
-        self.mw.ct.pr.all_groups = new_dict
-
-    def add_group(self):
-        text = get_user_input("Enter the name for a new group:", "string")
-        if text is not None:
-            top_item = QTreeWidgetItem()
-            top_item.setText(0, text)
-            top_item.setFlags(top_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            top_item.setCheckState(0, Qt.CheckState.Checked)
-            self.treew.addTopLevelItem(top_item)
-            self.get_treew()
-
-    def add_files(self):
-        sel_group = self.treew.currentItem()
-        if sel_group:
-            # When file in group is selected
-            if sel_group.parent():
-                sel_group = sel_group.parent()
-            GrandAvgFileAdd(self.mw, sel_group, self)
-        else:
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Warning")
-            msg_box.setIcon(QMessageBox.Warning)
-            msg_box.setText("No group has been selected")
-            msg_box.open()
-
-    def remove_item(self):
-        items = self.treew.selectedItems()
-        if len(items) > 0:
-            for item in items:
-                if item.parent():
-                    item.parent().takeChild(item.parent().indexOfChild(item))
-                else:
-                    self.treew.takeTopLevelItem(self.treew.indexOfTopLevelItem(item))
-        self.get_treew()
-        self.treew.setCurrentItem(None, 0)
-
-
-class GrandAvgFileAdd(QDialog):
-    def __init__(self, main_win, group, ga_widget):
-        super().__init__(ga_widget)
-        self.mw = main_win
-
-        self.group = group
-        self.ga_widget = ga_widget
-        self.setWindowTitle("Select Files to add")
-
-        self.init_ui()
-
-    def init_ui(self):
-        dlg_layout = QGridLayout()
-        self.listw = QListWidget()
-        self.listw.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.listw.itemSelectionChanged.connect(self.sel_changed)
-        self.load_list()
-
-        dlg_layout.addWidget(self.listw, 0, 0, 1, 4)
-        add_bt = QPushButton("Add")
-        add_bt.clicked.connect(self.add)
-        dlg_layout.addWidget(add_bt, 1, 0)
-        all_bt = QPushButton("All")
-        all_bt.clicked.connect(self.sel_all)
-        dlg_layout.addWidget(all_bt, 1, 1)
-        clear_bt = QPushButton("Clear")
-        clear_bt.clicked.connect(self.clear)
-        dlg_layout.addWidget(clear_bt, 1, 2)
-        quit_bt = QPushButton("Quit")
-        quit_bt.clicked.connect(self.close)
-        dlg_layout.addWidget(quit_bt, 1, 3)
-
-        self.setLayout(dlg_layout)
-        self.open()
-
-    def sel_changed(self):
-        for list_i in self.listw.selectedItems():
-            list_i.setCheckState(Qt.CheckState.Checked)
-
-    def add(self):
-        for idx in range(self.listw.count()):
-            list_item = self.listw.item(idx)
-            if list_item.checkState() == Qt.CheckState.Checked:
-                tree_item = QTreeWidgetItem()
-                tree_item.setText(0, list_item.text())
-                self.group.insertChild(self.group.childCount(), tree_item)
-        self.group.setExpanded(True)
-        self.listw.clear()
-        self.ga_widget.get_treew()
-        self.load_list()
-
-    def load_list(self):
-        for item_name in self.mw.ct.pr.all_meeg:
-            if item_name not in self.mw.ct.pr.all_groups[self.group.text(0)]:
-                item = QListWidgetItem(item_name)
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(Qt.CheckState.Unchecked)
-                self.listw.addItem(item)
-
-    def clear(self):
-        for idx in range(self.listw.count()):
-            self.listw.item(idx).setCheckState(Qt.CheckState.Unchecked)
-
-    def sel_all(self):
-        for idx in range(self.listw.count()):
-            self.listw.item(idx).setCheckState(Qt.CheckState.Checked)
-
-
-# Todo: Enable Drag&Drop
-class AddFilesWidget(QWidget):
-    def __init__(self, ct):
-        super().__init__()
-        self.ct = ct
-        self.layout = QVBoxLayout()
-
-        self.erm_keywords = [
-            "leer",
-            "Leer",
-            "erm",
-            "ERM",
-            "empty",
-            "Empty",
-            "room",
-            "Room",
-            "raum",
-            "Raum",
-        ]
-        self.supported_file_types = {
-            ".*": "All Files",
-            ".bin": "Artemis123",
-            ".cnt": "Neuroscan",
-            ".ds": "CTF",
-            ".dat": "Curry",
-            ".dap": "Curry",
-            ".rs3": "Curry",
-            ".cdt": "Curry",
-            ".cdt.dpa": "Curry",
-            ".cdt.cef": "Curry",
-            ".cef": "Curry",
-            ".edf": "European",
-            ".bdf": "BioSemi",
-            ".gdf": "General",
-            ".sqd": "Ricoh/KIT",
-            ".data": "Nicolet",
-            ".fif": "Neuromag",
-            ".set": "EEGLAB",
-            ".vhdr": "Brainvision",
-            ".egi": "EGI",
-            ".mff": "EGI",
-            ".mat": "Fieldtrip",
-            ".lay": "Persyst",
-        }
-
-        self.pd_files = pd.DataFrame(
-            [], columns=["Name", "File-Type", "Empty-Room?", "Path"]
-        )
-        self.load_kwargs = {}
-
-        self.init_ui()
-
-    def init_ui(self):
-        # Input Buttons
-        files_bt = QPushButton("File-Import", self)
-        files_bt.clicked.connect(self.get_files_path)
-        folder_bt = QPushButton("Folder-Import", self)
-        folder_bt.clicked.connect(self.get_folder_path)
-        input_bt_layout = QHBoxLayout()
-        input_bt_layout.addWidget(files_bt)
-        input_bt_layout.addWidget(folder_bt)
-        self.layout.addLayout(input_bt_layout)
-
-        self.view = QTableView()
-        self.model = AddFilesModel(self.pd_files)
-        self.view.setModel(self.model)
-
-        self.view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.view.setToolTip(
-            "These .fif-Files can be imported \n"
-            "(the Empty-Room-Measurements should appear here "
-            "too and will be sorted according to the ERM-Keywords)"
-        )
-        self.layout.addWidget(self.view)
-
-        self.main_bt_layout = QHBoxLayout()
-        import_bt = QPushButton("Import", self)
-        import_bt.clicked.connect(self.add_files_starter)
-        self.main_bt_layout.addWidget(import_bt)
-        delete_bt = QPushButton("Remove", self)
-        delete_bt.clicked.connect(self.delete_item)
-        self.main_bt_layout.addWidget(delete_bt)
-        erm_kw_bt = QPushButton("Empty-Room-Keywords")
-        erm_kw_bt.clicked.connect(partial(ErmKwDialog, self))
-        self.main_bt_layout.addWidget(erm_kw_bt)
-        load_arg_bt = QPushButton("Load-Arguments")
-        load_arg_bt.clicked.connect(partial(LoadArgDialog, self))
-        self.main_bt_layout.addWidget(load_arg_bt)
-
-        self.layout.addLayout(self.main_bt_layout)
-        self.setLayout(self.layout)
-
-    def delete_item(self):
-        # Sorted indexes in reverse to avoid problems when removing several
-        # indices at once
-        row_idxs = sorted(
-            {idx.row() for idx in self.view.selectionModel().selectedIndexes()},
-            reverse=True,
-        )
-        for row_idx in row_idxs:
-            self.model.removeRow(row_idx)
-        # Update pd_files, because reference is changed with model.removeRow()
-        self.pd_files = self.model._data
-
-    def update_model(self):
-        self.model._data = self.pd_files
-        self.model.layoutChanged.emit()
-
-    def insert_files(self, files_list):
-        if len(files_list) > 0:
-            existing_files = []
-
-            for file_path in files_list:
-                p = Path(file_path)
-                file_name = p.stem
-                # Get already existing files and skip them
-                if (
-                    file_path in list(self.pd_files["Path"])
-                    # ToDo: Fix all pr stuff
-                    or file_name in self.pr.all_meeg
-                    or file_name in self.pr.all_erm
-                ):
-                    existing_files.append(file_name)
-                    continue
-
-                # Remove -raw from name (put stays in file_name and path later)
-                if file_name[-4:] == "-raw":
-                    file_name = file_name[:-4]
-
-                if any(x in file_name for x in self.erm_keywords):
-                    erm = 1
-                else:
-                    erm = 0
-
-                self.pd_files = pd.concat(
-                    [
-                        self.pd_files,
-                        pd.DataFrame(
-                            [
-                                {
-                                    "Name": file_name,
-                                    "File-Type": p.suffix,
-                                    "Empty-Room?": erm,
-                                    "Path": file_path,
-                                }
-                            ]
-                        ),
-                    ],
-                    ignore_index=True,
-                )
-
-            self.update_model()
-
-            if len(existing_files) > 0:
-                QMessageBox.information(
-                    self,
-                    "Existing Files",
-                    f"These files already exist in your meeg.pr:{existing_files}",
-                )
-
-    def get_files_path(self):
-        filter_list = [
-            f"{self.supported_file_types[key]} (*{key})"
-            for key in self.supported_file_types
-        ]
-        filter_list.insert(0, "All Files (*.*)")
-        filter_qstring = ";;".join(filter_list)
-        files_list = compat.getopenfilenames(
-            self, "Choose raw-file/s to import", filters=filter_qstring
-        )[0]
-        self.insert_files(files_list)
-
-    def get_folder_path(self):
-        folder_path = compat.getexistingdirectory(
-            self, "Choose a folder to import your raw-Files from (including subfolders)"
-        )
-        if folder_path != "":
-            # create a list of file and obj directories
-            # names in the given directory
-            list_of_file = os.walk(folder_path)
-            files_list = []
-            file_types = [x for x in self.supported_file_types if x != ".*"]
-            # Iterate over all the entries
-            for dirpath, _, filenames in list_of_file:
-                for file in filenames:
-                    for file_type in file_types:
-                        match = re.match(rf"(.+)({file_type})", file)
-                        if match and len(match.group()) == len(file):
-                            # Make sure, that no files from Pipeline-Analysis
-                            # are included
-                            if not any(
-                                x in file
-                                for x in [
-                                    "-eve.",
-                                    "-epo.",
-                                    "-ica.",
-                                    "-ave.",
-                                    "-tfr.",
-                                    "-fwd.",
-                                    "-cov.",
-                                    "-inv.",
-                                    "-src.",
-                                    "-trans.",
-                                    "-bem-sol.",
-                                ]
-                            ):
-                                files_list.append(join(dirpath, file))
-            self.insert_files(files_list)
-
-    def update_erm_checks(self):
-        for idx in self.pd_files.index:
-            if any(x in self.pd_files.loc[idx, "Name"] for x in self.erm_keywords):
-                self.pd_files.loc[idx, "Empty-Room?"] = 1
-            else:
-                self.pd_files.loc[idx, "Empty-Room?"] = 0
-        self.model.layoutChanged.emit()
-
-    def add_files(self, worker_signals):
-        # Resolve identical file-names (but different types)
-        duplicates = [
-            item
-            for item, i_cnt in Counter(list(self.pd_files["Name"])).items()
-            if i_cnt > 1
-        ]
-        for name in duplicates:
-            dupl_df = self.pd_files[self.pd_files["Name"] == name]
-            for idx in dupl_df.index:
-                self.pd_files.loc[idx, "Name"] = (
-                    self.pd_files.loc[idx, "Name"]
-                    + "-"
-                    + self.pd_files.loc[idx, "File-Type"][1:]
-                )
-
-        worker_signals.pgbar_max.emit(len(self.pd_files.index))
-
-        for n, idx in enumerate(self.pd_files.index):
-            name = self.pd_files.loc[idx, "Name"]
-            if not worker_signals.was_canceled:
-                worker_signals.pgbar_text.emit(f"Copying {name}")
-                file_path = self.pd_files.loc[idx, "Path"]
-                is_erm = self.pd_files.loc[idx, "Empty-Room?"]
-                self.pr.add_meeg(name, file_path, is_erm)
-                worker_signals.pgbar_n.emit(n + 1)
-            else:
-                logging.info("Canceled Loading")
-                break
-
-    def add_files_starter(self):
-        WorkerDialog(
-            self, self.add_files, show_buttons=True, show_console=True, blocking=True
-        )
-
-        self.pd_files = pd.DataFrame(
-            [], columns=["Name", "File-Type", "Empty-Room?", "Path"]
-        )
-        self.update_model()
-
-        self.pr.save()
-        self.mw.file_dock.update_dock()
-
-
-class ErmKwDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-
-        self.layout = QVBoxLayout()
-        self.init_ui()
-
-        self.open()
-
-    def init_ui(self):
-        self.listw = EditList(self.parent.erm_keywords)
-        self.layout.addWidget(self.listw)
-
-        self.close_bt = QPushButton("Close")
-        self.close_bt.clicked.connect(self.close)
-        self.layout.addWidget(self.close_bt)
-
-        self.setLayout(self.layout)
-
-    def close_dlg(self):
-        self.parent.update_erm_checks()
-        self.close()
-
-
-class LoadArgDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-
-        self.layout = QVBoxLayout()
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        self.edit_dict = EditDict(self.parent.load_kwargs)
-        self.layout.addWidget(self.edit_dict)
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        self.layout.addWidget(close_bt)
-        self.setLayout(self.layout)
-
-
-class AddFilesDialog(AddFilesWidget):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-
-        self.dialog = QDialog(main_win)
-        self.dialog.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
-
-        close_bt = QPushButton("Close", self)
-        close_bt.clicked.connect(self.dialog.close)
-        self.main_bt_layout.addWidget(close_bt)
-
-        self.dialog.setLayout(self.layout)
-
-        set_ratio_geometry(0.7, self)
-
-        self.dialog.open()
-
-
-class AddMRIWidget(QWidget):
-    def __init__(self, ct):
-        super().__init__()
-        self.ct = ct
-        self.layout = QVBoxLayout()
-
-        self.folders = []
-        self.paths = {}
-
-        self.init_ui()
-
-    def init_ui(self):
-        bt_layout = QHBoxLayout()
-        folder_bt = QPushButton("Import 1 FS-Segmentation", self)
-        folder_bt.clicked.connect(self.import_mri_subject)
-        bt_layout.addWidget(folder_bt)
-        folders_bt = QPushButton("Import >1 FS-Segmentations", self)
-        folders_bt.clicked.connect(self.import_mri_subjects)
-        bt_layout.addWidget(folders_bt)
-        self.layout.addLayout(bt_layout)
-
-        list_label = QLabel("These Freesurfer-Segmentations can be imported:", self)
-        self.layout.addWidget(list_label)
-        self.list_widget = QListWidget(self)
-        self.layout.addWidget(self.list_widget)
-
-        self.main_bt_layout = QHBoxLayout()
-        import_bt = QPushButton("Import", self)
-        import_bt.clicked.connect(self.add_mri_subjects_starter)
-        self.main_bt_layout.addWidget(import_bt)
-        rename_bt = QPushButton("Rename File", self)
-        rename_bt.clicked.connect(self.rename_item)
-        self.main_bt_layout.addWidget(rename_bt)
-        delete_bt = QPushButton("Delete File", self)
-        delete_bt.clicked.connect(self.delete_item)
-        self.main_bt_layout.addWidget(delete_bt)
-
-        self.layout.addLayout(self.main_bt_layout)
-        self.setLayout(self.layout)
-
-    def populate_list_widget(self):
-        # List with checkable names
-        self.list_widget.clear()
-        self.list_widget.addItems(self.folders)
-
-        for index in range(self.list_widget.count()):
-            item = self.list_widget.item(index)
-            # Replace Qt.ItemIsEnabled | Qt.ItemIsEditable | Qt.ItemIsSelectable
-            item.setFlags(
-                Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsEditable
-                | Qt.ItemFlag.ItemIsSelectable
-            )
-
-    def delete_item(self):
-        i = self.list_widget.currentRow()
-        if i >= 0:
-            name = self.list_widget.item(i).text()
-            self.list_widget.takeItem(i)
-            self.folders.remove(name)
-
-    def rename_item(self):
-        i = self.list_widget.currentRow()
-        if i >= 0:
-            old_name = self.list_widget.item(i).text()
-            self.list_widget.edit(i)
-            new_name = self.list_widget.item(i).text()
-            repl_ind = self.files.index(old_name)
-            self.folders[repl_ind] = new_name
-            self.paths[new_name] = self.paths[old_name]
-
-    def import_mri_subject(self):
-        folder_path = compat.getexistingdirectory(
-            self, "Choose a folder with a subject's Freesurfe-Segmentation"
-        )
-
-        if folder_path != "":
-            if exists(join(folder_path, "surf")):
-                fsmri = Path(folder_path).name
-                if fsmri not in self.pr.all_fsmri and fsmri not in self.folders:
-                    self.folders.append(fsmri)
-                    self.paths.update({fsmri: folder_path})
-                    self.populate_list_widget()
-                else:
-                    logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
-            else:
-                logging.warning(
-                    "Selected Folder doesn't seem to be a Freesurfer-Segmentation"
-                )
-
-    def import_mri_subjects(self):
-        parent_folder = compat.getexistingdirectory(
-            self, "Choose a folder containting several Freesurfer-Segmentations"
-        )
-        folder_list = sorted(
-            [f for f in os.listdir(parent_folder) if not f.startswith(".")],
-            key=str.lower,
-        )
-
-        for fsmri in folder_list:
-            folder_path = join(parent_folder, fsmri)
-            if exists(join(folder_path, "surf")):
-                if fsmri not in self.pr.all_fsmri and fsmri not in self.folders:
-                    self.folders.append(fsmri)
-                    self.paths.update({fsmri: folder_path})
-                else:
-                    logging.info(f"{fsmri} already existing in {self.ct.subjects_dir}")
-            else:
-                logging.warning(
-                    "Selected Folder doesn't seem to be a Freesurfer-Segmentation"
-                )
-        self.populate_list_widget()
-
-    def add_mri_subjects(self, worker_signals):
-        worker_signals.pgbar_max.emit(len(self.folders))
-        for n, name in enumerate(self.folders):
-            if not worker_signals.was_canceled:
-                worker_signals.pgbar_text.emit(f"Copying {name}")
-                src = self.paths[name]
-                self.pr.add_fsmri(name, src)
-                worker_signals.pgbar_n.emit(n)
-            else:
-                break
-
-    def show_errors(self, err):
-        ErrorDialog(err, self)
-
-    def add_mri_subjects_starter(self):
-        WorkerDialog(self, self.add_mri_subjects, blocking=True)
-
-        self.list_widget.clear()
-        self.folders = []
-        self.paths = {}
-
-        self.pr.save()
-        self.mw.file_dock.update_dock()
-
-
-class AddMRIDialog(AddMRIWidget):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-
-        self.dialog = QDialog(main_win)
-
-        close_bt = QPushButton("Close", self)
-        close_bt.clicked.connect(self.dialog.close)
-        self.main_bt_layout.addWidget(close_bt)
-
-        self.dialog.setLayout(self.layout)
-        self.dialog.open()
-
-
 class FileDictWidget(QWidget):
     def __init__(self, main_win, mode):
         """A widget to assign MRI-Subjects or Empty-Room-Files to file(s)"""
@@ -1105,34 +341,6 @@ class FileDictDialog(FileDictWidget):
         set_ratio_geometry(0.6, self)
 
         dialog.open()
-
-
-class FileDictWizardPage(QWizardPage):
-    def __init__(self, main_win, mode, title):
-        super().__init__()
-
-        self.setTitle(title)
-
-        layout = QVBoxLayout()
-        self.sub_dict_w = FileDictWidget(main_win, mode)
-        layout.addWidget(self.sub_dict_w)
-        self.setLayout(layout)
-
-
-class FindBadsDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.pw = parent
-
-        self.values
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        self.setLayout(layout)
 
 
 class CopyBadsDialog(QDialog):
@@ -1416,56 +624,6 @@ class SubBadsDialog(QDialog):
         set_ratio_geometry(0.8, self)
 
         self.show()
-
-
-class SubBadsWizPage(QWizardPage):
-    def __init__(self, main_win, title):
-        super().__init__()
-        self.setTitle(title)
-
-        layout = QVBoxLayout()
-        self.sub_bad_w = SubBadsWidget(main_win)
-        layout.addWidget(self.sub_bad_w)
-        self.setLayout(layout)
-
-
-class SubjectWizard(QWizard):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-        self.mw = main_win
-
-        self.setWindowTitle("Subject-Wizard")
-        self.setWizardStyle(QWizard.ModernStyle)
-        self.setOption(QWizard.HaveHelpButton, False)
-
-        set_ratio_geometry(0.6, self)
-        center(self)
-
-        self.add_pages()
-        self.open()
-
-    def add_pages(self):
-        self.add_files_page = QWizardPage()
-        self.add_files_page.setTitle("Import .fif-Files")
-        layout = QVBoxLayout()
-        layout.addWidget(AddFilesWidget(self.mw))
-        self.add_files_page.setLayout(layout)
-
-        self.add_mri_page = QWizardPage()
-        self.add_mri_page.setTitle("Import MRI-Files")
-        layout = QVBoxLayout()
-        layout.addWidget(AddMRIWidget(self.mw))
-        self.add_mri_page.setLayout(layout)
-
-        self.assign_mri_page = FileDictWizardPage(self.mw, "mri", "Assign File --> MRI")
-        self.assign_erm_page = FileDictWizardPage(self.mw, "erm", "Assign File --> ERM")
-        self.assign_bad_channels_page = SubBadsWizPage(self.mw, "Assign Bad-Channels")
-
-        self.addPage(self.add_files_page)
-        self.addPage(self.add_mri_page)
-        self.addPage(self.assign_mri_page)
-        self.addPage(self.assign_erm_page)
-        self.addPage(self.assign_bad_channels_page)
 
 
 class EventIDGui(QDialog):
@@ -1783,384 +941,6 @@ class CopyTrans(QDialog):
 
             self.copy_tos.clear()
             self.to_list.content_changed()
-
-
-class FileManagment(QDialog):
-    """A Dialog for File-Management.
-
-    Parameters
-    ----------
-    main_win
-        A reference to Main-Window
-    """
-
-    def __init__(self, main_win):
-        super().__init__(main_win)
-        self.mw = main_win
-        self.ct = main_win.ct
-        self.pr = main_win.ct.pr
-
-        self.load_prog = 0
-
-        self.pd_meeg = pd.DataFrame(index=self.pr.all_meeg)
-        self.pd_meeg_time = pd.DataFrame(index=self.pr.all_meeg)
-        self.pd_meeg_size = pd.DataFrame(index=self.pr.all_meeg)
-
-        self.pd_fsmri = pd.DataFrame(index=self.pr.all_fsmri)
-        self.pd_fsmri_time = pd.DataFrame(index=self.pr.all_fsmri)
-        self.pd_fsmri_size = pd.DataFrame(index=self.pr.all_fsmri)
-
-        self.pd_group = pd.DataFrame(index=self.pr.all_groups)
-        self.pd_group_time = pd.DataFrame(index=self.pr.all_groups)
-        self.pd_group_size = pd.DataFrame(index=self.pr.all_groups)
-
-        self.param_results = {}
-
-        self.init_ui()
-
-        set_ratio_geometry(0.8, self)
-        self.show()
-
-        self.start_load_threads()
-
-    def get_file_tables(self, kind):
-        if kind == "MEEG":
-            obj_list = self.pr.all_meeg
-            obj_pd = self.pd_meeg
-            obj_pd_time = self.pd_meeg_time
-            obj_pd_size = self.pd_meeg_size
-        elif kind == "FSMRI":
-            obj_list = self.pr.all_fsmri
-            obj_pd = self.pd_fsmri
-            obj_pd_time = self.pd_fsmri_time
-            obj_pd_size = self.pd_fsmri_size
-        else:
-            obj_list = self.pr.all_groups
-            obj_pd = self.pd_group
-            obj_pd_time = self.pd_group_time
-            obj_pd_size = self.pd_group_size
-        logging.debug(f"Loading {kind}")
-
-        for obj_name in obj_list:
-            if kind == "MEEG":
-                obj = MEEG(obj_name, self.ct)
-            elif kind == "FSMRI":
-                obj = FSMRI(obj_name, self.ct)
-            else:
-                obj = Group(obj_name, self.ct)
-
-            obj.get_existing_paths()
-            self.param_results[obj_name] = {}
-
-            for path_type in obj.existing_paths:
-                if len(obj.existing_paths[path_type]) > 0:
-                    obj_pd.loc[obj_name, path_type] = "exists"
-                    obj_pd_size.loc[obj_name, path_type] = 0
-
-                    for path in obj.existing_paths[path_type]:
-                        try:
-                            # Add Time
-                            # Last entry in TIME should be the most recent one
-                            obj_pd_time.loc[obj_name, path_type] = obj.file_parameters[
-                                Path(path).name
-                            ]["TIME"]
-                            # Add Size (accumulate, if there are several files)
-                            obj_pd_size.loc[obj_name, path_type] += obj.file_parameters[
-                                Path(path).name
-                            ]["SIZE"]
-                        except KeyError:
-                            pass
-
-                        # Compare all parameters from last run to now
-                        result_dict = compare_filep(obj, path, verbose=False)
-                        # Store parameter-conflicts for later retrieval
-                        self.param_results[obj_name][path_type] = result_dict
-
-                        # Change status of path_type
-                        # from object if there are conflicts
-                        for parameter in result_dict:
-                            if isinstance(result_dict[parameter], tuple):
-                                if result_dict[parameter][2]:
-                                    obj_pd.loc[obj_name, path_type] = (
-                                        "critical_conflict"
-                                    )
-                                else:
-                                    obj_pd.loc[obj_name, path_type] = (
-                                        "possible_conflict"
-                                    )
-
-    def open_prog_dlg(self):
-        # Create Progress-Dialog
-        self.prog_bar = QProgressBar()
-        self.prog_bar.setMinimum(0)
-        self.prog_bar.setMaximum(3)
-
-        self.prog_dlg = SimpleDialog(self.prog_bar, self, title="Loading Files...")
-
-    def thread_finished(self, _):
-        self.load_prog += 1
-        self.prog_bar.setValue(self.load_prog)
-        if self.load_prog == 3:
-            self.prog_dlg.close()
-            self.meeg_table.content_changed()
-            self.fsmri_table.content_changed()
-            self.group_table.content_changed()
-
-    def thread_error(self, err):
-        self.thread_finished(None)
-        ErrorDialog(err, self)
-
-    def start_load_threads(self):
-        self.open_prog_dlg()
-
-        meeg_worker = Worker(function=self.get_file_tables, kind="MEEG")
-        meeg_worker.signals.error.connect(self.thread_error)
-        meeg_worker.signals.finished.connect(self.thread_finished)
-        meeg_worker.start()
-
-        fsmri_worker = Worker(function=self.get_file_tables, kind="FSMRI")
-        fsmri_worker.signals.error.connect(self.thread_error)
-        fsmri_worker.signals.finished.connect(self.thread_finished)
-        fsmri_worker.start()
-
-        group_worker = Worker(function=self.get_file_tables, kind="Group")
-        group_worker.signals.error.connect(self.thread_error)
-        group_worker.signals.finished.connect(self.thread_finished)
-        group_worker.start()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        mode_cmbx = QComboBox()
-        mode_cmbx.addItems(["Existence", "Time", "Size"])
-        mode_cmbx.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        mode_cmbx.currentTextChanged.connect(self.mode_changed)
-        layout.addWidget(mode_cmbx, alignment=Qt.AlignmentFlag.AlignLeft)
-
-        tab_widget = QTabWidget()
-
-        # MEEG
-        meeg_widget = QWidget()
-        meeg_layout = QVBoxLayout()
-
-        self.meeg_table = FilePandasTable(self.pd_meeg)
-        meeg_layout.addWidget(self.meeg_table)
-
-        meeg_bt_layout = QHBoxLayout()
-
-        meeg_showp_bt = QPushButton("Show Parameters")
-        meeg_showp_bt.clicked.connect(partial(self.show_parameters, "MEEG"))
-        meeg_bt_layout.addWidget(meeg_showp_bt)
-
-        meeg_remove_bt = QPushButton("Remove File")
-        meeg_remove_bt.clicked.connect(partial(self.remove_file, "MEEG"))
-        meeg_bt_layout.addWidget(meeg_remove_bt)
-
-        meeg_layout.addLayout(meeg_bt_layout)
-        meeg_widget.setLayout(meeg_layout)
-
-        tab_widget.addTab(meeg_widget, "MEEG")
-
-        # FSMRI
-        fsmri_widget = QWidget()
-        fsmri_layout = QVBoxLayout()
-
-        self.fsmri_table = FilePandasTable(self.pd_fsmri)
-        fsmri_layout.addWidget(self.fsmri_table)
-
-        fsmri_bt_layout = QHBoxLayout()
-
-        fsmri_showp_bt = QPushButton("Show Parameters")
-        fsmri_showp_bt.clicked.connect(partial(self.show_parameters, "FSMRI"))
-        fsmri_bt_layout.addWidget(fsmri_showp_bt)
-
-        fsmri_remove_bt = QPushButton("Remove File")
-        fsmri_remove_bt.clicked.connect(partial(self.remove_file, "FSMRI"))
-        fsmri_bt_layout.addWidget(fsmri_remove_bt)
-
-        fsmri_layout.addLayout(fsmri_bt_layout)
-        fsmri_widget.setLayout(fsmri_layout)
-
-        tab_widget.addTab(fsmri_widget, "FSMRI")
-
-        # Group
-        group_widget = QWidget()
-        group_layout = QVBoxLayout()
-
-        self.group_table = FilePandasTable(self.pd_group)
-        group_layout.addWidget(self.group_table)
-
-        group_bt_layout = QHBoxLayout()
-
-        group_showp_bt = QPushButton("Show Parameters")
-        group_showp_bt.clicked.connect(partial(self.show_parameters, "Group"))
-        group_bt_layout.addWidget(group_showp_bt)
-
-        group_remove_bt = QPushButton("Remove File")
-        group_remove_bt.clicked.connect(partial(self.remove_file, "Group"))
-        group_bt_layout.addWidget(group_remove_bt)
-
-        group_layout.addLayout(group_bt_layout)
-        group_widget.setLayout(group_layout)
-
-        tab_widget.addTab(group_widget, "Group")
-
-        layout.addWidget(tab_widget)
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
-
-        self.setLayout(layout)
-
-    def mode_changed(self, mode):
-        if mode == "Existence":
-            self.meeg_table.replace_data(self.pd_meeg)
-            self.fsmri_table.replace_data(self.pd_fsmri)
-            self.group_table.replace_data(self.pd_group)
-        elif mode == "Time":
-            self.meeg_table.replace_data(self.pd_meeg_time)
-            self.fsmri_table.replace_data(self.pd_fsmri_time)
-            self.group_table.replace_data(self.pd_group_time)
-        elif mode == "Size":
-            self.meeg_table.replace_data(self.pd_meeg_size)
-            self.fsmri_table.replace_data(self.pd_fsmri_size)
-            self.group_table.replace_data(self.pd_group_size)
-
-    def _get_current(self, kind):
-        if kind == "MEEG":
-            current_list = self.meeg_table.get_current()
-        elif kind == "FSMRI":
-            current_list = self.fsmri_table.get_current()
-        else:
-            current_list = self.group_table.get_current()
-
-        if len(current_list) > 0:
-            obj_name = current_list[0][1]
-            path_type = current_list[0][2]
-        else:
-            obj_name = None
-            path_type = None
-
-        return obj_name, path_type
-
-    def show_parameters(self, kind):
-        """Show the parameters, which are different for the selected cell.
-
-        Parameters
-        ----------
-        kind : str
-            If it is MEEG, FSMRI or Group
-        """
-
-        # Pandas DataFrame to store parameters to be compared
-        compare_pd = pd.DataFrame(columns=["Previous", "Current", "Critical?"])
-
-        obj_name, path_type = self._get_current(kind)
-
-        if (
-            obj_name
-            and path_type
-            and obj_name in self.param_results
-            and path_type in self.param_results[obj_name]
-        ):
-            result_dict = self.param_results[obj_name][path_type]
-
-            for param in result_dict:
-                if isinstance(result_dict[param], tuple):
-                    compare_pd.loc[param] = result_dict[param]
-
-            if len(compare_pd.index) > 0:
-                # Show changed parameters
-                SimpleDialog(
-                    widget=SimplePandasTable(
-                        compare_pd,
-                        title="Changed Parameters",
-                        resize_rows=True,
-                        resize_columns=True,
-                    ),
-                    parent=self,
-                    scroll=False,
-                )
-
-            else:
-                QMessageBox.information(
-                    self,
-                    "All parameters equal!",
-                    "For the selected file all parameters are equal!",
-                )
-
-    def _file_remover(self, selected_files, kind, worker_signals):
-        worker_signals.pgbar_max.emit(len(selected_files))
-        for idx, (_, obj_name, path_type) in enumerate(selected_files):
-            if worker_signals.was_canceled:
-                worker_signals.pgbar_text.emit("Removing canceled")
-                break
-            if kind == "MEEG":
-                obj = MEEG(obj_name, self.ct)
-                obj_pd = self.pd_meeg
-                obj_pd_time = self.pd_meeg_time
-                obj_pd_size = self.pd_meeg_size
-            elif kind == "FSMRI":
-                obj = FSMRI(obj_name, self.ct)
-                obj_pd = self.pd_fsmri
-                obj_pd_time = self.pd_fsmri_time
-                obj_pd_size = self.pd_fsmri_size
-            else:
-                obj = Group(obj_name, self.ct)
-                obj_pd = self.pd_group
-                obj_pd_time = self.pd_group_time
-                obj_pd_size = self.pd_group_size
-
-            obj_pd.loc[obj_name, path_type] = None
-            obj_pd_time.loc[obj_name, path_type] = None
-            obj_pd_size.loc[obj_name, path_type] = None
-
-            # Remove File
-            worker_signals.pgbar_text.emit(f"Removing: {path_type}")
-            obj.remove_path(path_type)
-            worker_signals.pgbar_n.emit(idx + 1)
-
-    def _remove_finished(self, kind):
-        # Update Table-Widget
-        if kind == "MEEG":
-            obj_table = self.meeg_table
-        elif kind == "FSMRI":
-            obj_table = self.fsmri_table
-        else:
-            obj_table = self.group_table
-        obj_table.content_changed()
-
-    def remove_file(self, kind):
-        """Remove the file at the path of the current cell.
-
-        Parameters
-        ----------
-        kind : str
-            If it is MEEG, FSMRI or Group
-        """
-
-        msgbx = QMessageBox.question(
-            self, "Remove files?", "Do you really want to remove the selected Files?"
-        )
-
-        if msgbx == QMessageBox.Yes:
-            if kind == "MEEG":
-                selected_files = self.meeg_table.get_selected()
-            elif kind == "FSMRI":
-                selected_files = self.fsmri_table.get_selected()
-            else:
-                selected_files = self.group_table.get_selected()
-            wd = WorkerDialog(
-                self,
-                self._file_remover,
-                selected_files=selected_files,
-                kind=kind,
-                show_buttons=True,
-                show_console=True,
-                title="Removing Files",
-            )
-            wd.thread_finished.connect(partial(self._remove_finished, kind))
 
 
 class ICASelect(QDialog):

@@ -1,11 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
-
-Simplified plain-text console with robust progress pinning.
-Replaces earlier HTML/block based implementation to eliminate blank lines,
-missing output, and fragile progress rendering.
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from __future__ import annotations
@@ -14,10 +10,10 @@ import codecs
 import logging
 import queue
 import re
-import sys
 import time
 from functools import wraps
 
+from mne_nodes.pipeline.streams import get_redirected_stream
 from qtpy.QtCore import (
     QMutex,
     QWaitCondition,
@@ -276,8 +272,10 @@ class ConsoleWidget(QPlainTextEdit):
 class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
-        sys.stdout.signal.text_written.connect(self.push_stdout)
-        sys.stderr.signal.text_written.connect(self.push_stderr)
+        stdout_stream = get_redirected_stream("stdout")
+        stderr_stream = get_redirected_stream("stderr")
+        stdout_stream.signal.text_written.connect(self.push_stdout)
+        stderr_stream.signal.text_written.connect(self.push_stderr)
 
 
 # ---------------------------------------------------------------------------

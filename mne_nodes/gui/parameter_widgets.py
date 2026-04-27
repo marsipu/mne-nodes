@@ -1,7 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
@@ -15,33 +15,10 @@ from typing import Any, Literal, MutableMapping, Sequence
 
 import mne
 import numpy as np
-import pandas as pd
-from mne_nodes import iswin
-from mne_nodes.gui.base_widgets import (
-    CheckList,
-    EditDict,
-    EditList,
-    SimpleList,
-    SimpleDialog,
-    ComboBox,
-)
-from mne_nodes.gui.dialogs import CheckListDlg
-from mne_nodes.gui.gui_utils import (
-    get_std_icon,
-    center,
-    set_app_theme,
-    set_app_font_size,
-    get_user_input,
-)
-from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.exception_handling import get_exception_tuple
-from mne_nodes.pipeline.execution import WorkerDialog
-from mne_nodes.pipeline.loading import FSMRI
-from mne_nodes.pipeline.settings import Settings
 from mne_qt_browser._pg_figure import _get_color
 from qtpy import compat
 from qtpy.QtCore import Signal, Qt
-from qtpy.QtGui import QFontDatabase, QFont, QPixmap
+from qtpy.QtGui import QFontDatabase, QPixmap
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -57,14 +34,23 @@ from qtpy.QtWidgets import (
     QSpinBox,
     QVBoxLayout,
     QWidget,
-    QDockWidget,
-    QTabWidget,
-    QScrollArea,
-    QMessageBox,
     QColorDialog,
     QStackedLayout,
     QSizePolicy,
 )
+
+from mne_nodes import iswin
+from mne_nodes.gui.base_widgets import (
+    CheckList,
+    EditDict,
+    EditList,
+    SimpleList,
+    SimpleDialog,
+    ComboBox,
+)
+from mne_nodes.gui.gui_utils import center, set_app_theme, set_app_font_size
+from mne_nodes.pipeline.controller import Controller
+from mne_nodes.pipeline.settings import Settings
 
 
 class Param(QWidget):
@@ -1522,7 +1508,8 @@ class LabelDialog(SimpleDialog):
         layout.addWidget(self.choose_extra_bt)
 
     def _subject_changed(self):
-        self._fsmri = FSMRI(self.fsmri_cmbx.currentText(), self.ct, load_labels=True)
+        # ToDo: Update Label-Gui
+        self._fsmri = None
 
         self.parcellation_cmbx.clear()
         self.parcellation_cmbx.addItems(self._fsmri.parcellations)
@@ -1816,343 +1803,6 @@ class PathGui(Param):
 
     def _get_widget_value(self):
         return self._path
-
-
-# Todo: Ordering Parameters in Tabs and add Find-Command
-class ResetDialog(QDialog):
-    def __init__(self, p_dock):
-        super().__init__(p_dock)
-        self.pd = p_dock
-        self.selected_params = []
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        layout.addWidget(
-            CheckList(
-                list(self.pd.ct.pr.parameters[self.pd.ct.pr.p_preset].keys()),
-                self.selected_params,
-                title="Select the Parameters to reset",
-            )
-        )
-        reset_bt = QPushButton("Reset")
-        reset_bt.clicked.connect(self.reset_params)
-        layout.addWidget(reset_bt)
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        layout.addWidget(close_bt)
-
-        self.setLayout(layout)
-
-    def reset_params(self):
-        for name in self.selected_params:
-            self.pd.ct.pr.load_default_param(name)
-            print(f"Reset {name}")
-        WorkerDialog(self, self.pd.ct.pr.save, title="Saving project...", blocking=True)
-        self.pd.update_all_param_guis()
-        self.close()
-
-
-class CopyPDialog(QDialog):
-    def __init__(self, p_dock):
-        super().__init__(p_dock)
-        self.pd = p_dock
-        self.p = p_dock.ct.pr.parameters
-        self.selected_from = None
-        self.selected_to = []
-        self.selected_ps = []
-
-        self.init_ui()
-        self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        list_layout = QHBoxLayout()
-        copy_from = SimpleList(list(self.p.keys()))
-        copy_from.currentChanged.connect(self.from_selected)
-        list_layout.addWidget(copy_from)
-
-        self.copy_to = CheckList(checked=self.selected_to)
-        list_layout.addWidget(self.copy_to)
-
-        self.copy_ps = CheckList(checked=self.selected_ps)
-        list_layout.addWidget(self.copy_ps)
-
-        layout.addLayout(list_layout)
-
-        bt_layout = QHBoxLayout()
-
-        copy_bt = QPushButton("Copy")
-        copy_bt.clicked.connect(self.copy_parameters)
-        bt_layout.addWidget(copy_bt)
-
-        close_bt = QPushButton("Close")
-        close_bt.clicked.connect(self.close)
-        bt_layout.addWidget(close_bt)
-
-        layout.addLayout(bt_layout)
-
-        self.setLayout(layout)
-
-    def from_selected(self, current):
-        self.selected_from = current
-        self.copy_to.replace_data([pp for pp in self.p.keys() if pp != current])
-        self.copy_ps.replace_data([p for p in self.p[current]])
-
-    def copy_parameters(self):
-        if len(self.selected_to) > 0:
-            for p_preset in self.selected_to:
-                for parameter in self.selected_ps:
-                    self.p[p_preset][parameter] = self.p[self.selected_from][parameter]
-
-            WorkerDialog(
-                self, self.pd.ct.pr.save, title="Saving project...", blocking=True
-            )
-            self.pd.update_all_param_guis()
-            self.close()
-
-
-class RemovePPresetDlg(CheckListDlg):
-    def __init__(self, parent):
-        self.parent = parent
-        self.preset_list = [p for p in self.parent.ct.pr.parameters if p != "Default"]
-        self.rm_list = []
-
-        super().__init__(parent, self.preset_list, self.rm_list)
-
-        self.do_bt.setText("Remove Parameter-Preset")
-        self.do_bt.clicked.connect(self.remove_selected)
-
-        self.open()
-
-    def remove_selected(self):
-        for p_preset in self.rm_list:
-            self.preset_list.remove(p_preset)
-            self.lm.layoutChanged.emit()
-            # Remove from Parameters
-            self.parent.ct.pr.parameters.pop(p_preset)
-            self.parent.update_ppreset_cmbx()
-
-        # If current Parameter-Preset was deleted
-        if self.parent.ct.pr.p_preset not in self.parent.ct.pr.parameters:
-            self.parent.ct.pr.p_preset = list(self.parent.ct.pr.parameters.keys())[0]
-            self.parent.update_all_param_guis()
-
-        self.close()
-
-
-class ParametersDock(QDockWidget):
-    def __init__(self, main_win):
-        super().__init__("Parameters", main_win)
-        self.mw = main_win
-        self.ct = main_win.ct
-        self.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea)
-        self.main_widget = QWidget()
-        self.param_guis = {}
-
-        self.dropgroup_params()
-        self.init_ui()
-
-    def dropgroup_params(self):
-        # Create a set of all unique parameters used by functions
-        # in selected_modules
-        sel_pdfuncs = self.ct.pd_funcs.loc[
-            self.ct.pd_funcs["module"].isin(self.ct.get_setting("selected_modules"))
-        ]
-        # Remove rows with NaN in func_args
-        sel_pdfuncs = sel_pdfuncs.loc[sel_pdfuncs["func_args"].notna()]
-        all_used_params_str = ",".join(sel_pdfuncs["func_args"])
-        # Make sure there are no spaces left
-        all_used_params_str = all_used_params_str.replace(" ", "")
-        all_used_params = set(all_used_params_str.split(","))
-        drop_idx_list = []
-        self.cleaned_pd_params = self.ct.pd_params.copy()
-        for param in self.cleaned_pd_params.index:
-            if param in all_used_params:
-                # Group-Name (if not given, set to 'Various')
-                group_name = self.cleaned_pd_params.loc[param, "group"]
-                if pd.isna(group_name):
-                    self.cleaned_pd_params.loc[param, "group"] = "Various"
-            else:
-                # Drop Parameters which aren't used by functions
-                drop_idx_list.append(param)
-        self.cleaned_pd_params.drop(index=drop_idx_list, inplace=True)
-
-    def init_ui(self):
-        self.general_layout = QVBoxLayout()
-
-        # Add Parameter-Preset-ComboBox
-        title_layouts = QVBoxLayout()
-        title_layout1 = QHBoxLayout()
-        p_preset_l = QLabel("Parameter-Presets: ")
-        title_layout1.addWidget(p_preset_l)
-        self.p_preset_cmbx = QComboBox()
-        self.p_preset_cmbx.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents
-        )
-        self.p_preset_cmbx.activated.connect(self.p_preset_changed)
-        self.update_ppreset_cmbx()
-        title_layout1.addWidget(self.p_preset_cmbx)
-
-        add_bt = QPushButton(get_std_icon("SP_FileDialogNewFolder"))
-        add_bt.clicked.connect(self.add_p_preset)
-        title_layout1.addWidget(add_bt)
-
-        rm_bt = QPushButton(get_std_icon("SP_DialogDiscardButton"))
-        rm_bt.clicked.connect(partial(RemovePPresetDlg, self))
-        title_layout1.addWidget(rm_bt)
-
-        title_layouts.addLayout(title_layout1)
-
-        title_layout2 = QHBoxLayout()
-        copy_bt = QPushButton("Copy")
-        copy_bt.setFont(QFont(Settings().get("app_font"), 16))
-        copy_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        copy_bt.clicked.connect(partial(CopyPDialog, self))
-        title_layout2.addWidget(copy_bt)
-
-        reset_bt = QPushButton("Reset")
-        reset_bt.setFont(QFont(Settings().get("app_font"), 16))
-        reset_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        reset_bt.clicked.connect(partial(ResetDialog, self))
-        title_layout2.addWidget(reset_bt)
-
-        reset_all_bt = QPushButton("Reset All")
-        reset_all_bt.setFont(QFont(Settings().get("app_font"), 16))
-        reset_all_bt.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
-        )
-        reset_all_bt.clicked.connect(self.reset_all_parameters)
-        title_layout2.addWidget(reset_all_bt)
-
-        title_layouts.addLayout(title_layout2)
-        self.general_layout.addLayout(title_layouts)
-
-        self.add_param_guis()
-
-        self.main_widget.setLayout(self.general_layout)
-        self.setWidget(self.main_widget)
-
-    def add_param_guis(self):
-        # Create Tab-Widget for Parameters, grouped by group
-        self.tab_param_widget = QTabWidget()
-
-        grouped_params = self.cleaned_pd_params.groupby("group", sort=False)
-
-        for group_name, group in grouped_params:
-            layout = QVBoxLayout()
-            tab = QScrollArea()
-            child_w = QWidget()
-            for idx, parameter in group.iterrows():
-                # Get Parameters for Gui-Call
-                if pd.notna(parameter["alias"]):
-                    alias = parameter["alias"]
-                else:
-                    alias = idx
-                if pd.notna(parameter["gui_type"]):
-                    gui_name = parameter["gui_type"]
-                else:
-                    gui_name = "FuncGui"
-                try:
-                    default = literal_eval(parameter["default"])
-                except (SyntaxError, ValueError):
-                    if gui_name == "FuncGui":
-                        default = _eval_param(parameter["default"])
-                    else:
-                        default = parameter["default"]
-                if pd.notna(parameter["description"]):
-                    description = parameter["description"]
-                else:
-                    description = ""
-                if pd.notna(parameter["unit"]):
-                    unit = parameter["unit"]
-                else:
-                    unit = None
-                try:
-                    gui_args = literal_eval(parameter["gui_args"])
-                except (SyntaxError, ValueError):
-                    gui_args = {}
-
-                try:
-                    self.param_guis[idx] = globals()[gui_name](
-                        data=self.ct,
-                        name=idx,
-                        alias=alias,
-                        default=default,
-                        description=description,
-                        unit=unit,
-                        **gui_args,
-                    )
-                except Exception:
-                    err_tuple = get_exception_tuple()
-                    raise RuntimeError(
-                        f'Initialization of Parameter-Widget "{idx}" '
-                        f"with value={default} "
-                        f"failed:\n"
-                        f"{err_tuple[1]}"
-                    )
-
-                layout.addWidget(self.param_guis[idx])
-
-            child_w.setLayout(layout)
-            tab.setWidget(child_w)
-            self.tab_param_widget.addTab(tab, group_name)
-
-        # Set Layout of QWidget (the class itself)
-        self.general_layout.addWidget(self.tab_param_widget)
-
-    def update_ppreset_cmbx(self):
-        self.p_preset_cmbx.clear()
-        for p_preset in self.ct.pr.parameters.keys():
-            self.p_preset_cmbx.addItem(p_preset)
-        if self.ct.pr.p_preset in self.ct.pr.parameters.keys():
-            self.p_preset_cmbx.setCurrentText(self.ct.pr.p_preset)
-        else:
-            self.p_preset_cmbx.setCurrentText(list(self.ct.pr.parameters.keys())[0])
-
-    def p_preset_changed(self, idx):
-        self.ct.pr.p_preset = self.p_preset_cmbx.itemText(idx)
-        self.update_all_param_guis()
-
-    def add_p_preset(self):
-        preset_name = get_user_input(
-            "Enter a name for a new Parameter-Preset:", "string"
-        )
-        if preset_name is not None:
-            self.ct.pr.p_preset = preset_name
-            self.ct.pr.load_default_parameters()
-            self.p_preset_cmbx.addItem(preset_name)
-            self.p_preset_cmbx.setCurrentText(preset_name)
-
-    def redraw_param_widgets(self):
-        self.general_layout.removeWidget(self.tab_param_widget)
-        self.tab_param_widget.close()
-        del self.tab_param_widget
-        self.dropgroup_params()
-        self.add_param_guis()
-        self.update_ppreset_cmbx()
-
-    def update_all_param_guis(self):
-        for gui_name in self.param_guis:
-            param_gui = self.param_guis[gui_name]
-            param_gui.read_param()
-            param_gui._set_param()
-
-    def reset_all_parameters(self):
-        msgbox = QMessageBox.question(
-            self,
-            "Reset all Parameters?",
-            "Do you really want to reset all parameters to their default?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if msgbox == QMessageBox.StandardButton.Yes:
-            self.ct.pr.load_default_parameters()
-            self.update_all_param_guis()
 
 
 class SettingsDlg(QDialog):

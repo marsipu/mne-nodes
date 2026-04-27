@@ -1,7 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
@@ -120,7 +120,7 @@ def parameter_values_alt():
 
 def _add_nodes(viewer):
     # Create nodes
-    in_node = viewer.input_node
+    in_node = viewer.add_input_node()
     func_node = viewer.add_function_node("filter_bandpass")
 
     # Establish connection

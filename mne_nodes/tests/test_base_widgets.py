@@ -1,7 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import pandas as pd
@@ -568,14 +568,14 @@ def test_progress_checklist(qtbot):
     assert clp.model._data is data
     assert clp.model._checked is checked
     assert clp.progress_dict is not None
-    qtbot.wait(1000)
+    qtbot.wait(100)
 
     # Test checking items and progress update
     clp.update_progress("item_0", 50)
     assert clp.progress_dict["item_0"] == 50
-    qtbot.wait(1000)
+    qtbot.wait(100)
 
     for n in range(100):
         clp.update_progress("item_1", n)
-        qtbot.wait(50)
+        qtbot.wait(10)
     assert clp.progress_dict["item_1"] == 99

@@ -1,3 +1,5 @@
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/marsipu/mne-nodes/main.svg?badge_token=jA6ZWC-DQXm_QrZFVi3a-w)](https://results.pre-commit.ci/latest/github/marsipu/mne-nodes/main?badge_token=jA6ZWC-DQXm_QrZFVi3a-w)
+
 # mne-nodes
 
 ## A Node-GUI for [MNE-Python](https://mne.tools/stable/index.html)

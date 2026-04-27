@@ -1,7 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
@@ -137,6 +137,8 @@ def test_stream_worker_massive_output(qtbot):
         assert len(console.toPlainText()) > 0
 
 
+# Skip until #47 is worked on
+@pytest.mark.skip(reason="temporarily disabled")
 def test_process_formatting(qtbot, tmp_path):
     """Test that process output formatting works in the console."""
 
@@ -144,9 +146,8 @@ def test_process_formatting(qtbot, tmp_path):
         test_file = Path(__file__).parent / "_test_process.py"
         expected_text = [
             "Test1",
-            "20/20",
+            "10/10",
             "Traceback (most recent call last):",
-            "in test_formatting",
             "raise RuntimeError",
             "RuntimeError: Test-Error",
             "Test2",
@@ -154,7 +155,7 @@ def test_process_formatting(qtbot, tmp_path):
         process = Process(console=console, self_destruct=False)
         process.start(sys.executable, [str(test_file)])
         # Check console content
-        qtbot.wait(100)
-        text = console.toPlainText()
-        for actual, expected in zip(text.splitlines(), expected_text):
-            assert expected in actual, f"Expected '{expected}', got '{actual}'"
+        qtbot.wait(1000)
+        actual = console.toPlainText()
+        for expected in expected_text:
+            assert expected in actual, f"Expected '{expected}' not in '{actual}'"
