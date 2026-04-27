@@ -42,46 +42,10 @@ class StdoutStderrStream(io.TextIOBase):
             pass
 
 
-_REDIRECTED_STREAMS: dict[str, StdoutStderrStream] = {}
-
-
-def _has_stream_signal(stream: object) -> bool:
-    """Return True when the stream has the Qt signal API used by the GUI."""
-    signal = getattr(stream, "signal", None)
-    return signal is not None and hasattr(signal, "text_written")
-
-
-def get_redirected_stream(kind: str) -> StdoutStderrStream:
-    """Return redirected stdout/stderr stream, restoring if replaced.
-
-    Pytest and other tools may temporarily swap sys.stdout/sys.stderr.
-    Ensure GUI widgets and logging handlers keep using the same stream object.
-    """
-    stream = _REDIRECTED_STREAMS.get(kind)
-    if stream is None:
-        current = sys.stdout if kind == "stdout" else sys.stderr
-        if _has_stream_signal(current):
-            stream = current
-            _REDIRECTED_STREAMS[kind] = stream
-        else:
-            init_streams()
-            stream = _REDIRECTED_STREAMS[kind]
-
-    if kind == "stdout" and sys.stdout is not stream:
-        sys.stdout = stream
-    elif kind == "stderr" and sys.stderr is not stream:
-        sys.stderr = stream
-    return stream
-
-
 def init_streams() -> None:
     # Redirect stdout and stderr to capture it later in GUI
-    stdout_stream = StdoutStderrStream("stdout")
-    stderr_stream = StdoutStderrStream("stderr")
-    _REDIRECTED_STREAMS["stdout"] = stdout_stream
-    _REDIRECTED_STREAMS["stderr"] = stderr_stream
-    sys.stdout = stdout_stream
-    sys.stderr = stderr_stream
+    sys.stdout = StdoutStderrStream("stdout")
+    sys.stderr = StdoutStderrStream("stderr")
 
 
 def deinit_streams() -> None:
@@ -93,7 +57,6 @@ def deinit_streams() -> None:
     """
     sys.stdout = sys.__stdout__
     sys.stderr = sys.__stderr__
-    _REDIRECTED_STREAMS.clear()
 
 
 def init_logging(debug_mode: bool = False) -> None:
@@ -110,16 +73,10 @@ def init_logging(debug_mode: bool = False) -> None:
         logger.setLevel(Settings().get("log_level", default=logging.INFO))
         fmt = "[{levelname}] {message}"
 
-    existing_handlers = list(logger.handlers)
-    for handler in existing_handlers:
-        if handler.get_name() in {"console", "file"}:
-            logger.removeHandler(handler)
-            handler.close()
-
     # Format console handler
     date_fmt = "%H:%M:%S"
     formatter = logging.Formatter(fmt, date_fmt, style="{")
-    console_handler = logging.StreamHandler(get_redirected_stream("stderr"))
+    console_handler = logging.StreamHandler()
     console_handler.set_name("console")
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)

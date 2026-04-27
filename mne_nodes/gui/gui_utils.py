@@ -33,9 +33,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-import mne_nodes
-from mne_nodes import _widgets, main_widget
-from mne_nodes import extra
+from mne_nodes import extra, _widgets, main_widget, gui_mode
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -92,7 +90,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     parent : QWidget | None, optional
         Set the parent of the modal widget.
     """
-    if mne_nodes.gui_mode:
+    if gui_mode:
         parent = parent or main_widget()
         if cancel_allowed:
             buttons = (
@@ -130,7 +128,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     else:
         warning_message = None
     if warning_message is not None:
-        if mne_nodes.gui_mode:
+        if gui_mode:
             parent = main_widget()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
@@ -183,7 +181,7 @@ def ask_user_custom(
     first_label = button_labels[0]
     second_label = button_labels[1]
 
-    if mne_nodes.gui_mode:
+    if gui_mode:
         parent = parent or main_widget()
         msg_box = QMessageBox(parent)
         msg_box.setWindowTitle("Question")
@@ -251,7 +249,7 @@ def ask_user_custom(
     else:
         warning_message = None
     if warning_message is not None:
-        if mne_nodes.gui_mode:
+        if gui_mode:
             parent = main_widget()
             QMessageBox().warning(parent, "Warning", warning_message)
         else:
@@ -309,7 +307,7 @@ def get_user_input(
     type_error_message = (
         f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
     )
-    if mne_nodes.gui_mode:
+    if gui_mode:
         parent = parent or main_widget()
         if input_type == "string":
             user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
@@ -369,7 +367,7 @@ def get_user_input(
 
 def raise_user_attention(message, message_type="warning", parent=None):
     """Raise a message to the user, either as a warning or an error."""
-    if mne_nodes.gui_mode:
+    if gui_mode:
         parent = parent or main_widget()
         if message_type == "warning":
             QMessageBox().warning(parent, "Warning", message)

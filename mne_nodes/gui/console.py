@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from __future__ import annotations
 
+import sys
 import codecs
 import logging
 import queue
@@ -13,7 +14,6 @@ import re
 import time
 from functools import wraps
 
-from mne_nodes.pipeline.streams import get_redirected_stream
 from qtpy.QtCore import (
     QMutex,
     QWaitCondition,
@@ -272,8 +272,8 @@ class ConsoleWidget(QPlainTextEdit):
 class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
-        stdout_stream = get_redirected_stream("stdout")
-        stderr_stream = get_redirected_stream("stderr")
+        stdout_stream = sys.stdout
+        stderr_stream = sys.stderr
         stdout_stream.signal.text_written.connect(self.push_stdout)
         stderr_stream.signal.text_written.connect(self.push_stderr)
 
