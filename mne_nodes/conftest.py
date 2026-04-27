@@ -120,7 +120,7 @@ def parameter_values_alt():
 
 def _add_nodes(viewer):
     # Create nodes
-    in_node = viewer.input_node
+    in_node = viewer.add_input_node()
     func_node = viewer.add_function_node("filter_bandpass")
 
     # Establish connection
