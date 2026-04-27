@@ -2,6 +2,8 @@ changelog:
   exclude:
     authors:
       - pre-commit-ci
+      - dependabot
+      - github-actions
   categories:
     - title: New Features 💫
       labels:
