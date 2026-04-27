@@ -29,6 +29,7 @@ class InputWidget(QWidget):
     def __init__(self, ct, **kwargs):
         super().__init__(**kwargs)
         self.ct = ct
+        self.selected_inputs = self.ct.get("selected_inputs")
         self.setLayout(QVBoxLayout())
         self.setMinimumSize(400, 300)
 
@@ -62,13 +63,12 @@ class InputWidget(QWidget):
             else:
                 bp_kwargs.update({"datatype": dt})
             data = [f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)]
-            selected_inputs = self.ct.get("selected_inputs")
-            if dt not in selected_inputs:
-                selected_inputs[dt] = []
+            if dt not in self.selected_inputs:
+                self.selected_inputs[dt] = []
             dt_list = CheckListProgress(
-                data, checked=selected_inputs[dt], ui_button_pos="bottom"
+                data, checked=self.selected_inputs[dt], ui_button_pos="bottom"
             )
-            dt_list.checkedChanged.connect(self.ct.flush)
+            dt_list.checkedChanged.connect(self.selected_changed)
             self.tab_widget.addTab(dt_list, dt)
         # Initialize group widget via combobox
         self.tab_widget.addTab(self.group_widget, "Groups")
@@ -77,6 +77,9 @@ class InputWidget(QWidget):
             self.group_cmbx.setCurrentText(gb)
         else:
             self.cmbx_changed(gb)
+
+    def selected_changed(self):
+        self.ct.set("selected_inputs", self.selected_inputs)
 
     def set_root(self):
         new_root = get_user_input(
