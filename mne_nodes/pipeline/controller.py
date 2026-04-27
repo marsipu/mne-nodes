@@ -771,7 +771,9 @@ class Controller:
                         if data in self.raw_types:
                             code += f"# Load {data}\n"
                             code += f"print('Loading {data}')\n"
-                            code += f"for item in ct.selected_inputs['{data}']:\n"
+                            code += (
+                                f"for item in ct.get('selected_inputs')['{data}']:\n"
+                            )
                             code += self._indent(
                                 "bp = get_bids_path_from_fname(item)\n", 1
                             )

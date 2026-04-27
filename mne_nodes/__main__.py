@@ -17,7 +17,6 @@ from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
-from mne_nodes.pipeline.legacy import legacy_import_check
 from mne_nodes.pipeline.streams import init_streams, init_logging
 
 app_name = "mne-nodes"
@@ -75,9 +74,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Check for changes in required packages
-    legacy_import_check()
-
     # Parse command line arguments
     parser = argparse.ArgumentParser(
         prog="MNE-Nodes", description="A GUI with Nodes for MNE-Python"

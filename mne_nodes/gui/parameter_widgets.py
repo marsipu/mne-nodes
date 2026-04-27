@@ -50,7 +50,6 @@ from mne_nodes.gui.base_widgets import (
 )
 from mne_nodes.gui.gui_utils import center, set_app_theme, set_app_font_size
 from mne_nodes.pipeline.controller import Controller
-from mne_nodes.pipeline.legacy import FSMRI
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -1509,7 +1508,8 @@ class LabelDialog(SimpleDialog):
         layout.addWidget(self.choose_extra_bt)
 
     def _subject_changed(self):
-        self._fsmri = FSMRI(self.fsmri_cmbx.currentText(), self.ct, load_labels=True)
+        # ToDo: Update Label-Gui
+        self._fsmri = None
 
         self.parcellation_cmbx.clear()
         self.parcellation_cmbx.addItems(self._fsmri.parcellations)

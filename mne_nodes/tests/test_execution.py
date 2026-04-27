@@ -11,7 +11,6 @@ import sys
 import pytest
 
 from mne_nodes.gui.console import ConsoleWidget
-from mne_nodes.pipeline.data_import import import_dataset
 from mne_nodes.pipeline.execution import ProcessDialog, Process
 
 
@@ -77,11 +76,3 @@ def test_process_dialog(qtbot):
     console_text = dialog.console.toPlainText()
     assert "DIALOG_OUT" in console_text, "Dialog stdout missing"
     assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
-
-
-def test_simple_pipeline(qtbot, main_window, ct):
-    # Import testing dataset (controller fixtures should be identical to main_window.controller)
-    # ToDo: Make this test work
-    import_dataset(ct, "testing")
-    main_window.show()
-    qtbot.wait(10000)

@@ -214,4 +214,5 @@ class MainWindow(QMainWindow):
         self.settings.set("screen_name", self.screen().name())
         _widgets["main_window"] = None
         self.controller.set("node_config", self.viewer.to_dict())
+        self.controller.flush()
         event.accept()

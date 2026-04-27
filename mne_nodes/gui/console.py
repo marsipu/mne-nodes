@@ -14,7 +14,6 @@ import codecs
 import logging
 import queue
 import re
-import sys
 import time
 from functools import wraps
 
@@ -276,6 +275,9 @@ class ConsoleWidget(QPlainTextEdit):
 class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
+        import sys
+
+        print(sys.stdout)
         sys.stdout.signal.text_written.connect(self.push_stdout)
         sys.stderr.signal.text_written.connect(self.push_stderr)
 
