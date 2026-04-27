@@ -1,5 +1,27 @@
 #Development Considerations
 
+## Import
+- multiple selection in the import list for multiple files
+- BIDS-import (are fsmri and meeg already tied then?)
+
+## Loading-Widgets
+- Assign-Widget doesn't need the "Assign" button, it should be enough to just click on the desired list item on the right side
+- Maybe Assign with RegExp to simplify the process
+
+## Custom Functions
+- Automatic reload on file change with [watchdog](https://github.com/gorakhargosh/watchdog) only if this extra thread doesn't limit performance
+
+## Base-Widgets
+- Dict-GUI: When adding multiple rows and editing them, the order ist jumping
+- Check-List-GUI: Check item by selection (clicking on name)
+
+## Functions
+- change parameter cov_method to MultiTypeGUi (also enable lists)
+- add detrend-target, detrend-method parameter
+
+## Parameter-Widgets
+- Label-Pick-Widget: extra labels in list are not selected when selected, new selection causes list to disappear
+
 ## Object Consistence
 
 **Controller**, **Main-Window** and **Project** are reinitialized as new
@@ -109,7 +131,7 @@ Nodes should improve usability and the representation of the pipeline by the fol
 - [x] remove p_preset in favor of multiple functions
 - [x] remove inputs and rewrite as selected(bids)inputs
 - [x] Design input node
-- [ ] resolve execution_order from node_viewer (remove deprecated node.start)
-- [ ] implement better execution-order for code creation (like data-type/sub-selection as key/list)
+- [x] resolve execution_order from node_viewer (remove deprecated node.start)
+- [x] implement better execution-order for code creation (like data-type/sub-selection as key/list)
 - [ ] implement optional inputs for nodes
 - [ ] save features (data and plots)

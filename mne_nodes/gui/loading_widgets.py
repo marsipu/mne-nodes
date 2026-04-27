@@ -73,7 +73,7 @@ from mne_nodes.gui.models import AddFilesModel
 from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.pipeline.execution import Worker, WorkerDialog
-from mne_nodes.pipeline.loading import FSMRI, Group, MEEG
+from mne_nodes.pipeline.legacy import MEEG, FSMRI, Group
 from mne_nodes.pipeline.pipeline_utils import compare_filep
 from mne_nodes.pipeline.settings import Settings
 

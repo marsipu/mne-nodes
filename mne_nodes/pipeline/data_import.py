@@ -12,7 +12,7 @@ from pathlib import Path
 
 import mne
 
-from mne_nodes.pipeline.loading import MEEG, FSMRI
+from mne_nodes.pipeline.legacy import MEEG, FSMRI
 from mne_nodes.pipeline.pipeline_utils import is_test
 
 

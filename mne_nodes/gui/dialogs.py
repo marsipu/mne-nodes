@@ -13,8 +13,6 @@ from pathlib import Path
 from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
-    QLabel,
-    QListView,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -25,68 +23,7 @@ from qtpy.QtWidgets import (
 from mne_nodes import extra
 from mne_nodes.gui.base_widgets import SimpleList
 from mne_nodes.gui.gui_utils import set_ratio_geometry
-from mne_nodes.gui.models import CheckListModel
-from mne_nodes.pipeline.loading import MEEG
-
-
-class CheckListDlg(QDialog):
-    def __init__(self, parent, data, checked):
-        """BaseClass for A Dialog with a Check-List, open() has to be called in
-        SubClass or directly.
-
-        Parameters
-        ----------
-        parent: QWidget or None
-            parent-Widget.
-        data: list or None
-            Data for the Check-List.
-        checked: list or None
-            List, where checked Data-Items are stored.
-        """
-        super().__init__(parent)
-        self.data = data
-        self.checked = checked
-
-        self.init_ui()
-
-    def init_ui(self):
-        self.layout = QGridLayout()
-
-        self.lv = QListView()
-        self.lm = CheckListModel(self.data, self.checked)
-        self.lv.setModel(self.lm)
-        self.layout.addWidget(self.lv, 0, 0, 1, 2)
-
-        self.do_bt = QPushButton("<Do Something>")
-        self.do_bt.clicked.connect(lambda: None)
-        self.layout.addWidget(self.do_bt, 1, 0)
-
-        self.quit_bt = QPushButton("Quit")
-        self.quit_bt.clicked.connect(self.close)
-        self.layout.addWidget(self.quit_bt, 1, 1)
-
-        self.setLayout(self.layout)
-
-
-class RemoveProjectsDlg(CheckListDlg):
-    def __init__(self, main_win, controller):
-        self.mw = main_win
-        self.ct = controller
-        self.rm_list = []
-        super().__init__(main_win, self.ct.projects, self.rm_list)
-
-        self.do_bt.setText("Remove Projects")
-        self.do_bt.clicked.connect(self.remove_selected)
-
-        self.open()
-
-    def remove_selected(self):
-        for project in self.rm_list:
-            self.ct.remove_project(project)
-        self.lm.layoutChanged.emit()
-        self.mw.update_project_ui()
-
-        self.close()
+from mne_nodes.pipeline.legacy import MEEG
 
 
 class SysInfoMsg(QDialog):
@@ -111,35 +48,7 @@ class SysInfoMsg(QDialog):
         self.show_widget.insertPlainText(text)
 
 
-class QuickGuide(QDialog):
-    def __init__(self, main_win):
-        super().__init__(main_win)
-        layout = QVBoxLayout()
-
-        text = (
-            "<b>Quick-Guide</b><br>"
-            "1. Use the Subject-Wizard to add Subjects "
-            "and the Subject-Dicts<br>"
-            "2. Select the files you want to execute<br>"
-            "3. Select the functions to execute<br>"
-            "4. If you want to show plots, check Show Plots<br>"
-            "5. For Source-Space-Operations, you need to run "
-            "MRI-Coregistration from the Input-Menu<br>"
-            "6. For Grand-Averages add a group and add the files, "
-            "to which you want apply the grand-average"
-        )
-
-        self.label = QLabel(text)
-        layout.addWidget(self.label)
-
-        ok_bt = QPushButton("OK")
-        ok_bt.clicked.connect(self.close)
-        layout.addWidget(ok_bt)
-
-        self.setLayout(layout)
-        self.open()
-
-
+# ToDo: Rewrite
 class RawInfo(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
@@ -240,6 +149,7 @@ class RawInfo(QDialog):
         self.info_label.setHtml(self.info_string)
 
 
+# ToDo:Rewrite About Dialog (maybe automatic copy from README.md with setMarkdown)
 class AboutDialog(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
