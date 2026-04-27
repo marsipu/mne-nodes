@@ -1,11 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
-
-Simplified plain-text console with robust progress pinning.
-Replaces earlier HTML/block based implementation to eliminate blank lines,
-missing output, and fragile progress rendering.
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from __future__ import annotations

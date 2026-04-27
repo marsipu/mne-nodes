@@ -1,13 +1,11 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-from importlib import resources
 
-from mne_nodes import extra
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.pipeline.streams import get_redirected_stream
 from qtpy.QtWidgets import QDialog, QPushButton, QTextEdit, QVBoxLayout, QApplication
@@ -41,9 +39,9 @@ class AboutDialog(QDialog):
     def __init__(self, main_win):
         super().__init__(main_win)
         self.mw = main_win
-        with open(resources.files(extra) / "license.txt") as file:
-            license_text = file.read()
-        license_text = license_text.replace("\n", "<br>")
+        # with open(resources.files(extra) / "license.txt") as file:
+        #     license_text = file.read()
+        # license_text = license_text.replace("\n", "<br>")
         text = (
             "<h1>MNE-Pipeline HD</h1>"
             "<b>A Pipeline-GUI for MNE-Python</b><br>"
@@ -68,7 +66,7 @@ class AboutDialog(QDialog):
             "<a href=https://github.com/5yutan5/PyQtDarkTheme>"
             "pyqtdarktheme</a><br>"
             "<br>"
-            "<b>Licensed under:</b><br>" + license_text
+            # "<b>Licensed under:</b><br>" + license_text
         )
 
         layout = QVBoxLayout()

@@ -1,17 +1,7 @@
 """
 Authors: Martin Schulz <dev@mgschulz.de>
 License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
-
-Simplified settings management.
-
-Key guarantees:
-- Abrupt termination will not corrupt settings.
-- Atomic writes via temp file + os.replace.
-- Backward compatibility: value/setValue/childKeys/remove/get_default still work.
-
-Environment overrides:
-- MNENODES_SETTINGS_DIR: custom directory or explicit settings.json path.
+GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json

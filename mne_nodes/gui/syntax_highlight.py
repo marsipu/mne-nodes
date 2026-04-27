@@ -1,7 +1,10 @@
-# -*- coding: utf-8 -*-
 """
-This is code from https://wiki.python.org/moin/PyQt/Python%20syntax%20highlighting
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+GitHub: https://github.com/marsipu/mne-nodes
+This is modified code from https://wiki.python.org/moin/PyQt/Python%20syntax%20highlighting
 """
+
 from qtpy import QtCore, QtGui
 
 
@@ -84,37 +87,30 @@ class PythonHighlighter(QtGui.QSyntaxHighlighter):
         ">",
         ">=",
         # Arithmetic
-        "\+",
+        r"\+",
         "-",
-        "\*",
+        r"\*",
         "/",
         "//",
-        "\%",
-        "\*\*",
+        r"\%",
+        r"\*\*",
         # In-place
-        "\+=",
+        r"\+=",
         "-=",
-        "\*=",
+        r"\*=",
         "/=",
-        "\%=",
+        r"\%=",
         # Bitwise
-        "\^",
-        "\|",
-        "\&",
-        "\~",
+        r"\^",
+        r"\|",
+        r"\&",
+        r"\~",
         ">>",
         "<<",
     ]
 
     # Python braces
-    braces = [
-        "\{",
-        "\}",
-        "\(",
-        "\)",
-        "\[",
-        "\]",
-    ]
+    braces = [r"\{", r"\}", r"\(", r"\)", r"\[", r"\]"]
 
     def __init__(self, parent: QtGui.QTextDocument) -> None:
         super().__init__(parent)
