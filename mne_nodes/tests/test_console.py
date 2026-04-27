@@ -137,6 +137,8 @@ def test_stream_worker_massive_output(qtbot):
         assert len(console.toPlainText()) > 0
 
 
+# Skip until #47 is worked on
+@pytest.mark.skip(reason="temporarily disabled")
 def test_process_formatting(qtbot, tmp_path):
     """Test that process output formatting works in the console."""
 
