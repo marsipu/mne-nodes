@@ -11,7 +11,7 @@ from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
 from mne_nodes.gui.base_widgets import SimpleDialog
 from mne_nodes.gui.code_editor import CodeEditorWidget
-from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
 from qtpy.QtWidgets import (
     QScrollArea,
@@ -204,11 +204,20 @@ class FunctionNode(BaseNode):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
         func_meta = self.ct.get_function_meta(self.name)
-        file_path = self.ct.module_meta[func_meta["module"]]["module"]
-        editor_widget = CodeEditorWidget(file_section=(start, end), file_path=file_path)
-        editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
-        SimpleDialog(editor_widget)
-        # ToDo: Get function
+        module_meta = self.ct.settings.get("module_meta", {})
+        if func_meta["module"] in module_meta:
+            file_path = module_meta[func_meta["module"]]["path"]
+            editor_widget = CodeEditorWidget(
+                file_section=(start, end), file_path=file_path
+            )
+            editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
+            SimpleDialog(editor_widget)
+        else:
+            raise_user_attention(
+                "Source code not available for this function.",
+                message_type="information",
+                parent=self,
+            )
 
 
 class AssignmentNode(BaseNode):
