@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -24,7 +23,7 @@ from importlib.metadata import version
 # # Import module because of annoying import problem on CIs
 from mne_nodes.gui import parameter_widgets
 
-module_list = list()
+module_list = []
 module_list.append(parameter_widgets)
 
 # -- Project information -----------------------------------------------------
@@ -34,7 +33,7 @@ author = "Martin G. Schulz"
 td = datetime.now(tz=timezone.utc)
 copyright = (
     f"2019-{datetime.now().year}, {author}, "
-    f'Last updated {td.strftime("%Y-%m-%d %H:%M %Z")}'
+    f"Last updated {td.strftime('%Y-%m-%d %H:%M %Z')}"
 )
 
 # The full version, including alpha/beta/rc tags
@@ -70,14 +69,10 @@ html_theme_options = {
             name="GitHub",
             url="https://github.com/marsipu/mne-nodes",
             icon="fa-brands fa-square-github fa-fw",
-        ),
+        )
     ],
     "icon_links_label": "External Links",
-    "navbar_end": [
-        "theme-switcher",
-        "version-switcher",
-        "navbar-icon-links",
-    ],
+    "navbar_end": ["theme-switcher", "version-switcher", "navbar-icon-links"],
     "navbar_align": "left",
     "navbar_persistent": ["search-button"],
     "footer_start": ["copyright"],
