@@ -14,7 +14,6 @@ from qtpy.QtWidgets import QApplication
 
 import mne_nodes
 from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
-from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.streams import init_streams, init_logging
@@ -63,6 +62,10 @@ def main() -> None:
 
     # Initialize controller and main window
     controller = Controller()
+
+    # Late import of MainWindow, since importing it at the top-level seems to cause Windows fatal access errors when opening dialogs in some cases.
+    from mne_nodes.gui.main_window import MainWindow
+
     MainWindow(controller)
 
     # Command-Line interrupt with Ctrl+C possible

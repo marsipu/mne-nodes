@@ -7,12 +7,17 @@ GitHub: https://github.com/marsipu/mne-nodes
 import mne
 from qtpy.QtCore import QProcess, Signal, Qt
 from qtpy.QtGui import QAction, QKeySequence
-from qtpy.QtWidgets import QApplication, QMainWindow, QMessageBox
+from qtpy.QtWidgets import QApplication, QMainWindow
 
 from mne_nodes import _widgets, iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
-from mne_nodes.gui.gui_utils import center, set_ratio_geometry
+from mne_nodes.gui.gui_utils import (
+    ask_user,
+    center,
+    information_message,
+    set_ratio_geometry,
+)
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.pipeline.execution import ProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
@@ -130,8 +135,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"MNE-Nodes - {self._controller.name}")
         self.viewer.ct = controller
         self.console_dock.ct = controller
-        if hasattr(self, "node_picker") and self.node_picker is not None:
-            self.node_picker.ct = controller
 
     # ------------------------------------------------------------------
     # Actions
@@ -149,12 +152,11 @@ class MainWindow(QMainWindow):
         else:
             command = "pip install https://github.com/marsipu/mne-nodes/zipball/main"
         if iswin and not _run_from_script():
-            QMessageBox.information(
-                self,
-                "Manual install required!",
-                f"To update you need to exit the program "
-                f'and type "{command}" into the terminal!',
+            information_message(
+                f"Manual install required! To update you need to exit the program and type '{command}' into the terminal!",
+                parent=self,
             )
+
         else:
             # Register with controller for central tracking
             ProcessDialog(
@@ -167,13 +169,11 @@ class MainWindow(QMainWindow):
                 blocking=True,
             )
 
-            answer = QMessageBox.question(
-                self,
-                "Do you want to restart?",
-                "Please restart the Pipeline-Program "
-                "to apply the changes from the Update!",
+            ans = ask_user(
+                "Do you want to restart? Please restart the Pipeline-Program to apply the changes from the Update!",
+                parent=self,
             )
-            if answer == QMessageBox.StandardButton.Yes:
+            if ans:
                 self.restart()
 
     def update_mne(self):
@@ -188,12 +188,11 @@ class MainWindow(QMainWindow):
             blocking=True,
         )
 
-        answer = QMessageBox.question(
-            self,
-            "Do you want to restart?",
-            "Please restart the Pipeline-Program to apply the changes from the Update!",
+        ans = ask_user(
+            "Do you want to restart? Please restart the Pipeline-Program to apply the changes from the Update!",
+            parent=self,
         )
-        if answer == QMessageBox.StandardButton.Yes:
+        if ans:
             self.restart()
 
     def show_sys_info(self):

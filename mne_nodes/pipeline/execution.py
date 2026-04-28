@@ -18,11 +18,10 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QHBoxLayout,
     QPushButton,
-    QMessageBox,
 )
 
 from mne_nodes.gui.console import MainConsoleWidget, ConsoleWidget
-from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
 from mne_nodes.pipeline.exception_handling import get_exception_tuple, ExceptionTuple
 
 
@@ -208,10 +207,9 @@ class WorkerDialog(QDialog):
             self.deleteLater()
             event.accept()
         else:
-            QMessageBox.warning(
-                self,
-                "Closing not possible!",
-                "You can't close this Dialog before this Thread finished!",
+            warning_message(
+                "Closing not possible! You can't close this Dialog before this Thread finished!",
+                parent=self,
             )
             event.ignore()
 
@@ -393,8 +391,7 @@ class ProcessDialog(QDialog):
             event.accept()
         else:
             event.ignore()
-            QMessageBox.warning(
-                self,
-                "Closing not possible!",
-                "You can't close the Dialog before this Process finished!",
+            warning_message(
+                "Closing not possible! You can't close this Dialog before this Process finished!",
+                parent=self,
             )

@@ -10,7 +10,6 @@ from os import mkdir
 from os.path import isdir
 from pathlib import Path
 
-import mne
 import numpy as np
 import pytest
 
@@ -52,7 +51,6 @@ alternative_test_parameters = {
     "path": Path().home() / "test_path",
 }
 
-test_data_path = mne.datasets.testing.data_path()
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"
 
 

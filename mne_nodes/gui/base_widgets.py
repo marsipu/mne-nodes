@@ -44,7 +44,6 @@ from mne_nodes.gui.models import (
     EditDictModel,
     EditListModel,
     EditPandasModel,
-    FileManagementModel,
     ShallowTreeModel,
     TreeModel,
     CheckListProgressModel,
@@ -1302,35 +1301,6 @@ class EditPandasTable(BasePandasTable):
         )
         if text is not None:
             self.model.setHeaderData(column, Qt.Orientation.Horizontal, text)
-
-
-class FilePandasTable(BasePandasTable):
-    """A Widget to display the files in a table (stored in a pandas DataFrame)
-
-    Parameters
-    ----------
-    data : pandas.DataFrame | None
-        Input a pandas DataFrame with contents to display
-    parent : QWidget | None
-        Parent Widget (QWidget or inherited) or None if there is no parent
-    title : str | None
-        An optional title
-
-    Notes
-    -----
-    If you change the Reference to data outside of this class,
-    give the changed DataFrame to replace_data to update this widget
-    """
-
-    def __init__(self, data=None, parent=None, title=None):
-        super().__init__(
-            model=FileManagementModel(data),
-            view=QTableView(),
-            parent=parent,
-            title=title,
-            resize_rows=True,
-            resize_columns=True,
-        )
 
 
 class TreeWidget(Base):

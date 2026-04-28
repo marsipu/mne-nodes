@@ -11,8 +11,6 @@ import os
 import sys
 from pathlib import Path
 
-import psutil
-
 from mne_nodes import ismac, iswin, islin
 
 
@@ -149,6 +147,8 @@ def restart_program():
     """Restarts the current program, with file objects and descriptors
     cleanup."""
     logging.info("Restarting")
+    import psutil
+
     try:
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():

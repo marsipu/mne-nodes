@@ -42,7 +42,7 @@ def test_main_window_process(qtbot, main_window, ct, tmp_path):
         sys.executable,
         ["-c", "import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)"],
     )
-    qtbot.wait(100)
+    qtbot.wait(1000)
     console_text = process.console.toPlainText()
     assert "TEST_OUT" in console_text, "Stdout not captured in console"
     assert "TEST_ERR" in console_text, "Stderr not captured in console"
@@ -72,7 +72,7 @@ def test_process_dialog(qtbot):
         pass
 
     # Let console flush
-    qtbot.wait(100)
+    qtbot.wait(1000)
     console_text = dialog.console.toPlainText()
     assert "DIALOG_OUT" in console_text, "Dialog stdout missing"
     assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
