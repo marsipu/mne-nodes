@@ -21,7 +21,6 @@ from importlib.metadata import version
 # sys.path.append(abspath(join(curdir, "..", "..", "mne_nodes")))
 
 # # Import module because of annoying import problem on CIs
-from mne_nodes.gui import parameter_widgets
 
 # -- Project information -----------------------------------------------------
 project = "mne-nodes"
