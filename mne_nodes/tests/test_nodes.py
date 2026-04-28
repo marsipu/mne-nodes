@@ -6,13 +6,11 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from pprint import pprint
 
-import pytest
 from qtpy.QtCore import QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
-from mne_nodes.gui.node.node_viewer import NodeViewer
 
 
 def test_nodes_basic_interaction(nodeviewer):
@@ -46,8 +44,6 @@ def test_nodes_basic_interaction(nodeviewer):
     assert not port1.connected(port2)
 
 
-# ToDo: Until issue #46 is fixed
-@pytest.mark.skip(reason="temporarily disabled")
 def test_node_serialization(nodeviewer):
     """Test serialization and deserialization of NodeViewer."""
     viewer_dict = nodeviewer.to_dict()
@@ -72,6 +68,8 @@ def test_show_nodeviewer(nodeviewer):
 
 
 def test_exec_order(qtbot, ct):
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
     viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
     _add_complex_nodes(viewer)
@@ -112,6 +110,8 @@ def test_multiple_func_nodes(nodeviewer):
 
 
 def test_node_resizes_and_autolayouts_on_proxywidget_resize(qtbot, ct):
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
     nodeviewer = NodeViewer(ct)
     qtbot.addWidget(nodeviewer)
     node_a = nodeviewer.add_function_node("filter_bandpass")
