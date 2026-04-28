@@ -215,7 +215,7 @@ class FunctionNode(BaseNode):
         else:
             raise_user_attention(
                 "Source code not available for this function.",
-                message_type="information",
+                message_type="info",
                 parent=self,
             )
 

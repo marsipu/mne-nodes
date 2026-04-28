@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
                 blocking=True,
             )
 
-            ans, _ = ask_user(
+            ans = ask_user(
                 "Do you want to restart? Please restart the Pipeline-Program to apply the changes from the Update!",
                 parent=self,
             )
@@ -188,7 +188,7 @@ class MainWindow(QMainWindow):
             blocking=True,
         )
 
-        ans, _ = ask_user(
+        ans = ask_user(
             "Do you want to restart? Please restart the Pipeline-Program to apply the changes from the Update!",
             parent=self,
         )

@@ -34,6 +34,8 @@ from qtpy.QtWidgets import (
     QTabBar,
 )
 
+from mne_nodes.pipeline.streams import init_streams
+
 
 # ---------------------------------------------------------------------------
 # Stream worker (decoding + progress detection)
@@ -272,10 +274,13 @@ class ConsoleWidget(QPlainTextEdit):
 class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
-        stdout_stream = sys.stdout
-        stderr_stream = sys.stderr
-        stdout_stream.signal.text_written.connect(self.push_stdout)
-        stderr_stream.signal.text_written.connect(self.push_stderr)
+        if not hasattr(sys.stdout, "signal") or not hasattr(sys.stderr, "signal"):
+            logging.warning(
+                "Streams have not been initialized as Qt-objects yet, initializing them now."
+            )
+            init_streams()
+        sys.stdout.signal.text_written.connect(self.push_stdout)
+        sys.stderr.signal.text_written.connect(self.push_stderr)
 
 
 # ---------------------------------------------------------------------------
