@@ -17,16 +17,16 @@ To visualize the data-flow a node-based approach is used.
 
    or
 
-    - Install the development version with `pip install git+https://github.com/marsipu/mne_nodes.git@main`
+    - Install the development version with `pip install git+https://github.com/marsipu/mne-nodes.git@main`
 
 
 ## Update
-Run `pip install --upgrade --no-deps --force-reinstall git+https://github.com/marsipu/mne_nodes.git@main`
+Run `pip install --upgrade --no-deps --force-reinstall git+https://github.com/marsipu/mne-nodes.git@main`
 for an update to the development version
 or `pip install --upgrade mne-nodes` for the latest release.
 
 ## Start
-Run `mne_nodes` in the terminal your conda-environment where you installed mne-python and mne-nodes
+Run `mne_nodes` in the terminal of your conda-environment where you installed mne-python and mne-nodes
 
 **or**
 

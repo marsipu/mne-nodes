@@ -13,7 +13,7 @@ All analysis logic should be implemented in separate, importable Python modules/
 3. Clone **your forked repository** with git from a
    terminal: `git clone <url you get from the green clone-button from your forked repository on GitHub>`
 4. Add a remote branch _upstream_ to git for
-   updates from the main-branch: `git remote add upstream git://github.com/marsipu/mne-nodes.git`
+   updates from the main-branch: `git remote add upstream https://github.com/marsipu/mne-nodes.git`
 5. Install your forked version including development dependencies with pip: `pip install -e .[test,docs]`
 6. Install the pre-commit hooks with: `pre-commit install`
 

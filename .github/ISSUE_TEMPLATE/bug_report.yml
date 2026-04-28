@@ -25,6 +25,5 @@ body:
       render: shell
   - type: markdown
     attributes:
-      value: "# How to get system information?
-
-      Please run `python -c 'import mne; mne.sys_info()'` and paste the result into the field above."
+      value: "# How to get system information? \n\n
+             Please run `python -c 'import mne; mne.sys_info()'` and paste the result into the field above."
