@@ -132,6 +132,15 @@ class InputNode(BaseNode):
         self.update_widgets()
 
     def update_widgets(self):
+        existing_outputs = {
+            port.name: {
+                "multi_connection": port.multi_connection,
+                "accepted_ports": port.accepted_ports,
+                "old_id": port.old_id,
+            }
+            for port in self.outputs
+        }
+
         # Set name to dataset name if available
         dataset_name = self.ct.get_dataset_name()
         if dataset_name is not None:
@@ -151,11 +160,16 @@ class InputNode(BaseNode):
         # Add data-types as outputs
         data_types = get_datatypes(self.ct.bids_root)
         for dt in data_types:
-            accepted = [dt]
-            if dt in self.ct.raw_types:
+            port_kwargs = existing_outputs.get(dt, {})
+            accepted = port_kwargs.get("accepted_ports") or [dt]
+            if dt in self.ct.raw_types and "raw" not in accepted:
                 accepted.append("raw")
             self.add_output(
-                dt, multi_connection=True, accepted_ports=accepted, warn_existing=False
+                dt,
+                multi_connection=port_kwargs.get("multi_connection", True),
+                accepted_ports=accepted,
+                old_id=port_kwargs.get("old_id"),
+                warn_existing=False,
             )
 
 

@@ -50,7 +50,16 @@ def test_node_serialization(nodeviewer):
     nodeviewer.clear()
     nodeviewer.from_dict(viewer_dict)
     second_viewer_dict = nodeviewer.to_dict()
+
+    input_node = nodeviewer.input_node
+    function_node = nodeviewer.node(node_name="filter_bandpass")
+
     assert len(viewer_dict["nodes"]) == len(second_viewer_dict["nodes"])
+    assert input_node is not None
+    assert function_node is not None
+    assert input_node.output(port_name="eeg").connected(
+        function_node.input(port_name="raw")
+    )
 
 
 def test_show_nodeviewer(nodeviewer):

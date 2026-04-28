@@ -358,11 +358,10 @@ class NodeViewer(QGraphicsView):
         **kwargs : dict
             Keyword arguments to find node with self.node by index, name, or id.
         """
-        if isinstance(node, InputNode):
-            logging.info("Removing the input node is not allowed.")
-            return
         if node is None:
-            self.node(**kwargs)
+            node = self.node(**kwargs)
+        if node is None:
+            return
         # Remove connected pipes
         for port in node.ports:
             for connected_port in port.connected_ports:
@@ -378,6 +377,9 @@ class NodeViewer(QGraphicsView):
             function_name = node.name
             if function_name in self.function_nodes:
                 del self.function_nodes[function_name]
+        elif isinstance(node, InputNode):
+            self._input_node = None
+            return
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
