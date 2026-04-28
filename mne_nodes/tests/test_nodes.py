@@ -51,6 +51,43 @@ def test_nodes_basic_interaction(nodeviewer):
     )
     assert port1.connected(port2)
 
+    # Reverse drag direction should also create the connection reliably,
+    # including a slightly imprecise drop near the target port.
+    port1.disconnect_from(port2)
+    assert not port1.connected(port2)
+    near_out1_pos = QPointF(out1_pos.x() + 6, out1_pos.y() + 4)
+    mouseDrag(
+        widget=nodeviewer.viewport(),
+        positions=[in2_pos, near_out1_pos],
+        button=Qt.MouseButton.LeftButton,
+    )
+    assert port1.connected(port2)
+
+
+def test_nodes_click_to_click_connection(nodeviewer, qtbot):
+    node1 = nodeviewer.input_node
+    node2 = nodeviewer.node(node_name="filter_bandpass")
+    out_port = node1.output(port_idx=0)
+    in_port = node2.input(port_name="raw")
+
+    # Start from a disconnected state.
+    if out_port.connected(in_port):
+        out_port.disconnect_from(in_port)
+    assert not out_port.connected(in_port)
+
+    out_pos = nodeviewer.port_position_view(port_type="out", port_idx=0, node_idx=0)
+    in_pos = nodeviewer.port_position_view(port_type="in", port_idx=0, node_idx=1)
+
+    # Click source port, then click target port (no drag).
+    qtbot.mouseClick(
+        nodeviewer.viewport(), Qt.MouseButton.LeftButton, pos=out_pos.toPoint()
+    )
+    qtbot.mouseClick(
+        nodeviewer.viewport(), Qt.MouseButton.LeftButton, pos=in_pos.toPoint()
+    )
+
+    assert out_port.connected(in_port)
+
 
 def test_node_serialization(nodeviewer):
     """Test serialization and deserialization of NodeViewer."""
@@ -73,9 +110,10 @@ def test_node_serialization(nodeviewer):
     ) == len(input_node.ports)
 
 
-def test_show_nodeviewer(nodeviewer):
+def test_show_nodeviewer(nodeviewer, qtbot):
     """Test if NodeViewer can be shown."""
     nodeviewer.show()
+    qtbot.wait(10000)
     assert nodeviewer.isVisible()
 
     # Check if the viewport is correctly set

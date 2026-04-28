@@ -863,8 +863,7 @@ class NodeViewer(QGraphicsView):
             self._rubber_band.setGeometry(rect)
             self._rubber_band.isActive = True
 
-        if not self._LIVE_PIPE.isVisible():
-            super().mousePressEvent(event)
+        super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1238,12 +1237,21 @@ class NodeViewer(QGraphicsView):
 
         self._start_port.hovered = False
 
-        # find the end port.
+        # find the end port with tolerance and parent traversal so dropping
+        # on labels/children still resolves to the parent port.
         end_port = None
         for item in self.scene().items(event.scenePos()):
-            if self.isport(item):
-                end_port = item
+            candidate = self._port_from_item(item)
+            if candidate is not None:
+                end_port = candidate
                 break
+
+        if end_port is None:
+            for item in self._items_near(event.scenePos(), 12, 12):
+                candidate = self._port_from_item(item)
+                if candidate is not None:
+                    end_port = candidate
+                    break
 
         # if port disconnected from existing pipe.
         if end_port is None:
@@ -1266,8 +1274,17 @@ class NodeViewer(QGraphicsView):
             if self._start_port is end_port:
                 return
 
+        # Normalize connection direction so compatibility is evaluated
+        # consistently as output -> input, independent of gesture direction.
+        if self._start_port.port_type == "out":
+            output_port = self._start_port
+            input_port = end_port
+        else:
+            output_port = end_port
+            input_port = self._start_port
+
         # constrain check
-        compatible = self._start_port.compatible(end_port, verbose=False)
+        compatible = output_port.compatible(input_port, verbose=True)
 
         # restore connection if ports are not compatible
         if not compatible:
@@ -1279,7 +1296,7 @@ class NodeViewer(QGraphicsView):
             return
 
         # end connection if starting port is already connected.
-        if self._start_port.multi_connection and self._start_port.connected(end_port):
+        if output_port.multi_connection and output_port.connected(input_port):
             self._detached_port = None
             self.end_live_connection()
             logging.debug("Target Port is already connected.")
@@ -1294,7 +1311,7 @@ class NodeViewer(QGraphicsView):
             self._start_port.disconnect_from(self._detached_port)
 
         # Make connection
-        self._start_port.connect_to(end_port)
+        output_port.connect_to(input_port)
 
         self._detached_port = None
         self.end_live_connection()
@@ -1314,12 +1331,21 @@ class NodeViewer(QGraphicsView):
         self._start_port = selected_port
         if self._start_port.port_type == "in":
             self._LIVE_PIPE.input_port = self._start_port
-        elif self._start_port == "out":
+        elif self._start_port.port_type == "out":
             self._LIVE_PIPE.output_port = self._start_port
         self._LIVE_PIPE.setVisible(True)
         self._LIVE_PIPE.draw_index_pointer(
             selected_port, self.mapToScene(self._origin_pos)
         )
+
+    def _port_from_item(self, item):
+        while item is not None:
+            if self.isport(item):
+                return item
+            if not hasattr(item, "parentItem"):
+                break
+            item = item.parentItem()
+        return None
 
     def end_live_connection(self):
         """Delete live connection pipe and reset start port.
