@@ -23,9 +23,6 @@ from importlib.metadata import version
 # # Import module because of annoying import problem on CIs
 from mne_nodes.gui import parameter_widgets
 
-module_list = []
-module_list.append(parameter_widgets)
-
 # -- Project information -----------------------------------------------------
 project = "mne-nodes"
 author = "Martin G. Schulz"
