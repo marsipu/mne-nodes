@@ -7,7 +7,7 @@ name = "mne-nodes"
 authors = [
     { name = "Martin G. Schulz", email = "dev@mgschulz.de" }
 ]
-description = "A GUI with Node-Layout for data analysis MNE-Python"
+description = "A GUI with Node-Layout for data analysis with MNE-Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
