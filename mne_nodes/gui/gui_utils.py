@@ -32,7 +32,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes import extra, _widgets, main_widget, gui_mode
+from mne_nodes import extra, gui_mode
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -69,7 +69,6 @@ def set_ratio_geometry(size_ratio, widget):
 
 
 def question_yes_no(prompt, cancel_allowed=True, parent=None):
-    parent = parent or main_widget()
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Question)
     box.setWindowTitle("Question")
@@ -90,7 +89,6 @@ def question_yes_no(prompt, cancel_allowed=True, parent=None):
 
 
 def information_message(message, parent=None):
-    parent = parent or main_widget()
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Information)
     box.setWindowTitle("Information")
@@ -100,7 +98,6 @@ def information_message(message, parent=None):
 
 
 def warning_message(message, parent=None):
-    parent = parent or main_widget()
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Warning)
     box.setWindowTitle("Warning")
@@ -110,7 +107,6 @@ def warning_message(message, parent=None):
 
 
 def error_message(message, parent=None):
-    parent = parent or main_widget()
     box = QMessageBox(parent)
     box.setIcon(QMessageBox.Icon.Critical)
     box.setWindowTitle("Error")
@@ -216,7 +212,6 @@ def ask_user_custom(
     second_label = button_labels[1]
 
     if gui_mode:
-        parent = parent or main_widget()
         msg_box = QMessageBox(parent)
         msg_box.setWindowTitle("Question")
         msg_box.setText(prompt)
@@ -713,7 +708,6 @@ def set_app_font_size(font_size=None):
 class ColorTester(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        _widgets["color_tester"] = self
         theme = Settings().get("app_theme")
         if theme == "auto":
             theme = _get_auto_theme()

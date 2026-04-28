@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 from copy import deepcopy
 
 from mne_bids import BIDSPath, get_datatypes, get_entity_vals
-from mne_nodes import main_widget
 from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
 from mne_nodes.gui.base_widgets import SimpleDialog
@@ -206,9 +205,7 @@ class FunctionNode(BaseNode):
         func_code, start, end = self.ct.get_function_code(self.name)
         func_meta = self.ct.get_function_meta(self.name)
         file_path = self.ct.module_meta[func_meta["module"]]["module"]
-        editor_widget = CodeEditorWidget(
-            main_widget(), file_section=(start, end), file_path=file_path
-        )
+        editor_widget = CodeEditorWidget(file_section=(start, end), file_path=file_path)
         editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
         SimpleDialog(editor_widget)
         # ToDo: Get function

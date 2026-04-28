@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import os
 import sys
 
@@ -22,21 +21,6 @@ gui_mode = True
 # Check if running in debug mode
 def debug_mode():
     return os.environ.get("MNENODES_DEBUG", False) == "true"
-
-
-def main_widget():
-    from qtpy.QtWidgets import QApplication
-
-    if _widgets["main_window"] is not None:
-        return _widgets["main_window"]
-    else:
-        logging.debug("MainWindow hasn't been initialized yet!")
-        active_window = QApplication.activeWindow()
-        if active_window is not None:
-            return active_window
-        else:
-            logging.debug("There is no active window!")
-            return None
 
 
 # Keep reference to Qt-objects without parent for tests
