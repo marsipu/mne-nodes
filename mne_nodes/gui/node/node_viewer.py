@@ -1071,6 +1071,8 @@ class NodeViewer(QGraphicsView):
             # delete selected nodes and pipes
             for node in self.selected_nodes():
                 self.remove_node(node)
+            for pipe in self.selected_pipes():
+                pipe.input_port.disconnect_from(pipe.output_port)
             return
 
         if self._LIVE_PIPE.isVisible():
@@ -1205,22 +1207,9 @@ class NodeViewer(QGraphicsView):
                 self._node_positions[n] = n.xy_pos
 
         if pipe:
-            if not self.LMB_state:
-                return
-
-            from_port = pipe.port_from_pos(pos, True)
-            from_port.hovered = True
-
-            attr = {"in": "input_port", "out": "output_port"}
-            self._detached_port = getattr(pipe, attr[from_port.port_type])
-            self.start_live_connection(from_port)
-            self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos)
-
-            if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
-                self._LIVE_PIPE.shift_selected = True
-                return
-
-            pipe.delete()
+            # Just let Qt handle pipe selection via super().mousePressEvent()
+            # in NodeScene. Deletion is handled by the Del key.
+            return
 
     def sceneMouseReleaseEvent(self, event):
         """Handle mouse release event for the scene.

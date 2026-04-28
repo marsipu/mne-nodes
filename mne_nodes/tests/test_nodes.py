@@ -43,6 +43,13 @@ def test_nodes_basic_interaction(nodeviewer):
     )
     # Check if connection was sliced
     assert not port1.connected(port2)
+    # Connect again and check if connection is visible
+    mouseDrag(
+        widget=nodeviewer.viewport(),
+        positions=[out1_pos, in2_pos],
+        button=Qt.MouseButton.LeftButton,
+    )
+    assert port1.connected(port2)
 
 
 def test_node_serialization(nodeviewer):
