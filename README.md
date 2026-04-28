@@ -5,6 +5,8 @@
 # mne-nodes
 ![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/mne_nodes/extra/wip_overview.png "Overview of the mne-nodes GUI")
 
+# This application is still in early development and not production-ready for real-world analysis
+
 ## A Node-GUI for [MNE-Python](https://mne.tools/stable/index.html)
 This is a GUI to facilitate offline MEG/EEG data processing with MNE-python.
 To visualize the data-flow a node-based approach is used.
