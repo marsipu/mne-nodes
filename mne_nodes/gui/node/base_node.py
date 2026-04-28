@@ -319,8 +319,14 @@ class BaseNode(QGraphicsItem):
 
     def remove_port(self, port=None, **port_kwargs):
         port = port or self.port(**port_kwargs)
+        if port is None:
+            return
+        port.clear_connections()
         ports = self._inputs if port.port_type == "in" else self._outputs
         ports.pop(port.id)
+        port.setParentItem(None)
+        if port.scene() is not None:
+            port.scene().removeItem(port)
         if self.scene():
             self.draw_node()
 

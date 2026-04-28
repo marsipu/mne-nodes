@@ -11,6 +11,7 @@ from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
+from mne_nodes.gui.node.ports import Port
 
 
 def test_nodes_basic_interaction(nodeviewer):
@@ -60,6 +61,9 @@ def test_node_serialization(nodeviewer):
     assert input_node.output(port_name="eeg").connected(
         function_node.input(port_name="raw")
     )
+    assert len(
+        [item for item in input_node.childItems() if isinstance(item, Port)]
+    ) == len(input_node.ports)
 
 
 def test_show_nodeviewer(nodeviewer):
