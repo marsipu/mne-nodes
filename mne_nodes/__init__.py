@@ -30,12 +30,12 @@ def main_widget():
     if _widgets["main_window"] is not None:
         return _widgets["main_window"]
     else:
-        logging.warning("MainWindow hasn't been initialized yet!")
+        logging.debug("MainWindow hasn't been initialized yet!")
         active_window = QApplication.activeWindow()
         if active_window is not None:
             return active_window
         else:
-            logging.warning("There is no active window!")
+            logging.debug("There is no active window!")
             return None
 
 

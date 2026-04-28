@@ -14,18 +14,17 @@ from os.path import join
 from pathlib import Path
 
 import darkdetect
-from qtpy import compat
 from qtpy.QtCore import QEvent, QPoint, Qt
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
     QApplication,
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
-    QStyle,
     QInputDialog,
     QColorDialog,
     QFormLayout,
@@ -69,8 +68,55 @@ def set_ratio_geometry(size_ratio, widget):
     return width, height
 
 
-def get_std_icon(icon_name):
-    return QApplication.instance().style().standardIcon(getattr(QStyle, icon_name))
+def question_yes_no(prompt, cancel_allowed=True, parent=None):
+    parent = parent or main_widget()
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setWindowTitle("Question")
+    box.setText(prompt)
+    if cancel_allowed:
+        buttons = (
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel
+        )
+    else:
+        buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+    box.setStandardButtons(buttons)
+    box.exec()
+    ans = box.result() == QMessageBox.StandardButton.Yes
+    cancel = box.result() == QMessageBox.StandardButton.Cancel
+    return ans, cancel
+
+
+def information_message(message, parent=None):
+    parent = parent or main_widget()
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setWindowTitle("Information")
+    box.setText(message)
+    box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    box.exec()
+
+
+def warning_message(message, parent=None):
+    parent = parent or main_widget()
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle("Warning")
+    box.setText(message)
+    box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    box.exec()
+
+
+def error_message(message, parent=None):
+    parent = parent or main_widget()
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle("Error")
+    box.setText(message)
+    box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    box.exec()
 
 
 def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
@@ -83,27 +129,18 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     ----------
     prompt : str
         The prompt message to display to the user.
-    cancel_allowed : bool, optional
+    cancel_allowed : bool
         If True, allows the user to cancel the operation. Defaults to True.
-    close_on_cancel : bool, optional
+    close_on_cancel : bool
         If True, the app exits after cancel. Defaults to False.
     parent : QWidget | None, optional
         Set the parent of the modal widget.
     """
     if gui_mode:
-        parent = parent or main_widget()
-        if cancel_allowed:
-            buttons = (
-                QMessageBox.StandardButton.Yes
-                | QMessageBox.StandardButton.No
-                | QMessageBox.StandardButton.Cancel
-            )
-        else:
-            buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        ans = QMessageBox.question(parent, "Question", prompt, buttons=buttons)
-        ok = ans in [QMessageBox.StandardButton.Yes, QMessageBox.StandardButton.No]
-        cancel = ans == QMessageBox.StandardButton.Cancel
-        ans = ans == QMessageBox.StandardButton.Yes
+        ans, cancel = question_yes_no(
+            prompt, cancel_allowed=cancel_allowed, parent=parent
+        )
+        ok = True
     else:
         if cancel_allowed:
             prompt += " (yes/no/cancel): "
@@ -122,17 +159,14 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
             logging.info("User cancelled the operation.")
             return None
     if not ok or ans is None:
-        warning_message = (
-            "You need to provide an appropriate input to proceed (yes/n or no/n)!"
-        )
+        message = "You need to provide an appropriate input to proceed (yes/n or no/n)!"
     else:
-        warning_message = None
-    if warning_message is not None:
+        message = None
+    if message is not None:
         if gui_mode:
-            parent = main_widget()
-            QMessageBox().warning(parent, "Warning", warning_message)
+            warning_message(message, parent=parent)
         else:
-            logging.warning(warning_message)
+            logging.warning(message)
         return ask_user(prompt)
 
     return ans
@@ -237,23 +271,22 @@ def ask_user_custom(
             return None
     if not ok or ans is None:
         if len(button_labels) == 2:
-            warning_message = (
+            message = (
                 "You need to provide an appropriate input to proceed "
                 f"({first_label} or {second_label})!"
             )
         else:
-            warning_message = (
+            message = (
                 "You need to provide an appropriate input to proceed "
                 f"({', '.join(button_labels)})!"
             )
     else:
-        warning_message = None
-    if warning_message is not None:
+        message = None
+    if message is not None:
         if gui_mode:
-            parent = main_widget()
-            QMessageBox().warning(parent, "Warning", warning_message)
+            warning_message(message, parent=parent)
         else:
-            logging.warning(warning_message)
+            logging.warning(message)
         return ask_user_custom(
             prompt,
             buttons=button_labels,
@@ -264,6 +297,44 @@ def ask_user_custom(
     if len(button_labels) == 2:
         return ans == first_label
     return ans
+
+
+def _get_text_input(prompt, parent=None, title="Input String!"):
+    dialog = QInputDialog(parent)
+    dialog.setInputMode(QInputDialog.InputMode.TextInput)
+    dialog.setWindowTitle(title)
+    dialog.setLabelText(prompt)
+
+    ok = dialog.exec() == QDialog.DialogCode.Accepted
+    text = dialog.textValue() if ok else ""
+    return text, ok
+
+
+def _get_existing_directory(prompt, parent=None):
+    dialog = QFileDialog(parent, prompt)
+    dialog.setFileMode(QFileDialog.FileMode.Directory)
+    dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+
+    ok = dialog.exec() == QDialog.DialogCode.Accepted
+    if not ok:
+        return "", False
+
+    selected = dialog.selectedFiles()
+    return (selected[0] if selected else ""), True
+
+
+def _get_open_file(prompt, parent=None, file_filter=None):
+    dialog = QFileDialog(parent, prompt)
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+    if file_filter:
+        dialog.setNameFilter(file_filter)
+
+    ok = dialog.exec() == QDialog.DialogCode.Accepted
+    if not ok:
+        return "", False
+
+    selected = dialog.selectedFiles()
+    return (selected[0] if selected else ""), True
 
 
 def get_user_input(
@@ -308,14 +379,14 @@ def get_user_input(
         f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
     )
     if gui_mode:
-        parent = parent or main_widget()
         if input_type == "string":
-            user_input, ok = QInputDialog.getText(parent, "Input String!", prompt)
+            user_input, ok = _get_text_input(prompt, parent=parent)
         elif input_type == "folder":
-            user_input = compat.getexistingdirectory(parent, prompt)
-            ok = user_input != ""
+            user_input, ok = _get_existing_directory(prompt, parent=parent)
         elif input_type == "file":
-            user_input, ok = compat.getopenfilename(parent, prompt, filters=file_filter)
+            user_input, ok = _get_open_file(
+                prompt, parent=parent, file_filter=file_filter
+            )
         else:
             raise ValueError(type_error_message)
     else:
@@ -335,7 +406,7 @@ def get_user_input(
             )
         else:
             raise ValueError(type_error_message)
-        ok = user_input.lower() not in ["cancel", "c"]
+        ok = user_input is not None and user_input.lower() not in ["cancel", "c"]
     if cancel_allowed and not ok:
         if exit_on_cancel:
             logging.info("User canceled, closing app.")
@@ -368,13 +439,12 @@ def get_user_input(
 def raise_user_attention(message, message_type="warning", parent=None):
     """Raise a message to the user, either as a warning or an error."""
     if gui_mode:
-        parent = parent or main_widget()
         if message_type == "warning":
-            QMessageBox().warning(parent, "Warning", message)
+            warning_message(message, parent=parent)
         elif message_type == "error":
-            QMessageBox().critical(parent, "Error", message)
+            error_message(message, parent=parent)
         elif message_type == "info":
-            QMessageBox().information(parent, "Information", message)
+            information_message(message, parent=parent)
         else:
             raise ValueError(f"Unknown message type: {message_type}")
     if message_type == "warning":

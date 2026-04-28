@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import logging
 from ast import literal_eval
-from datetime import datetime
 
 import pandas as pd
 from qtpy.QtCore import (
@@ -15,11 +14,8 @@ from qtpy.QtCore import (
     QAbstractTableModel,
     QModelIndex,
     Qt,
-    QMimeData,
 )
-from qtpy.QtGui import QBrush, QFont
-
-from mne_nodes.gui.gui_utils import get_std_icon
+import qtawesome as qta
 
 
 # ToDo: Merge models and base widgets
@@ -235,8 +231,8 @@ class CheckDictModel(BaseListModel):
 
     Notes
     -----
-    Names for QT standard-icons:
-    https://doc.qt.io/qt-5/qstyle.html#StandardPixmap-enum
+    Names for QT awesome icons:
+    https://github.com/spyder-ide/qtawesome
     """
 
     def __init__(
@@ -266,8 +262,8 @@ class CheckDictModel(BaseListModel):
         else:
             self._check_dict = check_dict
 
-        self.yes_bt = yes_bt or "SP_DialogApplyButton"
-        self.no_bt = no_bt or "SP_DialogCancelButton"
+        self.yes_bt = yes_bt or "fa5s.check"
+        self.no_bt = no_bt or "fa5s.times"
 
     def data(self, index, role=None):
         val = self.getData(index)
@@ -283,9 +279,9 @@ class CheckDictModel(BaseListModel):
             if val is None:
                 return None
             if val in self._check_dict:
-                return get_std_icon(self.yes_bt)
+                return qta.icon(self.yes_bt)
             else:
-                return get_std_icon(self.no_bt)
+                return qta.icon(self.no_bt)
 
 
 class CheckDictEditModel(CheckDictModel, EditListModel):
@@ -300,16 +296,16 @@ class CheckDictEditModel(CheckDictModel, EditListModel):
     show_index: bool
         Set True if you want to display the list-index in front of each value
     yes_bt: str
-        Supply the name for a qt-standard-icon to mark the items
+        Supply the name for a qt-awesome icon to mark the items
          existing in check_dict
     no_bt: str
-        Supply the name for a qt-standard-icon to mark the items
+        Supply the name for a qt-awesome icon to mark the items
         not existing in check_dict
 
     Notes
     -----
-    Names for QT standard-icons:
-    https://doc.qt.io/qt-5/qstyle.html#StandardPixmap-enum
+    Names for QT awesome icons:
+    https://github.com/spyder-ide/qtawesome
     """
 
     def __init__(self, data, check_dict, show_index=False, yes_bt=None, no_bt=None):
@@ -1091,300 +1087,3 @@ class ShallowTreeModel(TreeModel):
         if self._is_checkable_key(index):
             flags |= Qt.ItemFlag.ItemIsUserCheckable
         return flags
-
-
-class AddFilesModel(BasePandasModel):
-    def __init__(self, data, **kwargs):
-        super().__init__(data, **kwargs)
-
-    def data(self, index, role=None):
-        column = self._data.columns[index.column()]
-
-        if role == Qt.ItemDataRole.DisplayRole:
-            if column != "Empty-Room?":
-                return str(self.getData(index))
-            else:
-                return ""
-
-        elif role == Qt.ItemDataRole.CheckStateRole:
-            if column == "Empty-Room?":
-                if self.getData(index):
-                    return Qt.CheckState.Checked
-                else:
-                    return Qt.CheckState.Unchecked
-
-    def setData(self, index, value, role=None):
-        if (
-            role == Qt.ItemDataRole.CheckStateRole
-            and self._data.columns[index.column()] == "Empty-Room?"
-        ):
-            if value == Qt.CheckState.Checked:
-                self._data.iloc[index.row(), index.column()] = 1
-            else:
-                self._data.iloc[index.row(), index.column()] = 0
-            self.dataChanged.emit(index, index, [role])
-            return True
-
-        return False
-
-    def flags(self, index):
-        if self._data.columns[index.column()] == "Empty-Room?":
-            return (
-                QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsUserCheckable
-            )
-
-        return QAbstractItemModel.flags(self, index)
-
-
-class FileManagementModel(BasePandasModel):
-    """A model for the Pandas-DataFrames containing information about the
-    existing files."""
-
-    def __init__(self, data, **kwargs):
-        super().__init__(data, **kwargs)
-
-    def data(self, index, role=None):
-        value = self.getData(index)
-        if role == Qt.ItemDataRole.DisplayRole:
-            if pd.isna(value) or value in [
-                "existst",
-                "possible_conflict",
-                "critical_conflict",
-            ]:
-                pass
-            elif isinstance(value, datetime):
-                return value.strftime("%d.%m.%y %H:%M")
-            elif isinstance(value, float):
-                if value == 0:
-                    pass
-                elif value / 1024 < 1000:
-                    return f"{int(value / 1024)} KB"
-                else:
-                    return f"{int(value / (1024**2))} MB"
-
-        if role == Qt.ItemDataRole.DecorationRole:
-            if pd.isna(value) or value == 0:
-                return get_std_icon("SP_DialogCancelButton")
-            elif value == "exists":
-                return get_std_icon("SP_DialogApplyButton")
-            elif value == "possible_conflict":
-                return get_std_icon("SP_MessageBoxQuestion")
-            elif value == "critical_conflict":
-                return get_std_icon("SP_MessageBoxWarning")
-
-        elif role == Qt.ItemDataRole.BackgroundRole:
-            if pd.isna(value) or value == 0:
-                return QBrush(Qt.GlobalColor.darkRed)
-            elif value == "exists":
-                return QBrush(Qt.GlobalColor.green)
-            elif value == "possible_conflict":
-                return QBrush(Qt.GlobalColor.lightGray)
-            elif value == "critical_conflict":
-                return QBrush(Qt.GlobalColor.darkYellow)
-
-
-# ------------------------ NodePicker Models -------------------------------
-class PickerModel(BasePandasModel):
-    """Base model for NodePicker with common functionality.
-
-    Parameters
-    ----------
-    data : pandas.DataFrame | None
-        DataFrame with contents to be displayed, defaults to empty DataFrame.
-    """
-
-    def __init__(self, data=None, **kwargs):
-        if data is None:
-            data = pd.DataFrame([])
-        super().__init__(data, **kwargs)
-
-    def flags(self, index):
-        return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsDragEnabled
-
-    def mimeTypes(self):
-        return ["text/plain"]
-
-    def supportedDragActions(self):
-        return Qt.DropAction.CopyAction
-
-    def sort(self, column: int, order: Qt.SortOrder):
-        self.layoutAboutToBeChanged.emit()
-        self._data.sort_values(
-            self._data.columns[column],
-            axis=0,
-            inplace=True,
-            ascending=order == Qt.SortOrder.AscendingOrder,
-        )
-        self.layoutChanged.emit()
-
-
-class FunctionPickerModel(PickerModel):
-    """Draggable model for functions list used in NodePicker.
-
-    Parameters
-    ----------
-    function_meta : dict
-        Dictionary with function metadata, where keys are function names
-    """
-
-    def __init__(self, function_meta: dict, **kwargs):
-        # Build dataframe with only inputs/outputs columns
-        rows = []
-        self.alias_dict = {
-            meta.get("alias", k) or k: k for k, meta in function_meta.items()
-        }
-        for fname, meta in (function_meta or {}).items():
-            rows.append(
-                {
-                    "name": meta.get("alias", None) or fname,
-                    "inputs": ", ".join(meta.get("inputs", [])),
-                    "outputs": ", ".join(meta.get("outputs", [])),
-                }
-            )
-        df = pd.DataFrame(rows)
-        super().__init__(df, **kwargs)
-        self._metas = function_meta or {}
-
-    def mimeData(self, indexes):
-        mime = super().mimeData(indexes)
-        # Use first index row
-        if len(indexes) == 0:
-            return mime
-        row = indexes[0].row()
-        fname = self.alias_dict[self._data.iloc[row, 0]]
-
-        md = QMimeData()
-        md.setText(f"mne-nodes/function:{fname}")
-        return md
-
-    def data(self, index, role=None):
-        if role == Qt.ItemDataRole.ToolTipRole:
-            fname = self._data.index[index.row()]
-            meta = self._metas.get(fname, {})
-            alias = meta.get("alias")
-            group = meta.get("group")
-            module = meta.get("module")
-            nparams = len(meta.get("parameters", []))
-            plot = meta.get("plot", False)
-            tsafe = meta.get("thread-safe", False)
-            return (
-                f"{fname} ({alias})\nGroup: {group}\nModule: {module}\n"
-                f"Inputs: {', '.join(meta.get('inputs', []))}\n"
-                f"Outputs: {', '.join(meta.get('outputs', []))}\n"
-                f"Parameters: {nparams}\nPlot: {plot}  Thread-safe: {tsafe}"
-            )
-        return super().data(index, role)
-
-
-class CustomFunctionModel(QAbstractListModel):
-    """A Model for the Pandas-DataFrames containing information about new
-    custom functions/their paramers to display only their name and if they are
-    ready.
-
-    Parameters
-    ----------
-    data : DataFrame
-    add_pd_funcs or add_pd_params
-    """
-
-    def __init__(self, data, **kwargs):
-        super().__init__(**kwargs)
-        if not isinstance(data, pd.DataFrame):
-            logging.warning(
-                "CustomFunctionModel expects a pandas DataFrame for 'data', got %s. Initializing empty DataFrame.",
-                type(data).__name__,
-            )
-            self._data = pd.DataFrame([])
-        else:
-            self._data = data
-        if not self._data.empty and "ready" not in self._data.columns:
-            logging.warning(
-                "CustomFunctionModel expects a 'ready' column in DataFrame to decorate items. Column missing."
-            )
-
-    def getData(self, index):
-        return self._data.index[index.row()]
-
-    def updateData(self, new_data):
-        self._data = new_data
-        self.layoutChanged.emit()
-
-    def data(self, index, role=None):
-        if role == Qt.ItemDataRole.DisplayRole:
-            return str(self.getData(index))
-
-        elif role == Qt.ItemDataRole.DecorationRole:
-            if self._data.loc[self.getData(index), "ready"]:
-                return get_std_icon("SP_DialogApplyButton")
-            else:
-                return get_std_icon("SP_DialogCancelButton")
-
-    def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._data.index)
-
-
-class RunModel(QAbstractListModel):
-    """A model for the items/functions of a Pipeline-Run."""
-
-    def __init__(self, data, mode, **kwargs):
-        super().__init__(**kwargs)
-        if not isinstance(data, dict):
-            logging.warning(
-                "RunModel expects a dict for 'data', got %s. Initializing empty dict.",
-                type(data).__name__,
-            )
-            self._data = {}
-        else:
-            self._data = data
-        self.mode = mode
-
-    def getKey(self, index):
-        return list(self._data.keys())[index.row()]
-
-    def getValue(self, index):
-        if self.mode == "object":
-            return self._data[self.getKey(index)]["status"]
-        else:
-            return self._data[self.getKey(index)]
-
-    def getType(self, index):
-        return self._data[self.getKey(index)]["type"]
-
-    def data(self, index, role=None):
-        if role == Qt.ItemDataRole.DisplayRole:
-            if self.mode == "object":
-                return f"{self.getType(index)}: {self.getKey(index)}"
-            return self.getKey(index)
-
-        # Object/Function-States:
-        # 0 = Finished
-        # 1 = Pending
-        # 2 = Currently Runnning
-        # Return Foreground depending on state of object/function
-        elif role == Qt.ItemDataRole.ForegroundRole:
-            if self.getValue(index) == 0:
-                return QBrush(Qt.GlobalColor.darkGray)
-            elif self.getValue(index) == 2:
-                return QBrush(Qt.GlobalColor.green)
-
-        # Return Background depending on state of object/function
-        elif role == Qt.ItemDataRole.BackgroundRole:
-            if self.getValue(index) == 2:
-                return QBrush(Qt.GlobalColor.darkGreen)
-
-        # Mark objects/functions if they are already done,
-        # mark objects according to their type (color-code)
-        elif role == Qt.ItemDataRole.DecorationRole:
-            if self.getValue(index) == 0:
-                return get_std_icon("SP_DialogApplyButton")
-            elif self.getValue(index) == 2:
-                return get_std_icon("SP_ArrowRight")
-
-        elif role == Qt.ItemDataRole.FontRole:
-            if self.getValue(index) == 2:
-                bold_font = QFont()
-                bold_font.setBold(True)
-                return bold_font
-
-    def rowCount(self, parent=None, *args, **kwargs):
-        return len(self._data)

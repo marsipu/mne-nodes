@@ -23,7 +23,6 @@ from qtpy.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -38,7 +37,7 @@ from mne_nodes.gui.base_widgets import (
     EditDict,
     SimpleList,
 )
-from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
 from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.pipeline.execution import WorkerDialog
@@ -809,7 +808,7 @@ class EventIDGui(QDialog):
             events = meeg.load_events()
             mne.viz.plot_events(events, event_id=self.event_id or None, show=True)
         except FileNotFoundError:
-            QMessageBox.warning(self, "No events!", f"No events found for {self.name}")
+            warning_message(f"No events found for {self.name}", parent=self)
 
     def closeEvent(self, event):
         # Save event_id for last selected file
@@ -1265,4 +1264,4 @@ class ExportDialog(QDialog):
                     logging.info(f"\r{meeg_name}: Copied {path_type}!")
 
         else:
-            QMessageBox.warning(self, "Ups!", "Destination-Path not set!")
+            warning_message("Destination-Path not set!", parent=self)
