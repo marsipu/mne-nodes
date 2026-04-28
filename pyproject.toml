@@ -11,7 +11,6 @@ description = "A GUI with Node-Layout for data analysis MNE-Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
-license-files = ["LICENSE"]
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [
     "Programming Language :: Python",
