@@ -6,13 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from mne_bids import BIDSPath, get_datatypes, get_entity_vals
-from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
-from mne_nodes.gui.base_widgets import SimpleDialog
-from mne_nodes.gui.code_editor import CodeEditorWidget
-from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
-from mne_nodes.gui.node.base_node import BaseNode
+from mne_bids import BIDSPath, get_entity_vals
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -22,6 +16,13 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QTabWidget,
 )
+
+from mne_nodes.gui import parameter_widgets
+from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
+from mne_nodes.gui.base_widgets import SimpleDialog
+from mne_nodes.gui.code_editor import CodeEditorWidget
+from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
+from mne_nodes.gui.node.base_node import BaseNode
 
 
 class InputWidget(QWidget):
@@ -54,7 +55,7 @@ class InputWidget(QWidget):
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        data_types = get_datatypes(self.ct.bids_root)
+        data_types = self.ct.get_datatypes()
         for dt in data_types:
             bp_kwargs = {"root": self.ct.bids_root}
             if dt in self.ct.raw_types:
@@ -158,7 +159,7 @@ class InputNode(BaseNode):
         # Clear existing ports
         self.clear_ports()
         # Add data-types as outputs
-        data_types = get_datatypes(self.ct.bids_root)
+        data_types = self.ct.get_datatypes()
         for dt in data_types:
             port_kwargs = existing_outputs.get(dt, {})
             accepted = port_kwargs.get("accepted_ports") or [dt]
@@ -182,7 +183,7 @@ class FunctionNode(BaseNode):
             checkbox = "Save"
         else:
             checkbox = None
-        super().__init__(ct, checkbox=checkbox, **kwargs)
+        super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
             if input_name == "raw":

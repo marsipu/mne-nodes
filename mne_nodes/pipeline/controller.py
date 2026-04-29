@@ -698,6 +698,13 @@ class Controller:
 
         return func_code, start, end
 
+    def get_datatypes(self):
+        # ToDo: Implement data-types other than raw
+        excluded_datatypes = ["anat", "func"]
+        return [
+            dt for dt in get_datatypes(self.bids_root) if dt not in excluded_datatypes
+        ]
+
     @staticmethod
     def tab(num_tabs=1, tab_size=4):
         """Return a string of tabs for indentation."""
@@ -756,8 +763,7 @@ class Controller:
         # Add function execution code
         code += "\n# Execute pipeline\n"
         # Get available datatypes
-        data_types = get_datatypes(self.bids_root)
-        # ToDo: Save data implementation
+        data_types = self.get_datatypes()
         # Ordering targets (files first)
         targets = {t: [] for t in ["file", "group"]}
         for n in node_sequence:
@@ -773,46 +779,27 @@ class Controller:
         for target, nodes in targets.items():
             if len(nodes) > 0:
                 code += f"# Target: {target}\n"
-            # Execute functions
+            else:
+                continue
             loaded_data = []
-            for n in nodes:
-                if target == "file":
-                    name = n["name"]
-                    for ip in [i for i in n["inputs"] if i not in loaded_data]:
-                        if ip == "raw":
-                            dt_without_anat = [
-                                d for d in data_types if d in self.raw_types
-                            ]
-                            if len(dt_without_anat) > 1:
-                                logging.warning(
-                                    f"If connected to raw and multiple-datatypes {dt_without_anat} are available, only the first datatype is chosen for raw (further implementation necessary)."
+            for dt in data_types:
+                code += f"# Data-Type: {dt}\n"
+                code += f"for item in ct.get('selected_inputs')['{dt}']:\n"
+                code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
+                for n in nodes:
+                    if target == "file":
+                        name = n["name"]
+                        # Load selected data-types (if not already loaded)
+                        for ip in [i for i in n["inputs"] if i not in loaded_data]:
+                            if ip == "raw":
+                                # Load raw from original bids-dataset
+                                code += self._indent(
+                                    "bp_raw = bp.copy().update(root=ct.bids_root)\n", 1
                                 )
-                            elif len(dt_without_anat) < 1:
-                                logging.warning(
-                                    "Connected to raw but no raw datatypes found!."
-                                )
-                                continue
-                            ip = dt_without_anat[0]
-                        # Load selected inputs (if not already loaded)
-                        code += f"# Load {ip}\n"
-                        code += "selected_inputs = ct.get('selected_inputs')\n"
-                        code += f"if '{ip}' not in selected_inputs:\n"
-                        code += self._indent(
-                            f"logging.warning('{ip} not found in selected inputs.')\n",
-                            1,
-                        )
-                        code += "else:\n"
-                        code += self._indent(f"print('Loading {ip}')\n", 1)
-                        code += self._indent(
-                            f"for item in ct.get('selected_inputs')['{ip}']:\n", 1
-                        )
-                        code += self._indent("bp = get_bids_path_from_fname(item)\n", 2)
-                        code += self._indent("bp.update(root=ct.bids_root)\n", 2)
-                        if ip in self.raw_types:
-                            code += self._indent("raw = read_raw_bids(bp)\n", 2)
-                            loaded_data.append(ip)
-                        else:
-                            if ip not in loaded_data:
+                                code += self._indent("raw = read_raw_bids(bp_raw)\n", 1)
+                                loaded_data.append("raw")
+                            else:
+                                # Load data from derivatives
                                 input_meta = self.get_input_meta(
                                     function_name=name, input_name=ip
                                 )
@@ -820,86 +807,86 @@ class Controller:
                                 if load_func is not None:
                                     suffix = input_meta.get("suffix") or ip
                                     # Load data from storage
-                                    code += self._indent(f"# Load {ip}")
+                                    code += self._indent(f"# Load {ip}", 1)
                                     code += self._indent(
                                         f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                        2,
+                                        1,
                                     )
                                     code += self._indent(
-                                        "if os.path.isfile(data_path):\n", 2
+                                        "if os.path.isfile(data_path):\n", 1
                                     )
                                     code += self._indent(
                                         f"load_kwargs = ct.get_input_meta('{name}', '{ip}').get('load_kwargs', {{}})\n",
-                                        3,
+                                        2,
                                     )
                                     # This assumes, that the file-path is always the first argument in a load-function
                                     code += self._indent(
                                         f"{ip} = {load_func}(data_path, **load_kwargs)\n",
-                                        3,
+                                        2,
                                     )
                                 loaded_data.append(ip)
-                                code += self._indent("", 2)
-                    code += self._indent(
-                        f"print(f'Executing {name} for {{item}} with the following parameters:')\n",
-                        2,
-                    )
-                    code += self._indent(
-                        f"func_params = ct.func_parameters('{name}')", 2
-                    )
-                    code += self._indent("pprint(func_params)\n", 2)
-                    code += self._indent("try:\n", 2)
-                    outputs = ", ".join([op for op in n["outputs"]])
-                    loaded_data += n["outputs"]
-                    inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
-                    func_line = ""
-                    if outputs:
-                        func_line += f"{outputs} = "
-                    func_line += f"{name}("
-                    if inputs:
-                        func_line += f"{inputs}, **func_params)"
-                    else:
-                        func_line += "**func_params)"
-                    code += self._indent(func_line, 3)
-                    code += self._indent("except Exception as e:\n", 2)
-                    code += self._indent(
-                        f"print(f'[Error] for {{item}} with {name}: {{e}}')\n"
-                        "traceback.print_exc()\n"
-                        "continue\n",
-                        3,
-                    )
-                    # Save outputs (if enabled)
-                    if n["checked"]:
-                        for op in n["outputs"]:
-                            output_meta = self.get_output_meta(
-                                function_name=name, output_name=op
-                            )
-                            save_func = output_meta.get("save", None)
-                            if save_func is not None:
-                                suffix = output_meta.get("suffix") or op
-                                # Save data to storage
-                                code += self._indent(f"# Save {op}\n", 2)
-                                code += self._indent(
-                                    f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                    2,
+                        code += self._indent(f"# Execute function {name}\n", 1)
+                        code += self._indent(
+                            f"print(f'Executing {name} for {{item}} with the following parameters:')\n",
+                            1,
+                        )
+                        code += self._indent(
+                            f"func_params = ct.func_parameters('{name}')", 1
+                        )
+                        code += self._indent("pprint(func_params)\n", 1)
+                        code += self._indent("try:\n", 1)
+                        outputs = ", ".join([op for op in n["outputs"]])
+                        loaded_data += n["outputs"]
+                        inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
+                        func_line = ""
+                        if outputs:
+                            func_line += f"{outputs} = "
+                        func_line += f"{name}("
+                        if inputs:
+                            func_line += f"{inputs}, **func_params)"
+                        else:
+                            func_line += "**func_params)"
+                        code += self._indent(func_line, 2)
+                        code += self._indent("except Exception as e:\n", 1)
+                        code += self._indent(
+                            f"print(f'[Error] for {{item}} with {name}: {{e}}')\n"
+                            "traceback.print_exc()\n"
+                            "continue\n",
+                            2,
+                        )
+                        # Save outputs (if enabled)
+                        if n["checked"]:
+                            for op in n["outputs"]:
+                                output_meta = self.get_output_meta(
+                                    function_name=name, output_name=op
                                 )
-                                code += self._indent(
-                                    "if os.path.isfile(data_path):\n", 2
-                                )
-                                code += self._indent(
-                                    f"save_kwargs = ct.get_output_meta(function_name='{name}', output_name='{op}').get('save_kwargs', {{}})\n",
-                                    3,
-                                )
-                                if save_func.startswith("."):
+                                save_func = output_meta.get("save", None)
+                                if save_func is not None:
+                                    suffix = output_meta.get("suffix") or op
+                                    # Save data to storage
+                                    code += self._indent(f"# Save {op}\n", 1)
                                     code += self._indent(
-                                        f"{op}{save_func}(data_path, **save_kwargs)\n",
-                                        3,
+                                        f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
+                                        1,
                                     )
-                                else:
-                                    # This assumes, that the file-path is always the first argument in a save-function
                                     code += self._indent(
-                                        f"{save_func}(data_path, {op}, **save_kwargs)\n",
-                                        3,
+                                        "if os.path.isfile(data_path):\n", 1
                                     )
+                                    code += self._indent(
+                                        f"save_kwargs = ct.get_output_meta(function_name='{name}', output_name='{op}').get('save_kwargs', {{}})\n",
+                                        2,
+                                    )
+                                    if save_func.startswith("."):
+                                        code += self._indent(
+                                            f"{op}{save_func}(data_path, **save_kwargs)\n",
+                                            2,
+                                        )
+                                    else:
+                                        # This assumes, that the file-path is always the first argument in a save-function
+                                        code += self._indent(
+                                            f"{save_func}(data_path, {op}, **save_kwargs)\n",
+                                            2,
+                                        )
 
         code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
 
