@@ -81,7 +81,12 @@
                     "accepted": [
                         "epochs"
                     ],
-                    "optional": false
+                    "optional": false,
+                    "save": ".save",
+                    "suffix": "epo",
+                    "save_kwargs": {
+                        "overwrite": true
+                    }
                 }
             },
             "target": "file"
@@ -110,7 +115,12 @@
                     "accepted": [
                         "evokeds"
                     ],
-                    "optional": false
+                    "optional": true,
+                    "suffix": "ave",
+                    "save": "mne.write_evokeds",
+                    "save_kwargs": {
+                        "overwrite": true
+                    }
                 }
             },
             "target": "file"
@@ -121,7 +131,9 @@
                     "accepted": [
                         "evokeds"
                     ],
-                    "optional": false
+                    "optional": false,
+                    "suffix": "ave",
+                    "load": "mne.read_evokeds"
                 }
             },
             "parameters": {},

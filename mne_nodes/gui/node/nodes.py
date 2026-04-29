@@ -177,7 +177,7 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
-        super().__init__(ct, checkable=True, **kwargs)
+        super().__init__(ct, checkbox="Save", **kwargs)
         func_meta = ct.get_function_meta(self.name)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:

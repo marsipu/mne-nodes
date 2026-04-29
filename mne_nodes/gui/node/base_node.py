@@ -65,14 +65,14 @@ class BaseNode(QGraphicsItem):
         Can also be just a list with kwargs for the :meth:`BaseNode.add_port()`.
     old_id : int, None, optional
         Old id for reestablishing connections.
-    checkable : bool, optional
-        If True, the node can be checked in the NodeViewer. Default is False.
+    checkbox : str | None
+        If a string is provided add a checkbox with that name. Default is None (no checkbox).
     startable : bool, optional
         If True, the node has a start button. Default is False.
     """
 
     def __init__(
-        self, ct, name=None, ports=None, old_id=None, checkable=False, startable=False
+        self, ct, name=None, ports=None, old_id=None, checkbox=None, startable=False
     ):
         self.ct = ct
         # Initialize QGraphicsItem
@@ -87,7 +87,7 @@ class BaseNode(QGraphicsItem):
         self._name = name
         self.old_id = old_id
         self.id = id(self)
-        self.checkable = checkable
+        self.checkbox = checkbox
         self.startable = startable
 
         self._width = defaults["nodes"]["width"]
@@ -114,12 +114,12 @@ class BaseNode(QGraphicsItem):
                 self.add_port(**port_kwargs)
 
         # Initialize checkbox if checkable
-        if self.checkable:
-            self.checkbox = QCheckBox()
+        if self.checkbox:
+            self.checkbox_widget = QCheckBox(self.checkbox)
             self.checkbox_proxy = NodeProxyWidget(self, self)
-            self.checkbox_proxy.setWidget(self.checkbox)
+            self.checkbox_proxy.setWidget(self.checkbox_widget)
         else:
-            self.checkbox = None
+            self.checkbox_widget = None
             self.checkbox_proxy = None
 
         # Initialize play-button
@@ -582,6 +582,7 @@ class BaseNode(QGraphicsItem):
             "class": self.__class__.__name__,
             "inputs": self.connected_inputs(),
             "outputs": self.connected_outputs(),
+            "checked": self.isChecked(),
         }
         return description
 
@@ -616,6 +617,16 @@ class BaseNode(QGraphicsItem):
             self.scene().removeItem(self)
         del self
 
+    def isChecked(self):
+        if self.checkbox_widget is not None:
+            return self.checkbox_widget.isChecked()
+        else:
+            return False
+
+    def setChecked(self, checked):
+        if self.checkbox_widget is not None:
+            self.checkbox_widget.setChecked(checked)
+
     def to_dict(self):
         node_dict = {
             "name": self.name,
@@ -623,15 +634,19 @@ class BaseNode(QGraphicsItem):
             "pos": self.xy_pos,
             "ports": {p.id: p.to_dict() for p in self.ports},
             "old_id": self.id,
+            "checked": self.isChecked(),
         }
 
         return node_dict
 
     @classmethod
     def from_dict(cls, ct, node_dict):
-        node_kwargs = {k: v for k, v in node_dict.items() if k not in ["class", "pos"]}
+        node_kwargs = {
+            k: v for k, v in node_dict.items() if k not in ["class", "pos", "checked"]
+        }
         node = cls(ct=ct, **node_kwargs)
         node.xy_pos = node_dict["pos"]
+        node.setChecked(node_dict["checked"])
 
         return node
 
@@ -909,16 +924,20 @@ class BaseNode(QGraphicsItem):
             self.align_ports(v_offset=height)
             # arrange node widgets
             self.align_widgets(v_offset=height)
-            # add checkbox if checkable
+            # add checkbox top-right if supplied
             rect = self.boundingRect()
-            if self.checkable:
-                x = rect.left() + 5
-                y = rect.top() + 5
-                self.checkbox_proxy.setPos(x, y)
-            # add play button
-            if self.startable:
-                x = rect.right() - self.start_button_proxy.boundingRect().width() - 2
+            if self.checkbox:
+                x = rect.right() - self.checkbox_proxy.boundingRect().width() - 5
                 y = rect.top() + 2
+                self.checkbox_proxy.setPos(x, y)
+            # add play button left next to title
+            if self.startable:
+                x = (
+                    self._title_item.pos().x()
+                    - self.start_button_proxy.boundingRect().width()
+                    - 5
+                )
+                y = rect.top() + 5
                 self.start_button_proxy.setPos(x, y)
             # Update the widget
             self.update()

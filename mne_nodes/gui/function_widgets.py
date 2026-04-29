@@ -145,9 +145,12 @@ class Editor(QPlainTextEdit):
 
 
 class DataConfiguration(QDialog):
-    def __init__(self, input_name, configuration, parent=None):
+    def __init__(self, data_name, configuration, is_input=True, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Configure Input: {input_name}")
+        if is_input:
+            self.setWindowTitle(f"Configure Input: {data_name}")
+        else:
+            self.setWindowTitle(f"Configure Output: {data_name}")
         layout = QVBoxLayout(self)
         layout.addWidget(
             BoolGui(
@@ -176,24 +179,44 @@ class DataConfiguration(QDialog):
                 groupbox_layout=False,
             )
         )
-        layout.addWidget(
-            StringGui(
-                data=configuration,
-                name="load",
-                alias="Load Function",
-                none_select=True,
-                groupbox_layout=False,
+        if is_input:
+            layout.addWidget(
+                StringGui(
+                    data=configuration,
+                    name="load",
+                    alias="Load Function",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
             )
-        )
-        layout.addWidget(
-            StringGui(
-                data=configuration,
-                name="save",
-                alias="Save Function",
-                none_select=True,
-                groupbox_layout=False,
+            layout.addWidget(
+                DictGui(
+                    data=configuration,
+                    name="load_kwargs",
+                    alias="Load kwargs",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
             )
-        )
+        else:
+            layout.addWidget(
+                StringGui(
+                    data=configuration,
+                    name="save",
+                    alias="Save Function",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
+            layout.addWidget(
+                DictGui(
+                    data=configuration,
+                    name="save_kwargs",
+                    alias="Save kwargs",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
         self.open()
 
 
@@ -562,29 +585,44 @@ class FunctionImporter(QDialog):
                 )
             else:
                 ret = returns[0]
+                new_outputs = []
                 if isinstance(ret.value, ast.Tuple):
-                    for val in ret.value.elts:
-                        if not isinstance(val, ast.Name):
+                    for op in ret.value.elts:
+                        if not isinstance(op, ast.Name):
                             raise_user_attention(
                                 f"Return value in function '{func.name}' is not a name. Only constant return values are supported currently.",
                                 "warning",
                                 self,
                             )
-                            return
-                    self.func_config[func.name]["outputs"] = {
-                        e.id: {"accepted": [e.id], "optional": False}
-                        for e in ret.value.elts
-                    }
+                            continue
+                        if op.id not in self.func_config[func.name]["outputs"]:
+                            self.func_config[func.name]["outputs"][op.id] = {
+                                "accepted": [op.id],
+                                "optional": False,
+                            }
+                        new_outputs.append(op.id)
+
                 elif isinstance(ret.value, ast.Name):
-                    self.func_config[func.name]["outputs"] = {
-                        ret.value.id: {"accepted": [ret.value.id], "optional": False}
-                    }
+                    if ret.value.id not in self.func_config[func.name]["outputs"]:
+                        self.func_config[func.name]["outputs"][ret.value.id] = {
+                            "accepted": [ret.value.id],
+                            "optional": False,
+                        }
+                    new_outputs.append(ret.value.id)
                 else:
                     raise_user_attention(
                         f"Return value in function '{func.name}' is not a name or tuple of names. Only constant return values are supported currently.",
                         "warning",
                         self,
                     )
+                # Remove old configs
+                for op_config in [
+                    opc
+                    for opc in self.func_config[func.name]["outputs"]
+                    if opc not in new_outputs
+                ]:
+                    self.func_config[func.name]["outputs"].pop(op_config)
+
         # Update parameter configuration
         self.update_config(self.tab_widget.currentIndex())
 
@@ -697,11 +735,11 @@ class FunctionImporter(QDialog):
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]
-        DataConfiguration(input_name, config, parent=self)
+        DataConfiguration(input_name, config, is_input=True, parent=self)
 
     def output_configuration(self, output_name):
         config = self.func_config[self.current_func]["outputs"][output_name]
-        DataConfiguration(output_name, config, parent=self)
+        DataConfiguration(output_name, config, is_input=False, parent=self)
 
     def param_configuration(self, param_name):
         # Passing the configuration dict works since ParameterWidgets will fill
