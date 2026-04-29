@@ -612,10 +612,37 @@ class BaseNode(QGraphicsItem):
             viewer.auto_layout_nodes(nodes=list(viewer.nodes.values()))
 
     def delete(self):
-        """Remove node from the scene."""
+        """Remove node and owned graphics/widget objects from the scene."""
+        # Remove ports and any connected pipes first.
+        self.clear_ports()
+
+        # Explicitly detach embedded widgets from proxy items to avoid
+        # lingering QWidget ownership chains during Qt teardown.
+        proxy_widgets = list(self.widgets)
+        if self.checkbox_proxy is not None:
+            proxy_widgets.append(self.checkbox_proxy)
+        if self.start_button_proxy is not None:
+            proxy_widgets.append(self.start_button_proxy)
+
+        for proxy in proxy_widgets:
+            if proxy is None:
+                continue
+            widget = proxy.widget()
+            if widget is not None:
+                proxy.setWidget(None)
+                widget.deleteLater()
+            proxy.setParentItem(None)
+            if proxy.scene() is not None:
+                proxy.scene().removeItem(proxy)
+
+        self.widgets.clear()
+        self.checkbox_proxy = None
+        self.checkbox_widget = None
+        self.start_button_proxy = None
+        self.start_button = None
+
         if self.scene() is not None:
             self.scene().removeItem(self)
-        del self
 
     def isChecked(self):
         if self.checkbox_widget is not None:

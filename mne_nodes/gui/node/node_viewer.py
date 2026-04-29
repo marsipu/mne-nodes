@@ -364,7 +364,7 @@ class NodeViewer(QGraphicsView):
             return
         # Remove connected pipes
         for port in node.ports:
-            for connected_port in port.connected_ports:
+            for connected_port in list(port.connected_ports):
                 port.disconnect_from(connected_port)
         # Remove node
         if node in self.scene().items():
@@ -379,7 +379,7 @@ class NodeViewer(QGraphicsView):
                 del self.function_nodes[function_name]
         elif isinstance(node, InputNode):
             self._input_node = None
-            return
+        # Ensure all node internals are explicitly torn down.
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
