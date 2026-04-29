@@ -6,13 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from mne_bids import BIDSPath, get_datatypes, get_entity_vals
-from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
-from mne_nodes.gui.base_widgets import SimpleDialog
-from mne_nodes.gui.code_editor import CodeEditorWidget
-from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
-from mne_nodes.gui.node.base_node import BaseNode
+from mne_bids import BIDSPath, get_entity_vals
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -22,6 +16,12 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QTabWidget,
 )
+
+from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
+from mne_nodes.gui.base_widgets import SimpleDialog
+from mne_nodes.gui.code_editor import CodeEditorWidget
+from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
+from mne_nodes.gui.node.base_node import BaseNode
 
 
 class InputWidget(QWidget):
@@ -54,7 +54,7 @@ class InputWidget(QWidget):
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        data_types = get_datatypes(self.ct.bids_root)
+        data_types = self.ct.get_datatypes()
         for dt in data_types:
             bp_kwargs = {"root": self.ct.bids_root}
             if dt in self.ct.raw_types:
@@ -132,6 +132,17 @@ class InputNode(BaseNode):
         self.update_widgets()
 
     def update_widgets(self):
+        existing_outputs = deepcopy(
+            {
+                port.name: {
+                    "multi_connection": port.multi_connection,
+                    "accepted_ports": port.accepted_ports,
+                    "old_id": port.old_id,
+                }
+                for port in self.outputs
+            }
+        )
+
         # Set name to dataset name if available
         dataset_name = self.ct.get_dataset_name()
         if dataset_name is not None:
@@ -149,13 +160,18 @@ class InputNode(BaseNode):
         # Clear existing ports
         self.clear_ports()
         # Add data-types as outputs
-        data_types = get_datatypes(self.ct.bids_root)
+        data_types = self.ct.get_datatypes()
         for dt in data_types:
-            accepted = [dt]
-            if dt in self.ct.raw_types:
+            port_kwargs = existing_outputs.get(dt, {})
+            accepted = port_kwargs.get("accepted_ports") or [dt]
+            if dt in self.ct.raw_types and "raw" not in accepted:
                 accepted.append("raw")
             self.add_output(
-                dt, multi_connection=True, accepted_ports=accepted, warn_existing=False
+                dt,
+                multi_connection=port_kwargs.get("multi_connection", True),
+                accepted_ports=accepted,
+                old_id=port_kwargs.get("old_id"),
+                warn_existing=False,
             )
 
 
@@ -163,12 +179,22 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
-        super().__init__(ct, checkable=True, **kwargs)
-        func_meta = ct.get_function_meta(self.name)
+        from mne_nodes.gui import parameter_widgets
+
+        func_meta = ct.get_function_meta(kwargs["name"])
+        if any(v.get("save") is not None for v in func_meta["outputs"].values()):
+            checkbox = "Save"
+        else:
+            checkbox = None
+        super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
+            if input_name == "raw":
+                accepted_ports = ct.raw_types
+            else:
+                accepted_ports = [input_name]
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=[input_name]
+                input_name, multi_connection=True, accepted_ports=accepted_ports
             )
         for output_name in func_meta["outputs"]:
             self.add_output(

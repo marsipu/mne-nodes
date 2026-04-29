@@ -144,11 +144,13 @@ class Editor(QPlainTextEdit):
         self.setMinimumSize(600, 400)
 
 
-class InputConfiguration(QDialog):
-    def __init__(self, input_name, configuration, parent=None):
+class DataConfiguration(QDialog):
+    def __init__(self, data_name, configuration, is_input=True, parent=None):
         super().__init__(parent)
-        self.config = configuration
-        self.setWindowTitle(f"Configure Input: {input_name}")
+        if is_input:
+            self.setWindowTitle(f"Configure Input: {data_name}")
+        else:
+            self.setWindowTitle(f"Configure Output: {data_name}")
         layout = QVBoxLayout(self)
         layout.addWidget(
             BoolGui(
@@ -168,6 +170,53 @@ class InputConfiguration(QDialog):
                 show_edit_bt=False,
             )
         )
+        layout.addWidget(
+            StringGui(
+                data=configuration,
+                name="suffix",
+                alias="Suffix (optional) for BIDSPath",
+                none_select=True,
+                groupbox_layout=False,
+            )
+        )
+        if is_input:
+            layout.addWidget(
+                StringGui(
+                    data=configuration,
+                    name="load",
+                    alias="Load Function",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
+            layout.addWidget(
+                DictGui(
+                    data=configuration,
+                    name="load_kwargs",
+                    alias="Load kwargs",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
+        else:
+            layout.addWidget(
+                StringGui(
+                    data=configuration,
+                    name="save",
+                    alias="Save Function",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
+            layout.addWidget(
+                DictGui(
+                    data=configuration,
+                    name="save_kwargs",
+                    alias="Save kwargs",
+                    none_select=True,
+                    groupbox_layout=False,
+                )
+            )
         self.open()
 
 
@@ -536,26 +585,44 @@ class FunctionImporter(QDialog):
                 )
             else:
                 ret = returns[0]
+                new_outputs = []
                 if isinstance(ret.value, ast.Tuple):
-                    for val in ret.value.elts:
-                        if not isinstance(val, ast.Name):
+                    for op in ret.value.elts:
+                        if not isinstance(op, ast.Name):
                             raise_user_attention(
                                 f"Return value in function '{func.name}' is not a name. Only constant return values are supported currently.",
                                 "warning",
                                 self,
                             )
-                            return
-                    self.func_config[func.name]["outputs"] = [
-                        e.id for e in ret.value.elts
-                    ]
+                            continue
+                        if op.id not in self.func_config[func.name]["outputs"]:
+                            self.func_config[func.name]["outputs"][op.id] = {
+                                "accepted": [op.id],
+                                "optional": False,
+                            }
+                        new_outputs.append(op.id)
+
                 elif isinstance(ret.value, ast.Name):
-                    self.func_config[func.name]["outputs"] = [ret.value.id]
+                    if ret.value.id not in self.func_config[func.name]["outputs"]:
+                        self.func_config[func.name]["outputs"][ret.value.id] = {
+                            "accepted": [ret.value.id],
+                            "optional": False,
+                        }
+                    new_outputs.append(ret.value.id)
                 else:
                     raise_user_attention(
                         f"Return value in function '{func.name}' is not a name or tuple of names. Only constant return values are supported currently.",
                         "warning",
                         self,
                     )
+                # Remove old configs
+                for op_config in [
+                    opc
+                    for opc in self.func_config[func.name]["outputs"]
+                    if opc not in new_outputs
+                ]:
+                    self.func_config[func.name]["outputs"].pop(op_config)
+
         # Update parameter configuration
         self.update_config(self.tab_widget.currentIndex())
 
@@ -577,20 +644,21 @@ class FunctionImporter(QDialog):
         self.analyze_code(code)
 
     @staticmethod
-    def _populate_config(config_items, layout, config_slot, move_slot):
+    def _populate_config(config_items, layout, config_slot, move_slot=None):
         # Remove existing entries
         while layout.rowCount() > 0:
             layout.removeRow(0)
         # Add entries
         for item in config_items:
             bt_layout = QHBoxLayout()
-            move_bt = QPushButton()
-            move_bt.setSizePolicy(
-                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
-            )
-            move_bt.setIcon(qta.icon("fa5s.exchange-alt"))
-            move_bt.clicked.connect(partial(move_slot, item))
-            bt_layout.addWidget(move_bt)
+            if move_slot is not None:
+                move_bt = QPushButton()
+                move_bt.setSizePolicy(
+                    QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum
+                )
+                move_bt.setIcon(qta.icon("fa5s.exchange-alt"))
+                move_bt.clicked.connect(partial(move_slot, item))
+                bt_layout.addWidget(move_bt)
             ip_bt = QPushButton()
             ip_bt.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
             ip_bt.setIcon(qta.icon("fa5s.cog"))
@@ -610,13 +678,11 @@ class FunctionImporter(QDialog):
             self.input_configuration,
             self.move_item,
         )
-        # Update outputs
-        # ToDo: Change appearance if config unnecessary
+        # Update outputs (without move_button)
         self._populate_config(
             self.func_config[self.current_func]["outputs"],
             self.outputs_layout,
             self.output_configuration,
-            self.move_item,
         )
         # Update parameters
         self._populate_config(
@@ -669,11 +735,11 @@ class FunctionImporter(QDialog):
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]
-        InputConfiguration(input_name, config, parent=self)
+        DataConfiguration(input_name, config, is_input=True, parent=self)
 
     def output_configuration(self, output_name):
-        # ToDo: Remove if unnecessary
-        pass
+        config = self.func_config[self.current_func]["outputs"][output_name]
+        DataConfiguration(output_name, config, is_input=False, parent=self)
 
     def param_configuration(self, param_name):
         # Passing the configuration dict works since ParameterWidgets will fill

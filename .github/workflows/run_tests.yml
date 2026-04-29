@@ -11,11 +11,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu, windows, macos ]
-        python: [ '3.13' ]
+        python: [ '3.14' ]
         # Oldest supported python version
         include:
           - os: ubuntu
-            python: '3.10'
+            python: '3.11'
     name: Run tests on ${{ matrix.os }} - ${{matrix.python}}
     runs-on: ${{ matrix.os }}-latest
     defaults:

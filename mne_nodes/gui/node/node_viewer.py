@@ -358,14 +358,13 @@ class NodeViewer(QGraphicsView):
         **kwargs : dict
             Keyword arguments to find node with self.node by index, name, or id.
         """
-        if isinstance(node, InputNode):
-            logging.info("Removing the input node is not allowed.")
-            return
         if node is None:
-            self.node(**kwargs)
+            node = self.node(**kwargs)
+        if node is None:
+            return
         # Remove connected pipes
         for port in node.ports:
-            for connected_port in port.connected_ports:
+            for connected_port in list(port.connected_ports):
                 port.disconnect_from(connected_port)
         # Remove node
         if node in self.scene().items():
@@ -378,6 +377,9 @@ class NodeViewer(QGraphicsView):
             function_name = node.name
             if function_name in self.function_nodes:
                 del self.function_nodes[function_name]
+        elif isinstance(node, InputNode):
+            self._input_node = None
+        # Ensure all node internals are explicitly torn down.
         node.delete()
 
     def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
@@ -861,8 +863,7 @@ class NodeViewer(QGraphicsView):
             self._rubber_band.setGeometry(rect)
             self._rubber_band.isActive = True
 
-        if not self._LIVE_PIPE.isVisible():
-            super().mousePressEvent(event)
+        super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1069,6 +1070,8 @@ class NodeViewer(QGraphicsView):
             # delete selected nodes and pipes
             for node in self.selected_nodes():
                 self.remove_node(node)
+            for pipe in self.selected_pipes():
+                pipe.input_port.disconnect_from(pipe.output_port)
             return
 
         if self._LIVE_PIPE.isVisible():
@@ -1203,22 +1206,9 @@ class NodeViewer(QGraphicsView):
                 self._node_positions[n] = n.xy_pos
 
         if pipe:
-            if not self.LMB_state:
-                return
-
-            from_port = pipe.port_from_pos(pos, True)
-            from_port.hovered = True
-
-            attr = {"in": "input_port", "out": "output_port"}
-            self._detached_port = getattr(pipe, attr[from_port.port_type])
-            self.start_live_connection(from_port)
-            self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos)
-
-            if event.modifiers() == Qt.KeyboardModifier.ShiftModifier:
-                self._LIVE_PIPE.shift_selected = True
-                return
-
-            pipe.delete()
+            # Just let Qt handle pipe selection via super().mousePressEvent()
+            # in NodeScene. Deletion is handled by the Del key.
+            return
 
     def sceneMouseReleaseEvent(self, event):
         """Handle mouse release event for the scene.
@@ -1247,12 +1237,21 @@ class NodeViewer(QGraphicsView):
 
         self._start_port.hovered = False
 
-        # find the end port.
+        # find the end port with tolerance and parent traversal so dropping
+        # on labels/children still resolves to the parent port.
         end_port = None
         for item in self.scene().items(event.scenePos()):
-            if self.isport(item):
-                end_port = item
+            candidate = self._port_from_item(item)
+            if candidate is not None:
+                end_port = candidate
                 break
+
+        if end_port is None:
+            for item in self._items_near(event.scenePos(), 12, 12):
+                candidate = self._port_from_item(item)
+                if candidate is not None:
+                    end_port = candidate
+                    break
 
         # if port disconnected from existing pipe.
         if end_port is None:
@@ -1275,8 +1274,17 @@ class NodeViewer(QGraphicsView):
             if self._start_port is end_port:
                 return
 
+        # Normalize connection direction so compatibility is evaluated
+        # consistently as output -> input, independent of gesture direction.
+        if self._start_port.port_type == "out":
+            output_port = self._start_port
+            input_port = end_port
+        else:
+            output_port = end_port
+            input_port = self._start_port
+
         # constrain check
-        compatible = self._start_port.compatible(end_port, verbose=False)
+        compatible = output_port.compatible(input_port, verbose=True)
 
         # restore connection if ports are not compatible
         if not compatible:
@@ -1288,7 +1296,7 @@ class NodeViewer(QGraphicsView):
             return
 
         # end connection if starting port is already connected.
-        if self._start_port.multi_connection and self._start_port.connected(end_port):
+        if output_port.multi_connection and output_port.connected(input_port):
             self._detached_port = None
             self.end_live_connection()
             logging.debug("Target Port is already connected.")
@@ -1303,7 +1311,7 @@ class NodeViewer(QGraphicsView):
             self._start_port.disconnect_from(self._detached_port)
 
         # Make connection
-        self._start_port.connect_to(end_port)
+        output_port.connect_to(input_port)
 
         self._detached_port = None
         self.end_live_connection()
@@ -1323,12 +1331,21 @@ class NodeViewer(QGraphicsView):
         self._start_port = selected_port
         if self._start_port.port_type == "in":
             self._LIVE_PIPE.input_port = self._start_port
-        elif self._start_port == "out":
+        elif self._start_port.port_type == "out":
             self._LIVE_PIPE.output_port = self._start_port
         self._LIVE_PIPE.setVisible(True)
         self._LIVE_PIPE.draw_index_pointer(
             selected_port, self.mapToScene(self._origin_pos)
         )
+
+    def _port_from_item(self, item):
+        while item is not None:
+            if self.isport(item):
+                return item
+            if not hasattr(item, "parentItem"):
+                break
+            item = item.parentItem()
+        return None
 
     def end_live_connection(self):
         """Delete live connection pipe and reset start port.
