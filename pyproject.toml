@@ -9,7 +9,7 @@ authors = [
 ]
 description = "A GUI with Node-Layout for data analysis with MNE-Python"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "BSD-3-Clause"
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [
