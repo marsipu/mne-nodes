@@ -299,7 +299,7 @@ class Controller:
             self.get("selected_inputs").clear()
             self.get("custom_groups").clear()
             # Update input widget
-            self.viewer().input_node.update_widgets()
+            self.viewer.input_node.update_widgets()
             self.settings.set("bids_root", value)
 
     @property
