@@ -2,8 +2,9 @@ changelog:
   exclude:
     authors:
       - pre-commit-ci
-      - dependabot
+      - dependabot[bot]
       - github-actions
+      - Copilot
   categories:
     - title: New Features 💫
       labels:

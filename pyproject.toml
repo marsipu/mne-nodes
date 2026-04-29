@@ -7,14 +7,13 @@ name = "mne-nodes"
 authors = [
     { name = "Martin G. Schulz", email = "dev@mgschulz.de" }
 ]
-description = "A GUI with Node-Layout for data analysis MNE-Python"
+description = "A GUI with Node-Layout for data analysis with MNE-Python"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = "BSD-3-Clause"
 keywords = ["mne-python", "meg", "eeg", "pipeline", "gui", "heidelberg"]
 classifiers = [
     "Programming Language :: Python",
-    "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",

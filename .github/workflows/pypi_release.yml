@@ -6,21 +6,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
+        with:
+            python-version: '3.13'
       - name: Install dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install --upgrade build twine
-      - name: Build and publish
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build twine
+      - name: Build package
         run: |
+          rm -rf dist build ./*.egg-info
           python -m build
-          twine check dist/*
-          twine upload dist/*
+          python -m twine check --strict dist/*
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
