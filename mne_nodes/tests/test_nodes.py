@@ -110,10 +110,9 @@ def test_node_serialization(nodeviewer):
     ) == len(input_node.ports)
 
 
-def test_show_nodeviewer(nodeviewer, qtbot):
+def test_show_nodeviewer(nodeviewer):
     """Test if NodeViewer can be shown."""
     nodeviewer.show()
-    qtbot.wait(10000)
     assert nodeviewer.isVisible()
 
     # Check if the viewport is correctly set
