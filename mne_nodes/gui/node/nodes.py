@@ -17,7 +17,6 @@ from qtpy.QtWidgets import (
     QTabWidget,
 )
 
-from mne_nodes.gui import parameter_widgets
 from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
 from mne_nodes.gui.base_widgets import SimpleDialog
 from mne_nodes.gui.code_editor import CodeEditorWidget
@@ -133,14 +132,16 @@ class InputNode(BaseNode):
         self.update_widgets()
 
     def update_widgets(self):
-        existing_outputs = {
-            port.name: {
-                "multi_connection": port.multi_connection,
-                "accepted_ports": port.accepted_ports,
-                "old_id": port.old_id,
+        existing_outputs = deepcopy(
+            {
+                port.name: {
+                    "multi_connection": port.multi_connection,
+                    "accepted_ports": port.accepted_ports,
+                    "old_id": port.old_id,
+                }
+                for port in self.outputs
             }
-            for port in self.outputs
-        }
+        )
 
         # Set name to dataset name if available
         dataset_name = self.ct.get_dataset_name()
@@ -178,6 +179,8 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
+        from mne_nodes.gui import parameter_widgets
+
         func_meta = ct.get_function_meta(kwargs["name"])
         if any(v.get("save") is not None for v in func_meta["outputs"].values()):
             checkbox = "Save"
