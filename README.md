@@ -64,13 +64,12 @@ Prerequisites: You need a [GitHub-Account](https://github.com/) and [git](https:
 5. After review, your changes can be merged into the main-branch
 
 ## Acknowledgments
-- This application serves as a GUI for [MNE-Python](https://mne.tools/stable/index.html)
-> A. Gramfort, M. Luessi, E. Larson, D. Engemann, D. Strohmeier, C. Brodbeck, L. Parkkonen, M. Hämäläinen, MNE software for processing MEG and EEG data, NeuroImage, Volume 86, 1 February 2014, Pages 446-460, ISSN 1053-8119, [DOI](https://doi.org/10.1016/j.neuroimage.2013.10.027)
+- This application serves as a GUI for [mne-python](https://mne.tools/stable/index.html).
 - [mne-bids](https://mne.tools/mne-bids/) is used to read and write data in BIDS format and the tiny-bids-dataset is used for testing.
 - [mne-bids-pipeline](https://mne.tools/mne-bids-pipeline/) served as inspiration for the processing steps and their implementation of bids-derivatives.
 - Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used to implement the node-gui.
 - The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](https://github.com/5yutan5/PyQtDarkTheme).
-- The development was supported by Code Completion and Coding Agents through GitHub Copilot (including GPT-Codex, Anthropic Sonnet).
+- The development was supported by Code Completion and Coding Agents (e.g. reformatting, documentation, bug-fixing, boilerplate code, writing tests)
 
 ## License
 
