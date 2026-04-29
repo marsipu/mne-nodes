@@ -31,9 +31,14 @@
                     "gui": "MultiTypeGui"
                 }
             },
-            "outputs": [
-                "raw"
-            ],
+            "outputs": {
+                "raw": {
+                    "accepted": [
+                        "raw"
+                    ],
+                    "optional": false
+                }
+            },
             "target": "file"
         },
         "create_epochs": {
@@ -71,9 +76,14 @@
                     "gui": "DualTupleGui"
                 }
             },
-            "outputs": [
-                "epochs"
-            ],
+            "outputs": {
+                "epochs": {
+                    "accepted": [
+                        "epochs"
+                    ],
+                    "optional": false
+                }
+            },
             "target": "file"
         },
         "create_evokeds": {
@@ -82,7 +92,10 @@
                     "accepted": [
                         "epochs"
                     ],
-                    "optional": false
+                    "optional": false,
+                    "load": "mne.read_epochs",
+                    "save": ".save",
+                    "suffix": "epo"
                 }
             },
             "parameters": {
@@ -92,9 +105,14 @@
                     "gui": "ListGui"
                 }
             },
-            "outputs": [
-                "evokeds"
-            ],
+            "outputs": {
+                "evokeds": {
+                    "accepted": [
+                        "evokeds"
+                    ],
+                    "optional": false
+                }
+            },
             "target": "file"
         },
         "plot_evokeds": {
