@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 import logging
 from ast import literal_eval
 
-import pandas as pd
 from qtpy.QtCore import (
     QAbstractItemModel,
     QAbstractListModel,
@@ -16,6 +15,18 @@ from qtpy.QtCore import (
     Qt,
 )
 import qtawesome as qta
+
+
+def _get_pandas():
+    """Import pandas only when a pandas-backed model is used.
+
+    This avoids importing optional native dependencies (for example pyarrow)
+    during generic GUI startup paths that do not need DataFrame widgets.
+    """
+
+    import pandas as pd
+
+    return pd
 
 
 # ToDo: Merge models and base widgets
@@ -506,6 +517,7 @@ class BasePandasModel(QAbstractTableModel):
 
     def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
+        pd = _get_pandas()
         if data is None:
             self._data = pd.DataFrame([])
         elif not isinstance(data, pd.DataFrame):
@@ -599,6 +611,7 @@ class EditPandasModel(BasePandasModel):
 
     def insertRows(self, row, count, parent=None, *args, **kwargs):
         self.beginInsertRows(parent, row, row + count - 1)
+        pd = _get_pandas()
         add_data = pd.DataFrame(
             columns=self._data.columns, index=[r for r in range(count)]
         )
@@ -616,6 +629,7 @@ class EditPandasModel(BasePandasModel):
 
     def insertColumns(self, column, count, parent=None, *args, **kwargs):
         self.beginInsertColumns(parent, column, column + count - 1)
+        pd = _get_pandas()
         add_data = pd.DataFrame(
             index=self._data.index, columns=[c for c in range(count)]
         )
@@ -634,6 +648,7 @@ class EditPandasModel(BasePandasModel):
 
     def removeRows(self, row, count, parent=None, *args, **kwargs):
         self.beginRemoveRows(parent, row, row + count - 1)
+        pd = _get_pandas()
         # Can't use DataFrame.drop() here,
         # because there could be rows with similar index-labels
         if row == 0:
@@ -650,6 +665,7 @@ class EditPandasModel(BasePandasModel):
 
     def removeColumns(self, column, count, parent=None, *args, **kwargs):
         self.beginRemoveColumns(parent, column, column + count - 1)
+        pd = _get_pandas()
         # Can't use DataFrame.drop() here,
         # because there could be columns with similar column-labels
         if column == 0:

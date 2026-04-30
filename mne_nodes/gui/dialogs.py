@@ -28,7 +28,6 @@ class SysInfoMsg(QDialog):
         stdout_stream.signal.text_written.connect(self.add_text)
         # Set geometry to ratio of screen-geometry
         set_ratio_geometry(0.4, self)
-        self.show()
 
     def add_text(self, text):
         self.show_widget.insertPlainText(text)
@@ -78,7 +77,6 @@ class AboutDialog(QDialog):
 
         self.setLayout(layout)
         set_ratio_geometry((0.25, 0.9), self)
-        self.open()
 
 
 class ErrorDialog(QDialog):
@@ -97,11 +95,6 @@ class ErrorDialog(QDialog):
         set_ratio_geometry(0.6, self)
 
         self.init_ui()
-
-        if parent:
-            self.open()
-        else:
-            self.exec()
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -133,6 +126,6 @@ def show_error_dialog(exc_str):
     If unavailable (non-console application), log an additional notice.
     """
     if QApplication.instance() is not None:
-        ErrorDialog(exc_str, title="A unexpected error occurred")
+        ErrorDialog(exc_str, title="A unexpected error occurred").exec()
     else:
         logging.debug("No QApplication instance available.")

@@ -111,15 +111,19 @@ class Controller:
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
-        # Initialize config_path here (may prompt user)
+        self._config = deepcopy(default_config)
+        # Initialize config_path here without prompting. Interactive setup is
+        # handled explicitly via ensure_project_state() after QApplication
+        # startup.
         config_path = config_path or self.settings.get("config_path", default=None)
         if config_path and not isfile(config_path):
-            raise_user_attention(f"Config file {config_path} does not exist!")
+            logging.warning(f"Config file {config_path} does not exist!")
             config_path = None
-        self.config_path = config_path
+        if config_path is not None:
+            self.config_path = config_path
         # Check existence of data_path (optional) only if requested
         if initialize_paths:
-            _ = self.deriv_root  # may trigger lazy initialization
+            self.check_required_paths(required=("deriv_root",))
         # Add core functions to modules (until separated)
         self.add_module(core_functions.__file__)
         # Initialize modules
@@ -131,10 +135,6 @@ class Controller:
     @property
     def config_path(self) -> Path | None:
         """Path to the config-file."""
-        if self._config_path is None:
-            # Initialize setting of the config_path
-            logging.info("No config_path set, initializing.")
-            self.config_path = None
         return self._config_path
 
     @config_path.setter
@@ -190,9 +190,56 @@ class Controller:
     @property
     def config_lock(self):
         if self._config_lock is None:
-            logging.info("Config lock not set, initializing config_path.")
-            self.config_path = None
+            raise RuntimeError(
+                "Config path is not initialized. Call ensure_project_state() first."
+            )
         return self._config_lock
+
+    def check_required_paths(
+        self,
+        *,
+        required: tuple[str, ...] = ("config_path", "bids_root", "deriv_root"),
+        interactive: bool = True,
+    ) -> None:
+        """Ensure required project paths/settings are available.
+
+        Parameters
+        ----------
+        required : tuple[str, ...]
+            Names of controller attributes that must be available.
+        interactive : bool
+            If True, missing values are obtained through the existing
+            interactive dialogs. If False, a RuntimeError is raised for any
+            missing requirement.
+        """
+
+        missing = []
+
+        if "config_path" in required and self._config_path is None:
+            if interactive:
+                self.config_path = None
+            else:
+                missing.append("config_path")
+
+        settings_path_requirements = {
+            "bids_root": "bids_root",
+            "deriv_root": "deriv_root",
+            "plot_root": "plot_root",
+        }
+        for attr_name, settings_key in settings_path_requirements.items():
+            if attr_name not in required:
+                continue
+            path_value = self.settings.get(settings_key, None)
+            if path_value is not None and isdir(path_value):
+                continue
+            if interactive:
+                getattr(self, attr_name)
+            else:
+                missing.append(attr_name)
+
+        if missing:
+            missing_str = ", ".join(missing)
+            raise RuntimeError(f"Missing required controller state: {missing_str}")
 
     @staticmethod
     def default(key):
@@ -223,6 +270,9 @@ class Controller:
 
     def load(self):
         """Force loading the config from disk."""
+        if self._config_path is None:
+            logging.debug("Config path is not set. Keeping in-memory configuration.")
+            return
         try:
             with self.config_lock:
                 self._config = self._load_config()
@@ -234,6 +284,9 @@ class Controller:
 
     def flush(self):
         """Force writing the current config to disk."""
+        if self._config_path is None:
+            logging.debug("Config path is not set. Skipping config flush.")
+            return
         try:
             with self.config_lock:
                 self._save_config(self._config)
@@ -245,8 +298,9 @@ class Controller:
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
         now = perf_counter()
-        if self._config is None or (
-            not self._local_set and now - self._last_load > self.disk_interval
+        if self._config_path is not None and (
+            self._config is None
+            or (not self._local_set and now - self._last_load > self.disk_interval)
         ):
             self._last_load = now
             self.load()
@@ -256,6 +310,9 @@ class Controller:
     def set(self, key, value) -> None:
         """Set a specific key in the config-file."""
         self._config[key] = value
+        if self._config_path is None:
+            self._local_set = True
+            return
         now = perf_counter()
         if now - self._last_load > self.disk_interval:
             self._last_load = now
