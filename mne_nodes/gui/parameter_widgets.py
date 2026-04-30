@@ -825,6 +825,7 @@ class ListGui(Param):
             window_title=self.alias,
         )
         dlg.finished.connect(self._update_param)
+        dlg.open()
 
     def _set_widget_value(self, value):
         if value is not None:
@@ -903,6 +904,7 @@ class CheckListGui(Param):
             window_title=self.alias,
         )
         dlg.finished.connect(self._update_param)
+        dlg.open()
 
     def change_options(self, options):
         """Change the options of the CheckList.
@@ -995,6 +997,7 @@ class DictGui(Param):
             window_title=self.alias,
         )
         dlg.finished.connect(self._update_param)
+        dlg.open()
 
     def _set_widget_value(self, value):
         if value is not None:
@@ -1447,8 +1450,6 @@ class LabelDialog(SimpleDialog):
         self._subject_changed()
         self._surface_changed()
 
-        self.open()
-
     def _init_layout(self):
         layout = QVBoxLayout(self.main_widget)
 
@@ -1662,6 +1663,7 @@ class LabelGui(Param):
     def show_dialog(self):
         if self._dialog is None:
             self._dialog = LabelDialog(self)
+            self._dialog.open()
         else:
             self._dialog.show()
 
@@ -1910,7 +1912,6 @@ class SettingsDlg(QDialog):
             self.settings_items.pop("mne_path")
 
         self.init_ui()
-        self.open()
 
     def init_ui(self):
         layout = QVBoxLayout()

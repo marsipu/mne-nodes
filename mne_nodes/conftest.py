@@ -100,6 +100,7 @@ def ct(tmp_path, monkeypatch, settings):
 
     # Create Controller
     ct = Controller(settings=settings)
+    ct.ensure_ready(required=("config_path",))
 
     return ct
 

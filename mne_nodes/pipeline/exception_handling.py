@@ -45,7 +45,7 @@ def gui_error_decorator(func):
             return func(*args, **kwargs)
         except Exception:
             exc_tuple = get_exception_tuple()
-            ErrorDialog(exc_tuple)
+            ErrorDialog(exc_tuple).exec()
 
     return wrapper
 
@@ -56,7 +56,7 @@ def gui_error():
         yield
     except Exception:
         exc_tuple = get_exception_tuple()
-        ErrorDialog(exc_tuple)
+        ErrorDialog(exc_tuple).exec()
 
 
 # ToDo: Test exception handling

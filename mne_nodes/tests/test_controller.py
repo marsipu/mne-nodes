@@ -109,6 +109,19 @@ def test_config_change(tmp_path, ct, monkeypatch):
     )
 
 
+def test_getters_are_non_interactive(settings):
+    controller = Controller(settings=settings)
+
+    assert controller.config_path is None
+    assert controller.bids_root is None
+    assert controller.deriv_root is None
+    assert controller.plot_root is None
+    assert controller.name is None
+
+    with pytest.raises(RuntimeError):
+        controller.ensure_ready(required=("config_path",), interactive=False)
+
+
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference
 
 # ToDo: add a test about accessing and modifying config from multiple processes without data loss or race conditions

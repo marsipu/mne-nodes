@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
             self.restart()
 
     def show_sys_info(self):
-        SysInfoMsg(self)
+        SysInfoMsg(self).show()
         mne.sys_info()
 
     # ------------------------------------------------------------------

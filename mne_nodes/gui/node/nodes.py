@@ -237,7 +237,8 @@ class FunctionNode(BaseNode):
                 file_section=(start, end), file_path=file_path
             )
             editor_widget.editor.codeSaved.connect(self.ct.reload_modules)
-            SimpleDialog(editor_widget)
+            self._editor_dialog = SimpleDialog(editor_widget)
+            self._editor_dialog.open()
         else:
             raise_user_attention(
                 "Source code not available for this function.",

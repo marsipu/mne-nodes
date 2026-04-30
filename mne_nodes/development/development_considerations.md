@@ -35,6 +35,20 @@ top-level object (e.g. Main-Window, depending on use-case).
 On Unix, values stored into QSettings **don't** maintain type and are converted
 to strings.
 
+## Qt Import Order Safety (Windows)
+
+- Avoid importing GUI-heavy mne-nodes modules before `QApplication` exists.
+- In launcher scripts, create `QApplication` first and only then import modules
+  like `mne_nodes.gui.main_window`, `mne_nodes.gui.function_widgets`,
+  `mne_nodes.gui.node.node_viewer`, or `mne_nodes.gui.parameter_widgets`.
+- Keep GUI startup code in a `main()` function and protect it with
+  `if __name__ == "__main__":` to avoid side effects on import.
+- Keep Qt backend selection consistent per process (do not mix bindings).
+
+Reason: importing these modules can trigger deep Qt/C-extension initialization
+chains (for example via MNE/qt browser widgets) and can cause fatal access
+violations on Windows when done before the Qt application is fully initialized.
+
 ## MacOS
 
 - MenuBar

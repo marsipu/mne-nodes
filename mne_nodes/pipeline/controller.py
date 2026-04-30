@@ -14,7 +14,7 @@ from copy import deepcopy
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from os.path import isdir, join, isfile
+from os.path import isdir, isfile
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict, Optional, Union
@@ -81,10 +81,6 @@ class Controller:
     ----------
     config_path : str or Path, optional
         Path to the config-file.
-    initialize_paths : bool, keyword-only, default False
-        If True, eagerly access path properties (may trigger user prompts).
-        Default False so that a Controller can be created safely in a
-        headless / non-QApplication context.
     settings : Settings, optional
         Settings object to use for device-dependent settings.
     """
@@ -92,13 +88,12 @@ class Controller:
     def __init__(
         self,
         config_path: Optional[Union[str, Path]] = None,
-        initialize_paths: bool = False,
         settings: Optional[Settings] = None,
     ):
         self.settings = settings or Settings()
         # These hidden attributes should not be set directly
-        self._config = None
-        self._config_path = None
+        self._config = deepcopy(default_config)
+        self._config_path: Path | None = None
         self._config_lock = None
         self.lock_timeout = 5  # seconds
         self.disk_interval = 1  # seconds
@@ -111,17 +106,17 @@ class Controller:
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
-        # Initialize config_path here (may prompt user)
+        # Initialize config_path here without prompting. Interactive setup is
+        # handled explicitly via ensure_* methods after QApplication startup.
         config_path = config_path or self.settings.get("config_path", default=None)
-        if config_path and not isfile(config_path):
-            raise_user_attention(f"Config file {config_path} does not exist!")
+        config_path = self._as_path(config_path)
+        if config_path is not None and not config_path.is_file():
+            logging.warning(f"Config file {config_path} does not exist!")
             config_path = None
-        self.config_path = config_path
-        # Check existence of data_path (optional) only if requested
-        if initialize_paths:
-            _ = self.deriv_root  # may trigger lazy initialization
+        if config_path is not None:
+            self.config_path = config_path
         # Add core functions to modules (until separated)
-        self.add_module(core_functions.__file__)
+        self.add_module(Path(core_functions.__file__))
         # Initialize modules
         self.load_modules()
 
@@ -131,10 +126,6 @@ class Controller:
     @property
     def config_path(self) -> Path | None:
         """Path to the config-file."""
-        if self._config_path is None:
-            # Initialize setting of the config_path
-            logging.info("No config_path set, initializing.")
-            self.config_path = None
         return self._config_path
 
     @config_path.setter
@@ -152,37 +143,46 @@ class Controller:
                 sys.exit(0)
             elif ans:
                 logging.info("Creating new config-file.")
-                config_folder = get_user_input(
-                    "Set the folder-path to store the config-file",
-                    input_type="folder",
-                    exit_on_cancel=True,
+                config_folder = self._as_path(
+                    get_user_input(
+                        "Set the folder-path to store the config-file",
+                        input_type="folder",
+                        exit_on_cancel=True,
+                    )
                 )
                 name = get_user_input(
                     "Please enter a name for this project", input_type="string"
                 )
+                if config_folder is None or name is None:
+                    raise RuntimeError("Config path initialization failed.")
                 # Keep project name first in JSON for readability.
                 config = {"name": name, **deepcopy(default_config)}
-                value = join(config_folder, f"{name}_config.json")
+                value = config_folder / f"{name}_config.json"
                 with open(value, "w", encoding="utf-8") as file:
                     json.dump(config, file, indent=4, cls=TypedJSONEncoder)
                 raise_user_attention(f"New configuration created at:\n{value}", "info")
             else:
                 logging.info("Using existing config-file.")
-                value = get_user_input(
-                    "Please enter the path to an exisiting config-file",
-                    input_type="file",
-                    file_filter="JSON files (*.json)",
-                    exit_on_cancel=True,
+                value = self._as_path(
+                    get_user_input(
+                        "Please enter the path to an exisiting config-file",
+                        input_type="file",
+                        file_filter="JSON files (*.json)",
+                        exit_on_cancel=True,
+                    )
                 )
                 raise_user_attention(
                     f"Configuration sucessfully loaded from:\n{value}", "info"
                 )
+        config_path = self._as_path(value)
+        if config_path is None:
+            raise RuntimeError("Config path initialization failed.")
         # Set the path and initialize the lock
-        self._config_path = Path(value)
-        self._config_lock = FileLock(Path(self._config_path).with_suffix(".lock"))
-        self.settings.set("config_path", value)
+        self._config_path = config_path
+        self._config_lock = FileLock(self._config_path.with_suffix(".lock"))
+        self.settings.set("config_path", self._config_path)
         # Load the config immediately
-        if isfile(self._config_path):
+        if self._config_path.is_file():
             self.load()
         else:
             self.flush()
@@ -190,9 +190,159 @@ class Controller:
     @property
     def config_lock(self):
         if self._config_lock is None:
-            logging.info("Config lock not set, initializing config_path.")
-            self.config_path = None
+            raise RuntimeError(
+                "Config path is not initialized. Call ensure_config_path() first."
+            )
         return self._config_lock
+
+    @staticmethod
+    def _as_path(value: Any) -> Path | None:
+        if value is None:
+            return None
+        if isinstance(value, (str, os.PathLike, Path)):
+            return Path(value)
+        return None
+
+    def _setting_path(self, key: str) -> Path | None:
+        path_value = self._as_path(self.settings.get(key, None))
+        if path_value is not None and path_value.is_dir():
+            return path_value
+        return None
+
+    def _ensure_setting_path(
+        self, *, key: str, prompt: str, missing_message: str, interactive: bool
+    ) -> Path:
+        configured_path = self._as_path(self.settings.get(key, None))
+        if configured_path is not None and configured_path.is_dir():
+            return configured_path
+        if configured_path is not None:
+            logging.warning(missing_message.format(path=configured_path))
+            if interactive:
+                raise_user_attention(missing_message.format(path=configured_path))
+        if not interactive:
+            raise RuntimeError(
+                f"Required path '{key}' is not configured. Call ensure_{key}() first."
+            )
+        selected_path = self._as_path(
+            get_user_input(prompt, "folder", cancel_allowed=False)
+        )
+        if selected_path is None:
+            raise RuntimeError(f"Failed to initialize required path '{key}'.")
+        self.settings.set(key, selected_path)
+        return selected_path
+
+    def ensure_config_path(self, interactive: bool = True) -> Path:
+        if self._config_path is not None:
+            return self._config_path
+        if not interactive:
+            raise RuntimeError(
+                "Config path is not initialized. Call ensure_config_path() first."
+            )
+        self.config_path = None
+        if self._config_path is None:
+            raise RuntimeError("Config path initialization failed.")
+        return self._config_path
+
+    def ensure_name(self, interactive: bool = True) -> str:
+        name = self.get("name", None)
+        if isinstance(name, str):
+            return name
+        if name is not None:
+            coerced_name = str(name)
+            self.set("name", coerced_name)
+            return coerced_name
+        if not interactive:
+            raise RuntimeError(
+                "Project name is not initialized. Call ensure_name() first."
+            )
+        name = get_user_input(
+            "Please enter a name for this project", "string", cancel_allowed=False
+        )
+        if name is None:
+            raise RuntimeError("Project name initialization failed.")
+        coerced_name = str(name)
+        self.set("name", coerced_name)
+        return coerced_name
+
+    def ensure_bids_root(self, interactive: bool = True) -> Path:
+        return self._ensure_setting_path(
+            key="bids_root",
+            prompt="Please select/create a folder for the bids-root.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select the bids-root folder."
+            ),
+            interactive=interactive,
+        )
+
+    def ensure_deriv_root(self, interactive: bool = True) -> Path:
+        return self._ensure_setting_path(
+            key="deriv_root",
+            prompt="Please select/create a folder for the derivatives root.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select the correct folder for data derivatives."
+            ),
+            interactive=interactive,
+        )
+
+    def ensure_plot_root(self, interactive: bool = True) -> Path:
+        return self._ensure_setting_path(
+            key="plot_root",
+            prompt="Please select/create a folder for saving plots.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select/create the folder where plots should be saved."
+            ),
+            interactive=interactive,
+        )
+
+    def ensure_subjects_dir(self, interactive: bool = True) -> Path:
+        subjects_dir = self.subjects_dir
+        if subjects_dir is not None:
+            return subjects_dir
+        if not interactive:
+            raise RuntimeError(
+                "FreeSurfer subjects directory is not configured. Call ensure_subjects_dir() first."
+            )
+        selected_path = self._as_path(
+            get_user_input(
+                "Please enter the path to the FreeSurfer subjects directory",
+                "folder",
+                cancel_allowed=False,
+            )
+        )
+        if selected_path is None:
+            raise RuntimeError("FreeSurfer subjects directory initialization failed.")
+        self.subjects_dir = selected_path
+        return selected_path
+
+    def ensure_ready(
+        self,
+        *,
+        required: tuple[str, ...] = ("config_path", "bids_root", "deriv_root"),
+        interactive: bool = True,
+    ) -> None:
+        missing = []
+        ensure_map = {
+            "config_path": self.ensure_config_path,
+            "name": self.ensure_name,
+            "bids_root": self.ensure_bids_root,
+            "deriv_root": self.ensure_deriv_root,
+            "plot_root": self.ensure_plot_root,
+            "subjects_dir": self.ensure_subjects_dir,
+        }
+        for item in required:
+            ensure_func = ensure_map.get(item)
+            if ensure_func is None:
+                raise ValueError(f"Unknown required controller state: {item}")
+            try:
+                ensure_func(interactive=interactive)
+            except RuntimeError:
+                missing.append(item)
+        if missing:
+            missing_str = ", ".join(missing)
+            raise RuntimeError(f"Missing required controller state: {missing_str}")
 
     @staticmethod
     def default(key):
@@ -201,8 +351,9 @@ class Controller:
 
     def _load_config(self):
         """Load the configuration from the config-file if necessary."""
+        config_path = self.ensure_config_path(interactive=False)
         try:
-            with open(self.config_path) as file:
+            with open(config_path) as file:
                 config = json.load(file, object_hook=type_json_hook)
         except (
             OSError,
@@ -211,18 +362,22 @@ class Controller:
             FileNotFoundError,
         ) as err:
             logging.warning(
-                f"Loading config from {self.config_path} failed with:\n{err}\nUsing defaults."
+                f"Loading config from {config_path} failed with:\n{err}\nUsing defaults."
             )
             config = deepcopy(default_config)
 
         return config
 
     def _save_config(self, config) -> None:
-        with open(self._config_path, "w") as file:
+        config_path = self.ensure_config_path(interactive=False)
+        with open(config_path, "w") as file:
             json.dump(config, file, indent=4, cls=TypedJSONEncoder)
 
     def load(self):
         """Force loading the config from disk."""
+        if self._config_path is None:
+            logging.debug("Config path is not set. Keeping in-memory configuration.")
+            return
         try:
             with self.config_lock:
                 self._config = self._load_config()
@@ -234,6 +389,9 @@ class Controller:
 
     def flush(self):
         """Force writing the current config to disk."""
+        if self._config_path is None:
+            logging.debug("Config path is not set. Skipping config flush.")
+            return
         try:
             with self.config_lock:
                 self._save_config(self._config)
@@ -245,8 +403,9 @@ class Controller:
     def get(self, key, default=None) -> Any:
         """Load a specific key from the config-file."""
         now = perf_counter()
-        if self._config is None or (
-            not self._local_set and now - self._last_load > self.disk_interval
+        if self._config_path is not None and (
+            self._config is None
+            or (not self._local_set and now - self._last_load > self.disk_interval)
         ):
             self._last_load = now
             self.load()
@@ -256,6 +415,9 @@ class Controller:
     def set(self, key, value) -> None:
         """Set a specific key in the config-file."""
         self._config[key] = value
+        if self._config_path is None:
+            self._local_set = True
+            return
         now = perf_counter()
         if now - self._last_load > self.disk_interval:
             self._last_load = now
@@ -266,26 +428,9 @@ class Controller:
             self._local_set = True
 
     @property
-    def bids_root(self) -> os.PathLike | None:
-        """Path to the root data directory.
-
-        This is the root folder of the processed data.
-        """
-        bids_root = self.settings.get("bids_root")
-        if bids_root is not None and not isdir(bids_root):
-            logging.warning(f"Bids root folder does not exist: {bids_root}")
-            raise_user_attention(
-                f"Path {bids_root} does not exist! If you moved from another device, please select the bids-root folder."
-            )
-        if bids_root is None or not isdir(bids_root):
-            bids_root = get_user_input(
-                "Please select/create a folder for the bids-root.",
-                "folder",
-                cancel_allowed=False,
-            )
-            self.settings.set("bids_root", bids_root)
-
-        return bids_root
+    def bids_root(self) -> Path | None:
+        """Configured BIDS root directory, if available."""
+        return self._setting_path("bids_root")
 
     @bids_root.setter
     def bids_root(self, value: os.PathLike) -> None:
@@ -299,30 +444,13 @@ class Controller:
             self.get("selected_inputs").clear()
             self.get("custom_groups").clear()
             # Update input widget
-            self.viewer().input_node.update_widgets()
+            self.viewer.input_node.update_widgets()
             self.settings.set("bids_root", value)
 
     @property
-    def deriv_root(self) -> Path:
-        """Path to the (processed) data directory.
-
-        This contains all data, mne-nodes works with. The original data
-        are generally left unchanged.
-        """
-        deriv_root = self.settings.get("deriv_root")
-        if deriv_root is not None and not isdir(deriv_root):
-            raise_user_attention(
-                f"Path {deriv_root} does not exist! If you moved from another device, please select the correct folder for data derivatives."
-            )
-        if deriv_root is None or not isdir(deriv_root):
-            deriv_root = get_user_input(
-                "Please select/create a folder for the derivatives root.",
-                "folder",
-                cancel_allowed=False,
-            )
-            self.settings.set("deriv_root", deriv_root)
-
-        return deriv_root
+    def deriv_root(self) -> Path | None:
+        """Configured derivatives root directory, if available."""
+        return self._setting_path("deriv_root")
 
     @deriv_root.setter
     def deriv_root(self, value: str | Path) -> None:
@@ -331,23 +459,16 @@ class Controller:
         self.settings.set("deriv_root", value)
 
     @property
-    def subjects_dir(self) -> Path:
-        """Path to the FreeSurfer subjects directory."""
+    def subjects_dir(self) -> Path | None:
+        """Configured FreeSurfer subjects directory, if available."""
         if is_test():
             subjects_dir = self.settings.get("subjects_dir", None)
         else:
             subjects_dir = mne.get_config("SUBJECTS_DIR", None)
-        if subjects_dir is not None and not isdir(subjects_dir):
-            raise_user_attention(
-                f"Path {subjects_dir} does not exist! If you moved from another device, please select the folder where the FreeSurfer subjects directory is stored."
-            )
-        if subjects_dir is None or not isdir(subjects_dir):
-            subjects_dir = get_user_input(
-                "Please enter the path to the FreeSurfer subjects directory", "folder"
-            )
-            self.subjects_dir = subjects_dir
-
-        return Path(subjects_dir)
+        subjects_dir = self._as_path(subjects_dir)
+        if subjects_dir is not None and subjects_dir.is_dir():
+            return subjects_dir
+        return None
 
     @subjects_dir.setter
     def subjects_dir(self, value):
@@ -360,19 +481,9 @@ class Controller:
                 mne.set_config("SUBJECTS_DIR", value)
 
     @property
-    def plot_root(self):
-        """Path to the directory where plots are saved."""
-        plot_root = self.settings.get("plot_root", None)
-        if plot_root is not None and not isdir(plot_root):
-            raise_user_attention(
-                f"Path {plot_root} does not exist! If you moved from another device, please select/create the folder where plots should be saved."
-            )
-        if plot_root is None or not isdir(plot_root):
-            plot_root = get_user_input(
-                "Please select/create a folder for saving plots.", "folder"
-            )
-            self.plot_root = plot_root
-        return Path(plot_root)
+    def plot_root(self) -> Path | None:
+        """Configured plot output directory, if available."""
+        return self._setting_path("plot_root")
 
     @plot_root.setter
     def plot_root(self, value):
@@ -382,24 +493,23 @@ class Controller:
             self.settings.set("plot_root", value)
 
     @property
-    def plot_path(self):
+    def plot_path(self) -> Path:
         """Path to the plot directory for the current project."""
-        plot_path = self.plot_root / self.name
+        plot_root = self.ensure_plot_root(interactive=False)
+        name = self.ensure_name(interactive=False)
+        plot_path = plot_root / name
         if not isdir(plot_path):
             plot_path.mkdir(parents=True, exist_ok=True)
         return plot_path
 
     @property
-    def name(self):
-        name = self.get("name", None)
-        if name is None:
-            name = get_user_input("Please enter a name for this project", "string")
-        return name
+    def name(self) -> str | None:
+        return self.get("name", None)
 
     @name.setter
     def name(self, new_name):
         old_name = self.get("name")
-        if old_name != new_name:
+        if old_name != new_name and self._config_path is not None:
             # Rename the config file if the name changes
             old_path = self._config_path
             new_path = self._config_path.parent / f"{new_name}_config.json"
@@ -439,7 +549,8 @@ class Controller:
     # BIDS
     ####################################################################################
     def get_dataset_name(self) -> str | None:
-        dataset_file = self.bids_root / "dataset_description.json"
+        bids_root = self.ensure_bids_root(interactive=False)
+        dataset_file = bids_root / "dataset_description.json"
         if not dataset_file.is_file():
             logging.warning(f"Dataset description file not found at {dataset_file}.")
             return None
@@ -676,7 +787,7 @@ class Controller:
             if isinstance(node, ast.FunctionDef) and node.name == function_name:
                 # lineno and end_lineno are 1-based
                 start_line = node.lineno - 1
-                end_line = node.end_lineno - 1
+                end_line = (node.end_lineno or node.lineno) - 1
 
                 return start_line, end_line
         logging.warning("Could not find function in module code.")
@@ -700,10 +811,9 @@ class Controller:
 
     def get_datatypes(self):
         # ToDo: Implement data-types other than raw
+        bids_root = self.ensure_bids_root(interactive=False)
         excluded_datatypes = ["anat", "func"]
-        return [
-            dt for dt in get_datatypes(self.bids_root) if dt not in excluded_datatypes
-        ]
+        return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
 
     @staticmethod
     def tab(num_tabs=1, tab_size=4):
@@ -728,7 +838,7 @@ class Controller:
             "# Disable gui-mode\n"
             "mne_nodes.gui_mode = False\n\n"
             "# Load controller\n"
-            f"ct = Controller(config_path='{self.config_path.as_posix()}')\n\n"
+            f"ct = Controller(config_path='{self.ensure_config_path(interactive=False).as_posix()}')\n\n"
             "# Inject modules into global namespace\n"
             "globals().update(ct.modules)\n"
             "# Import modules\n"

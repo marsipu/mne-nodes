@@ -62,6 +62,7 @@ def main() -> None:
 
     # Initialize controller and main window
     controller = Controller()
+    controller.ensure_ready()
 
     # Late import of MainWindow, since importing it at the top-level seems to cause Windows fatal access errors when opening dialogs in some cases.
     from mne_nodes.gui.main_window import MainWindow

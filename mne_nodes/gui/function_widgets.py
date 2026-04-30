@@ -120,7 +120,6 @@ class DescriptionEditor(QDialog):
         if "description" in module_config:
             self.editor.setPlainText(module_config["description"])
         self.setMinimumSize(600, 300)
-        self.open()
 
     def _update_viewer(self):
         text = self.editor.toPlainText()
@@ -217,7 +216,6 @@ class DataConfiguration(QDialog):
                     groupbox_layout=False,
                 )
             )
-        self.open()
 
 
 class ParameterConfiguration(QDialog):
@@ -261,7 +259,6 @@ class ParameterConfiguration(QDialog):
             else "StringGui"
         )
         gui_cmbx.setCurrentText(gui_name)
-        self.open()
 
     def _get_type_gui(self, name, param):
         # Get type for gui configuration items
@@ -401,7 +398,6 @@ class FunctionImporter(QDialog):
             self.analyze_code(code)
         elif file_path is not None:
             self.load_file(file_path)
-        self.open()
 
     @property
     def module_name(self):
@@ -463,7 +459,9 @@ class FunctionImporter(QDialog):
                 exec(code, globals=namespace)
             except Exception:
                 exc_tuple = get_exception_tuple()
-                ErrorDialog(exc_tuple, self, "There was an error executing the code.")
+                ErrorDialog(
+                    exc_tuple, self, "There was an error executing the code."
+                ).open()
         tree = ast.parse(code)
         function_defs = [
             node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
@@ -634,7 +632,7 @@ class FunctionImporter(QDialog):
         self.tab_widget.clear()
 
     def change_description(self):
-        DescriptionEditor(self.module_config, self)
+        DescriptionEditor(self.module_config, self).open()
 
     def reanalyze(self):
         # Get code from editors
@@ -735,17 +733,17 @@ class FunctionImporter(QDialog):
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]
-        DataConfiguration(input_name, config, is_input=True, parent=self)
+        DataConfiguration(input_name, config, is_input=True, parent=self).open()
 
     def output_configuration(self, output_name):
         config = self.func_config[self.current_func]["outputs"][output_name]
-        DataConfiguration(output_name, config, is_input=False, parent=self)
+        DataConfiguration(output_name, config, is_input=False, parent=self).open()
 
     def param_configuration(self, param_name):
         # Passing the configuration dict works since ParameterWidgets will fill
         # the existing container.
         config = self.func_config[self.current_func]["parameters"][param_name]
-        ParameterConfiguration(param_name, config, parent=self)
+        ParameterConfiguration(param_name, config, parent=self).open()
 
     def _get_config_path(self):
         return self._pkg_dir / f"{self.module_name}_config.json"

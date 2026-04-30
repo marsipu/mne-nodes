@@ -1586,11 +1586,6 @@ class SimpleDialog(QDialog):
 
         self.setLayout(layout)
 
-        if modal:
-            self.open()
-        else:
-            self.show()
-
 
 class AssignWidget(QWidget):
     """"""
@@ -1682,7 +1677,10 @@ class AssignWidget(QWidget):
         self.items_w.content_changed()
 
     def show_assignments(self):
-        SimpleDialog(EditDict(self.assignments), parent=self, modal=False)
+        self._assignments_dialog = SimpleDialog(
+            EditDict(self.assignments), parent=self, modal=False
+        )
+        self._assignments_dialog.show()
 
 
 class TimedMessageBox(QMessageBox):
