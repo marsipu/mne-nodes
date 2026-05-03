@@ -6,7 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from mne_bids import BIDSPath, get_entity_vals
+from mne_bids import BIDSPath
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -97,18 +97,7 @@ class InputWidget(QWidget):
         if group_by == "custom":
             data = self.ct.get("custom_groups")
         else:
-            vals = get_entity_vals(self.ct.bids_root, group_by)
-            # ToDo: This might need to get generalized when adapting to other formats
-            data = {
-                v: [
-                    bp.basename
-                    for bp in BIDSPath(
-                        **{group_by: v, "root": self.ct.bids_root}
-                    ).match()
-                    if bp.extension not in [".tsv"]
-                ]
-                for v in vals
-            }
+            data = self.ct.get_group_by_strings(group_by)
         if group_by not in self.ct.get("selected_inputs"):
             self.ct.get("selected_inputs")[group_by] = []
         self.group_tree = ShallowTreeWidget(

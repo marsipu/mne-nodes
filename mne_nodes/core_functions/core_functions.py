@@ -62,8 +62,23 @@ def plot_evokeds(evokeds):
 def grand_average_evokeds(
     evokeds, interpolate_bads: bool = True, drop_bads: bool = True
 ):
-    ga_evokeds = mne.grand_average(
-        [evokeds], interpolate_bads=interpolate_bads, drop_bads=drop_bads
-    )
+    evoked_dict = {}
+    for evoked in evokeds:
+        # Assuming evoked is a list
+        for ave in evoked:
+            if ave.comment in evoked_dict:
+                evoked_dict[ave.comment].append(ave)
+            else:
+                evoked_dict[ave.comment] = [ave]
+    ga_evokeds = []
+    for comment, evoked_list in evoked_dict.items():
+        ga_evoked = mne.grand_average(
+            evoked_list, interpolate_bads=interpolate_bads, drop_bads=drop_bads
+        )
+        ga_evokeds.append(ga_evoked)
 
     return ga_evokeds
+
+
+def plot_ga_evokeds(ga_evokeds):
+    mne.viz.plot_compare_evokeds(ga_evokeds)

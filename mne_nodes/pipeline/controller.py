@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional, Union
 
 import mne
 from filelock import FileLock, Timeout
-from mne_bids import get_datatypes
+from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 from mne_nodes import _widgets
 from mne_nodes.core_functions import core_functions
 from mne_nodes.gui.gui_utils import (
@@ -559,6 +559,34 @@ class Controller:
                 dataset_description = json.load(file)
             return dataset_description["Name"]
 
+    def get_group_by(self, group_by):
+        if group_by == "custom":
+            data = {
+                k: [get_bids_path_from_fname(i) for i in v]
+                for k, v in self.get("custom_groups").items()
+            }
+        else:
+            vals = get_entity_vals(self.bids_root, group_by)
+            # ToDo: This might need to get generalized when adapting to other formats
+            data = {
+                v: [
+                    bp
+                    for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match()
+                    if bp.datatype in self.raw_types and bp.extension != ".tsv"
+                ]
+                for v in vals
+            }
+
+        return data
+
+    def get_group_by_strings(self, group_by):
+        data = {
+            v: [bp.basename for bp in items]
+            for v, items in self.get_group_by(group_by).items()
+        }
+
+        return data
+
     ####################################################################################
     # Parameters
     ####################################################################################
@@ -887,116 +915,132 @@ class Controller:
                     continue
                 targets[target].append(n)
         for target, nodes in targets.items():
-            if len(nodes) > 0:
-                code += f"# Target: {target}\n"
-            else:
+            if len(nodes) == 0:
                 continue
+            code += f"# Target: {target}\n"
             loaded_data = []
-            for dt in data_types:
-                code += f"# Data-Type: {dt}\n"
-                code += f"for item in ct.get('selected_inputs')['{dt}']:\n"
-                code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
+            for selection_type in [
+                key
+                for key, items in self.get("selected_inputs").items()
+                if len(items) > 0
+            ]:
+                if (selection_type in self.scopes and target == "file") or (
+                    selection_type in data_types and target == "group"
+                ):
+                    continue
+                code += f"# Selection-Type: {selection_type}\n"
+                if target == "group":
+                    code += f"group = ct.get_group_by('{selection_type}')\n"
+                code += f"for item in ct.get('selected_inputs')['{selection_type}']:\n"
+                if target == "file" and selection_type in data_types:
+                    code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
+                elif target == "group":
+                    # For group-data, load and return generators of the group-members
+                    code += self._indent("members = group[item]\n", 1)
                 for n in nodes:
-                    if target == "file":
-                        name = n["name"]
+                    name = n["name"]
+                    for ip in [i for i in n["inputs"] if i not in loaded_data]:
                         # Load selected data-types (if not already loaded)
-                        for ip in [i for i in n["inputs"] if i not in loaded_data]:
-                            if ip == "raw":
-                                # Load raw from original bids-dataset
+                        if ip == "raw":
+                            # Load raw from original bids-dataset
+                            if target == "file":
                                 code += self._indent(
                                     "bp_raw = bp.copy().update(root=ct.bids_root)\n", 1
                                 )
                                 code += self._indent("raw = read_raw_bids(bp_raw)\n", 1)
-                                loaded_data.append("raw")
                             else:
-                                # Load data from derivatives
-                                input_meta = self.get_input_meta(
-                                    function_name=name, input_name=ip
+                                code += self._indent(
+                                    "raw = (read_raw_bids(rp) for rp in members)\n", 1
                                 )
-                                load_func = input_meta.get("load", None)
-                                if load_func is not None:
-                                    suffix = input_meta.get("suffix") or ip
-                                    # Load data from storage
-                                    code += self._indent(f"# Load {ip}", 1)
+                            loaded_data.append("raw")
+                        else:
+                            # Load data from derivatives
+                            input_meta = self.get_input_meta(
+                                function_name=name, input_name=ip
+                            )
+                            load_func = input_meta.get("load", None)
+                            if load_func is not None:
+                                suffix = input_meta.get("suffix") or ip
+                                # Load data from storage
+                                code += self._indent(f"# Load {ip}", 1)
+                                code += self._indent(
+                                    f"load_kwargs = ct.get_input_meta('{name}', '{ip}').get('load_kwargs', {{}})\n",
+                                    1,
+                                )
+                                if target == "file":
                                     code += self._indent(
                                         f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                         1,
-                                    )
-                                    code += self._indent(
-                                        "if os.path.isfile(data_path):\n", 1
-                                    )
-                                    code += self._indent(
-                                        f"load_kwargs = ct.get_input_meta('{name}', '{ip}').get('load_kwargs', {{}})\n",
-                                        2,
                                     )
                                     # This assumes, that the file-path is always the first argument in a load-function
                                     code += self._indent(
                                         f"{ip} = {load_func}(data_path, **load_kwargs)\n",
-                                        2,
+                                        1,
                                     )
-                                loaded_data.append(ip)
-                        code += self._indent(f"# Execute function {name}\n", 1)
-                        code += self._indent(
-                            f"print(f'Executing {name} for {{item}} with the following parameters:')\n",
-                            1,
-                        )
-                        code += self._indent(
-                            f"func_params = ct.func_parameters('{name}')", 1
-                        )
-                        code += self._indent("pprint(func_params)\n", 1)
-                        code += self._indent("try:\n", 1)
-                        outputs = ", ".join([op for op in n["outputs"]])
-                        loaded_data += n["outputs"]
-                        inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
-                        func_line = ""
-                        if outputs:
-                            func_line += f"{outputs} = "
-                        func_line += f"{name}("
-                        if inputs:
-                            func_line += f"{inputs}, **func_params)"
-                        else:
-                            func_line += "**func_params)"
-                        code += self._indent(func_line, 2)
-                        code += self._indent("except Exception as e:\n", 1)
-                        code += self._indent(
-                            f"print(f'[Error] for {{item}} with {name}: {{e}}')\n"
-                            "traceback.print_exc()\n"
-                            "continue\n",
-                            2,
-                        )
-                        # Save outputs (if enabled)
-                        if n["checked"]:
-                            for op in n["outputs"]:
-                                output_meta = self.get_output_meta(
-                                    function_name=name, output_name=op
-                                )
-                                save_func = output_meta.get("save", None)
-                                if save_func is not None:
-                                    suffix = output_meta.get("suffix") or op
-                                    # Save data to storage
-                                    code += self._indent(f"# Save {op}\n", 1)
+                                else:
+                                    code += self._indent(
+                                        f"{ip} = ({load_func}(dp, **load_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members])\n",
+                                        1,
+                                    )
+                            loaded_data.append(ip)
+                    code += self._indent(f"# Execute function {name}\n", 1)
+                    code += self._indent(
+                        f"print(f'Executing {name} for {{item}} with the following parameters:')\n",
+                        1,
+                    )
+                    code += self._indent(
+                        f"func_params = ct.func_parameters('{name}')", 1
+                    )
+                    code += self._indent("pprint(func_params)\n", 1)
+                    outputs = ", ".join([op for op in n["outputs"]])
+                    loaded_data += n["outputs"]
+                    inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
+                    func_line = ""
+                    if outputs:
+                        func_line += f"{outputs} = "
+                    func_line += f"{name}("
+                    if inputs:
+                        func_line += f"{inputs}, **func_params)"
+                    else:
+                        func_line += "**func_params)"
+                    code += self._indent(func_line, 1)
+                    # Save outputs (if enabled)
+                    if n["checked"]:
+                        for op in n["outputs"]:
+                            output_meta = self.get_output_meta(
+                                function_name=name, output_name=op
+                            )
+                            save_func = output_meta.get("save", None)
+                            if save_func is not None:
+                                suffix = output_meta.get("suffix") or op
+                                # Save data to storage
+                                code += self._indent(f"# Save {op}\n", 1)
+                                if target == "file":
                                     code += self._indent(
                                         f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                         1,
                                     )
+                                else:
                                     code += self._indent(
-                                        "if os.path.isfile(data_path):\n", 1
+                                        f"data_path = members[0].copy().update(subject='average', suffix='{suffix}', root=ct.deriv_root, check=False)\n"
+                                        "data_path.mkdir(exist_ok=True)\n",
+                                        1,
                                     )
+                                code += self._indent(
+                                    f"save_kwargs = ct.get_output_meta(function_name='{name}', output_name='{op}').get('save_kwargs', {{}})\n",
+                                    1,
+                                )
+                                if save_func.startswith("."):
                                     code += self._indent(
-                                        f"save_kwargs = ct.get_output_meta(function_name='{name}', output_name='{op}').get('save_kwargs', {{}})\n",
-                                        2,
+                                        f"{op}{save_func}(data_path, **save_kwargs)\n",
+                                        1,
                                     )
-                                    if save_func.startswith("."):
-                                        code += self._indent(
-                                            f"{op}{save_func}(data_path, **save_kwargs)\n",
-                                            2,
-                                        )
-                                    else:
-                                        # This assumes, that the file-path is always the first argument in a save-function
-                                        code += self._indent(
-                                            f"{save_func}(data_path, {op}, **save_kwargs)\n",
-                                            2,
-                                        )
+                                else:
+                                    # This assumes, that the file-path is always the first argument in a save-function
+                                    code += self._indent(
+                                        f"{save_func}(data_path, {op}, **save_kwargs)\n",
+                                        1,
+                                    )
 
         code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
 
