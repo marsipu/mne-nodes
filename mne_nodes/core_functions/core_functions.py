@@ -57,3 +57,13 @@ def create_evokeds(epochs, conditions: list = None):
 
 def plot_evokeds(evokeds):
     evokeds.plot()
+
+
+def grand_average_evokeds(
+    evokeds, interpolate_bads: bool = True, drop_bads: bool = True
+):
+    ga_evokeds = mne.grand_average(
+        [evokeds], interpolate_bads=interpolate_bads, drop_bads=drop_bads
+    )
+
+    return ga_evokeds

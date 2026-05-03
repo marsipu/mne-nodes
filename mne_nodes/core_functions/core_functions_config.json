@@ -139,6 +139,37 @@
             "parameters": {},
             "outputs": {},
             "target": "file"
+        },
+        "grand_average_evokeds": {
+            "inputs": {
+                "evokeds": {
+                    "accepted": [
+                        "evokeds"
+                    ],
+                    "optional": false
+                }
+            },
+            "parameters": {
+                "interpolate_bads": {
+                    "default": true,
+                    "gui": "BoolGui"
+                },
+                "drop_bads": {
+                    "default": true,
+                    "gui": "BoolGui"
+                }
+            },
+            "outputs": {
+                "ga_evokeds": {
+                    "accepted": [
+                        "ga_evokeds"
+                    ],
+                    "optional": false,
+                    "save": ".save",
+                    "suffix": "ave"
+                }
+            },
+            "target": "file"
         }
     }
 }
