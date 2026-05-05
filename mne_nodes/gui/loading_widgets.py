@@ -40,7 +40,7 @@ from mne_nodes.gui.base_widgets import (
 from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
 from mne_nodes.gui.parameter_widgets import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
-from mne_nodes.pipeline.execution import WorkerDialog
+from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.pipeline.pipeline_utils import get_n_jobs
 from mne_nodes.pipeline.settings import Settings
 

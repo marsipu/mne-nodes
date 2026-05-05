@@ -12,8 +12,9 @@ import logging
 import queue
 import re
 import time
-from functools import wraps
+from functools import wraps, partial
 
+from PySide6.QtWidgets import QVBoxLayout, QPushButton
 from qtpy.QtCore import (
     QMutex,
     QWaitCondition,
@@ -34,6 +35,8 @@ from qtpy.QtWidgets import (
     QTabBar,
 )
 
+from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.streams import init_streams
 
 
@@ -357,26 +360,47 @@ class ConsoleDock(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
+        self.processes = {}
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
             | Qt.DockWidgetArea.RightDockWidgetArea
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.process_tabs: dict[int, dict[str, object]] = {}
-        self._process_tab_indexes: dict[int, int] = {}
         self.tab_widget = QTabWidget(self)
         self.tab_widget.setMovable(False)
         self.tab_widget.setDocumentMode(False)
-        # ToDo: Enable canceling operation by closing tab
-        # self.tab_widget.setTabsClosable(True)
-        # self.tab_widget.tabCloseRequested.connect(self._close_process_tab)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self._close_process)
         self.setWidget(self.tab_widget)
 
-    def add_process(self):
+    def start_process(self, program, arguments):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         console = ConsoleWidget()
-        self.tab_widget.addTab(console, f"Process {len(self.process_tabs) + 1}")
+        process_id = self.tab_widget.count()
         if not self.isVisible():
             self.setVisible(True)
+        layout.addWidget(console)
+        stop_bt = QPushButton("Stop")
+        stop_bt.clicked.connect(partial(self._close_process, process_id))
+        layout.addWidget(stop_bt)
+        self.tab_widget.addTab(widget, f"Process {process_id}")
+        self.tab_widget.setCurrentWidget(widget)
+        # Create process
+        process = Process(
+            proc_id=process_id,
+            console=console,
+            working_directory=self.ct.deriv_root,
+            self_destruct=True,
+        )
+        process.finished.connect(lambda _: self.processes.pop(process_id))
+        self.processes[process_id] = process
+        # Start process
+        process.start(program, arguments)
 
-        return console
+    def _close_process(self, process_id):
+        ans = ask_user(f"Do you really want to stop process {process_id}?")
+        if ans:
+            process = self.processes.get(process_id)
+            process.kill()

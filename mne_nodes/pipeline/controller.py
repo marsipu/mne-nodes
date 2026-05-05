@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional, Union
 import mne
 from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
+
 from mne_nodes import _widgets
 from mne_nodes.core_functions import core_functions
 from mne_nodes.gui.gui_utils import (
@@ -30,7 +31,6 @@ from mne_nodes.gui.gui_utils import (
     ask_user_custom,
     ask_user,
 )
-from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
@@ -897,8 +897,6 @@ class Controller:
             if n["class"] == "FunctionNode"
         }
         code = self._build_header(functions)
-
-        # Add function execution code
         code += "\n# Execute pipeline\n"
         # Get available datatypes
         data_types = self.get_datatypes()
@@ -914,6 +912,7 @@ class Controller:
                     )
                     continue
                 targets[target].append(n)
+        # Iterate nodes
         for target, nodes in targets.items():
             if len(nodes) == 0:
                 continue
@@ -932,6 +931,7 @@ class Controller:
                 if target == "group":
                     code += f"group = ct.get_group_by('{selection_type}')\n"
                 code += f"for item in ct.get('selected_inputs')['{selection_type}']:\n"
+                # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
                 elif target == "group":
@@ -1043,6 +1043,7 @@ class Controller:
                                     )
 
         code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
+        code += "import time\ntime.sleep(100)"
 
         return code
 
@@ -1055,14 +1056,7 @@ class Controller:
         logging.info(
             f"Pipeline code generated at {run_file_path}.\nStarting execution."
         )
-        # Add Process to ConsoleDock and get Console
-        console = self.main_window.console_dock.add_process()
-        process = Process(
-            proc_id=self._process_count,
-            console=console,
-            working_directory=self.deriv_root,
-            self_destruct=True,
+        # Start process in Console-Dock (handle processes there)
+        self.main_window.console_dock.start_process(
+            sys.executable, [str(run_file_path)]
         )
-        self._process_count += 1
-        # Start process
-        process.start(sys.executable, [str(run_file_path)])

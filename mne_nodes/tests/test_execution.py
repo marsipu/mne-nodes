@@ -11,7 +11,8 @@ import sys
 import pytest
 
 from mne_nodes.gui.console import ConsoleWidget
-from mne_nodes.pipeline.execution import ProcessDialog, Process
+from mne_nodes.pipeline.execution import Process
+from mne_nodes.gui.run_widgets import ProcessDialog
 
 
 def test_process(qtbot):
@@ -36,7 +37,7 @@ def test_main_window_process(qtbot, main_window, ct, tmp_path):
     Uses a trivial Python one-shot command that writes to stdout &
     stderr.
     """
-    console = main_window.console_dock.add_process()
+    console = main_window.console_dock.start_process(1)
     process = Process(console=console, self_destruct=True)
     process.start(
         sys.executable,
