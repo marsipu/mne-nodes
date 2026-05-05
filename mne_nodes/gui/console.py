@@ -361,6 +361,7 @@ class ConsoleDock(QDockWidget):
         super().__init__("Console", parent)
         self.ct = controller
         self.processes = {}
+        self.consoles = {}
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
             | Qt.DockWidgetArea.RightDockWidgetArea
@@ -379,6 +380,7 @@ class ConsoleDock(QDockWidget):
         layout = QVBoxLayout(widget)
         console = ConsoleWidget()
         process_id = self.tab_widget.count()
+        self.consoles[process_id] = console
         if not self.isVisible():
             self.setVisible(True)
         layout.addWidget(console)
@@ -404,3 +406,4 @@ class ConsoleDock(QDockWidget):
         if ans:
             process = self.processes.get(process_id)
             process.kill()
+            self.consoles.pop(process_id)

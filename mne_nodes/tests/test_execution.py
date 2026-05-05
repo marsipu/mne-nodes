@@ -37,14 +37,11 @@ def test_main_window_process(qtbot, main_window, ct, tmp_path):
     Uses a trivial Python one-shot command that writes to stdout &
     stderr.
     """
-    console = main_window.console_dock.start_process(1)
-    process = Process(console=console, self_destruct=True)
-    process.start(
-        sys.executable,
-        ["-c", "import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)"],
-    )
+    program = sys.executable
+    args = ["-c", "import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)"]
+    main_window.console_dock.start_process(program, args)
     qtbot.wait(1000)
-    console_text = process.console.toPlainText()
+    console_text = main_window.console_dock.consoles[0].toPlainText()
     assert "TEST_OUT" in console_text, "Stdout not captured in console"
     assert "TEST_ERR" in console_text, "Stderr not captured in console"
 
