@@ -10,9 +10,6 @@ venv/
 # PyCharm Project-Settings
 .idea/
 
-# VSCode
-.vscode/
-
 # Documentation
 docs/build/
 docs/generated/
