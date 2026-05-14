@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "mne-nodes",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mne_nodes",
+            "autoReload": {
+                "enable": true
+            },
+            "console": "integratedTerminal"
+        }
+    ]
+}

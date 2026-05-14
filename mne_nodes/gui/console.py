@@ -16,6 +16,7 @@ from functools import wraps
 
 from qtpy.QtCore import (
     QMutex,
+    QProcess,
     QWaitCondition,
     QRunnable,
     QThreadPool,
@@ -32,8 +33,11 @@ from qtpy.QtWidgets import (
     QWidget,
     QLabel,
     QTabBar,
+    QVBoxLayout,
 )
 
+from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.streams import init_streams
 
 
@@ -357,26 +361,54 @@ class ConsoleDock(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
+        self.processes = []
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
             | Qt.DockWidgetArea.RightDockWidgetArea
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.process_tabs: dict[int, dict[str, object]] = {}
-        self._process_tab_indexes: dict[int, int] = {}
         self.tab_widget = QTabWidget(self)
         self.tab_widget.setMovable(False)
         self.tab_widget.setDocumentMode(False)
-        # ToDo: Enable canceling operation by closing tab
-        # self.tab_widget.setTabsClosable(True)
-        # self.tab_widget.tabCloseRequested.connect(self._close_process_tab)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self._close_process)
         self.setWidget(self.tab_widget)
 
-    def add_process(self):
+    def start_process(self, program, arguments):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
         console = ConsoleWidget()
-        self.tab_widget.addTab(console, f"Process {len(self.process_tabs) + 1}")
+        process_idx = self.tab_widget.count()
         if not self.isVisible():
             self.setVisible(True)
+        layout.addWidget(console)
+        self.tab_widget.addTab(widget, f"Process {process_idx}")
+        self.tab_widget.setCurrentWidget(widget)
+        # Create process
+        process = Process(
+            proc_id=process_idx,
+            console=console,
+            working_directory=self.ct.deriv_root,
+            self_destruct=True,
+        )
+        self.processes.append(process)
+        # Start process
+        process.start(program, arguments)
 
-        return console
+    def _close_process(self, process_idx):
+        process = self.processes[process_idx]
+        if process.state() != QProcess.ProcessState.NotRunning:
+            ans = ask_user(f"Do you really want to stop process {process_idx}?")
+            if ans:
+                # Kill process
+                process.kill()
+            else:
+                return
+        # Remove process
+        self.processes.pop(process_idx)
+        # Remove tab
+        widget = self.tab_widget.widget(process_idx)
+        self.tab_widget.removeTab(process_idx)
+        if widget is not None:
+            widget.deleteLater()

@@ -19,7 +19,7 @@ from mne_nodes.gui.gui_utils import (
     set_ratio_geometry,
 )
 from mne_nodes.gui.node.node_viewer import NodeViewer
-from mne_nodes.pipeline.execution import ProcessDialog
+from mne_nodes.gui.run_widgets import ProcessDialog
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 
 

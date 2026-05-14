@@ -139,6 +139,55 @@
             "parameters": {},
             "outputs": {},
             "target": "file"
+        },
+        "grand_average_evokeds": {
+            "inputs": {
+                "evokeds": {
+                    "accepted": [
+                        "evokeds"
+                    ],
+                    "optional": true,
+                    "load": "mne.read_evokeds",
+                    "suffix": "ave"
+                }
+            },
+            "parameters": {
+                "interpolate_bads": {
+                    "default": true,
+                    "gui": "BoolGui"
+                },
+                "drop_bads": {
+                    "default": true,
+                    "gui": "BoolGui"
+                }
+            },
+            "outputs": {
+                "ga_evokeds": {
+                    "accepted": [
+                        "ga_evokeds"
+                    ],
+                    "optional": false,
+                    "save": "mne.write_evokeds",
+                    "suffix": "ave",
+                    "save_kwargs": {
+                        "overwrite": true
+                    }
+                }
+            },
+            "target": "group"
+        },
+        "plot_ga_evokeds": {
+            "inputs": {
+                "ga_evokeds": {
+                    "accepted": [
+                        "ga_evokeds"
+                    ],
+                    "optional": false
+                }
+            },
+            "parameters": {},
+            "outputs": {},
+            "target": "group"
         }
     }
 }
