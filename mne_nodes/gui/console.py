@@ -16,6 +16,7 @@ from functools import wraps
 
 from qtpy.QtCore import (
     QMutex,
+    QProcess,
     QWaitCondition,
     QRunnable,
     QThreadPool,
@@ -391,18 +392,23 @@ class ConsoleDock(QDockWidget):
             working_directory=self.ct.deriv_root,
             self_destruct=True,
         )
-        process.finished.connect(lambda _: self.processes.pop(process_idx))
         self.processes.append(process)
         # Start process
         process.start(program, arguments)
 
     def _close_process(self, process_idx):
-        ans = ask_user(f"Do you really want to stop process {process_idx}?")
-        if ans:
-            # Kill process
-            process = self.processes.pop(process_idx)
-            process.kill()
-            # Remove tab
-            widget = self.tab_widget.widget(process_idx)
-            self.tab_widget.removeTab(process_idx)
+        process = self.processes[process_idx]
+        if process.state() != QProcess.ProcessState.NotRunning:
+            ans = ask_user(f"Do you really want to stop process {process_idx}?")
+            if ans:
+                # Kill process
+                process.kill()
+            else:
+                return
+        # Remove process
+        self.processes.pop(process_idx)
+        # Remove tab
+        widget = self.tab_widget.widget(process_idx)
+        self.tab_widget.removeTab(process_idx)
+        if widget is not None:
             widget.deleteLater()
