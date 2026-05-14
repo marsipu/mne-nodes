@@ -4,9 +4,9 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (
+from qtpy.QtCore import Signal, Qt
+from qtpy.QtGui import QFont
+from qtpy.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QLabel,

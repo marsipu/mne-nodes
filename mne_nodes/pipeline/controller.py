@@ -571,7 +571,9 @@ class Controller:
             data = {
                 v: [
                     bp
-                    for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match()
+                    for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match(
+                        ignore_json=True, ignore_nosub=True
+                    )
                     if bp.datatype in self.raw_types and bp.extension != ".tsv"
                 ]
                 for v in vals
@@ -934,12 +936,17 @@ class Controller:
                 # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
-                elif target == "group":
+                else:
                     # For group-data, load and return generators of the group-members
                     code += self._indent("members = group[item]\n", 1)
                 for n in nodes:
                     name = n["name"]
-                    for ip in [i for i in n["inputs"] if i not in loaded_data]:
+                    if target == "file":
+                        inputs = [i for i in n["inputs"] if i not in loaded_data]
+                    else:
+                        # For group-data generators need to be reloaded since they exhaust on every use
+                        inputs = n["inputs"]
+                    for ip in inputs:
                         # Load selected data-types (if not already loaded)
                         if ip == "raw":
                             # Load raw from original bids-dataset
@@ -1022,7 +1029,7 @@ class Controller:
                                     )
                                 else:
                                     code += self._indent(
-                                        f"data_path = members[0].copy().update(subject='average', suffix='{suffix}', root=ct.deriv_root, check=False)\n"
+                                        f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"
                                         "data_path.mkdir(exist_ok=True)\n",
                                         1,
                                     )
@@ -1043,7 +1050,6 @@ class Controller:
                                     )
 
         code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
-        code += "import time\ntime.sleep(100)"
 
         return code
 

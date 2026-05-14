@@ -12,9 +12,8 @@ import logging
 import queue
 import re
 import time
-from functools import wraps, partial
+from functools import wraps
 
-from PySide6.QtWidgets import QVBoxLayout, QPushButton
 from qtpy.QtCore import (
     QMutex,
     QWaitCondition,
@@ -33,6 +32,7 @@ from qtpy.QtWidgets import (
     QWidget,
     QLabel,
     QTabBar,
+    QVBoxLayout,
 )
 
 from mne_nodes.gui.gui_utils import ask_user
@@ -360,8 +360,7 @@ class ConsoleDock(QDockWidget):
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
-        self.processes = {}
-        self.consoles = {}
+        self.processes = []
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea
             | Qt.DockWidgetArea.RightDockWidgetArea
@@ -379,31 +378,31 @@ class ConsoleDock(QDockWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         console = ConsoleWidget()
-        process_id = self.tab_widget.count()
-        self.consoles[process_id] = console
+        process_idx = self.tab_widget.count()
         if not self.isVisible():
             self.setVisible(True)
         layout.addWidget(console)
-        stop_bt = QPushButton("Stop")
-        stop_bt.clicked.connect(partial(self._close_process, process_id))
-        layout.addWidget(stop_bt)
-        self.tab_widget.addTab(widget, f"Process {process_id}")
+        self.tab_widget.addTab(widget, f"Process {process_idx}")
         self.tab_widget.setCurrentWidget(widget)
         # Create process
         process = Process(
-            proc_id=process_id,
+            proc_id=process_idx,
             console=console,
             working_directory=self.ct.deriv_root,
             self_destruct=True,
         )
-        process.finished.connect(lambda _: self.processes.pop(process_id))
-        self.processes[process_id] = process
+        process.finished.connect(lambda _: self.processes.pop(process_idx))
+        self.processes.append(process)
         # Start process
         process.start(program, arguments)
 
-    def _close_process(self, process_id):
-        ans = ask_user(f"Do you really want to stop process {process_id}?")
+    def _close_process(self, process_idx):
+        ans = ask_user(f"Do you really want to stop process {process_idx}?")
         if ans:
-            process = self.processes.get(process_id)
+            # Kill process
+            process = self.processes.pop(process_idx)
             process.kill()
-            self.consoles.pop(process_id)
+            # Remove tab
+            widget = self.tab_widget.widget(process_idx)
+            self.tab_widget.removeTab(process_idx)
+            widget.deleteLater()
