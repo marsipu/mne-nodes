@@ -589,6 +589,10 @@ class Controller:
 
         return data
 
+    def get_associated_fsmri(self):
+        # ToDo next: get fsmri either by subject-name or by custom association
+        pass
+
     ####################################################################################
     # Parameters
     ####################################################################################
