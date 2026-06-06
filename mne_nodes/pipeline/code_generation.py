@@ -123,13 +123,28 @@ class CodeGenerator:
                                 )
                             loaded_data.append("raw")
                         elif ip == "info":
-                            if target == "file":
-                                code += self._indent(
-                                    "bp_info = bp.copy().update(root=ct.bids_root)\n", 1
-                                )
-                                code += self._indent(
-                                    "info = read_raw_bids(bp_info).info\n", 1
-                                )
+                            if "raw" in loaded_data:
+                                if target == "file":
+                                    code += self._indent("info = raw.info\n", 1)
+                                else:
+                                    code += self._indent(
+                                        "info = (r.info for r in raw)\n", 1
+                                    )
+                            else:
+                                if target == "file":
+                                    code += self._indent(
+                                        "bp_info = bp.copy().update(root=ct.bids_root)\n",
+                                        1,
+                                    )
+                                    code += self._indent(
+                                        "info = mne.io.read_info(bp_info.fpath)\n", 1
+                                    )
+                                else:
+                                    code += self._indent(
+                                        "info = (mne.io.read_info(bp.copy().update(root=ct.bids_root).fpath) for bp in members)\n",
+                                        1,
+                                    )
+                            loaded_data.append("info")
                         else:
                             # Load data from derivatives
                             input_meta = self.ct.get_input_meta(
