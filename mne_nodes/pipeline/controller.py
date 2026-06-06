@@ -589,9 +589,18 @@ class Controller:
 
         return data
 
-    def get_associated_fsmri(self):
+    def get_fsmri(self, subject):
         # ToDo next: get fsmri either by subject-name or by custom association
-        pass
+        fsmri_subjects = (
+            os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
+        )
+        if subject in fsmri_subjects:
+            return subject
+        else:
+            logging.warning(
+                f"Subject {subject} not found in FreeSurfer subjects directory."
+            )
+            return None
 
     ####################################################################################
     # Parameters

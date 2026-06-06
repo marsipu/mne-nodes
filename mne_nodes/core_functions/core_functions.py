@@ -162,49 +162,47 @@ def run_freesurfer_subprocess(command, subjects_dir, fs_path, mne_path=None):
                 sys.stdout.write(stdout_line)
 
 
-def apply_watershed(fsmri):
+def apply_watershed(subject, subjects_dir, freesurfer_path, mne_path):
     print(
         "Running Watershed algorithm for: "
-        + fsmri.name
+        + subject
         + ". Output is written to the bem folder "
         + "of the subject's FreeSurfer folder.\n"
         + "Bash output follows below.\n\n"
     )
 
     # watershed command
-    command = ["mne", "watershed_bem", "--subject", fsmri.name, "--overwrite"]
+    command = ["mne", "watershed_bem", "--subject", subject, "--overwrite"]
 
-    run_freesurfer_subprocess(
-        command, fsmri.subjects_dir, fsmri.fs_path, fsmri.mne_path
-    )
+    run_freesurfer_subprocess(command, subjects_dir, freesurfer_path, mne_path)
 
     if iswin:
         # Copy Watershed-Surfaces because the Links don't work
         # under Windows when made in WSL
         surfaces = [
-            (f"{fsmri.name}_inner_skull_surface", "inner_skull.surf"),
-            (f"{fsmri.name}_outer_skin_surface", "outer_skin.surf"),
-            (f"{fsmri.name}_outer_skull_surface", "outer_skull.surf"),
-            (f"{fsmri.name}_brain_surface", "brain.surf"),
+            (f"{subject}_inner_skull_surface", "inner_skull.surf"),
+            (f"{subject}_outer_skin_surface", "outer_skin.surf"),
+            (f"{subject}_outer_skull_surface", "outer_skull.surf"),
+            (f"{subject}_brain_surface", "brain.surf"),
         ]
-        bem_dir = join(fsmri.subjects_dir, fsmri.name, "bem")
+        bem_dir = join(subjects_dir, subject, "bem")
         watershed_dir = join(bem_dir, "watershed")
         for src, dst in surfaces:
             # Remove faulty link
             os.remove(join(bem_dir, dst))
             # Copy files
             source = join(watershed_dir, src)
-            destination = join(fsmri.subjects_dir, fsmri.name, "bem", dst)
+            destination = join(subjects_dir, subject, "bem", dst)
             shutil.copy2(source, destination)
 
             print(f"{dst} was created")
 
 
-def make_dense_scalp_surfaces(fsmri):
+def make_dense_scalp_surfaces(subject, subjects_dir, freesurfer_path, mne_path):
     print(
         "Making dense scalp surfacing easing co-registration for "
         + "subject: "
-        + fsmri.name
+        + subject
         + ". Output is written to the bem folder"
         + " of the subject's FreeSurfer folder.\n"
         + "Bash output follows below.\n\n"
@@ -214,13 +212,11 @@ def make_dense_scalp_surfaces(fsmri):
         "mne",
         "make_scalp_surfaces",
         "--overwrite",
-        f"--subject={fsmri.name}",
+        f"--subject={subject}",
         "--force",
     ]
 
-    run_freesurfer_subprocess(
-        command, fsmri.subjects_dir, fsmri.fs_path, fsmri.mne_path
-    )
+    run_freesurfer_subprocess(command, subjects_dir, freesurfer_path, mne_path)
 
 
 # ==============================================================================
@@ -228,24 +224,23 @@ def make_dense_scalp_surfaces(fsmri):
 # ==============================================================================
 
 
-def setup_src(fsmri, src_spacing, surface, n_jobs):
+def setup_src(subject, subjects_dir, src_spacing, surface, n_jobs):
     src = mne.setup_source_space(
-        fsmri.name,
+        subject,
         spacing=src_spacing,
         surface=surface,
-        subjects_dir=fsmri.subjects_dir,
+        subjects_dir=subjects_dir,
         add_dist=False,
         n_jobs=n_jobs,
     )
-    fsmri.save_source_space(src)
+    return src
 
 
-def setup_vol_src(fsmri, vol_src_spacing):
-    bem = fsmri.load_bem_solution()
+def setup_vol_src(subject, subjects_dir, bem, vol_src_spacing):
     vol_src = mne.setup_volume_source_space(
-        fsmri.name, pos=vol_src_spacing, bem=bem, subjects_dir=fsmri.subjects_dir
+        subject, pos=vol_src_spacing, bem=bem, subjects_dir=subjects_dir
     )
-    fsmri.save_volume_source_space(vol_src)
+    return vol_src
 
 
 def compute_src_distances(fsmri, n_jobs):
@@ -254,25 +249,18 @@ def compute_src_distances(fsmri, n_jobs):
     fsmri.save_source_space(src_computed)
 
 
-def prepare_bem(fsmri, bem_spacing, bem_conductivity):
+def prepare_bem(subject, subjects_dir, bem_spacing, bem_conductivity):
     bem_model = mne.make_bem_model(
-        fsmri.name,
-        subjects_dir=fsmri.subjects_dir,
+        subject,
+        subjects_dir=subjects_dir,
         ico=bem_spacing,
         conductivity=bem_conductivity,
     )
-    fsmri.save_bem_model(bem_model)
-
     bem_solution = mne.make_bem_solution(bem_model)
-    fsmri.save_bem_solution(bem_solution)
+    return bem_model, bem_solution
 
 
-def create_forward_solution(meeg, n_jobs, ch_types):
-    info = meeg.load_info()
-    trans = meeg.load_transformation()
-    bem = meeg.fsmri.load_bem_solution()
-    src = meeg.fsmri.load_source_space()
-
+def create_forward_solution(info, trans, bem, src, n_jobs, ch_types):
     if "eeg" in ch_types:
         eeg = True
     else:
@@ -280,4 +268,4 @@ def create_forward_solution(meeg, n_jobs, ch_types):
 
     forward = mne.make_forward_solution(info, trans, src, bem, eeg=eeg, n_jobs=n_jobs)
 
-    meeg.save_forward(forward)
+    return forward
