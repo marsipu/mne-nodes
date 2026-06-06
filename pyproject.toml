@@ -41,6 +41,7 @@ dependencies = [
     "tqdm",
     "filelock",
     "rich",
+    "docstring_parser",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
