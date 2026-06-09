@@ -29,9 +29,7 @@ def _get_pandas():
     return pd
 
 
-# ToDo: Merge models and base widgets
-
-
+# ToDo: add something like ensure_type to editable lists or dicts if the items should only have one type
 class BaseListModel(QAbstractListModel):
     """A basic List-Model.
 

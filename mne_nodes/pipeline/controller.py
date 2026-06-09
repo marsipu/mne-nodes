@@ -675,7 +675,8 @@ class Controller:
             config = json.load(file, object_hook=type_json_hook)["functions"]
         # Add module-names to function-metas to allow identification
         for func_dict in config.values():
-            func_dict["module"] = module_name
+            if "module" not in func_dict:
+                func_dict["module"] = module_name
         self.function_meta.update(config)
 
     def _import_module(self, module_name, module_path):
