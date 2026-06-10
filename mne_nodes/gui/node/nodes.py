@@ -29,16 +29,17 @@ class InputWidget(QWidget):
         super().__init__(**kwargs)
         self.ct = ct
         self.selected_inputs = self.ct.get("selected_inputs")
-        self.setLayout(QVBoxLayout())
+        layout = QVBoxLayout()
+        self.setLayout(layout)
         self.setMinimumSize(400, 300)
 
         # Add bids-root button
         self.root_bt = QPushButton("Set BIDS Root Directory")
         self.root_bt.clicked.connect(self.set_root)
-        self.layout().addWidget(self.root_bt)
+        layout.addWidget(self.root_bt)
         # Datatype Tab Widget
         self.tab_widget = QTabWidget()
-        self.layout().addWidget(self.tab_widget)
+        layout.addWidget(self.tab_widget)
         # Group Widget
         self.group_widget = QWidget()
         self.group_tree = None
@@ -219,9 +220,10 @@ class FunctionNode(BaseNode):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
         func_meta = self.ct.get_function_meta(self.name)
-        module_meta = self.ct.settings.get("module_meta", {})
-        if func_meta["module"] in module_meta:
-            file_path = module_meta[func_meta["module"]]["path"]
+        # ToDo: fix code editing
+        module_config = self.ct.settings.get("module_config", {})
+        if func_meta["module"] in module_config:
+            file_path = module_config[func_meta["module"]]["path"]
             editor_widget = CodeEditorWidget(
                 file_section=(start, end), file_path=file_path
             )

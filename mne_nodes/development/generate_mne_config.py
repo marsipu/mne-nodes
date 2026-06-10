@@ -2,6 +2,7 @@
 import importlib
 
 import inspect
+import json
 from pathlib import Path
 from collections import defaultdict
 import re
@@ -9,6 +10,7 @@ import docstring_parser
 
 from mne_nodes.gui.parameter_widgets import (
     BoolGui,
+    ComboGui,
     DictGui,
     DualTupleGui,
     FloatGui,
@@ -62,7 +64,7 @@ def parse_rst_functions(path):
 
 
 # Group functions by API category
-mnedev_api_path = "C:/Users/martin/Code/mne-python/doc/api"
+mnedev_api_path = Path(__file__).resolve().parents[3] / "mne-python/doc/api"
 exclude_categories = [
     "connectivity",
     "creating_from_arrays",
@@ -98,31 +100,74 @@ for category, module_dict in objects.items():
             complete_module_name = ".".join([module_name] + sub_modules)
             module = importlib.import_module(complete_module_name)
             obj = getattr(module, obj_name)
+            if not inspect.isfunction(obj) and not inspect.isclass(obj):
+                continue
             doc = docstring_parser.parse(inspect.getdoc(obj))
             obj_config = {
                 "inputs": {},
                 "parameters": {},
                 "outputs": {},
                 "target": "file",
+                "category": category,
+                "sub_category": sub_category,
+                "description": doc.long_description
+                if doc.long_description
+                else doc.short_description,
                 "module": complete_module_name,
             }
             # Get inputs and parameters
             parameters = [i for i in doc.meta if "param" in i.args]
             for param in parameters:
+                # Skip parameters that don't have a valid name (e.g. *args, **kwargs)
                 if not param.arg_name[0].isalpha():  # type: ignore
                     continue
                 types = param.type_name.split("|")  # type: ignore
+                # split or
+                types = [item for sublist in types for item in sublist.split(" or ")]
+                # split ,
+                types = [item for sublist in types for item in sublist.split(",")]
+                # Remove spaces
+                types = [t.strip() for t in types]
+                # Remove parentheses
+                types = [t.replace("(", "").replace(")", "") for t in types]
+                # Filter (default ***)
+                pattern = r"(\w+)\s\(default ([\w']+)\)"
+                types = [re.sub(pattern, r"\1", t) for t in types]
+                # Get containters
+                pattern = r"(\w+)\s*of\s*(\w+)"
+                for idx, t in enumerate(types):
+                    match = re.match(pattern, t)
+                    if match:
+                        container_type = match.group(1)
+                        contained_type = match.group(2)
+                        if (
+                            container_type in ["list", "tuple"]
+                            and contained_type in default_type_guis
+                        ):
+                            types[idx] = container_type
                 if "None" in types:
                     none_select = True
                     types.remove("None")
                 else:
                     none_select = False
-                if any([t not in default_type_guis for t in types]):
+                missing = [t for t in types if t not in default_type_guis]
+                if all(s.startswith("'") and s.endswith("'") for s in types):
+                    # If all types are string literals, skip type checking and use ComboGui
+                    obj_config["parameters"][param.arg_name] = {  # type: ignore
+                        "gui": ComboGui.__name__,
+                        "none_select": none_select,
+                        "options": [s.strip("'") for s in types],
+                        "default": param.default,  # type: ignore
+                        "description": param.description,  # type: ignore
+                    }
+                    continue
+                if len(missing) > 0:
                     # Add missing types as inputs
-                    missing_types.update(types)
+                    missing_types.update(missing)
                     obj_config["inputs"][param.arg_name] = {  # type: ignore
                         "accepted": param.arg_name,  # type: ignore
                         "optional": none_select,
+                        "types": types,
                     }
                     continue
                 param_config = {}
@@ -150,4 +195,8 @@ for category, module_dict in objects.items():
             # Add to config
             config["functions"][obj_name] = obj_config
 
+# Save config
+config_path = Path(__file__).parent / "mne_config.json"
+with open(config_path, "w") as file:
+    json.dump(config, file, indent=4)
 # %%

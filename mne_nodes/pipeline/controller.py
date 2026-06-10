@@ -117,7 +117,13 @@ class Controller:
         if config_path is not None:
             self.config_path = config_path
         # Add core functions to modules (until separated)
-        self.add_module(Path(core_functions.__file__))
+        core_config_path = Path(core_functions.__file__).parent / (
+            Path(core_functions.__file__).stem + "_config.json"
+        )
+        self.add_module(core_config_path)
+        # Add mne functions
+        mne_config_path = Path(__file__).parents[1] / "development" / "mne_config.json"
+        self.add_module(mne_config_path)
         # Initialize modules
         self.load_modules()
 
@@ -663,43 +669,56 @@ class Controller:
     ####################################################################################
     # Modules
     ####################################################################################
-    def _load_module_config(self, module_name, module_path):
+    def _load_module_config(self, module_name, config_path):
         """Load the configuration file for a module from the package path."""
-        config_file_path = Path(module_path).parent / f"{module_name}_config.json"
-        if not isfile(config_file_path):
+        if not isfile(config_path):
             raise RuntimeError(
-                f"Config file for {module_name} not found at {config_file_path}."
+                f"Config file for {module_name} not found at {config_path}."
             )
         # load function-config
-        with open(config_file_path) as file:
+        with open(config_path) as file:
             config = json.load(file, object_hook=type_json_hook)["functions"]
         # Add module-names to function-metas to allow identification
         for func_dict in config.values():
             if "module" not in func_dict:
                 func_dict["module"] = module_name
+        # Warn for duplicates
+        duplicate_functions = [fn for fn in config if fn in self.function_meta]
+        if len(duplicate_functions) > 0:
+            raise_user_attention(
+                f"Duplicate function names found in module '{module_name}': {duplicate_functions}. Please rename those functions, they will not be imported until then",
+                "warning",
+            )
+            for df in duplicate_functions:
+                del config[df]
         self.function_meta.update(config)
 
-    def _import_module(self, module_name, module_path):
+    def _import_module(self, module_name, config_path):
         """Import a module from the given package path."""
-        pkg_path = Path(module_path).parent
-        # Add the package path to sys.path if not already present
-        if pkg_path not in sys.path:
-            sys.path.insert(0, str(pkg_path))
-        pkg_name = pkg_path.name
-        # Import the module from the package
-        try:
-            module = import_module(module_name, package=pkg_name)
-        except ModuleNotFoundError:
-            logging.error(f"Module {module_name} not found in {pkg_path}].")
+        if module_name != "mne":
+            pkg_path = Path(config_path).parent
+            # Add the package path to sys.path if not already present
+            if pkg_path not in sys.path:
+                sys.path.insert(0, str(pkg_path))
+            pkg_name = pkg_path.name
+            # Import the module from the package
+            try:
+                module = import_module(module_name, package=pkg_name)
+            except ModuleNotFoundError:
+                logging.error(f"Module {module_name} not found in {pkg_path}].")
+            else:
+                self.modules[module_name] = module
         else:
-            self.modules[module_name] = module
+            self.modules["mne"] = mne
         # Load the config file for the basic module
-        self._load_module_config(module_name, module_path)
+        self._load_module_config(module_name, config_path)
 
     def load_modules(self) -> None:
         """Load custom modules from their config files."""
-        modules = self.settings.get("module_meta")
+        modules = self.settings.get("module_config")
         for module_name, module_config in modules.items():
+            if module_name in self.modules:
+                continue
             module_path = module_config["path"]
             if not isfile(module_path):
                 module_path = get_user_input(
@@ -707,27 +726,25 @@ class Controller:
                     input_type="file",
                     file_filter="Python files (*.py)",
                 )
-            self._import_module(module_name, module_path)
+            if module_path is not None:
+                self._import_module(module_name, module_path)
 
-    def add_module(self, module_path: os.PathLike) -> None:
+    def add_module(self, config_path: os.PathLike) -> None:
         """Add a module to the controller from a config file or a script-file."""
-        if not isfile(module_path):
-            raise FileNotFoundError(f"Module file {module_path} not found.")
-        module_name = Path(module_path).stem
-        config_path = Path(module_path).parent / f"{module_name}_config.json"
         if not isfile(config_path):
             raise FileNotFoundError(f"Config file {config_path} not found.")
+        module_name = Path(config_path).stem.replace("_config", "")
         # Load module-config
         with open(config_path) as file:
-            config = json.load(file, object_hook=type_json_hook)["module"]
-        # Add local path to module-meta to find it on this device (path is not stored in the json-config, since the module should be able to be copied easily between devices)
-        config["path"] = module_path
-        # Save module-meta to settings
-        module_meta = self.settings.get("module_meta", {})
-        module_meta[module_name] = config
-        self.settings.set("module_meta", module_meta)
+            module_config = json.load(file, object_hook=type_json_hook)["module"]
+        # Add local path to module-config to find it on this device (path is not stored in the json-config, since the module should be able to be copied easily between devices)
+        module_config["path"] = config_path
+        # Save module-config to settings
+        module_settings = self.settings.get("module_config", {})
+        module_settings[module_name] = module_config
+        self.settings.set("module_config", module_settings)
         # Import module
-        self._import_module(module_name, module_path)
+        self._import_module(module_name, config_path)
 
     def reload_modules(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
