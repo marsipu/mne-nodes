@@ -243,10 +243,9 @@ def setup_vol_src(subject, subjects_dir, bem, vol_src_spacing):
     return vol_src
 
 
-def compute_src_distances(fsmri, n_jobs):
-    src = fsmri.load_source_space()
-    src_computed = mne.add_source_space_distances(src, n_jobs=n_jobs)
-    fsmri.save_source_space(src_computed)
+def compute_src_distances(src, n_jobs):
+    src_distances = mne.add_source_space_distances(src, n_jobs=n_jobs)
+    return src_distances
 
 
 def prepare_bem(subject, subjects_dir, bem_spacing, bem_conductivity):

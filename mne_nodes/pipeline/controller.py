@@ -596,18 +596,18 @@ class Controller:
 
         return data
 
-    def get_fsmri(self, subject):
+    def check_subject(self, subject):
         # ToDo next: get fsmri either by subject-name or by custom association
         fsmri_subjects = (
             os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
         )
-        if subject in fsmri_subjects:
-            return subject
-        else:
+        result = subject in fsmri_subjects
+        if not result:
             logging.warning(
-                f"Subject {subject} not found in FreeSurfer subjects directory."
+                f"Subject {subject} not found in FreeSurfer subjects directory!"
             )
             return None
+        return subject
 
     ####################################################################################
     # Parameters
@@ -621,7 +621,9 @@ class Controller:
     def parameter(self, parameter_name: str, function_name: str) -> Any:
         """Get a specific parameter from the project parameters."""
         parameters = self.get("parameters")
-        if parameter_name not in parameters.get(function_name, {}):
+        if parameter_name == "subjects_dir":
+            return self.subjects_dir
+        elif parameter_name not in parameters.get(function_name, {}):
             logging.warning(
                 f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
             )

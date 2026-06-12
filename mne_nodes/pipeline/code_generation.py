@@ -81,7 +81,6 @@ class CodeGenerator:
             if len(nodes) == 0:
                 continue
             code += f"# Target: {target}\n"
-            loaded_data = []
             for selection_type in [
                 key
                 for key, items in self.ct.get("selected_inputs").items()
@@ -91,6 +90,7 @@ class CodeGenerator:
                     selection_type in data_types and target == "group"
                 ):
                     continue
+                loaded_data = []
                 code += f"# Selection-Type: {selection_type}\n"
                 if target == "group":
                     code += f"group = ct.get_group_by('{selection_type}')\n"
@@ -145,6 +145,14 @@ class CodeGenerator:
                                         1,
                                     )
                             loaded_data.append("info")
+                        elif ip == "subject":
+                            # Load (freesurfer) subject if available
+                            code += self._indent(
+                                "subject = ct.check_subject(bp.subject)\n", 1
+                            )
+                            code += self._indent("if subject is None:\n", 1)
+                            code += self._indent("continue", 2)
+                            loaded_data.append("subject")
                         else:
                             # Load data from derivatives
                             input_meta = self.ct.get_input_meta(
@@ -188,10 +196,10 @@ class CodeGenerator:
                     loaded_data += n["outputs"]
                     inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
                     func_line = ""
-                    if outputs:
+                    if len(outputs) > 0:
                         func_line += f"{outputs} = "
                     func_line += f"{name}("
-                    if inputs:
+                    if len(inputs) > 0:
                         func_line += f"{inputs}, **func_params)"
                     else:
                         func_line += "**func_params)"
