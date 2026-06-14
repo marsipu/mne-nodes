@@ -256,7 +256,6 @@ class Param(QWidget):
         if self.none_select:
             dt = dt | NoneType
         if not isinstance(value, dt):
-            # ToDo Next: Fix mne-functions not working
             raise RuntimeError(
                 f"Data for {name} has to be of type {self.data_type}, "
                 f"but is of type {type(value)} instead!"

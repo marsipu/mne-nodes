@@ -1,10 +1,12 @@
 # %%
+from ast import literal_eval
 import importlib
 
 import inspect
 import json
 from pathlib import Path
 from collections import defaultdict
+from pprint import pprint
 import re
 import docstring_parser
 
@@ -28,6 +30,7 @@ default_type_guis = {
     "dict": DictGui,
     "tuple": DualTupleGui,
     "slice": DualTupleGui,
+    "combo": ComboGui,
 }
 
 
@@ -84,6 +87,93 @@ for category, category_path in api_categories.items():
     objects[category] = parse_rst_functions(category_path)
 
 
+def get_param_config(param, sig, obj_config):
+    # Skip parameters that don't have a valid name (e.g. *args, **kwargs)
+    if not param.arg_name[0].isalpha():  # type: ignore
+        return
+    types = param.type_name.split("|")  # type: ignore
+    # split or
+    types = [item for sublist in types for item in sublist.split(" or ")]
+    # split ,
+    types = [item for sublist in types for item in sublist.split(",")]
+    # Remove spaces
+    types = [t.strip() for t in types]
+    # Filter (default ***)
+    pattern = r"(\w+)\s\(default ([\w']+)\)"
+    types = [re.sub(pattern, r"\1", t) for t in types]
+    # # Remove parentheses
+    # types = [t.replace("(", "").replace(")", "") for t in types]
+    # Get containters
+    pattern = r"(\w+)\s*of\s*(\w+)"
+    for idx, t in enumerate(types):
+        match = re.match(pattern, t)
+        if match:
+            container_type = match.group(1)
+            contained_type = match.group(2)
+            if (
+                container_type in ["list", "tuple"]
+                and contained_type in default_type_guis
+            ):
+                types[idx] = container_type
+    # Get default from inspection signature
+    default = sig.parameters[param.arg_name].default  # type: ignore
+    # Get "type (default ***)" pattern
+    pattern = r"(\w+)\s*\(default\s*([\w'\.]+)\)"
+    for idx, t in enumerate(types):
+        match = re.match(pattern, t)
+        if match:
+            tp = match.group(1)
+            types[idx] = tp
+            # Only try getting default from string if not gotten from signature
+            if default is inspect.Parameter.empty:
+                default_str = match.group(2)
+                if default_str.startswith("'") and default_str.endswith("'"):
+                    default = default_str.strip("'")
+                else:
+                    try:
+                        default = literal_eval(default_str)
+                    except (ValueError, SyntaxError):
+                        default = default_str
+    if "None" in types:
+        none_select = True
+        types.remove("None")
+    else:
+        none_select = False
+    # Get string options and remove them from types
+    options = [t.strip("'") for t in types if t.startswith("'") and t.endswith("'")]
+    types = [t for t in types if t.strip("'") not in options]
+    if len(options) > 0:
+        types.append("combo")
+    # Missing types
+    missing = [t for t in types if t not in default_type_guis]
+    if len(types) == 0 or len(missing) > 0 or default is inspect.Parameter.empty:
+        # Add params with missing types or no Default as inputs
+        missing_types.update(missing)
+        input_config = {  # type: ignore
+            "accepted": param.arg_name,  # type: ignore
+            "optional": none_select,
+            "types": types,
+        }
+        obj_config["inputs"][param.arg_name] = input_config  # type: ignore
+        return
+    # Regular parameters with known types
+    param_config = {}
+    if len(types) > 1:
+        param_config.update({"types": types, "gui": "MultiTypeGui"})
+        if len(options) > 0:
+            param_config["type_kwargs"] = {"combo": {"options": options}}
+    else:
+        param_config.update({"gui": default_type_guis[types[0]].__name__})
+    param_config.update(
+        {
+            "default": default,
+            "none_select": none_select,
+            "description": param.description,  # type: ignore
+        }
+    )
+    obj_config["parameters"][param.arg_name] = param_config  # type: ignore
+
+
 # %%
 config = {"module": {}, "functions": {}, "categories": {}}
 missing_types = set()
@@ -101,6 +191,9 @@ for category, module_dict in objects.items():
             module = importlib.import_module(complete_module_name)
             obj = getattr(module, obj_name)
             if not inspect.isfunction(obj) and not inspect.isclass(obj):
+                print(
+                    f"Skipping {obj_item} in module {complete_module_name} because it's not a function or class."
+                )
                 continue
             doc = docstring_parser.parse(inspect.getdoc(obj))
             obj_config = {
@@ -115,77 +208,32 @@ for category, module_dict in objects.items():
                 else doc.short_description,
                 "module": complete_module_name,
             }
+            # Get function signature for defaults
+            try:
+                sig = inspect.signature(obj)
+            except ValueError:
+                print(
+                    f"Could not get signature for {obj_item} in module {complete_module_name}. Skipping."
+                )
+                continue
             # Get inputs and parameters
             parameters = [i for i in doc.meta if "param" in i.args]
             for param in parameters:
-                # Skip parameters that don't have a valid name (e.g. *args, **kwargs)
-                if not param.arg_name[0].isalpha():  # type: ignore
-                    continue
-                types = param.type_name.split("|")  # type: ignore
-                # split or
-                types = [item for sublist in types for item in sublist.split(" or ")]
-                # split ,
-                types = [item for sublist in types for item in sublist.split(",")]
-                # Remove spaces
-                types = [t.strip() for t in types]
-                # Remove parentheses
-                types = [t.replace("(", "").replace(")", "") for t in types]
-                # Filter (default ***)
-                pattern = r"(\w+)\s\(default ([\w']+)\)"
-                types = [re.sub(pattern, r"\1", t) for t in types]
-                # Get containters
-                pattern = r"(\w+)\s*of\s*(\w+)"
-                for idx, t in enumerate(types):
-                    match = re.match(pattern, t)
-                    if match:
-                        container_type = match.group(1)
-                        contained_type = match.group(2)
-                        if (
-                            container_type in ["list", "tuple"]
-                            and contained_type in default_type_guis
-                        ):
-                            types[idx] = container_type
-                if "None" in types:
-                    none_select = True
-                    types.remove("None")
+                if "," in param.arg_name:  # type: ignore
+                    # If multiple parameters are described in one line, split them
+                    param_names = [name.strip() for name in param.arg_name.split(",")]  # type: ignore
+                    for name in param_names:
+                        param_copy = docstring_parser.DocstringParam(
+                            args=param.args,
+                            is_optional=param.is_optional,  # type: ignore
+                            default=param.default,  # type: ignore
+                            arg_name=name,
+                            type_name=param.type_name,  # type: ignore
+                            description=param.description,
+                        )
+                        get_param_config(param_copy, sig, obj_config)
                 else:
-                    none_select = False
-                missing = [t for t in types if t not in default_type_guis]
-                if all(s.startswith("'") and s.endswith("'") for s in types):
-                    # If all types are string literals, skip type checking and use ComboGui
-                    obj_config["parameters"][param.arg_name] = {  # type: ignore
-                        "gui": ComboGui.__name__,
-                        "none_select": none_select,
-                        "options": [s.strip("'") for s in types],
-                        "default": param.default,  # type: ignore
-                        "description": param.description,  # type: ignore
-                    }
-                    continue
-                if len(missing) > 0:
-                    # Add missing types as inputs
-                    missing_types.update(missing)
-                    obj_config["inputs"][param.arg_name] = {  # type: ignore
-                        "accepted": param.arg_name,  # type: ignore
-                        "optional": none_select,
-                        "types": types,
-                    }
-                    continue
-                param_config = {}
-                if len(types) == 0:
-                    # If no type is specified, skip
-                    continue
-                elif len(types) > 1:
-                    param_config.update({"types": types, "gui": "MultiTypeGui"})
-                else:
-                    param_config.update({"gui": default_type_guis[types[0]].__name__})
-                param_config.update(
-                    {
-                        "none_select": none_select,
-                        "default": param.default,  # type: ignore
-                        "description": param.description,  # type: ignore
-                    }
-                )
-                obj_config["parameters"][param.arg_name] = param_config  # type: ignore
+                    get_param_config(param, sig, obj_config)
             # Get outputs
             for ret in doc.many_returns:
                 return_config = {
@@ -199,4 +247,6 @@ for category, module_dict in objects.items():
 config_path = Path(__file__).parent / "mne_config.json"
 with open(config_path, "w") as file:
     json.dump(config, file, indent=4)
-# %%
+print("Missing types:")
+pprint(missing_types)
+print(f"Config saved to {config_path}")
