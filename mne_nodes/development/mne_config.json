@@ -1709,6 +1709,10 @@
                 },
                 "normalization": {
                     "gui": "ComboGui",
+                    "options": [
+                        "full",
+                        "length"
+                    ],
                     "default": "length",
                     "none_select": false,
                     "description": "Normalization strategy. If \"full\", the PSD will be normalized by the\nsampling rate as well as the length of the signal (as in\n:ref:`Nitime <nitime:users-guide>`). Default is ``'length'``."
@@ -1888,6 +1892,10 @@
                 },
                 "method": {
                     "gui": "ComboGui",
+                    "options": [
+                        "multitaper",
+                        "morlet"
+                    ],
                     "default": "morlet",
                     "none_select": false,
                     "description": "The time-frequency method. 'morlet' convolves a Morlet wavelet.\n'multitaper' uses Morlet wavelets windowed with multiple DPSS\nmultitapers."
@@ -3251,6 +3259,11 @@
                 },
                 "output": {
                     "gui": "ComboGui",
+                    "options": [
+                        "onset",
+                        "offset",
+                        "step"
+                    ],
                     "default": "onset",
                     "none_select": false,
                     "description": "Whether to report when events start, when events end, or both."
@@ -3298,6 +3311,10 @@
                 },
                 "mask_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "and",
+                        "not_and"
+                    ],
                     "default": "and",
                     "none_select": false,
                     "description": "The type of operation between the mask and the trigger.\nChoose 'and' (default) for MNE-C masking behavior.\n\n.. versionadded:: 0.13"
@@ -3840,6 +3857,11 @@
                 },
                 "on_mismatch": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when the device-to-head transformation differs between\ninstances.\n\n.. versionadded:: 0.24"
@@ -4122,6 +4144,11 @@
             "parameters": {
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "How to handle situations when none of the ``keys`` can be found in\n``event_names``. If ``'warn'`` or ``'ignore'``, an empty list will be\nreturned."
@@ -4491,6 +4518,10 @@
             "parameters": {
                 "fmt": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "eeglab"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "Format of the export. Defaults to ``'auto'``, which will infer the format\nfrom the filename extension. See supported formats above for more\ninformation."
@@ -4542,6 +4573,10 @@
             "parameters": {
                 "fmt": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "mff"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "Format of the export. Defaults to ``'auto'``, which will infer the format\nfrom the filename extension. See supported formats above for more\ninformation."
@@ -4639,6 +4674,12 @@
             "parameters": {
                 "fmt": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "brainvision",
+                        "edf",
+                        "eeglab"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "Format of the export. Defaults to ``'auto'``, which will infer the format\nfrom the filename extension. See supported formats above for more\ninformation."
@@ -4788,6 +4829,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 1.0"
@@ -5074,6 +5120,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 0.23"
@@ -5955,6 +6006,11 @@
                 },
                 "file_format": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "freesurfer",
+                        "obj"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "File format to use. Can be 'freesurfer' to read a FreeSurfer surface\nfile, or 'obj' to read a Wavefront .obj file (common format for\nimporting in other software), or 'auto' to attempt to infer from the\nfile name. Defaults to 'auto'.\n\n.. versionadded:: 0.21.0"
@@ -6280,6 +6336,11 @@
             "parameters": {
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter."
@@ -6331,6 +6392,11 @@
             "parameters": {
                 "on_mismatch": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when the device-to-head transformation differs between\ninstances.\n\n.. versionadded:: 0.24"
@@ -6570,6 +6636,11 @@
                 },
                 "file_format": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "freesurfer",
+                        "obj"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "File format to use. Can be 'freesurfer' to write a FreeSurfer surface\nfile, or 'obj' to write a Wavefront .obj file (common format for\nimporting in other software), or 'auto' to attempt to infer from the\nfile name. Defaults to 'auto'.\n\n.. versionadded:: 0.21.0"
@@ -7003,6 +7074,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if one or several event ids are not found in the recording.\nValid keys are 'raise' | 'warn' | 'ignore'\nDefault is ``'raise'``. If ``'warn'``, it will proceed but\nwarn; if ``'ignore'``, it will proceed silently.\n\n.. note::\n   If none of the event ids are found in the data, an error will be\n   automatically generated irrespective of this parameter."
@@ -7166,6 +7242,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when ``stc`` has vertices that are not in ``fwd``.\nDefault is \"raise\".\n\n.. versionadded:: 0.18"
@@ -7232,6 +7313,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when ``stc`` has vertices that are not in ``fwd``.\nDefault is \"raise\".\n\n.. versionadded:: 0.18"
@@ -7475,6 +7561,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 1.0"
@@ -7558,6 +7649,10 @@
                 },
                 "combine_xyz": {
                     "gui": "ComboGui",
+                    "options": [
+                        "spectral",
+                        "fro"
+                    ],
                     "default": "spectral",
                     "none_select": false,
                     "description": "When a loose (or free) orientation is used, how the depth weighting\nfor each triplet should be calculated.\nIf 'spectral', use the squared spectral norm of Gk.\nIf 'fro', use the squared Frobenius norm of Gk.\n\n.. versionadded:: 0.18"
@@ -7705,6 +7800,11 @@
             "parameters": {
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "ignore",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when ``stc`` has vertices that are not in ``fwd``.\nDefault is \"ignore\".\n\n.. versionadded:: 0.18"
@@ -7860,6 +7960,11 @@
                 },
                 "on_inside": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if MEG sensors are inside the outer skin surface. If 'raise'\n(default), an error is raised. If 'warn' or 'ignore', the forward\nsolution is computed anyway and a warning is or isn't emitted,\nrespectively.\n\n.. versionadded:: 1.10"
@@ -7960,6 +8065,11 @@
                 },
                 "on_inside": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if MEG sensors are inside the outer skin surface. If 'raise'\n(default), an error is raised. If 'warn' or 'ignore', the forward\nsolution is computed anyway and a warning is or isn't emitted,\nrespectively.\n\n.. versionadded:: 1.10"
@@ -8051,6 +8161,10 @@
                 },
                 "meg_surf": {
                     "gui": "ComboGui",
+                    "options": [
+                        "helmet",
+                        "head"
+                    ],
                     "default": "helmet",
                     "none_select": false,
                     "description": "Should be ``'helmet'`` or ``'head'`` to specify in which surface\nto compute the MEG field map. The default value is ``'helmet'``."
@@ -10312,6 +10426,14 @@
                 },
                 "baseline_mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "ratio",
+                        "logratio",
+                        "percent",
+                        "zscore",
+                        "zlogratio"
+                    ],
                     "default": "logratio",
                     "none_select": false,
                     "description": "Perform baseline correction by\n\n- subtracting the mean of baseline values ('mean')\n- dividing by the mean of baseline values ('ratio')\n- dividing by the mean of baseline values and taking the log\n  ('logratio')\n- subtracting the mean of baseline values followed by dividing by\n  the mean of baseline values ('percent')\n- subtracting the mean of baseline values and dividing by the\n  standard deviation of baseline values ('zscore')\n- dividing by the mean of baseline values, taking the log, and\n  dividing by the standard deviation of log baseline values\n  ('zlogratio')"
@@ -10458,6 +10580,14 @@
                 },
                 "baseline_mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "ratio",
+                        "logratio",
+                        "percent",
+                        "zscore",
+                        "zlogratio"
+                    ],
                     "default": "logratio",
                     "none_select": false,
                     "description": "Perform baseline correction by\n\n- subtracting the mean of baseline values ('mean')\n- dividing by the mean of baseline values ('ratio')\n- dividing by the mean of baseline values and taking the log\n  ('logratio')\n- subtracting the mean of baseline values followed by dividing by\n  the mean of baseline values ('percent')\n- subtracting the mean of baseline values and dividing by the\n  standard deviation of baseline values ('zscore')\n- dividing by the mean of baseline values, taking the log, and\n  dividing by the standard deviation of log baseline values\n  ('zlogratio')"
@@ -10593,6 +10723,11 @@
             "parameters": {
                 "method": {
                     "gui": "ComboGui",
+                    "options": [
+                        "MNE",
+                        "dSPM",
+                        "sLORETA"
+                    ],
                     "default": "dSPM",
                     "none_select": false,
                     "description": "Inverse method to use (MNE, dSPM, sLORETA)."
@@ -10648,6 +10783,10 @@
             "parameters": {
                 "function": {
                     "gui": "ComboGui",
+                    "options": [
+                        "psf",
+                        "ctf"
+                    ],
                     "default": "psf",
                     "none_select": false,
                     "description": "Whether to compute metrics for columns (point-spread functions, PSFs)\nor rows (cross-talk functions, CTFs) of the resolution matrix."
@@ -10719,6 +10858,11 @@
             "parameters": {
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "max",
+                        "svd"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "Compute summary of PSFs/CTFs across all indices specified in 'idx'.\nCan be:\n\n* None : Output individual PSFs/CTFs for each specific vertex\n  (Default).\n* 'mean' : Mean of PSFs/CTFs across vertices.\n* 'max' : PSFs/CTFs with maximum norm across vertices. Returns the\n  n_comp largest PSFs/CTFs.\n* 'svd' : SVD components across PSFs/CTFs across vertices. Returns the\n  n_comp first SVD components."
@@ -10731,6 +10875,10 @@
                 },
                 "norm": {
                     "gui": "ComboGui",
+                    "options": [
+                        "max",
+                        "norm"
+                    ],
                     "default": false,
                     "none_select": true,
                     "description": "Whether and how to normalise the PSFs and CTFs. This will be applied\nbefore computing summaries as specified in 'mode'.\nCan be:\n\n* None : Use un-normalized PSFs/CTFs (Default).\n* 'max' : Normalize to maximum absolute value across all PSFs/CTFs.\n* 'norm' : Normalize to maximum norm across all PSFs/CTFs."
@@ -10805,6 +10953,11 @@
             "parameters": {
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "max",
+                        "svd"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "Compute summary of PSFs/CTFs across all indices specified in 'idx'.\nCan be:\n\n* None : Output individual PSFs/CTFs for each specific vertex\n  (Default).\n* 'mean' : Mean of PSFs/CTFs across vertices.\n* 'max' : PSFs/CTFs with maximum norm across vertices. Returns the\n  n_comp largest PSFs/CTFs.\n* 'svd' : SVD components across PSFs/CTFs across vertices. Returns the\n  n_comp first SVD components."
@@ -10817,6 +10970,10 @@
                 },
                 "norm": {
                     "gui": "ComboGui",
+                    "options": [
+                        "max",
+                        "norm"
+                    ],
                     "default": false,
                     "none_select": true,
                     "description": "Whether and how to normalise the PSFs and CTFs. This will be applied\nbefore computing summaries as specified in 'mode'.\nCan be:\n\n* None : Use un-normalized PSFs/CTFs (Default).\n* 'max' : Normalize to maximum absolute value across all PSFs/CTFs.\n* 'norm' : Normalize to maximum norm across all PSFs/CTFs."
@@ -10997,6 +11154,11 @@
                 },
                 "solver": {
                     "gui": "ComboGui",
+                    "options": [
+                        "cd",
+                        "bcd",
+                        "auto"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "The algorithm to use for the optimization. 'cd' uses\ncoordinate descent, and 'bcd' applies block coordinate descent.\n'cd' is only available for fixed orientation."
@@ -11599,6 +11761,10 @@
                 },
                 "inversion": {
                     "gui": "ComboGui",
+                    "options": [
+                        "single",
+                        "matrix"
+                    ],
                     "default": "matrix",
                     "none_select": false,
                     "description": "This determines how the beamformer deals with source spaces in \"free\"\norientation. Such source spaces define three orthogonal dipoles at each\nsource point. When ``inversion='single'``, each dipole is considered\nas an individual source and the corresponding spatial filter is\ncomputed for each dipole separately. When ``inversion='matrix'``, all\nthree dipoles at a source vertex are considered as a group and the\nspatial filters are computed jointly using a matrix inversion. While\n``inversion='single'`` is more stable, ``inversion='matrix'`` is more\nprecise. See section 5 of :footcite:`vanVlietEtAl2018`.\nDefaults to ``'matrix'``.\n\n.. versionadded:: 0.21"
@@ -11907,6 +12073,10 @@
                 },
                 "inversion": {
                     "gui": "ComboGui",
+                    "options": [
+                        "single",
+                        "matrix"
+                    ],
                     "default": "matrix",
                     "none_select": false,
                     "description": "This determines how the beamformer deals with source spaces in \"free\"\norientation. Such source spaces define three orthogonal dipoles at each\nsource point. When ``inversion='single'``, each dipole is considered\nas an individual source and the corresponding spatial filter is\ncomputed for each dipole separately. When ``inversion='matrix'``, all\nthree dipoles at a source vertex are considered as a group and the\nspatial filters are computed jointly using a matrix inversion. While\n``inversion='single'`` is more stable, ``inversion='matrix'`` is more\nprecise. See section 5 of :footcite:`vanVlietEtAl2018`.\nDefaults to ``'matrix'``.\n\n.. versionchanged:: 0.21\n   Default changed to ``'matrix'``."
@@ -12771,6 +12941,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if one or several event ids are not found in the recording.\nValid keys are 'raise' | 'warn' | 'ignore'\nDefault is ``'raise'``. If ``'warn'``, it will proceed but\nwarn; if ``'ignore'``, it will proceed silently.\n\n.. note::\n   If none of the event ids are found in the data, an error will be\n   automatically generated irrespective of this parameter."
@@ -13178,6 +13353,10 @@
                 },
                 "interaction": {
                     "gui": "ComboGui",
+                    "options": [
+                        "trackball",
+                        "terrain"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "How interactions with the scene via an input device (e.g., mouse or\ntrackpad) modify the camera position. If ``'terrain'``, one axis is\nfixed, enabling \"turntable-style\" rotations. If ``'trackball'``,\nmovement along all axes is possible, which provides more freedom of\nmovement, but you may incidentally perform unintentional rotations along\nsome axes.\nIf ``None``, the setting stored in the MNE-Python configuration file is\nused.\nDefaults to ``'terrain'``.\n\n.. versionadded:: 0.16\n.. versionchanged:: 1.0\n   Default interaction mode if ``None`` and no config setting found\n   changed from ``'trackball'`` to ``'terrain'``."
@@ -13527,6 +13706,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 1.0"
@@ -13598,6 +13782,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 1.0"
@@ -14080,6 +14269,11 @@
                 },
                 "on_defects": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if the surface is found to have topological defects.\nCan be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when one or more defects are found.\nNote that a lot of computations in MNE-Python assume the surfaces to be\ntopologically correct, topological defects may still make other\ncomputations (e.g., `mne.make_bem_model` and `mne.make_bem_solution`)\nfail irrespective of this parameter.\n\n.. versionadded:: 1.0"
@@ -14679,6 +14873,11 @@
             "parameters": {
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "warn",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when some necessary fiducial points are missing.\n\n.. versionadded:: 1.2"
@@ -15610,6 +15809,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when entries in ch_names are not present in the raw instance.\n\n.. versionadded:: 0.23.0\n\n.. versionadded:: 1.11.0"
@@ -15786,6 +15990,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "What to do if one or several event ids are not found in the recording.\nValid keys are 'raise' | 'warn' | 'ignore'\nDefault is ``'raise'``. If ``'warn'``, it will proceed but\nwarn; if ``'ignore'``, it will proceed silently.\n\n.. note::\n   If none of the event ids are found in the data, an error will be\n   automatically generated irrespective of this parameter.\n.. versionadded:: 1.11.0"
@@ -15844,6 +16053,11 @@
                 },
                 "method": {
                     "gui": "ComboGui",
+                    "options": [
+                        "fastica",
+                        "infomax",
+                        "picard"
+                    ],
                     "default": "fastica",
                     "none_select": false,
                     "description": "The ICA method to use in the fit method. Use the ``fit_params`` argument\nto set additional parameters. Specifically, if you want Extended\nInfomax, set ``method='infomax'`` and ``fit_params=dict(extended=True)``\n(this also works for ``method='picard'``). Defaults to ``'fastica'``.\nFor reference, see :footcite:`Hyvarinen1999,BellSejnowski1995,LeeEtAl1999,AblinEtAl2018`."
@@ -16191,6 +16405,9 @@
                 },
                 "use_dev_head_trans": {
                     "gui": "ComboGui",
+                    "options": [
+                        "average"
+                    ],
                     "default": "average",
                     "none_select": false,
                     "description": "Identify the device to head transform used to define the\nfixed HPI locations for computing moving distances.\nIf ``average`` the average device to head transform is\ncomputed using ``compute_average_dev_head_t``.\nIf ``info``, ``raw.info['dev_head_t']`` is used."
@@ -16238,6 +16455,11 @@
                 },
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The type of sensors to use. If ``None`` it will take the first type in\n``mag``, ``grad``, ``eeg``."
@@ -18005,6 +18227,11 @@
                 },
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "linear",
+                        "window",
+                        "constant"
+                    ],
                     "default": "linear",
                     "none_select": false,
                     "description": "Way to fill the artifacted time interval.\n\n``\"linear\"``\n    Does linear interpolation.\n``\"window\"``\n    Applies a ``(1 - hanning)`` window.\n``\"constant\"``\n    Uses baseline average. baseline parameter must be provided.\n\n.. versionchanged:: 1.8\n   Added the ``\"constant\"`` mode."
@@ -18582,18 +18809,32 @@
             "parameters": {
                 "bads": {
                     "gui": "ComboGui",
+                    "options": [
+                        "from_raw",
+                        "union",
+                        "keep"
+                    ],
                     "default": "from_raw",
                     "none_select": false,
                     "description": "How to populate the list of bad channel names to be injected into\nthe empty-room recording. If ``'from_raw'`` (default) the list of bad\nchannels will be overwritten with that of ``raw``. If ``'union'``, will\nuse the union of bad channels in ``raw`` and ``raw_er``. Note that\nthis may lead to additional bad channels in the empty-room in\ncomparison to the experimental recording. If ``'keep'``, don't alter\nthe existing list of bad channels.\n\n.. note::\n   Non-MEG channels are silently dropped from the list of bads."
                 },
                 "annotations": {
                     "gui": "ComboGui",
+                    "options": [
+                        "from_raw",
+                        "union",
+                        "keep"
+                    ],
                     "default": "from_raw",
                     "none_select": false,
                     "description": "Whether to copy the annotations over from ``raw`` (default),\nuse the union of the annotations, or to keep them unchanged."
                 },
                 "meas_date": {
                     "gui": "ComboGui",
+                    "options": [
+                        "keep",
+                        "from_raw"
+                    ],
                     "default": "keep",
                     "none_select": false,
                     "description": "Whether to transfer the measurement date from ``raw`` or to keep\nit as is (default). If you intend to manually transfer annotations\nfrom ``raw`` **after** running this function, you should set this to\n``'from_raw'``."
@@ -19007,6 +19248,13 @@
                 },
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": "eeg",
                     "none_select": false,
                     "description": "The channel type to plot. Defaults to 'eeg'."
@@ -20992,6 +21240,11 @@
             "parameters": {
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when no cHPI information can be found. If ``'ignore'`` or\n``'warn'``, all return values will be empty arrays or ``None``. If\n``'raise'``, an exception will be raised."
@@ -21032,6 +21285,11 @@
             "parameters": {
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when no cHPI information can be found. If ``'ignore'`` or\n``'warn'``, all return values will be empty arrays or ``None``. If\n``'raise'``, an exception will be raised."
@@ -23695,6 +23953,12 @@
                 },
                 "image_format": {
                     "gui": "ComboGui",
+                    "options": [
+                        "png",
+                        "svg",
+                        "webp",
+                        "auto"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "Default image format to use (default is ``'auto'``, which will use\n``'webp'`` if available and ``'png'`` otherwise).\n``'svg'`` uses vector graphics, so fidelity is higher but can increase\nfile size and browser image rendering time as well.\n\n.. versionadded:: 0.15\n.. versionchanged:: 1.3\n   Added support for ``'webp'`` format, removed support for GIF, and\n   set the default to ``'auto'``."
@@ -23837,6 +24101,11 @@
                 },
                 "on_mismatch": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when the device-to-head transformation differs between\ninstances.\n\n.. versionadded:: 0.24"
@@ -24553,6 +24822,14 @@
             "parameters": {
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "ratio",
+                        "logratio",
+                        "percent",
+                        "zscore",
+                        "zlogratio"
+                    ],
                     "default": "mean",
                     "none_select": false,
                     "description": "Perform baseline correction by\n\n- subtracting the mean of baseline values ('mean')\n- dividing by the mean of baseline values ('ratio')\n- dividing by the mean of baseline values and taking the log\n  ('logratio')\n- subtracting the mean of baseline values followed by dividing by\n  the mean of baseline values ('percent')\n- subtracting the mean of baseline values and dividing by the\n  standard deviation of baseline values ('zscore')\n- dividing by the mean of baseline values, taking the log, and\n  dividing by the standard deviation of log baseline values\n  ('zlogratio')"
@@ -25756,6 +26033,10 @@
             "parameters": {
                 "hemi": {
                     "gui": "ComboGui",
+                    "options": [
+                        "lh",
+                        "rh"
+                    ],
                     "default": null,
                     "none_select": false,
                     "description": "Hemisphere to which the label applies."
@@ -27776,6 +28057,10 @@
                 },
                 "method": {
                     "gui": "ComboGui",
+                    "options": [
+                        "indep",
+                        "negcorr"
+                    ],
                     "default": "indep",
                     "none_select": false,
                     "description": "If 'indep' it implements Benjamini/Hochberg for independent or if\n'negcorr' it corresponds to Benjamini/Yekutieli."
@@ -27902,6 +28187,10 @@
                 },
                 "out_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mask",
+                        "indices"
+                    ],
                     "default": "indices",
                     "none_select": false,
                     "description": "Output format of clusters within a list.\nIf ``'mask'``, returns a list of boolean arrays,\neach with the same shape as the input data (or slices if the shape is 1D\nand adjacency is None), with ``True`` values indicating locations that are\npart of a cluster. If ``'indices'``, returns a list of tuple of ndarray,\nwhere each ndarray contains the indices of locations that together form the\ngiven cluster along the given dimension. Note that for large datasets,\n``'indices'`` may use far less memory than ``'mask'``.\nDefault is ``'indices'``."
@@ -28054,6 +28343,10 @@
                 },
                 "out_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mask",
+                        "indices"
+                    ],
                     "default": "indices",
                     "none_select": false,
                     "description": "Output format of clusters within a list.\nIf ``'mask'``, returns a list of boolean arrays,\neach with the same shape as the input data (or slices if the shape is 1D\nand adjacency is None), with ``True`` values indicating locations that are\npart of a cluster. If ``'indices'``, returns a list of tuple of ndarray,\nwhere each ndarray contains the indices of locations that together form the\ngiven cluster along the given dimension. Note that for large datasets,\n``'indices'`` may use far less memory than ``'mask'``.\nDefault is ``'indices'``."
@@ -28276,6 +28569,10 @@
                 },
                 "out_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mask",
+                        "indices"
+                    ],
                     "default": "indices",
                     "none_select": false,
                     "description": "Output format of clusters within a list.\nIf ``'mask'``, returns a list of boolean arrays,\neach with the same shape as the input data (or slices if the shape is 1D\nand adjacency is None), with ``True`` values indicating locations that are\npart of a cluster. If ``'indices'``, returns a list of tuple of ndarray,\nwhere each ndarray contains the indices of locations that together form the\ngiven cluster along the given dimension. Note that for large datasets,\n``'indices'`` may use far less memory than ``'mask'``.\nDefault is ``'indices'``."
@@ -28427,6 +28724,10 @@
                 },
                 "out_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mask",
+                        "indices"
+                    ],
                     "default": "indices",
                     "none_select": false,
                     "description": "Output format of clusters within a list.\nIf ``'mask'``, returns a list of boolean arrays,\neach with the same shape as the input data (or slices if the shape is 1D\nand adjacency is None), with ``True`` values indicating locations that are\npart of a cluster. If ``'indices'``, returns a list of tuple of ndarray,\nwhere each ndarray contains the indices of locations that together form the\ngiven cluster along the given dimension. Note that for large datasets,\n``'indices'`` may use far less memory than ``'mask'``.\nDefault is ``'indices'``."
@@ -31623,6 +31924,10 @@
                 },
                 "normalization": {
                     "gui": "ComboGui",
+                    "options": [
+                        "full",
+                        "length"
+                    ],
                     "default": "length",
                     "none_select": false,
                     "description": "Normalization strategy. If \"full\", the PSD will be normalized by the\nsampling rate as well as the length of the signal (as in\n:ref:`Nitime <nitime:users-guide>`). Default is ``'length'``."
@@ -32124,6 +32429,11 @@
                 },
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "same",
+                        "valid",
+                        "full"
+                    ],
                     "default": "same",
                     "none_select": false,
                     "description": "Convention for convolution. 'full' is currently not implemented with\n``use_fft=False``. Defaults to ``'same'``."
@@ -32408,6 +32718,10 @@
                 },
                 "interaction": {
                     "gui": "ComboGui",
+                    "options": [
+                        "trackball",
+                        "terrain"
+                    ],
                     "default": "terrain",
                     "none_select": false,
                     "description": "How interactions with the scene via an input device (e.g., mouse or\ntrackpad) modify the camera position. If ``'terrain'``, one axis is\nfixed, enabling \"turntable-style\" rotations. If ``'trackball'``,\nmovement along all axes is possible, which provides more freedom of\nmovement, but you may incidentally perform unintentional rotations along\nsome axes.\nDefaults to ``'terrain'``.\n\n.. versionadded:: 1.1"
@@ -33179,6 +33493,10 @@
             "parameters": {
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "csd",
+                        "coh"
+                    ],
                     "default": "csd",
                     "none_select": false,
                     "description": "Whether to plot the cross-spectral density ('csd', the default), or\nthe coherence ('coh') between the channels."
@@ -33829,12 +34147,23 @@
                 },
                 "normalization": {
                     "gui": "ComboGui",
+                    "options": [
+                        "full",
+                        "length"
+                    ],
                     "default": "length",
                     "none_select": false,
                     "description": "Normalization strategy. If \"full\", the PSD will be normalized by the\nsampling rate as well as the length of the signal (as in\n:ref:`Nitime <nitime:users-guide>`). Default is ``'length'``."
                 },
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the mean for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``."
@@ -34042,6 +34371,11 @@
                 },
                 "on_missing": {
                     "gui": "ComboGui",
+                    "options": [
+                        "raise",
+                        "warn",
+                        "ignore"
+                    ],
                     "default": "raise",
                     "none_select": false,
                     "description": "Can be ``'raise'`` (default) to raise an error, ``'warn'`` to emit a\nwarning, or ``'ignore'`` to ignore when event numbers from ``event_id`` are missing from\n:term:`events`. When numbers from :term:`events` are missing from\n``event_id`` they will be ignored and a warning emitted; consider\nusing ``verbose='error'`` in this case.\n\n.. versionadded:: 0.21"
@@ -34440,6 +34774,11 @@
                 },
                 "mask_style": {
                     "gui": "ComboGui",
+                    "options": [
+                        "both",
+                        "contour",
+                        "mask"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "If ``mask`` is not None: if 'contour', a contour line is drawn around\nthe masked areas (``True`` in ``mask``). If 'mask', entries not\n``True`` in ``mask`` are shown transparently. If 'both', both a contour\nand transparency are used.\nIf ``None``, defaults to 'both' if ``mask`` is not None, and is ignored\notherwise.\n\n .. versionadded:: 0.16"
@@ -34751,6 +35090,13 @@
             "parameters": {
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the RMS for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``."
@@ -35110,6 +35456,10 @@
                 },
                 "interaction": {
                     "gui": "ComboGui",
+                    "options": [
+                        "trackball",
+                        "terrain"
+                    ],
                     "default": "terrain",
                     "none_select": false,
                     "description": "How interactions with the scene via an input device (e.g., mouse or\ntrackpad) modify the camera position. If ``'terrain'``, one axis is\nfixed, enabling \"turntable-style\" rotations. If ``'trackball'``,\nmovement along all axes is possible, which provides more freedom of\nmovement, but you may incidentally perform unintentional rotations along\nsome axes.\nDefaults to ``'terrain'``.\n\n.. versionadded:: 1.1"
@@ -35833,6 +36183,10 @@
                 },
                 "time_format": {
                     "gui": "ComboGui",
+                    "options": [
+                        "float",
+                        "clock"
+                    ],
                     "default": "float",
                     "none_select": false,
                     "description": "Style of time labels on the horizontal axis. If ``'float'``, labels will be\nnumber of seconds from the start of the recording. If ``'clock'``,\nlabels will show \"clock time\" (hours/minutes/seconds) inferred from\n``raw.info['meas_date']``. Default is ``'float'``.\n\n.. versionadded:: 0.24"
@@ -35988,6 +36342,13 @@
                 },
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the RMS for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``."
@@ -37271,6 +37632,10 @@
                 },
                 "time_format": {
                     "gui": "ComboGui",
+                    "options": [
+                        "float",
+                        "clock"
+                    ],
                     "default": "float",
                     "none_select": false,
                     "description": "Style of time labels on the horizontal axis. If ``'float'``, labels will be\nnumber of seconds from the start of the recording. If ``'clock'``,\nlabels will show \"clock time\" (hours/minutes/seconds) inferred from\n``raw.info['meas_date']``. Default is ``'float'``.\n\n.. versionadded:: 0.24"
@@ -37434,6 +37799,10 @@
                 },
                 "xscale": {
                     "gui": "ComboGui",
+                    "options": [
+                        "linear",
+                        "log"
+                    ],
                     "default": "linear",
                     "none_select": false,
                     "description": "Scale of the frequency axis. Default is ``'linear'``."
@@ -37618,6 +37987,13 @@
             "parameters": {
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the RMS for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``."
@@ -38543,6 +38919,10 @@
                 },
                 "time_unit": {
                     "gui": "ComboGui",
+                    "options": [
+                        "s",
+                        "ms"
+                    ],
                     "default": "s",
                     "none_select": false,
                     "description": "Whether time is represented in seconds (\"s\", default) or\nmilliseconds (\"ms\")."
@@ -38859,12 +39239,27 @@
                 },
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": null,
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the mean for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``."
                 },
                 "mode": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mean",
+                        "ratio",
+                        "logratio",
+                        "percent",
+                        "zscore",
+                        "zlogratio"
+                    ],
                     "default": "mean",
                     "none_select": true,
                     "description": "Perform baseline correction by\n\n  - subtracting the mean baseline power ('mean')\n  - dividing by the mean baseline power ('ratio')\n  - dividing by the mean baseline power and taking the log ('logratio')\n  - subtracting the mean baseline power followed by dividing by the\n    mean baseline power ('percent')\n  - subtracting the mean baseline power and dividing by the standard\n    deviation of the baseline power ('zscore')\n  - dividing by the mean baseline power, taking the log, and dividing\n    by the standard deviation of the baseline power ('zlogratio')\n\nIf None no baseline correction is applied."
@@ -39196,6 +39591,13 @@
             "parameters": {
                 "ch_type": {
                     "gui": "ComboGui",
+                    "options": [
+                        "mag",
+                        "grad",
+                        "planar1",
+                        "planar2",
+                        "eeg"
+                    ],
                     "default": "eeg",
                     "none_select": true,
                     "description": "The channel type to plot. For ``'grad'``, the gradiometers are\ncollected in pairs and the RMS for each pair is plotted. If\n``None`` the first available channel type from order shown above is used. Defaults to ``None``.\n\n.. versionadded:: 0.21"
@@ -39404,6 +39806,12 @@
                 },
                 "coord_frame": {
                     "gui": "ComboGui",
+                    "options": [
+                        "auto",
+                        "head",
+                        "meg",
+                        "mri"
+                    ],
                     "default": "auto",
                     "none_select": false,
                     "description": "The coordinate frame to use. If ``'auto'`` (default), chooses ``'mri'``\nif ``trans`` was passed, and ``'head'`` otherwise.\n\n.. versionchanged:: 1.0\n   Defaults to ``'auto'``."
@@ -39487,6 +39895,10 @@
                 },
                 "interaction": {
                     "gui": "ComboGui",
+                    "options": [
+                        "trackball",
+                        "terrain"
+                    ],
                     "default": "terrain",
                     "none_select": false,
                     "description": "How interactions with the scene via an input device (e.g., mouse or\ntrackpad) modify the camera position. If ``'terrain'``, one axis is\nfixed, enabling \"turntable-style\" rotations. If ``'trackball'``,\nmovement along all axes is possible, which provides more freedom of\nmovement, but you may incidentally perform unintentional rotations along\nsome axes.\n\n.. versionadded:: 0.16\n.. versionchanged:: 1.0\n   Defaults to ``'terrain'``."

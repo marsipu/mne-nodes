@@ -101,8 +101,6 @@ def get_param_config(param, sig, obj_config):
     # Filter (default ***)
     pattern = r"(\w+)\s\(default ([\w']+)\)"
     types = [re.sub(pattern, r"\1", t) for t in types]
-    # # Remove parentheses
-    # types = [t.replace("(", "").replace(")", "") for t in types]
     # Get containters
     pattern = r"(\w+)\s*of\s*(\w+)"
     for idx, t in enumerate(types):
@@ -134,6 +132,8 @@ def get_param_config(param, sig, obj_config):
                         default = literal_eval(default_str)
                     except (ValueError, SyntaxError):
                         default = default_str
+    # # Remove parentheses
+    # types = [t.replace("(", "").replace(")", "") for t in types]
     if "None" in types:
         none_select = True
         types.remove("None")
@@ -164,6 +164,8 @@ def get_param_config(param, sig, obj_config):
             param_config["type_kwargs"] = {"combo": {"options": options}}
     else:
         param_config.update({"gui": default_type_guis[types[0]].__name__})
+        if len(options) > 0:
+            param_config["options"] = options
     param_config.update(
         {
             "default": default,
