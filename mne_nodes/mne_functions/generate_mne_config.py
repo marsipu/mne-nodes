@@ -246,7 +246,7 @@ for category, module_dict in objects.items():
             config["functions"][obj_name] = obj_config
 
 # Save config
-config_path = Path(__file__).parent / "mne_config.json"
+config_path = Path(__file__).parent / "mne_functions_config.json"
 with open(config_path, "w") as file:
     json.dump(config, file, indent=4)
 print("Missing types:")
