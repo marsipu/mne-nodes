@@ -53,7 +53,7 @@ Have a look at the [contributing guidelines](CONTRIBUTING.md) for more informati
 - [mne-bids-pipeline](https://mne.tools/mne-bids-pipeline/) served as inspiration for the processing steps and their implementation of bids-derivatives.
 - Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used to implement the node-gui.
 - The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](https://github.com/5yutan5/PyQtDarkTheme).
-- The development was supported by Code Completion and Coding Agents (e.g. reformatting, documentation, bug-fixing, boilerplate code, writing tests)
+- The development was supported by Code Completion and Coding Agents (e.g. refactoring, documentation, bug-fixing, boilerplate code, writing tests)
 
 ## License
 The `mne-nodes` project is licensed under the [BSD\-3\-Clause license](LICENSE). It uses PySide6, which is licensed under the LGPL. When using [`qtpy`](https://github.com/spyder-ide/qtpy) with alternative Qt backends (e.g. PyQt6), the applicable licensing obligations are determined by the chosen backend.

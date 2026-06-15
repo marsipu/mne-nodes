@@ -14,7 +14,7 @@ from os.path import join
 from pathlib import Path
 
 import darkdetect
-from qtpy.QtCore import QEvent, QPoint, Qt
+from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -474,37 +474,69 @@ def mouse_interaction(func):
     return wrapper
 
 
+def _event_positions(widget, pos):
+    """Return local and global positions as QPointF for Qt6 mouse events."""
+    if widget is None:
+        raise ValueError("widget must not be None")
+    if pos is None:
+        raise ValueError("pos must not be None")
+    local_pos = QPointF(pos)
+    global_point = widget.mapToGlobal(local_pos.toPoint())
+    global_pos = QPointF(global_point)
+    return local_pos, global_pos
+
+
 @mouse_interaction
 def mousePress(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
+    if button is None:
+        button = Qt.MouseButton.LeftButton
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseButtonPress, pos, button, Qt.MouseButton.NoButton, modifier
+        QEvent.Type.MouseButtonPress, local_pos, global_pos, button, button, modifier
     )
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseRelease(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
+    if button is None:
+        button = Qt.MouseButton.LeftButton
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseButtonRelease, pos, button, Qt.MouseButton.NoButton, modifier
+        QEvent.Type.MouseButtonRelease,
+        local_pos,
+        global_pos,
+        button,
+        Qt.MouseButton.NoButton,
+        modifier,
     )
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseMove(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if button is None:
         button = Qt.MouseButton.NoButton
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
-
-    if isinstance(pos, QPoint):
-        pass
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseMove, pos, Qt.MouseButton.NoButton, button, modifier
+        QEvent.Type.MouseMove,
+        local_pos,
+        global_pos,
+        Qt.MouseButton.NoButton,
+        button,
+        modifier,
     )
     QApplication.sendEvent(widget, event)
 
