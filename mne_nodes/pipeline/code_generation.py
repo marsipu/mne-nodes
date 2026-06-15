@@ -49,7 +49,11 @@ class CodeGenerator:
         # Add module imports
         modules = set(functions.values())
         for module in modules:
-            code += f"from {module} import {', '.join([f for f, m in functions.items() if m == module])}\n"
+            if module == "mne_functions":
+                code += "import mne\n"
+            else:
+                code += f"from {module} import {', '.join([f for f, m in functions.items() if m == module])}\n"
+
         return code
 
     def generate_code(self):
@@ -103,6 +107,7 @@ class CodeGenerator:
                     code += self._indent("members = group[item]\n", 1)
                 for n in nodes:
                     name = n["name"]
+                    func_meta = self.ct.get_function_meta(name)
                     if target == "file":
                         inputs = [i for i in n["inputs"] if i not in loaded_data]
                     else:
@@ -198,7 +203,11 @@ class CodeGenerator:
                     func_line = ""
                     if len(outputs) > 0:
                         func_line += f"{outputs} = "
-                    func_line += f"{name}("
+                    if "mne" in func_meta["module"]:
+                        func_name = f"{func_meta['module']}.{name}"
+                    else:
+                        func_name = name
+                    func_line += f"{func_name}("
                     if len(inputs) > 0:
                         func_line += f"{inputs}, **func_params)"
                     else:

@@ -122,7 +122,9 @@ class Controller:
         )
         self.add_module(core_config_path)
         # Add mne functions
-        mne_config_path = Path(__file__).parents[1] / "development" / "mne_config.json"
+        mne_config_path = (
+            Path(__file__).parents[1] / "mne_functions" / "mne_functions_config.json"
+        )
         self.add_module(mne_config_path)
         # Initialize modules
         self.load_modules()
@@ -624,9 +626,9 @@ class Controller:
         if parameter_name == "subjects_dir":
             return self.subjects_dir
         elif parameter_name not in parameters.get(function_name, {}):
-            logging.warning(
-                f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
-            )
+            # logging.debug(
+            #     f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
+            # )
             value = self.get_default(parameter_name, function_name)
             self.set_parameter(parameter_name, value, function_name)
             return value

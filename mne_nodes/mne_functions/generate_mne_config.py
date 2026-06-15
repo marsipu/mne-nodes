@@ -251,4 +251,5 @@ with open(config_path, "w") as file:
     json.dump(config, file, indent=4)
 print("Missing types:")
 pprint(missing_types)
+print(f"Scraped {len(config['functions'])} functions/classes from mne")
 print(f"Config saved to {config_path}")

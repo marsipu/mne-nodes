@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import faulthandler
 import json
 import os  # added
 from os import mkdir
@@ -66,7 +67,7 @@ def settings(tmp_path):
 
 # ToDo: Create a dummy function-configuration and parameterss
 @pytest.fixture
-def ct(tmp_path, monkeypatch, settings):
+def ct(qtbot, tmp_path, monkeypatch, settings):
     """Fixture to create a Controller with temporary config, data and subjects
     directories."""
     from mne_nodes.pipeline.controller import Controller
@@ -99,6 +100,7 @@ def ct(tmp_path, monkeypatch, settings):
     settings.set("bids_root", tiny_bids_root)
 
     # Create Controller
+    faulthandler.enable()
     ct = Controller(settings=settings)
     ct.ensure_ready(required=("config_path",))
 
