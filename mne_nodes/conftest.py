@@ -66,10 +66,12 @@ def settings(tmp_path):
 
 
 # ToDo: Create a dummy function-configuration and parameterss
-@pytest.fixture
-def ct(qtbot, tmp_path, monkeypatch, settings):
-    """Fixture to create a Controller with temporary config, data and subjects
-    directories."""
+def create_test_controller(settings, tmp_path, monkeypatch):
+    """Create a test controller with deterministic user-interaction patches.
+
+    This helper is reusable from test modules that need to create a Controller
+    with the same mocked setup as the `ct` fixture.
+    """
     from mne_nodes.pipeline.controller import Controller
 
     # Simulate user input
@@ -101,10 +103,19 @@ def ct(qtbot, tmp_path, monkeypatch, settings):
 
     # Create Controller
     faulthandler.enable()
-    ct = Controller(settings=settings)
-    ct.ensure_ready(required=("config_path",))
+    controller = Controller(settings=settings)
+    controller.ensure_ready(required=("config_path",))
 
-    return ct
+    return controller
+
+
+@pytest.fixture
+def ct(qtbot, tmp_path, monkeypatch, settings):
+    """Fixture to create a Controller with temporary config, data and subjects
+    directories."""
+    return create_test_controller(
+        settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
 
 
 @pytest.fixture
