@@ -699,7 +699,9 @@ class Controller:
 
     def _import_module(self, module_name, config_path):
         """Import a module from the given package path."""
-        if module_name != "mne":
+        if module_name == "mne_functions":
+            self.modules["mne"] = mne
+        else:
             pkg_path = Path(config_path).parent
             # Add the package path to sys.path if not already present
             if pkg_path not in sys.path:
@@ -712,8 +714,6 @@ class Controller:
                 logging.error(f"Module {module_name} not found in {pkg_path}].")
             else:
                 self.modules[module_name] = module
-        else:
-            self.modules["mne"] = mne
         # Load the config file for the basic module
         self._load_module_config(module_name, config_path)
 
@@ -721,14 +721,14 @@ class Controller:
         """Load custom modules from their config files."""
         modules = self.settings.get("module_config")
         for module_name, module_config in modules.items():
-            if module_name in self.modules:
+            if module_name in self.modules or module_name == "mne_functions":
                 continue
             module_path = module_config["path"]
             if not isfile(module_path):
                 module_path = get_user_input(
-                    f"{module_path} was not found! Please supply the path to {Path(module_path).name}.",
+                    f"{module_path} was not found! Please supply the path to the config file of '{Path(module_path).name}'.",
                     input_type="file",
-                    file_filter="Python files (*.py)",
+                    file_filter="JSON files (*.json)",
                 )
             if module_path is not None:
                 self._import_module(module_name, module_path)
