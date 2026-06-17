@@ -122,6 +122,47 @@ def test_getters_are_non_interactive(settings):
         controller.ensure_ready(required=("config_path",), interactive=False)
 
 
+def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch):
+    controller = Controller(settings=settings)
+    prompts = {
+        "Please select/create a folder for the bids-root.": tmp_path / "bids",
+        "Please select/create a folder for the derivatives root.": tmp_path / "deriv",
+        "Please select/create a folder for saving plots.": tmp_path / "plots",
+        "Please enter the path to the FreeSurfer subjects directory": tmp_path
+        / "subjects",
+    }
+    for path in prompts.values():
+        path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts[message],
+    )
+    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
+
+    controller.bids_root = None
+    controller.deriv_root = None
+    controller.plot_root = None
+    controller.subjects_dir = None
+
+    assert (
+        controller.bids_root
+        == prompts["Please select/create a folder for the bids-root."]
+    )
+    assert (
+        controller.deriv_root
+        == prompts["Please select/create a folder for the derivatives root."]
+    )
+    assert (
+        controller.plot_root
+        == prompts["Please select/create a folder for saving plots."]
+    )
+    assert (
+        controller.subjects_dir
+        == prompts["Please enter the path to the FreeSurfer subjects directory"]
+    )
+
+
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference
 
 # ToDo: add a test about accessing and modifying config from multiple processes without data loss or race conditions

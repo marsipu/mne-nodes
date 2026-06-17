@@ -15,11 +15,13 @@ from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import (
     ask_user,
     center,
+    get_user_input,
     information_message,
     set_ratio_geometry,
 )
 from mne_nodes.gui.node.node_viewer import NodeViewer
-from mne_nodes.gui.run_widgets import ProcessDialog
+from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
 
 
@@ -62,20 +64,23 @@ class MainWindow(QMainWindow):
         self.console_dock.hide()
 
         # Init QActions
-        self.actions = {}
-        add_meg_help = "Add MEG data"
-        self.actions["add_meg"] = QAction(
-            "&Add MEG Data", parent=self, statusTip=add_meg_help, whatsThis=add_meg_help
+        sample_action = QAction(
+            "&Add Sample BIDS Data",
+            parent=self,
+            toolTip="Add Sample BIDS Data",
+            statusTip="Add Sample BIDS Data",
         )
+        sample_action.triggered.connect(self.add_sample_bids)
+
         bids_root_help = "Change the BIDS root directory for the current project."
-        self.actions["change_bids_root"] = QAction(
+        change_bids_root_action = QAction(
             "&Change BIDS Root",
             parent=self,
             statusTip=bids_root_help,
             whatsThis=bids_root_help,
         )
         load_help = "Load another project with a new configuration file."
-        self.actions["load"] = QAction(
+        load_action = QAction(
             "&Load Configuration",
             parent=self,
             toolTip="Load Configuration",
@@ -83,12 +88,12 @@ class MainWindow(QMainWindow):
             whatsThis=load_help,
             shortcut=QKeySequence("Ctrl+O"),
         )
-        self.actions["load"].triggered.connect(self.load_config)
-        self.actions["exit"] = QAction("&Exit", parent=self)
-        self.actions["exit"].triggered.connect(self.close)
+        load_action.triggered.connect(self.load_config)
+        exit_action = QAction("&Exit", parent=self)
+        exit_action.triggered.connect(self.close)
         # Viewer actions
         autolayout_help = "Automatically arrange all nodes in the viewer."
-        self.actions["autolayout"] = QAction(
+        autolayout_action = QAction(
             "&Auto-Layout Nodes",
             parent=self,
             toolTip="Auto-Layout Nodes",
@@ -96,19 +101,19 @@ class MainWindow(QMainWindow):
             whatsThis=autolayout_help,
             shortcut=QKeySequence("Ctrl+L"),
         )
-        self.actions["autolayout"].triggered.connect(self.viewer.auto_layout_nodes)
+        autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
         # ToDo: Init Menu
-        menu_file = self.menuBar().addMenu("&File")
-        menu_file.addAction(self.actions["add_meg"])
-        menu_file.addSeparator()
-        menu_file.addAction(self.actions["change_bids_root"])
-        menu_config = self.menuBar().addMenu("&Config")
-        menu_config.addAction(self.actions["load"])
+        bids_menu = self.menuBar().addMenu("&BIDS")
+        bids_menu.addAction(sample_action)
+        bids_menu.addAction(change_bids_root_action)
+        bids_menu.addSeparator()
+        bids_menu.addAction(exit_action)
+        config_menu = self.menuBar().addMenu("&Config")
+        config_menu.addAction(load_action)
         # ToDo: Init Toolbar
         self.toolbar = self.addToolBar("Main Toolbar")
-        self.toolbar.addAction(self.actions["autolayout"])
-        # ToDo: Init Infobar
+        self.toolbar.addAction(autolayout_action)
 
         # Show the main window
         self.show()
@@ -140,7 +145,26 @@ class MainWindow(QMainWindow):
     # Actions
     # ------------------------------------------------------------------
     def load_config(self):
+        # Initialize new config-path by setting it to None
         self.controller.config_path = None
+
+    def add_sample_bids(self):
+        sample_root = get_user_input(
+            "Enter the BIDS root directory for the sample data:", "folder", parent=self
+        )
+        if sample_root is not None:
+            WorkerDialog(
+                self,
+                function=load_sample_bids,
+                title="Loading Sample BIDS Data",
+                show_console=True,
+                blocking=True,
+                bids_root=sample_root,
+            )
+            self.controller.bids_root = sample_root
+
+    def change_bids_root(self):
+        self.controller.bids_root = None
 
     def restart(self):
         self.close()

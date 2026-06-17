@@ -10,6 +10,7 @@
             "autoReload": {
                 "enable": true
             },
+            "justMyCode": false,
             "console": "integratedTerminal"
         }
     ]

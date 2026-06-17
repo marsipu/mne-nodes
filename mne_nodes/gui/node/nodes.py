@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from mne_bids import BIDSPath
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -55,14 +54,7 @@ class InputWidget(QWidget):
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        data_types = self.ct.get_datatypes()
-        for dt in data_types:
-            bp_kwargs = {"root": self.ct.bids_root}
-            if dt in self.ct.raw_types:
-                bp_kwargs.update({"suffix": dt})
-            else:
-                bp_kwargs.update({"datatype": dt})
-            data = [f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)]
+        for dt, data in self.ct.get_datatype_items().items():
             if dt not in self.selected_inputs:
                 self.selected_inputs[dt] = []
             dt_list = CheckListProgress(
