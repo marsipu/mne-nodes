@@ -939,7 +939,7 @@ class Controller:
             if module_path is not None:
                 self._import_module(module_name, module_path)
 
-    def add_module(self, config_path: os.PathLike) -> None:
+    def add_module(self, config_path: os.PathLike | str) -> None:
         """Add a module to the controller from a config file or a script-file."""
         if not isfile(config_path):
             raise FileNotFoundError(f"Config file {config_path} not found.")
@@ -1080,6 +1080,59 @@ class Controller:
         start, end = self._get_func_start_end(function_name, module_code)
 
         return func_code, start, end
+
+    ####################################################################################
+    # Pipeline
+    ####################################################################################
+    def import_pipeline(self):
+        import_path = get_user_input(
+            "Select a pipeline configuration file to import.",
+            input_type="file",
+            file_filter="JSON files (*.json)",
+        )
+        if import_path is None:
+            logging.warning("Pipeline import cancelled by user.")
+            return
+        with open(import_path) as file:
+            pipeline_dict = json.load(file, object_hook=type_json_hook)
+        # Import parameters
+        self.set("parameters", pipeline_dict.get("parameters", {}))
+        # import modules (if not already imported)
+        modules = pipeline_dict.get("modules", [])
+        for module_name in modules:
+            if module_name not in self.settings.get("module_config", {}):
+                module_config_path = get_user_input(
+                    f"Module '{module_name}' is required for this pipeline but not found. Please select the config file for this module.",
+                    input_type="file",
+                    file_filter="JSON files (*.json)",
+                )
+                if module_config_path is None:
+                    logging.warning(
+                        f"Pipeline import cancelled by user during module '{module_name}' import."
+                    )
+                    return
+                self.add_module(module_config_path)
+        # import pipeline structure to viewer
+        self.viewer.from_dict(pipeline_dict["nodes"])
+
+        logging.info(f"Pipeline imported from {import_path}.")
+
+    def export_pipeline(self):
+        pipeline_dict = {
+            "nodes": self.viewer.to_dict(),
+            "modules": list(self.settings.get("module_config", {}).keys()),
+            "parameters": self.get("parameters", {}),
+        }
+        export_path = get_user_input(
+            "Select a location to save the pipeline configuration.",
+            input_type="file_new",
+            file_filter="JSON files (*.json)",
+        )
+        if export_path is None:
+            logging.warning("Pipeline export cancelled by user.")
+            return
+        with open(export_path, "w") as file:
+            json.dump(pipeline_dict, file, indent=4, cls=TypedJSONEncoder)
 
     def start(self, node_sequence):
         # Generate code file

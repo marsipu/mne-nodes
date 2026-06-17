@@ -5,8 +5,10 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
+from pathlib import Path
 
 import pytest
+from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
@@ -161,6 +163,84 @@ def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch)
         controller.subjects_dir
         == prompts["Please enter the path to the FreeSurfer subjects directory"]
     )
+
+
+def test_import_pipeline_adds_missing_modules(ct, tmp_path, monkeypatch):
+    class DummyViewer:
+        def __init__(self):
+            self.received = None
+
+        def from_dict(self, pipeline_dict):
+            self.received = pipeline_dict
+
+    imported_nodes = {"nodes": {"input": {"name": "Input-0"}}, "connections": {}}
+    import_payload = {
+        "nodes": imported_nodes,
+        "modules": ["test_module"],
+        "parameters": {"test_func1": {"a": 12}},
+    }
+    import_path = tmp_path / "pipeline_import_missing_module.json"
+    module_config_path = tmp_path / "test_module_config.json"
+    module_config_path.write_text("{}", encoding="utf-8")
+    with open(import_path, "w") as file:
+        json.dump(import_payload, file, indent=4, cls=TypedJSONEncoder)
+
+    prompts = iter([import_path, module_config_path])
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda *a, **k: Path(next(prompts)),
+    )
+    added_modules = []
+    monkeypatch.setattr(ct, "add_module", lambda path: added_modules.append(Path(path)))
+    dummy_viewer = DummyViewer()
+    monkeypatch.setitem(_widgets, "viewer", dummy_viewer)
+
+    ct.import_pipeline()
+
+    assert added_modules == [module_config_path]
+    assert dummy_viewer.received == imported_nodes
+
+
+def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
+    class ExportViewer:
+        def __init__(self, pipeline_dict):
+            self._pipeline_dict = pipeline_dict
+
+        def to_dict(self):
+            return self._pipeline_dict
+
+    class ImportViewer:
+        def __init__(self):
+            self.received = None
+
+        def from_dict(self, pipeline_dict):
+            self.received = pipeline_dict
+
+    roundtrip_nodes = {
+        "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "filter_bandpass"}},
+        "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
+    }
+    roundtrip_parameters = {
+        "filter_bandpass": {"l_freq": 1.0, "h_freq": 40.0},
+        "create_epochs": {"tmin": -0.2, "tmax": 0.5},
+    }
+    ct.set("parameters", roundtrip_parameters)
+
+    export_path = tmp_path / "pipeline_roundtrip.json"
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", lambda *a, **k: export_path
+    )
+    monkeypatch.setitem(_widgets, "viewer", ExportViewer(roundtrip_nodes))
+    ct.export_pipeline()
+
+    ct.set("parameters", {})
+    import_viewer = ImportViewer()
+    monkeypatch.setitem(_widgets, "viewer", import_viewer)
+    ct.import_pipeline()
+
+    assert export_path.exists(), "Roundtrip export should create a JSON file"
+    assert ct.get("parameters") == roundtrip_parameters
+    assert import_viewer.received == roundtrip_nodes
 
 
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference

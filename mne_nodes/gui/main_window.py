@@ -63,47 +63,49 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
-        # Init QActions
-        sample_action = QAction(
-            "&Add Sample BIDS Data",
+        # Pipeline Actions
+        import_pipeline_action = QAction(
+            "&Import Pipeline",
             parent=self,
-            toolTip="Add Sample BIDS Data",
-            statusTip="Add Sample BIDS Data",
+            statusTip="Import a Pipeline from a JSON file",
+        )
+        import_pipeline_action.triggered.connect(self.controller.import_pipeline)
+        export_pipeline_action = QAction(
+            "&Export Pipeline", parent=self, statusTip="Export Pipeline to a JSON file"
+        )
+        export_pipeline_action.triggered.connect(self.controller.export_pipeline)
+        # BIDS Actions
+        sample_action = QAction(
+            "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
         )
         sample_action.triggered.connect(self.add_sample_bids)
-
-        bids_root_help = "Change the BIDS root directory for the current project."
         change_bids_root_action = QAction(
             "&Change BIDS Root",
             parent=self,
-            statusTip=bids_root_help,
-            whatsThis=bids_root_help,
+            statusTip="Change the BIDS root directory for the current project.",
         )
-        load_help = "Load another project with a new configuration file."
         load_action = QAction(
             "&Load Configuration",
             parent=self,
-            toolTip="Load Configuration",
-            statusTip=load_help,
-            whatsThis=load_help,
+            statusTip="Load another project with a new configuration file.",
             shortcut=QKeySequence("Ctrl+O"),
         )
         load_action.triggered.connect(self.load_config)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
-        autolayout_help = "Automatically arrange all nodes in the viewer."
         autolayout_action = QAction(
             "&Auto-Layout Nodes",
             parent=self,
-            toolTip="Auto-Layout Nodes",
-            statusTip=autolayout_help,
-            whatsThis=autolayout_help,
+            statusTip="Automatically arrange all nodes in the viewer.",
             shortcut=QKeySequence("Ctrl+L"),
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
-        # ToDo: Init Menu
+        # Menu
+        pipeline_menu = self.menuBar().addMenu("&Pipeline")
+        pipeline_menu.addAction(import_pipeline_action)
+        pipeline_menu.addAction(export_pipeline_action)
         bids_menu = self.menuBar().addMenu("&BIDS")
         bids_menu.addAction(sample_action)
         bids_menu.addAction(change_bids_root_action)
@@ -111,7 +113,7 @@ class MainWindow(QMainWindow):
         bids_menu.addAction(exit_action)
         config_menu = self.menuBar().addMenu("&Config")
         config_menu.addAction(load_action)
-        # ToDo: Init Toolbar
+        # Toolbar
         self.toolbar = self.addToolBar("Main Toolbar")
         self.toolbar.addAction(autolayout_action)
 

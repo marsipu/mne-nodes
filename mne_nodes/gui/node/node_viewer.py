@@ -555,24 +555,7 @@ class NodeViewer(QGraphicsView):
             )
             return
         self.from_dict(config)
-
-        # Check if
-
         self.zoom_to_nodes()
-
-    def from_project(self):
-        """Legacy method to load nodes from the project.
-
-        Notes
-        -----
-        This method loads function nodes from the current project's
-        selected functions.
-        """
-        for function in self.ct.pr.sel_functions:
-            node = FunctionNode(self.ct, name=function)
-            self.add_node(node)
-
-        # ToDo: Try making non-cyclic connections
 
     def clear(self):
         """Clear the node graph.
