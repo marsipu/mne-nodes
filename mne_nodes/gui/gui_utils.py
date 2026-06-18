@@ -335,6 +335,7 @@ def _get_open_file(prompt, parent=None, file_filter=None):
 def _get_save_file(prompt, parent=None, file_filter=None):
     dialog = QFileDialog(parent, prompt)
     dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+    dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
     if file_filter:
         dialog.setNameFilter(file_filter)
 
@@ -437,11 +438,7 @@ def get_user_input(
     elif input_type == "folder" and not os.path.isdir(user_input):
         warning_message = "The provided path is not a valid directory!"
     elif input_type == "file" and not os.path.isfile(user_input):
-        warning_message = "The provided path is not a valid file!"
-    elif input_type == "file_new" and os.path.exists(user_input):
-        warning_message = (
-            "The provided path already exists! Please provide a non-existing file path."
-        )
+        warning_message = "The provided path does not exist!"
     elif input_type == "string" and not isinstance(user_input, str):
         warning_message = "The provided input is not a valid string!"
     else:

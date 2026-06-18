@@ -8,11 +8,13 @@ import logging
 import math
 import re
 from collections import OrderedDict
+from typing import TypeGuard
 
 import qtpy
 from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
 from qtpy.QtGui import QColor, QPainter, QPainterPath, QAction
 from qtpy.QtWidgets import (
+    QApplication,
     QGraphicsView,
     QRubberBand,
     QGraphicsTextItem,
@@ -62,22 +64,24 @@ class NodeViewer(QGraphicsView):
         _widgets["viewer"] = self
 
         # attributes
-        self._nodes = OrderedDict()
-        self._input_node = None
-        self._function_nodes = {}
+        self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
+        self._input_node: InputNode | None = None
+        self._function_nodes: dict[str, FunctionNode] = {}
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._last_size = self.size()
-        self._detached_port = None
-        self._start_port = None
-        self._origin_pos = None
+        self._detached_port: Port | None = None
+        self._start_port: Port | None = None
+        self._origin_pos: QPoint | None = None
         self._previous_pos = QPoint(int(self.width() / 2), int(self.height() / 2))
-        self._prev_selection_nodes = []
-        self._prev_selection_pipes = []
+        self._prev_selection_nodes: list[BaseNode] = []
+        self._prev_selection_pipes: list[Pipe] = []
         self._node_positions = {}
         self.LMB_state = False
         self.RMB_state = False
         self.MMB_state = False
         self.COLLIDING_state = False
+        self._rmb_dragged = False
+        self._rubber_band_active = False
 
         # init QGraphicsView
         self.setScene(NodeScene(self))
@@ -131,8 +135,6 @@ class NodeViewer(QGraphicsView):
 
         # initialize rubberband
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self)
-        self._rubber_band.isActive = False
-
         # initialize cursor text
         text_color = QColor(*invert_rgb_color(defaults["viewer"]["background_color"]))
         text_color.setAlpha(50)
@@ -343,6 +345,8 @@ class NodeViewer(QGraphicsView):
             node = FunctionNode(self.ct, name=function_name, **kwargs or {})
         else:
             function_name = node.name
+        if function_name is None:
+            raise ValueError("Function node name cannot be None.")
         self.function_nodes[function_name] = node
         self.add_node(node, pos=pos)
 
@@ -534,7 +538,11 @@ class NodeViewer(QGraphicsView):
                     continue
                 for con_node_id, con_port_id in connected_dict.items():
                     connected_node = self.node(old_id=con_node_id)
+                    if connected_node is None:
+                        continue
                     connected_port = connected_node.port(old_id=con_port_id)
+                    if not isinstance(connected_port, Port):
+                        continue
                     port.connect_to(connected_port)
 
         # Check if an input node exists
@@ -574,6 +582,8 @@ class NodeViewer(QGraphicsView):
             visited = set()
         for port_id, port_info in node_dict.items():
             port = self.port(port_id=port_id)
+            if not isinstance(port, Port):
+                continue
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
                 continue
@@ -582,6 +592,8 @@ class NodeViewer(QGraphicsView):
                     continue
                 visited.add(node_id)
                 node = self.node(node_id=node_id)
+                if node is None:
+                    continue
                 if len(node.inputs) > 1:
                     # If the node has multiple inputs, we need to ensure
                     # that all inputs are processed before this node.
@@ -590,7 +602,7 @@ class NodeViewer(QGraphicsView):
                     ]
                     for oport in other_ports:
                         reverse_exec_order = []
-                        up_nodes = node.upstream_nodes(port_id=oport.id)
+                        up_nodes = node.upstream_node_dict(port_id=oport.id)
                         self._iterate_node_sequence(
                             reverse_exec_order, up_nodes, visited
                         )
@@ -777,6 +789,11 @@ class NodeViewer(QGraphicsView):
         super().resizeEvent(event)
 
     def contextMenuEvent(self, event):
+        if self._rmb_dragged:
+            self._rmb_dragged = False
+            event.accept()
+            return
+
         menu = QMenu(self)
         pos = self.mapToScene(event.pos())
         for func_name in self.ct.function_meta:
@@ -788,7 +805,6 @@ class NodeViewer(QGraphicsView):
             )
             menu.addAction(func_action)
 
-        # ToDo: implement context menu for nodes and pipes
         menu.exec(event.globalPos())
         event.accept()
 
@@ -797,6 +813,7 @@ class NodeViewer(QGraphicsView):
             self.LMB_state = True
         elif event.button() == Qt.MouseButton.RightButton:
             self.RMB_state = True
+            self._rmb_dragged = False
         elif event.button() == Qt.MouseButton.MiddleButton:
             self.MMB_state = True
 
@@ -844,7 +861,7 @@ class NodeViewer(QGraphicsView):
             map_rect = self.mapToScene(rect).boundingRect()
             self.scene().update(map_rect)
             self._rubber_band.setGeometry(rect)
-            self._rubber_band.isActive = True
+            self._rubber_band_active = True
 
         super().mousePressEvent(event)
 
@@ -859,15 +876,20 @@ class NodeViewer(QGraphicsView):
         # hide pipe slicer.
         if self._SLICER_PIPE.isVisible():
             for i in self.scene().items(self._SLICER_PIPE.path()):
-                if self.ispipe(i) and i != self._LIVE_PIPE:
+                if (
+                    self.ispipe(i)
+                    and i != self._LIVE_PIPE
+                    and i.input_port is not None
+                    and i.output_port is not None
+                ):
                     i.input_port.disconnect_from(i.output_port)
             p = QPointF(0.0, 0.0)
             self._SLICER_PIPE.draw_path(p, p)
             self._SLICER_PIPE.setVisible(False)
 
         # hide selection marquee
-        if self._rubber_band.isActive:
-            self._rubber_band.isActive = False
+        if self._rubber_band_active:
+            self._rubber_band_active = False
             if self._rubber_band.isVisible():
                 rect = self._rubber_band.rect()
                 map_rect = self.mapToScene(rect).boundingRect()
@@ -899,6 +921,7 @@ class NodeViewer(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
+        origin_pos = self._origin_pos or event.pos()
         if debug_mode():
             # Debug mouse
             if self.LMB_state:
@@ -926,13 +949,20 @@ class NodeViewer(QGraphicsView):
             or (self.LMB_state and alt_modifier and not self._LIVE_PIPE.isVisible())
             or self.RMB_state
         ):
+            if self.RMB_state:
+                drag_distance = QApplication.startDragDistance()
+                moved_distance = abs(event.pos().x() - origin_pos.x()) + abs(
+                    event.pos().y() - origin_pos.y()
+                )
+                if moved_distance >= drag_distance:
+                    self._rmb_dragged = True
             previous_pos = self.mapToScene(self._previous_pos)
             current_pos = self.mapToScene(event.pos())
             delta = previous_pos - current_pos
             self._set_viewer_pan(delta.x(), delta.y())
 
-        if self.LMB_state and self._rubber_band.isActive:
-            rect = QRect(self._origin_pos, event.pos()).normalized()
+        if self.LMB_state and self._rubber_band_active:
+            rect = QRect(origin_pos, event.pos()).normalized()
             # if the rubber band is too small, do not show it.
             if max(rect.width(), rect.height()) > 5:
                 if not self._rubber_band.isVisible():
@@ -957,7 +987,7 @@ class NodeViewer(QGraphicsView):
                     i for i in node.collidingItems() if self.ispipe(i) and i.isVisible()
                 ]
                 for pipe in colliding_pipes:
-                    if not pipe.input_port:
+                    if pipe.input_port is None or pipe.output_port is None:
                         continue
                     port_node_check = all(
                         [
@@ -1054,7 +1084,8 @@ class NodeViewer(QGraphicsView):
             for node in self.selected_nodes():
                 self.remove_node(node)
             for pipe in self.selected_pipes():
-                pipe.input_port.disconnect_from(pipe.output_port)
+                if pipe.input_port is not None and pipe.output_port is not None:
+                    pipe.input_port.disconnect_from(pipe.output_port)
             return
 
         if self._LIVE_PIPE.isVisible():
@@ -1106,7 +1137,8 @@ class NodeViewer(QGraphicsView):
         pos = event.scenePos()
         pointer_color = None
         for item in self.scene().items(pos):
-            if not self.isport(item):
+            item = self._port_from_item(item)
+            if item is None:
                 continue
 
             x = item.boundingRect().width() / 2
@@ -1217,8 +1249,13 @@ class NodeViewer(QGraphicsView):
         """
         if not self._LIVE_PIPE.isVisible():
             return
+        start_port = self._start_port
+        if start_port is None:
+            self.end_live_connection()
+            return
+        origin_pos = self._origin_pos or self._previous_pos
 
-        self._start_port.hovered = False
+        start_port.hovered = False
 
         # find the end port with tolerance and parent traversal so dropping
         # on labels/children still resolves to the parent port.
@@ -1240,31 +1277,31 @@ class NodeViewer(QGraphicsView):
         if end_port is None:
             if self._detached_port and not self._LIVE_PIPE.shift_selected:
                 dist = math.hypot(
-                    self._previous_pos.x() - self._origin_pos.x(),
-                    self._previous_pos.y() - self._origin_pos.y(),
+                    self._previous_pos.x() - origin_pos.x(),
+                    self._previous_pos.y() - origin_pos.y(),
                 )
                 if dist <= 2.0:  # cursor pos threshold.
-                    self._start_port.connect_to(self._detached_port)
+                    start_port.connect_to(self._detached_port)
                     self._detached_port = None
                 else:
-                    self._start_port.disconnect_from(self._detached_port)
+                    start_port.disconnect_from(self._detached_port)
 
             self._detached_port = None
             self.end_live_connection()
             return
 
         else:
-            if self._start_port is end_port:
+            if start_port is end_port:
                 return
 
         # Normalize connection direction so compatibility is evaluated
         # consistently as output -> input, independent of gesture direction.
-        if self._start_port.port_type == "out":
-            output_port = self._start_port
+        if start_port.port_type == "out":
+            output_port = start_port
             input_port = end_port
         else:
             output_port = end_port
-            input_port = self._start_port
+            input_port = start_port
 
         # constrain check
         compatible = output_port.compatible(input_port, verbose=True)
@@ -1273,7 +1310,7 @@ class NodeViewer(QGraphicsView):
         if not compatible:
             if self._detached_port:
                 to_port = self._detached_port or end_port
-                self._start_port.connect_to(to_port)
+                start_port.connect_to(to_port)
                 self._detached_port = None
             self.end_live_connection()
             return
@@ -1291,7 +1328,7 @@ class NodeViewer(QGraphicsView):
 
         # Connect from detached port if available.
         if self._detached_port:
-            self._start_port.disconnect_from(self._detached_port)
+            start_port.disconnect_from(self._detached_port)
 
         # Make connection
         output_port.connect_to(input_port)
@@ -1299,7 +1336,7 @@ class NodeViewer(QGraphicsView):
         self._detached_port = None
         self.end_live_connection()
 
-    def start_live_connection(self, selected_port):
+    def start_live_connection(self, selected_port: Port | None):
         """Create new pipe for the connection.
 
         Shows the live pipe visibility from the port following the cursor position.
@@ -1311,17 +1348,17 @@ class NodeViewer(QGraphicsView):
         """
         if not selected_port:
             return
-        self._start_port = selected_port
-        if self._start_port.port_type == "in":
-            self._LIVE_PIPE.input_port = self._start_port
-        elif self._start_port.port_type == "out":
-            self._LIVE_PIPE.output_port = self._start_port
+        start_port = selected_port
+        self._start_port = start_port
+        if start_port.port_type == "in":
+            self._LIVE_PIPE.input_port = start_port
+        elif start_port.port_type == "out":
+            self._LIVE_PIPE.output_port = start_port
         self._LIVE_PIPE.setVisible(True)
-        self._LIVE_PIPE.draw_index_pointer(
-            selected_port, self.mapToScene(self._origin_pos)
-        )
+        origin_pos = self._origin_pos or self._previous_pos
+        self._LIVE_PIPE.draw_index_pointer(selected_port, self.mapToScene(origin_pos))
 
-    def _port_from_item(self, item):
+    def _port_from_item(self, item) -> Port | None:
         while item is not None:
             if self.isport(item):
                 return item
@@ -1342,7 +1379,7 @@ class NodeViewer(QGraphicsView):
         self._LIVE_PIPE.shift_selected = False
         self._start_port = None
 
-    def isnode(self, item):
+    def isnode(self, item) -> TypeGuard[BaseNode]:
         """Check if the item is a node.
 
         Parameters
@@ -1360,7 +1397,7 @@ class NodeViewer(QGraphicsView):
             return True
         return False
 
-    def isport(self, item):
+    def isport(self, item) -> TypeGuard[Port]:
         """Check if the item is a port.
 
         Parameters
@@ -1375,7 +1412,7 @@ class NodeViewer(QGraphicsView):
         """
         return isinstance(item, Port)
 
-    def ispipe(self, item):
+    def ispipe(self, item) -> TypeGuard[Pipe]:
         """Check if the item is a pipe.
 
         Parameters
@@ -1477,8 +1514,8 @@ class NodeViewer(QGraphicsView):
             return
         pipes = []
         for node in nodes:
-            n_inputs = node.inputs if hasattr(node, "inputs") else []
-            n_outputs = node.outputs if hasattr(node, "outputs") else []
+            n_inputs = node.inputs
+            n_outputs = node.outputs
 
             for port in n_inputs:
                 for pipe in port.connected_pipes.values():
@@ -1674,6 +1711,8 @@ class NodeViewer(QGraphicsView):
 
     def node_position_scene(self, **node_kwargs):
         node = self.node(**node_kwargs)
+        if node is None:
+            raise ValueError("No node found with the provided parameters.")
         scene_pos = node.scenePos() + node.boundingRect().center()
 
         return scene_pos
@@ -1695,7 +1734,11 @@ class NodeViewer(QGraphicsView):
         node_id=None,
     ):
         node = self.node(node_idx, node_name, node_id)
+        if node is None:
+            raise ValueError("No node found with the provided parameters.")
         port = node.port(port_type, port_idx, port_name, port_id)
+        if not isinstance(port, Port):
+            raise ValueError("No port found with the provided parameters.")
         scene_pos = port.scenePos() + port.boundingRect().center()
         # Convert to float point
         scene_pos = QPointF(scene_pos)

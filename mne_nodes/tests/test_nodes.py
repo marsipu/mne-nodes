@@ -6,7 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from pprint import pprint
 
-from qtpy.QtCore import QPointF, Qt
+from qtpy.QtCore import QObject, QPoint, QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
@@ -87,6 +87,71 @@ def test_nodes_click_to_click_connection(nodeviewer, qtbot):
     )
 
     assert out_port.connected(in_port)
+
+
+def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
+    calls = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+
+        def addAction(self, action):
+            return action
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    class FakeContextMenuEvent:
+        def __init__(self, pos):
+            self._pos = pos
+            self.accepted = False
+
+        def pos(self):
+            return self._pos
+
+        def globalPos(self):
+            return self._pos
+
+        def accept(self):
+            self.accepted = True
+
+    click_pos = nodeviewer.viewport().rect().center()
+    nodeviewer.contextMenuEvent(FakeContextMenuEvent(click_pos))
+
+    assert calls
+
+
+def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
+    calls = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+
+        def addAction(self, action):
+            return action
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    start_pos = nodeviewer.viewport().rect().center()
+    end_pos = start_pos + QPoint(60, 0)
+    mouseDrag(
+        widget=nodeviewer.viewport(),
+        positions=[start_pos, end_pos],
+        button=Qt.MouseButton.RightButton,
+    )
+
+    assert not calls
 
 
 def test_node_serialization(nodeviewer):
