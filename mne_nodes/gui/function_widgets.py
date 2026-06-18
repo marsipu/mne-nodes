@@ -476,6 +476,8 @@ class FunctionImporter(QDialog):
                     "parameters": {},
                     "outputs": {},
                     "target": "file",
+                    "module": self.module_name,
+                    "category": self.module_name,
                 }
             start_line = func.lineno - 1
             end_line = func.end_lineno
@@ -746,7 +748,8 @@ class FunctionImporter(QDialog):
         ParameterConfiguration(param_name, config, parent=self).open()
 
     def _get_config_path(self):
-        return self._pkg_dir / f"{self.module_name}_config.json"
+        if self._pkg_dir is not None:
+            return Path(self._pkg_dir) / f"{self.module_name}_config.json"
 
     def save_config(self):
         save_path = self._get_config_path()

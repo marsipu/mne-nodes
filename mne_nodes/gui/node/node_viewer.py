@@ -796,14 +796,21 @@ class NodeViewer(QGraphicsView):
 
         menu = QMenu(self)
         pos = self.mapToScene(event.pos())
-        for func_name in self.ct.function_meta:
-            func_action = QAction(func_name, menu)
-            func_action.triggered.connect(
-                lambda checked=False, fn=func_name: self.add_function_node(
-                    function_name=fn, pos=pos
-                )
-            )
-            menu.addAction(func_action)
+        for category, cat_dict in self.ct.get_functions_categorized().items():
+            category_menu = menu.addMenu(category)
+            for sub_category, func_list in cat_dict.items():
+                if sub_category != "__main__":
+                    sub_category_menu = category_menu.addMenu(sub_category)
+                else:
+                    sub_category_menu = category_menu
+                for func_name in func_list:
+                    func_action = QAction(func_name, sub_category_menu)
+                    func_action.triggered.connect(
+                        lambda checked=False, fn=func_name: self.add_function_node(
+                            function_name=fn, pos=pos
+                        )
+                    )
+                    sub_category_menu.addAction(func_action)
 
         menu.exec(event.globalPos())
         event.accept()

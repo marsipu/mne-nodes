@@ -17,7 +17,7 @@ from inspect import getsource
 from os.path import isdir, isfile
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import mne
 from filelock import FileLock, Timeout
@@ -888,10 +888,6 @@ class Controller:
         # load function-config
         with open(config_path) as file:
             config = json.load(file, object_hook=type_json_hook)["functions"]
-        # Add module-names to function-metas to allow identification
-        for func_dict in config.values():
-            if "module" not in func_dict:
-                func_dict["module"] = module_name
         # Warn for duplicates
         duplicate_functions = [fn for fn in config if fn in self.function_meta]
         if len(duplicate_functions) > 0:
@@ -1017,6 +1013,27 @@ class Controller:
                 )
 
         return function_meta
+
+    def get_functions_categorized(self) -> Dict[str, List[str]]:
+        """Get the functions categorized by their category and subcategory."""
+        categorized = {}
+        for func_name, func_meta in self.function_meta.items():
+            category = func_meta.get("category", "Uncategorized")
+            subcategory = func_meta.get("sub_category", None)
+            if category not in categorized:
+                categorized[category] = {}
+
+            if subcategory is not None:
+                # Add to subcategory dictionary
+                if subcategory not in categorized[category]:
+                    categorized[category][subcategory] = []
+                categorized[category][subcategory].append(func_name)
+            else:
+                # Add to category's main list if it doesn't exist yet
+                if "__main__" not in categorized[category]:
+                    categorized[category]["__main__"] = []
+                categorized[category]["__main__"].append(func_name)
+        return categorized
 
     def get_parameter_meta(
         self, parameter_name: str, function_name: str
