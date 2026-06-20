@@ -29,7 +29,6 @@ default_type_guis = {
     "list": ListGui,
     "dict": DictGui,
     "tuple": DualTupleGui,
-    "slice": DualTupleGui,
     "combo": ComboGui,
 }
 
@@ -198,6 +197,24 @@ for category, module_dict in objects.items():
                 )
                 continue
             doc = docstring_parser.parse(inspect.getdoc(obj))
+            # Skip if descriptions does not recommend direct instantiation
+            if any(
+                [
+                    d in str(doc.description)
+                    for d in [
+                        "Direct class instantiation is discouraged",
+                        "This class should usually not be instantiated directly",
+                        "This class should not be instantiated directly",
+                        "This class is generally not meant to be instantiated directly",
+                        "Direct class instantiation is not supported",
+                        "should be instantiated with",
+                    ]
+                ]
+            ):
+                print(
+                    f"Skipping {obj_item} because direct instantiation is discouraged."
+                )
+                continue
             obj_config = {
                 "inputs": {},
                 "parameters": {},

@@ -1,90 +1,6 @@
 {
     "module": {},
     "functions": {
-        "Covariance": {
-            "inputs": {
-                "data": {
-                    "accepted": "data",
-                    "optional": false,
-                    "types": [
-                        "array-like"
-                    ]
-                },
-                "names": {
-                    "accepted": "names",
-                    "optional": false,
-                    "types": [
-                        "list"
-                    ]
-                },
-                "bads": {
-                    "accepted": "bads",
-                    "optional": false,
-                    "types": [
-                        "list"
-                    ]
-                },
-                "projs": {
-                    "accepted": "projs",
-                    "optional": false,
-                    "types": [
-                        "list"
-                    ]
-                },
-                "nfree": {
-                    "accepted": "nfree",
-                    "optional": false,
-                    "types": [
-                        "int"
-                    ]
-                },
-                "eig": {
-                    "accepted": "eig",
-                    "optional": true,
-                    "types": [
-                        "array-like"
-                    ]
-                },
-                "eigvec": {
-                    "accepted": "eigvec",
-                    "optional": true,
-                    "types": [
-                        "array-like"
-                    ]
-                }
-            },
-            "parameters": {
-                "method": {
-                    "gui": "StringGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "The method used to compute the covariance."
-                },
-                "loglik": {
-                    "gui": "FloatGui",
-                    "default": null,
-                    "none_select": false,
-                    "description": "The log likelihood."
-                },
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "covariance",
-            "sub_category": null,
-            "description": ".. note::\n    This class should not be instantiated directly via\n    ``mne.Covariance(...)``. Instead, use one of the functions\n    listed in the See Also section below.",
-            "module": "mne"
-        },
         "compute_covariance": {
             "inputs": {
                 "epochs": {
@@ -1877,6 +1793,14 @@
                         "float",
                         "array of float"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -1911,16 +1835,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Use the FFT for convolutions or not."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "To reduce memory usage, decimation factor after time-frequency\ndecomposition.\nIf `int`, returns tfr[..., ::decim].\nIf `slice`, returns tfr[..., decim].\n\n.. note:: Decimation may create aliasing artifacts, yet decimation\n          is done after the convolutions."
                 },
                 "output": {
                     "gui": "StringGui",
@@ -6915,216 +6829,6 @@
             "sub_category": null,
             "description": "Return all known channel types, and associated FIFF constants.",
             "module": "mne.io"
-        },
-        "BaseEpochs": {
-            "inputs": {
-                "info": {
-                    "accepted": "info",
-                    "optional": false,
-                    "types": [
-                        "mne.Info"
-                    ]
-                },
-                "data": {
-                    "accepted": "data",
-                    "optional": true,
-                    "types": [
-                        "ndarray"
-                    ]
-                },
-                "events": {
-                    "accepted": "events",
-                    "optional": false,
-                    "types": [
-                        "ndarray of int",
-                        "shape (n_events",
-                        "3)"
-                    ]
-                },
-                "baseline": {
-                    "accepted": "baseline",
-                    "optional": true,
-                    "types": [
-                        "tuple of length 2"
-                    ]
-                },
-                "raw": {
-                    "accepted": "raw",
-                    "optional": false,
-                    "types": [
-                        "Raw object"
-                    ]
-                },
-                "picks": {
-                    "accepted": "picks",
-                    "optional": true,
-                    "types": [
-                        "str",
-                        "array-like",
-                        "slice"
-                    ]
-                },
-                "selection": {
-                    "accepted": "selection",
-                    "optional": true,
-                    "types": [
-                        "iterable"
-                    ]
-                },
-                "filename": {
-                    "accepted": "filename",
-                    "optional": true,
-                    "types": [
-                        "Path"
-                    ]
-                },
-                "metadata": {
-                    "accepted": "metadata",
-                    "optional": true,
-                    "types": [
-                        "instance of pandas.DataFrame"
-                    ]
-                },
-                "annotations": {
-                    "accepted": "annotations",
-                    "optional": true,
-                    "types": [
-                        "instance of mne.Annotations"
-                    ]
-                }
-            },
-            "parameters": {
-                "event_id": {
-                    "types": [
-                        "int",
-                        "list",
-                        "dict",
-                        "str",
-                        "list"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "The id of the :term:`events` to consider. If dict, the keys can later be\nused to access associated :term:`events`. Example:\ndict(auditory=1, visual=3). If int, a dict will be created with the id as\nstring. If a list of int, all :term:`events` with the IDs specified in the list\nare used. If a str or list of str, ``events`` must be ``None`` to use annotations\nand then the IDs must be the name(s) of the annotations to use.\nIf None, all :term:`events` will be used and a dict is created\nwith string integer names corresponding to the event id integers."
-                },
-                "tmin": {
-                    "gui": "FloatGui",
-                    "default": -0.2,
-                    "none_select": false,
-                    "description": "Start and end time of the epochs in seconds, relative to the time-locked\nevent. The closest or matching samples corresponding to the start and end\ntime are included. Defaults to ``-0.2`` and ``0.5``, respectively."
-                },
-                "tmax": {
-                    "gui": "FloatGui",
-                    "default": 0.5,
-                    "none_select": false,
-                    "description": "Start and end time of the epochs in seconds, relative to the time-locked\nevent. The closest or matching samples corresponding to the start and end\ntime are included. Defaults to ``-0.2`` and ``0.5``, respectively."
-                },
-                "reject": {
-                    "gui": "DictGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Reject epochs based on **maximum** peak-to-peak signal amplitude (PTP),\ni.e. the absolute difference between the lowest and the highest signal\nvalue. In each individual epoch, the PTP is calculated for every channel.\nIf the PTP of any one channel exceeds the rejection threshold, the\nrespective epoch will be dropped.\n\nThe dictionary keys correspond to the different channel types; valid\n**keys** can be any channel type present in the object.\n\nExample::\n\n    reject = dict(grad=4000e-13,  # unit: T / m (gradiometers)\n                  mag=4e-12,      # unit: T (magnetometers)\n                  eeg=40e-6,      # unit: V (EEG channels)\n                  eog=250e-6      # unit: V (EOG channels)\n                  )\n\n.. note:: Since rejection is based on a signal **difference**\n          calculated for each channel separately, applying baseline\n          correction does not affect the rejection procedure, as the\n          difference will be preserved.\n\n.. note:: To constrain the time period used for estimation of signal\n          quality, pass the ``reject_tmin`` and ``reject_tmax`` parameters.\n\nIf ``reject`` is ``None`` (default), no rejection is performed."
-                },
-                "flat": {
-                    "gui": "DictGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Reject epochs based on **minimum** peak-to-peak signal amplitude (PTP).\nValid **keys** can be any channel type present in the object. The\n**values** are floats that set the minimum acceptable PTP. If the PTP\nis smaller than this threshold, the epoch will be dropped. If ``None``\nthen no rejection is performed based on flatness of the signal.\n\n.. note:: To constrain the time period used for estimation of signal\n          quality, pass the ``reject_tmin`` and ``reject_tmax`` parameters."
-                },
-                "decim": {
-                    "gui": "IntGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Factor by which to subsample the data.\n\n.. warning:: Low-pass filtering is not performed, this simply selects\n             every Nth sample (where N is the value passed to\n             ``decim``), i.e., it compresses the signal (see Notes).\n             If the data are not properly filtered, aliasing artifacts\n             may occur.\n             See :ref:`resampling-and-decimating` for more information."
-                },
-                "reject_tmin": {
-                    "gui": "FloatGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Start and end of the time window used to reject epochs based on\npeak-to-peak (PTP) amplitudes as specified via ``reject`` and ``flat``.\nThe default ``None`` corresponds to the first and last time points of the\nepochs, respectively.\n\n.. note:: This parameter controls the time period used in conjunction with\n          both, ``reject`` and ``flat``."
-                },
-                "reject_tmax": {
-                    "gui": "FloatGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Start and end of the time window used to reject epochs based on\npeak-to-peak (PTP) amplitudes as specified via ``reject`` and ``flat``.\nThe default ``None`` corresponds to the first and last time points of the\nepochs, respectively.\n\n.. note:: This parameter controls the time period used in conjunction with\n          both, ``reject`` and ``flat``."
-                },
-                "detrend": {
-                    "gui": "IntGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "If 0 or 1, the data channels (MEG and EEG) will be detrended when\nloaded. 0 is a constant (DC) detrend, 1 is a linear detrend. None\nis no detrending. Note that detrending is performed before baseline\ncorrection. If no DC offset is preferred (zeroth order detrending),\neither turn off baseline correction, as this may introduce a DC\nshift, or set baseline correction to use the entire time interval\n(will yield equivalent results but be slower)."
-                },
-                "proj": {
-                    "types": [
-                        "bool",
-                        "combo"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "type_kwargs": {
-                        "combo": {
-                            "options": [
-                                "delayed"
-                            ]
-                        }
-                    },
-                    "default": true,
-                    "none_select": false,
-                    "description": "Apply SSP projection vectors. If proj is 'delayed' and reject is not\nNone the single epochs will be projected before the rejection\ndecision, but used in unprojected state if they are kept.\nThis way deciding which projection vectors are good can be postponed\nto the evoked stage without resulting in lower epoch counts and\nwithout producing results different from early SSP application\ngiven comparable parameters. Note that in this case baselining,\ndetrending and temporal decimation will be postponed.\nIf proj is False no projections will be applied which is the\nrecommended value if SSPs are not used for cleaning the data."
-                },
-                "on_missing": {
-                    "gui": "ComboGui",
-                    "options": [
-                        "raise",
-                        "warn",
-                        "ignore"
-                    ],
-                    "default": "raise",
-                    "none_select": false,
-                    "description": "What to do if one or several event ids are not found in the recording.\nValid keys are 'raise' | 'warn' | 'ignore'\nDefault is ``'raise'``. If ``'warn'``, it will proceed but\nwarn; if ``'ignore'``, it will proceed silently.\n\n.. note::\n   If none of the event ids are found in the data, an error will be\n   automatically generated irrespective of this parameter."
-                },
-                "preload_at_end": {
-                    "gui": "BoolGui",
-                    "default": false,
-                    "none_select": false,
-                    "description": "Load all epochs from disk when creating the object\nor wait before accessing each epoch (more memory\nefficient but can be slower)."
-                },
-                "drop_log": {
-                    "gui": "DualTupleGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Tuple of tuple of strings indicating which epochs have been marked to\nbe ignored."
-                },
-                "event_repeated": {
-                    "gui": "StringGui",
-                    "default": "error",
-                    "none_select": false,
-                    "description": "How to handle duplicates in ``events[:, 0]``. Can be ``'error'``\n(default), to raise an error, 'drop' to only retain the row occurring\nfirst in the :term:`events`, or ``'merge'`` to combine the coinciding\nevents (=duplicates) into a new event (see Notes for details).\n\n.. versionadded:: 0.19"
-                },
-                "raw_sfreq": {
-                    "gui": "FloatGui",
-                    "default": null,
-                    "none_select": false,
-                    "description": "The original Raw object sampling rate. If None, then it is set to\n``info['sfreq']``."
-                },
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "file_io",
-            "sub_category": null,
-            "description": ".. note::\n    This class should not be instantiated directly via\n    ``mne.BaseEpochs(...)``. Instead, use one of the functions listed in\n    the See Also section below.",
-            "module": "mne"
         },
         "SourceSpaces": {
             "inputs": {
@@ -12445,172 +12149,6 @@
             "description": "Compute resolution matrix for LCMV beamformer.",
             "module": "mne.beamformer"
         },
-        "Dipole": {
-            "inputs": {
-                "times": {
-                    "accepted": "times",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        ")"
-                    ]
-                },
-                "pos": {
-                    "accepted": "pos",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        "3)"
-                    ]
-                },
-                "amplitude": {
-                    "accepted": "amplitude",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        ")"
-                    ]
-                },
-                "ori": {
-                    "accepted": "ori",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        "3)"
-                    ]
-                },
-                "gof": {
-                    "accepted": "gof",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        ")"
-                    ]
-                },
-                "khi2": {
-                    "accepted": "khi2",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        ")"
-                    ]
-                },
-                "nfree": {
-                    "accepted": "nfree",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_dipoles",
-                        ")"
-                    ]
-                }
-            },
-            "parameters": {
-                "name": {
-                    "gui": "StringGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Name of the dipole."
-                },
-                "conf": {
-                    "gui": "DictGui",
-                    "default": null,
-                    "none_select": false,
-                    "description": "Confidence limits in dipole orientation for \"vol\" in m^3 (volume),\n\"depth\" in m (along the depth axis), \"long\" in m (longitudinal axis),\n\"trans\" in m (transverse axis), \"qlong\" in Am, and \"qtrans\" in Am\n(currents). The current confidence limit in the depth direction is\nassumed to be zero (although it can be non-zero when a BEM is used).\n\n.. versionadded:: 0.15"
-                },
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "inverse",
-            "sub_category": null,
-            "description": ".. note::\n    This class should usually not be instantiated directly via\n    ``mne.Dipole(...)``. Instead, use one of the functions\n    listed in the See Also section below.\n\nUsed to store positions, orientations, amplitudes, times, goodness of fit\nof dipoles, typically obtained with Neuromag/xfit, mne_dipole_fit\nor certain inverse solvers. Note that dipole position vectors are given in\nthe head coordinate frame.",
-            "module": "mne"
-        },
-        "DipoleFixed": {
-            "inputs": {
-                "info": {
-                    "accepted": "info",
-                    "optional": false,
-                    "types": [
-                        "mne.Info"
-                    ]
-                },
-                "data": {
-                    "accepted": "data",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_channels",
-                        "n_times)"
-                    ]
-                },
-                "times": {
-                    "accepted": "times",
-                    "optional": false,
-                    "types": [
-                        "array",
-                        "shape (n_times",
-                        ")"
-                    ]
-                },
-                "nave": {
-                    "accepted": "nave",
-                    "optional": false,
-                    "types": [
-                        "int"
-                    ]
-                },
-                "aspect_kind": {
-                    "accepted": "aspect_kind",
-                    "optional": false,
-                    "types": [
-                        "int"
-                    ]
-                }
-            },
-            "parameters": {
-                "comment": {
-                    "gui": "StringGui",
-                    "default": "",
-                    "none_select": false,
-                    "description": "The dipole comment."
-                },
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "inverse",
-            "sub_category": null,
-            "description": ".. note::\n    This class should usually not be instantiated directly\n    via ``mne.DipoleFixed(...)``. Instead, use one of the functions\n    listed in the See Also section below.",
-            "module": "mne"
-        },
         "fit_dipole": {
             "inputs": {
                 "evoked": {
@@ -13040,16 +12578,6 @@
             "category": "most_used_classes",
             "sub_category": null,
             "description": "Evoked data.",
-            "module": "mne"
-        },
-        "Info": {
-            "inputs": {},
-            "parameters": {},
-            "outputs": {},
-            "target": "file",
-            "category": "most_used_classes",
-            "sub_category": null,
-            "description": "This data structure behaves like a dictionary. It contains all metadata\nthat is available for a recording. However, its keys are restricted to\nthose provided by the\n`FIF format specification <https://github.com/mne-tools/fiff-constants>`__,\nso new entries should not be manually added.\n\n.. note::\n    This class should not be instantiated directly via\n    ``mne.Info(...)``. Instead, use :func:`mne.create_info` to create\n    measurement information from scratch.\n\n.. warning::\n    The only entries that should be manually changed by the user are:\n    ``info['bads']``, ``info['description']``, ``info['device_info']``,\n    ``info['proj_id']``, ``info['proj_name']``, ``info['dev_head_t']``,\n    ``info['experimenter']``, ``info['helium_info']``,\n    ``info['line_freq']``, ``info['temp']``, and ``info['subject_info']``.\n\n    All other entries should be considered read-only, though they can be\n    modified by various MNE-Python functions or methods (which have\n    safeguards to ensure all fields remain in sync).",
             "module": "mne"
         },
         "get_mni_fiducials": {
@@ -15691,21 +15219,18 @@
                         "path-like",
                         "str"
                     ]
-                }
-            },
-            "parameters": {
+                },
                 "picks": {
+                    "accepted": "picks",
+                    "optional": true,
                     "types": [
                         "list",
                         "list",
                         "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Channels to include. Slices and lists of integers will be interpreted as \nchannel indices. In lists, channel *name* strings (e.g., ``['MEG0111', \n'MEG2623']`` will pick the given channels. None (default) will pick all \nchannels. Note that channels in ``info['bads']`` *will be included* if \ntheir names or indices are explicitly provided."
+                    ]
                 }
             },
+            "parameters": {},
             "outputs": {
                 "ch_adjacency": {
                     "accepted": "ch_adjacency"
@@ -20484,19 +20009,17 @@
                     "types": [
                         "float"
                     ]
-                }
-            },
-            "parameters": {
+                },
                 "picks": {
+                    "accepted": "picks",
+                    "optional": true,
                     "types": [
                         "list",
                         "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Channels to include. Slices and lists of integers will be interpreted as channel indices.\nNone (default) will pick all channels. Note that channels in ``info['bads']`` *will be included* if their indices are explicitly provided.\nCurrently this is only supported for 2D (n_channels, n_times) and\n3D (n_epochs, n_channels, n_times) arrays."
-                },
+                    ]
+                }
+            },
+            "parameters": {
                 "filter_length": {
                     "types": [
                         "str",
@@ -20633,6 +20156,14 @@
                         "float",
                         "array of float"
                     ]
+                },
+                "picks": {
+                    "accepted": "picks",
+                    "optional": true,
+                    "types": [
+                        "list",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -20675,16 +20206,6 @@
                     "default": 0.05,
                     "none_select": false,
                     "description": "P-value to use in F-test thresholding to determine significant\nsinusoidal components to remove when method='spectrum_fit' and\nfreqs=None. Note that this will be Bonferroni corrected for the\nnumber of frequencies, so large p-values may be justified."
-                },
-                "picks": {
-                    "types": [
-                        "list",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Channels to include. Slices and lists of integers will be interpreted as channel indices.\nNone (default) will pick all channels. Note that channels in ``info['bads']`` *will be included* if their indices are explicitly provided.\nOnly supported for 2D (n_channels, n_times) and 3D\n(n_epochs, n_channels, n_times) data."
                 },
                 "n_jobs": {
                     "types": [
@@ -26451,153 +25972,6 @@
             "description": "Container for volume source estimates.",
             "module": "mne"
         },
-        "SourceMorph": {
-            "inputs": {
-                "subject_from": {
-                    "accepted": "subject_from",
-                    "optional": true,
-                    "types": [
-                        "str"
-                    ]
-                },
-                "subject_to": {
-                    "accepted": "subject_to",
-                    "optional": false,
-                    "types": [
-                        "str",
-                        "array",
-                        "list of array"
-                    ]
-                },
-                "kind": {
-                    "accepted": "kind",
-                    "optional": true,
-                    "types": [
-                        "str"
-                    ]
-                },
-                "zooms": {
-                    "accepted": "zooms",
-                    "optional": false,
-                    "types": [
-                        "float",
-                        "tuple"
-                    ]
-                },
-                "niter_affine": {
-                    "accepted": "niter_affine",
-                    "optional": false,
-                    "types": [
-                        "tuple"
-                    ]
-                },
-                "niter_sdr": {
-                    "accepted": "niter_sdr",
-                    "optional": false,
-                    "types": [
-                        "tuple"
-                    ]
-                },
-                "spacing": {
-                    "accepted": "spacing",
-                    "optional": true,
-                    "types": [
-                        "int",
-                        "list"
-                    ]
-                },
-                "smooth": {
-                    "accepted": "smooth",
-                    "optional": true,
-                    "types": [
-                        "int",
-                        "str"
-                    ]
-                },
-                "xhemi": {
-                    "accepted": "xhemi",
-                    "optional": false,
-                    "types": [
-                        "bool"
-                    ]
-                },
-                "morph_mat": {
-                    "accepted": "morph_mat",
-                    "optional": false,
-                    "types": [
-                        "scipy.sparse.csr_array"
-                    ]
-                },
-                "vertices_to": {
-                    "accepted": "vertices_to",
-                    "optional": false,
-                    "types": [
-                        "list of ndarray"
-                    ]
-                },
-                "shape": {
-                    "accepted": "shape",
-                    "optional": false,
-                    "types": [
-                        "tuple"
-                    ]
-                },
-                "affine": {
-                    "accepted": "affine",
-                    "optional": false,
-                    "types": [
-                        "ndarray"
-                    ]
-                },
-                "pre_affine": {
-                    "accepted": "pre_affine",
-                    "optional": false,
-                    "types": [
-                        "instance of dipy.align.AffineMap"
-                    ]
-                },
-                "sdr_morph": {
-                    "accepted": "sdr_morph",
-                    "optional": false,
-                    "types": [
-                        "instance of dipy.align.DiffeomorphicMap"
-                    ]
-                },
-                "src_data": {
-                    "accepted": "src_data",
-                    "optional": false,
-                    "types": [
-                        "dict"
-                    ]
-                },
-                "vol_morph_mat": {
-                    "accepted": "vol_morph_mat",
-                    "optional": true,
-                    "types": [
-                        "scipy.sparse.csr_array"
-                    ]
-                }
-            },
-            "parameters": {
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "source_space",
-            "sub_category": null,
-            "description": ".. note::\n    This class should not be instantiated directly via\n    ``mne.SourceMorph(...)``. Instead, use one of the functions\n    listed in the See Also section below.",
-            "module": "mne"
-        },
         "compute_source_morph": {
             "inputs": {
                 "src": {
@@ -29274,6 +28648,14 @@
                         "array-like",
                         "slice"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -29294,16 +28676,6 @@
                     "default": false,
                     "none_select": false,
                     "description": "Whether to apply SSP projection vectors before spectral estimation.\nDefault is ``False``."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "comment": {
                     "gui": "StringGui",
@@ -29410,105 +28782,6 @@
             "description": "Data object for *precomputed* spectrotemporal representations of averaged data.",
             "module": "mne.time_frequency"
         },
-        "BaseTFR": {
-            "inputs": {
-                "inst": {
-                    "accepted": "inst",
-                    "optional": false,
-                    "types": [
-                        "instance of Raw",
-                        "Epochs",
-                        "",
-                        "Evoked"
-                    ]
-                },
-                "method": {
-                    "accepted": "method",
-                    "optional": true,
-                    "types": [
-                        "``'morlet'``",
-                        "``'multitaper'``"
-                    ]
-                },
-                "freqs": {
-                    "accepted": "freqs",
-                    "optional": true,
-                    "types": [
-                        "array-like"
-                    ]
-                },
-                "tmin": {
-                    "accepted": "tmin",
-                    "optional": true,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "tmax": {
-                    "accepted": "tmax",
-                    "optional": true,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "picks": {
-                    "accepted": "picks",
-                    "optional": true,
-                    "types": [
-                        "str",
-                        "array-like",
-                        "slice"
-                    ]
-                },
-                "proj": {
-                    "accepted": "proj",
-                    "optional": false,
-                    "types": [
-                        "bool"
-                    ]
-                },
-                "decim": {
-                    "accepted": "decim",
-                    "optional": false,
-                    "types": [
-                        "int",
-                        "slice"
-                    ]
-                },
-                "n_jobs": {
-                    "accepted": "n_jobs",
-                    "optional": true,
-                    "types": [
-                        "int"
-                    ]
-                }
-            },
-            "parameters": {
-                "reject_by_annotation": {
-                    "gui": "BoolGui",
-                    "default": null,
-                    "none_select": false,
-                    "description": "Whether to omit bad spans of data before spectrotemporal power\nestimation. If ``True``, spans with annotations whose description\nbegins with ``bad`` will be represented with ``np.nan`` in the\ntime-frequency representation."
-                },
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "time_frequency",
-            "sub_category": null,
-            "description": ".. note::\n    This class should not be instantiated directly; it is provided in the public API\n    only for type-checking purposes (e.g., ``isinstance(my_obj, BaseTFR)``). To\n    create TFR objects, use the ``.compute_tfr()`` methods on :class:`~mne.io.Raw`,\n    :class:`~mne.Epochs`, or :class:`~mne.Evoked`, or use the constructors listed\n    below under \"See Also\".",
-            "module": "mne.time_frequency"
-        },
         "EpochsTFR": {
             "inputs": {
                 "inst": {
@@ -29543,6 +28816,14 @@
                         "array-like",
                         "slice"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -29563,16 +28844,6 @@
                     "default": false,
                     "none_select": false,
                     "description": "Whether to apply SSP projection vectors before spectral estimation.\nDefault is ``False``."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -29734,6 +29005,14 @@
                         "array-like",
                         "slice"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -29760,16 +29039,6 @@
                     "default": false,
                     "none_select": false,
                     "description": "Whether to omit bad spans of data before spectrotemporal power\nestimation. If ``True``, spans with annotations whose description\nbegins with ``bad`` will be represented with ``np.nan`` in the\ntime-frequency representation."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -30098,110 +29367,6 @@
             "category": "time_frequency",
             "sub_category": null,
             "description": "Data object for precomputed spectral data (in NumPy array format).",
-            "module": "mne.time_frequency"
-        },
-        "EpochsSpectrum": {
-            "inputs": {
-                "inst": {
-                    "accepted": "inst",
-                    "optional": false,
-                    "types": [
-                        "instance of Epochs"
-                    ]
-                },
-                "method": {
-                    "accepted": "method",
-                    "optional": false,
-                    "types": [
-                        "``'welch'``",
-                        "``'multitaper'``"
-                    ]
-                },
-                "fmin": {
-                    "accepted": "fmin",
-                    "optional": false,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "fmax": {
-                    "accepted": "fmax",
-                    "optional": false,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "tmin": {
-                    "accepted": "tmin",
-                    "optional": true,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "tmax": {
-                    "accepted": "tmax",
-                    "optional": true,
-                    "types": [
-                        "float"
-                    ]
-                },
-                "picks": {
-                    "accepted": "picks",
-                    "optional": true,
-                    "types": [
-                        "str",
-                        "array-like",
-                        "slice"
-                    ]
-                },
-                "exclude": {
-                    "accepted": "exclude",
-                    "optional": false,
-                    "types": [
-                        "list",
-                        "combo"
-                    ]
-                },
-                "proj": {
-                    "accepted": "proj",
-                    "optional": false,
-                    "types": [
-                        "bool"
-                    ]
-                },
-                "remove_dc": {
-                    "accepted": "remove_dc",
-                    "optional": false,
-                    "types": [
-                        "bool"
-                    ]
-                },
-                "n_jobs": {
-                    "accepted": "n_jobs",
-                    "optional": true,
-                    "types": [
-                        "int"
-                    ]
-                }
-            },
-            "parameters": {
-                "verbose": {
-                    "types": [
-                        "bool",
-                        "str",
-                        "int"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Control verbosity of the logging output. If ``None``, use the default\nverbosity level. See the :ref:`logging documentation <tut-logging>` and\n:func:`mne.verbose` for details. Should only be passed as a keyword\nargument."
-                }
-            },
-            "outputs": {},
-            "target": "file",
-            "category": "time_frequency",
-            "sub_category": null,
-            "description": ".. warning:: The preferred means of creating Spectrum objects from Epochs\n             is via the instance method :meth:`mne.Epochs.compute_psd`.\n             Direct class instantiation is not supported.",
             "module": "mne.time_frequency"
         },
         "EpochsSpectrumArray": {
@@ -30641,6 +29806,14 @@
                         "slice"
                     ]
                 },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
+                },
                 "projs": {
                     "accepted": "projs",
                     "optional": true,
@@ -30677,16 +29850,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Whether to use FFT-based convolution to compute the wavelet transform.\nDefaults to True."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "To reduce memory usage, decimation factor during time-frequency\ndecomposition. Defaults to 1 (no decimation).\n\nIf `int`, uses tfr[..., ::decim].\nIf `slice`, uses tfr[..., decim]."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -30890,6 +30053,14 @@
                         ")"
                     ]
                 },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
+                },
                 "picks": {
                     "accepted": "picks",
                     "optional": true,
@@ -30910,16 +30081,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Return inter-trial coherence (ITC) as well as averaged power.\nMust be ``False`` for evoked data."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -31007,6 +30168,14 @@
                         "float ``\u2265 2.0``"
                     ]
                 },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
+                },
                 "picks": {
                     "accepted": "picks",
                     "optional": true,
@@ -31029,16 +30198,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Return inter-trial coherence (ITC) as well as averaged (or\nsingle-trial) power."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -31526,6 +30685,14 @@
                         "list"
                     ]
                 },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
+                },
                 "projs": {
                     "accepted": "projs",
                     "optional": true,
@@ -31574,16 +30741,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Whether to use FFT-based convolution to compute the wavelet transform.\nDefaults to True."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "To reduce memory usage, decimation factor during time-frequency\ndecomposition. Defaults to 1 (no decimation).\n\nIf `int`, uses tfr[..., ::decim].\nIf `slice`, uses tfr[..., decim]."
                 },
                 "n_jobs": {
                     "gui": "IntGui",
@@ -32133,6 +31290,14 @@
                         "shape (n_freqs",
                         ")"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -32147,16 +31312,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Use the FFT for convolutions or not. default True."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "output": {
                     "gui": "StringGui",
@@ -32236,6 +31391,14 @@
                     "types": [
                         "float ``\u2265 2.0``"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -32250,16 +31413,6 @@
                     "default": true,
                     "none_select": false,
                     "description": "Use the FFT for convolutions or not. Defaults to True."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "output": {
                     "gui": "StringGui",
@@ -32323,6 +31476,14 @@
                     "types": [
                         "float"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -32349,16 +31510,6 @@
                     "default": 1.0,
                     "none_select": false,
                     "description": "The width of the Gaussian window. If < 1, increased temporal\nresolution, if > 1, increased frequency resolution. Defaults to 1.\n(classical S-Transform)."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 },
                 "return_itc": {
                     "gui": "BoolGui",
@@ -32418,6 +31569,14 @@
                     "types": [
                         "list of array"
                     ]
+                },
+                "decim": {
+                    "accepted": "decim",
+                    "optional": false,
+                    "types": [
+                        "int",
+                        "slice"
+                    ]
                 }
             },
             "parameters": {
@@ -32437,16 +31596,6 @@
                     "default": "same",
                     "none_select": false,
                     "description": "Convention for convolution. 'full' is currently not implemented with\n``use_fft=False``. Defaults to ``'same'``."
-                },
-                "decim": {
-                    "types": [
-                        "int",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": 1,
-                    "none_select": false,
-                    "description": "Decimation factor, applied *after* time-frequency decomposition.\n\n- if :class:`int`, returns ``tfr[..., ::decim]`` (keep only every Nth\n  sample along the time axis).\n- if :class:`slice`, returns ``tfr[..., decim]`` (keep only the specified\n  slice along the time axis).\n\n.. note::\n    Decimation is done after convolutions and may create aliasing\n    artifacts."
                 }
             },
             "outputs": {
@@ -32753,16 +31902,6 @@
             "category": "visualization",
             "sub_category": "viz",
             "description": "Plot MEG/EEG fields on head surface and helmet in 3D.",
-            "module": "mne.viz"
-        },
-        "Figure3D": {
-            "inputs": {},
-            "parameters": {},
-            "outputs": {},
-            "target": "file",
-            "category": "visualization",
-            "sub_category": "viz",
-            "description": ".. note::\n    This class should not be instantiated directly via\n    ``mne.viz.Figure3D(...)``. Instead, use\n    :func:`mne.viz.create_3d_figure`.",
             "module": "mne.viz"
         },
         "add_background_image": {
@@ -36110,6 +35249,15 @@
                         "Evoked"
                     ]
                 },
+                "picks": {
+                    "accepted": "picks",
+                    "optional": true,
+                    "types": [
+                        "int",
+                        "list",
+                        "slice"
+                    ]
+                },
                 "theme": {
                     "accepted": "theme",
                     "optional": false,
@@ -36120,17 +35268,6 @@
                 }
             },
             "parameters": {
-                "picks": {
-                    "types": [
-                        "int",
-                        "list",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Indices of the independent components (ICs) to visualize.\nIf an integer, represents the index of the IC to pick.\nMultiple ICs can be selected using a list of int or a slice.\nThe indices are 0-indexed, so ``picks=1`` will pick the second\nIC: ``ICA001``. ``None`` will pick all independent components in the order fitted."
-                },
                 "start": {
                     "types": [
                         "float",
@@ -36252,6 +35389,15 @@
                         "instance of mne.preprocessing.ICA"
                     ]
                 },
+                "picks": {
+                    "accepted": "picks",
+                    "optional": true,
+                    "types": [
+                        "int",
+                        "list",
+                        "slice"
+                    ]
+                },
                 "inst": {
                     "accepted": "inst",
                     "optional": true,
@@ -36329,17 +35475,6 @@
                 }
             },
             "parameters": {
-                "picks": {
-                    "types": [
-                        "int",
-                        "list",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Indices of the independent components (ICs) to visualize.\nIf an integer, represents the index of the IC to pick.\nMultiple ICs can be selected using a list of int or a slice.\nThe indices are 0-indexed, so ``picks=1`` will pick the second\nIC: ``ICA001``. ``None`` will pick all independent components in the order fitted."
-                },
                 "ch_type": {
                     "gui": "ComboGui",
                     "options": [
@@ -36541,6 +35676,15 @@
                         "Raw"
                     ]
                 },
+                "picks": {
+                    "accepted": "picks",
+                    "optional": true,
+                    "types": [
+                        "int",
+                        "list",
+                        "slice"
+                    ]
+                },
                 "axes": {
                     "accepted": "axes",
                     "optional": true,
@@ -36568,17 +35712,6 @@
                 }
             },
             "parameters": {
-                "picks": {
-                    "types": [
-                        "int",
-                        "list",
-                        "slice"
-                    ],
-                    "gui": "MultiTypeGui",
-                    "default": null,
-                    "none_select": true,
-                    "description": "Indices of the independent components (ICs) to visualize.\nIf an integer, represents the index of the IC to pick.\nMultiple ICs can be selected using a list of int or a slice.\nThe indices are 0-indexed, so ``picks=1`` will pick the second\nIC: ``ICA001``. ``None`` will pick the first 5 components."
-                },
                 "dB": {
                     "gui": "BoolGui",
                     "default": true,
