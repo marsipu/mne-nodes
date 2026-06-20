@@ -14,6 +14,3 @@ venv/
 docs/build/
 docs/generated/
 docs/source/generated
-
-# mne-nodes
-function_node_audit_report.md

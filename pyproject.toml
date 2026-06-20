@@ -60,7 +60,7 @@ docs = [
 Homepage = "https://github.com/marsipu/mne-nodes"
 Repository = "https://github.com/marsipu/mne-nodes.git"
 
-[project.scripts]
+[project.gui-scripts]
 mne_nodes = "mne_nodes.__main__:main"
 
 [tool.hatch.build]
