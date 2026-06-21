@@ -549,6 +549,15 @@ class NodeViewer(QGraphicsView):
         if self.input_node is None:
             self.add_input_node()
 
+    def get_unique_functions(self):
+        func_names = [
+            n.name
+            for n in self.nodes.values()
+            if not re.match(r".*-\d+$", n.name or "")
+        ]
+
+        return func_names
+
     def load_config(self, config: dict):
         if not isinstance(config, dict) or not all(
             k in config for k in ("nodes", "connections")

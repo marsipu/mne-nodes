@@ -5,6 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import ast
+from importlib.metadata import entry_points
 import json
 import logging
 import os
@@ -14,7 +15,7 @@ from copy import deepcopy
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from os.path import isdir, isfile
+from os.path import isdir
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -24,7 +25,6 @@ from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 
 from mne_nodes import _widgets
-from mne_nodes.core_functions import core_functions
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
@@ -96,12 +96,12 @@ class Controller:
         self._config = deepcopy(default_config)
         self._config_path: Path | None = None
         self._config_lock = None
-        self.lock_timeout = 5  # seconds
-        self.disk_interval = 1  # seconds
         self._last_load = 0
         self._local_set = False
-        self.modules = {}
+        self.plugins = {}
         self.function_meta = {}
+        self.lock_timeout = 5  # seconds
+        self.disk_interval = 1  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
         # possible scopes for grouping and selection
@@ -110,18 +110,8 @@ class Controller:
         # Initialize config_path here without prompting. Interactive setup is
         # handled explicitly via ensure_* methods after QApplication startup.
         self._initialize_startup_config_path(config_path)
-        # Add core functions to modules (until separated)
-        core_config_path = Path(core_functions.__file__).parent / (
-            Path(core_functions.__file__).stem + "_config.json"
-        )
-        self.add_module(core_config_path)
-        # Add mne functions
-        mne_config_path = (
-            Path(__file__).parents[1] / "mne_functions" / "mne_functions_config.json"
-        )
-        self.add_module(mne_config_path)
-        # Initialize modules
-        self.load_modules()
+        # Initialize plugins
+        self.load_plugins()
 
     ####################################################################################
     # Initialization and Properties
@@ -879,80 +869,36 @@ class Controller:
     ####################################################################################
     # Modules
     ####################################################################################
-    def _load_module_config(self, module_name, config_path):
-        """Load the configuration file for a module from the package path."""
-        if not isfile(config_path):
-            raise RuntimeError(
-                f"Config file for {module_name} not found at {config_path}."
-            )
-        # load function-config
-        with open(config_path) as file:
-            config = json.load(file, object_hook=type_json_hook)["functions"]
-        # Warn for duplicates
-        duplicate_functions = [fn for fn in config if fn in self.function_meta]
-        if len(duplicate_functions) > 0:
-            raise_user_attention(
-                f"Duplicate function names found in module '{module_name}': {duplicate_functions}. Please rename those functions, they will not be imported until then",
-                "warning",
-            )
-            for df in duplicate_functions:
-                del config[df]
-        self.function_meta.update(config)
-
-    def _import_module(self, module_name, config_path):
-        """Import a module from the given package path."""
-        if module_name == "mne_functions":
-            self.modules["mne"] = mne
-        else:
-            pkg_path = Path(config_path).parent
-            # Add the package path to sys.path if not already present
-            if pkg_path not in sys.path:
-                sys.path.insert(0, str(pkg_path))
-            pkg_name = pkg_path.name
-            # Import the module from the package
-            try:
-                module = import_module(module_name, package=pkg_name)
-            except ModuleNotFoundError:
-                logging.error(f"Module {module_name} not found in {pkg_path}].")
-            else:
-                self.modules[module_name] = module
-        # Load the config file for the basic module
-        self._load_module_config(module_name, config_path)
-
-    def load_modules(self) -> None:
-        """Load custom modules from their config files."""
-        modules = self.settings.get("module_config")
-        for module_name, module_config in modules.items():
-            if module_name in self.modules or module_name == "mne_functions":
-                continue
-            module_path = module_config["path"]
-            if not isfile(module_path):
-                module_path = get_user_input(
-                    f"{module_path} was not found! Please supply the path to the config file of '{Path(module_path).name}'.",
-                    input_type="file",
-                    file_filter="JSON files (*.json)",
+    def load_module_config(self, module):
+        """Load the configuration file for a module"""
+        config_path = getattr(module, "CONFIG_PATH", None)
+        if config_path is not None:
+            with open(config_path) as file:
+                config = json.load(file, object_hook=type_json_hook)
+            # Warn for duplicates
+            duplicate_functions = [fn for fn in config if fn in self.function_meta]
+            if len(duplicate_functions) > 0:
+                raise_user_attention(
+                    f"Duplicate function names found in module '{module.__name__}': {duplicate_functions}. Please rename those functions, they will not be imported until then",
+                    "warning",
                 )
-            if module_path is not None:
-                self._import_module(module_name, module_path)
+                for df in duplicate_functions:
+                    del config[df]
+            self.function_meta.update(config)
 
-    def add_module(self, config_path: os.PathLike | str) -> None:
-        """Add a module to the controller from a config file or a script-file."""
-        if not isfile(config_path):
-            raise FileNotFoundError(f"Config file {config_path} not found.")
-        module_name = Path(config_path).stem.replace("_config", "")
-        # Load module-config
-        with open(config_path) as file:
-            module_config = json.load(file, object_hook=type_json_hook)["module"]
-        # Add local path to module-config to find it on this device (path is not stored in the json-config, since the module should be able to be copied easily between devices)
-        module_config["path"] = config_path
-        # Save module-config to settings
-        module_settings = self.settings.get("module_config", {})
-        module_settings[module_name] = module_config
-        self.settings.set("module_config", module_settings)
-        # Import module
-        self._import_module(module_name, config_path)
+    def load_plugins(self):
+        for entry_point in [
+            ep
+            for ep in entry_points(group="mne_nodes.plugins")
+            if ep.name not in self.plugins
+        ]:
+            logging.info(f"Loading {entry_point.name}")
+            module = entry_point.load()
+            self.load_module_config(module)
+            self.plugins[entry_point.name] = module
+        return self.plugins
 
-    def reload_modules(self, module_name: Optional[str] = None) -> None:
+    def reload_plugins(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
 
         This refreshes selected or all modules by removing them from sys.modules
@@ -966,20 +912,20 @@ class Controller:
 
         Notes
         -----
-        This updates the controller's module objects, but it does not update
+        This updates the controller's plugins, but it does not update
         existing references to objects (e.g. functions) obtained before reload.
         Acquire fresh references after calling this.
 
         Examples
         --------
         >>> controller = Controller()
-        >>> func = controller.modules["module_name"].some_func
+        >>> func = controller.plugins["module_name"].some_func
         >>> controller.reload_modules()
-        >>> new_func = controller.modules["module_name"].some_func
+        >>> new_func = controller.plugins["module_name"].some_func
         """
 
         if module_name is None:
-            modules = self.modules
+            modules = self.plugins
         else:
             module = sys.modules[module_name]
             modules = {module_name: module}
@@ -998,7 +944,7 @@ class Controller:
             # Import the module again
             new_module = import_module(module_name)
             # Update the module in the controller
-            self.modules[module_name] = new_module
+            self.plugins[module_name] = new_module
 
     def get_function_meta(self, function_name: str) -> Dict[str, Any]:
         """Get the metadata for a specific function."""
@@ -1086,7 +1032,7 @@ class Controller:
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
         module_name = self.get_function_meta(function_name)["module"]
-        module = self.modules[module_name]
+        module = self.plugins[module_name]
         function = getattr(module, function_name)
         if function is None:
             raise KeyError(
@@ -1134,10 +1080,14 @@ class Controller:
 
         logging.info(f"Pipeline imported from {import_path}.")
 
+    def get_plugins(self):
+        """Get all used plugins from the current function-nodes in the viewer."""
+        self.viewer
+
     def export_pipeline(self):
         pipeline_dict = {
             "nodes": self.viewer.to_dict(),
-            "modules": list(self.settings.get("module_config", {}).keys()),
+            "plugins": self.get_plugins(),
             "parameters": self.get("parameters", {}),
         }
         export_path = get_user_input(
