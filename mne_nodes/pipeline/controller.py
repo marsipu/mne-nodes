@@ -1048,15 +1048,7 @@ class Controller:
     ####################################################################################
     # Pipeline
     ####################################################################################
-    def import_pipeline(self):
-        import_path = get_user_input(
-            "Select a pipeline configuration file to import.",
-            input_type="file",
-            file_filter="JSON files (*.json)",
-        )
-        if import_path is None:
-            logging.warning("Pipeline import cancelled by user.")
-            return
+    def import_pipeline(self, import_path):
         with open(import_path) as file:
             pipeline_dict = json.load(file, object_hook=type_json_hook)
         # Import parameters
@@ -1078,6 +1070,17 @@ class Controller:
         self.viewer.from_dict(pipeline_dict["nodes"])
         logging.info(f"Pipeline imported from {import_path}.")
 
+    def import_pipeline_user_prompt(self):
+        import_path = get_user_input(
+            "Select a pipeline configuration file to import.",
+            input_type="file",
+            file_filter="JSON files (*.json)",
+        )
+        if import_path is None:
+            logging.warning("Pipeline import cancelled by user.")
+            return
+        self.import_pipeline(import_path)
+
     def get_used_plugins(self):
         """Get all used plugins from the current function-nodes in the viewer."""
         plugins = set()
@@ -1086,12 +1089,16 @@ class Controller:
             plugins.add(func_meta["module"])
         return plugins
 
-    def export_pipeline(self):
+    def export_pipeline(self, export_path):
         pipeline_dict = {
             "nodes": self.viewer.to_dict(),
             "plugins": self.get_used_plugins(),
             "parameters": self.get("parameters", {}),
         }
+        with open(export_path, "w") as file:
+            json.dump(pipeline_dict, file, indent=4, cls=TypedJSONEncoder)
+
+    def export_pipeline_user_prompt(self):
         export_path = get_user_input(
             "Select a location to save the pipeline configuration.",
             input_type="file_new",
@@ -1100,8 +1107,7 @@ class Controller:
         if export_path is None:
             logging.warning("Pipeline export cancelled by user.")
             return
-        with open(export_path, "w") as file:
-            json.dump(pipeline_dict, file, indent=4, cls=TypedJSONEncoder)
+        self.export_pipeline(export_path)
 
     def start(self, node_sequence):
         # Generate code file
