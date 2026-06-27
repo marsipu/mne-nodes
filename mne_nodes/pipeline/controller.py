@@ -27,6 +27,7 @@ from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_fro
 from mne_nodes import _widgets
 from mne_nodes.gui.gui_utils import (
     get_user_input,
+    install_pip_packages,
     raise_user_attention,
     ask_user_custom,
     ask_user,
@@ -1060,34 +1061,35 @@ class Controller:
             pipeline_dict = json.load(file, object_hook=type_json_hook)
         # Import parameters
         self.set("parameters", pipeline_dict.get("parameters", {}))
-        # import modules (if not already imported)
-        modules = pipeline_dict.get("modules", [])
-        for module_name in modules:
-            if module_name not in self.settings.get("module_config", {}):
-                module_config_path = get_user_input(
-                    f"Module '{module_name}' is required for this pipeline but not found. Please select the config file for this module.",
-                    input_type="file",
-                    file_filter="JSON files (*.json)",
-                )
-                if module_config_path is None:
-                    logging.warning(
-                        f"Pipeline import cancelled by user during module '{module_name}' import."
-                    )
-                    return
-                self.add_module(module_config_path)
+        # import modules or install them if they have not been imported yet
+        missing_plugins = [
+            plugin
+            for plugin in pipeline_dict.get("plugins", [])
+            if plugin not in self.plugins
+        ]
+        if len(missing_plugins) > 0:
+            logging.warning(
+                f"Missing plugins found for this pipeline: {missing_plugins}. Attempting to install them."
+            )
+            install_pip_packages(missing_plugins, self.main_window)
+            self.load_plugins()
+
         # import pipeline structure to viewer
         self.viewer.from_dict(pipeline_dict["nodes"])
-
         logging.info(f"Pipeline imported from {import_path}.")
 
-    def get_plugins(self):
+    def get_used_plugins(self):
         """Get all used plugins from the current function-nodes in the viewer."""
-        self.viewer
+        plugins = set()
+        for func_name in self.viewer.get_unique_functions():
+            func_meta = self.get_function_meta(func_name)
+            plugins.add(func_meta["module"])
+        return plugins
 
     def export_pipeline(self):
         pipeline_dict = {
             "nodes": self.viewer.to_dict(),
-            "plugins": self.get_plugins(),
+            "plugins": self.get_used_plugins(),
             "parameters": self.get("parameters", {}),
         }
         export_path = get_user_input(

@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import importlib
 import json
 import logging
 import os
@@ -33,6 +34,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import extra, gui_mode
+from mne_nodes.gui.run_widgets import ProcessDialog
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -834,3 +836,42 @@ def edit_font(widget: QWidget, font_size: int, bold: bool = False) -> None:
     font.setPointSize(font_size)
     font.setBold(bold)
     widget.setFont(font)
+
+
+def install_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+    dlg = ProcessDialog(
+        parent,
+        commands=[sys.executable, "-m", "pip", "install", *package_names],
+        title=f"Installing Packages {', '.join(package_names)}",
+        blocking=True,
+    )
+
+    importlib.invalidate_caches()
+
+    return dlg
+
+
+def uninstall_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+    dlg = ProcessDialog(
+        parent,
+        commands=[sys.executable, "-m", "pip", "uninstall", "-y", *package_names],
+        title=f"Uninstalling Packages {', '.join(package_names)}",
+        blocking=True,
+    )
+
+    importlib.invalidate_caches()
+
+    return dlg
+
+
+def update_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+    dlg = ProcessDialog(
+        parent,
+        commands=[sys.executable, "-m", "pip", "install", "--upgrade", *package_names],
+        title=f"Updating Packages {', '.join(package_names)}",
+        blocking=True,
+    )
+
+    importlib.invalidate_caches()
+
+    return dlg

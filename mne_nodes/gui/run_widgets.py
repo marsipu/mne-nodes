@@ -191,11 +191,12 @@ class ProcessDialog(QDialog):
         self.title = title
         self.console = None
 
-        self.process = None
+        self.process = Process(self.commands, console=self.console, self_destruct=True)
         self.is_finished = False
+        self.process.finished.connect(self.process_finished)
 
         self.init_ui()
-        self.start_process()
+        self.process.start()
 
         set_ratio_geometry(0.5, self)
 
@@ -238,11 +239,6 @@ class ProcessDialog(QDialog):
             self.close_bt.setEnabled(True)
         if self.close_directly:
             self.close()
-
-    def start_process(self):
-        self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.process.finished.connect(self.process_finished)
-        self.process.start()
 
     def closeEvent(self, event):
         if self.is_finished:
