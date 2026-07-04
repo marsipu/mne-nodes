@@ -27,13 +27,13 @@ from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_fro
 from mne_nodes import _widgets
 from mne_nodes.gui.gui_utils import (
     get_user_input,
-    install_pip_packages,
     raise_user_attention,
     ask_user_custom,
     ask_user,
 )
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.pip_utils import install_pip_packages
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 

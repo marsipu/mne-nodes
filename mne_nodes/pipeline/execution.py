@@ -158,6 +158,8 @@ class Process(QProcess):
         if self.console is not None:
             self.console.push_stderr(text)
         else:
+            if not isinstance(text, str):
+                pass
             sys.stderr.write(text)
 
     def handle_error(self, error):
