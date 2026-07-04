@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from copy import deepcopy
-
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -137,19 +136,21 @@ class InputNode(BaseNode):
         else:
             self.input_widget.update_widgets()
 
-        # ToDo: Check for freesurfer-reconstructions
-
         # Clear existing ports
         self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
         for dt in data_types:
-            port_kwargs = existing_outputs.get(dt, {})
-            accepted = port_kwargs.get("accepted_ports") or [dt]
-            if dt in self.ct.raw_types and "raw" not in accepted:
-                accepted.append("raw")
+            # Defining the name of the output port as "raw" if the data type is in raw_types, otherwise use the data type name
+            name = "raw" if dt in self.ct.raw_types else dt
+            if name in self.outputs:
+                continue
+            port_kwargs = existing_outputs.get(name, {})
+            accepted = port_kwargs.get("accepted_ports") or [name]
+            if name not in accepted:
+                accepted.append(name)
             self.add_output(
-                dt,
+                name,
                 multi_connection=port_kwargs.get("multi_connection", True),
                 accepted_ports=accepted,
                 old_id=port_kwargs.get("old_id"),
@@ -171,12 +172,8 @@ class FunctionNode(BaseNode):
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
-            if input_name == "raw":
-                accepted_ports = ct.raw_types
-            else:
-                accepted_ports = [input_name]
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=accepted_ports
+                input_name, multi_connection=True, accepted_ports=[input_name]
             )
         for output_name in func_meta["outputs"]:
             self.add_output(

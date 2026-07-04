@@ -97,8 +97,14 @@ def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
             super().__init__(parent)
             self.parent = parent
 
+        def addMenu(self, _title):
+            return self
+
         def addAction(self, action):
             return action
+
+        def addSeparator(self):
+            return None
 
         def exec(self, *args, **kwargs):
             calls.append(True)
@@ -134,8 +140,14 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
             super().__init__(parent)
             self.parent = parent
 
+        def addMenu(self, _title):
+            return self
+
         def addAction(self, action):
             return action
+
+        def addSeparator(self):
+            return None
 
         def exec(self, *args, **kwargs):
             calls.append(True)
@@ -152,6 +164,58 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
     )
 
     assert not calls
+
+
+def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
+    calls = []
+    action_texts = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+            self.actions = []
+
+        def addMenu(self, _title):
+            return self
+
+        def addAction(self, action):
+            self.actions.append(action)
+            return action
+
+        def addSeparator(self):
+            return None
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            action_texts.extend(
+                [action.text() for action in self.actions if hasattr(action, "text")]
+            )
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    class FakeContextMenuEvent:
+        def __init__(self, pos):
+            self._pos = pos
+            self.accepted = False
+
+        def pos(self):
+            return self._pos
+
+        def globalPos(self):
+            return self._pos
+
+        def accept(self):
+            self.accepted = True
+
+    click_pos = nodeviewer.port_position_view(
+        port_type="out", port_idx=0, node_idx=0
+    ).toPoint()
+    nodeviewer.contextMenuEvent(FakeContextMenuEvent(click_pos))
+
+    assert calls
+    assert "Disconnect all" in action_texts
 
 
 def test_node_serialization(nodeviewer):

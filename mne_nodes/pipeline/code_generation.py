@@ -155,7 +155,7 @@ class CodeGenerator:
                             code += self._indent(
                                 "subject = ct.check_subject(bp.subject)\n", 1
                             )
-                            code += self._indent("if subject is None:\n", 1)
+                            code += self._indent("if not subject:\n", 1)
                             code += self._indent("continue", 2)
                             loaded_data.append("subject")
                         else:

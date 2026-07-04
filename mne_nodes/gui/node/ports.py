@@ -37,7 +37,7 @@ class Port(QGraphicsItem):
         The node this port is part of.
     name : str
         The name of the port.
-    port_type : str
+    port_type : "in" | "out"
         The type of the port, can be either 'in' or 'out'.
     multi_connection : bool
         Whether the port supports multiple connections or not, defaults to False.

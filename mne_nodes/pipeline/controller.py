@@ -775,23 +775,25 @@ class Controller:
 
         return data
 
-    def check_subject(self, subject):
-        # ToDo next: get fsmri either by subject-name or by custom association
+    def get_fsmri_subjects(self):
         fsmri_subjects = (
             os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
         )
-        result = subject in fsmri_subjects
+        return fsmri_subjects
+
+    def check_subject(self, subject):
+        result = subject in self.get_fsmri_subjects()
         if not result:
             logging.warning(
                 f"Subject {subject} not found in FreeSurfer subjects directory!"
             )
-            return None
+            return False
         return subject
 
     def get_datatypes(self):
         # ToDo: Implement data-types other than raw
         bids_root = self.ensure_bids_root(interactive=False)
-        excluded_datatypes = ["anat", "func"]
+        excluded_datatypes = ["func"]
         return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
 
     def get_datatype_items(self):
@@ -851,7 +853,7 @@ class Controller:
 
         return params
 
-    def get_func_from_param(self, parameter_name: str) -> list[str] | str | None:
+    def get_func_from_param(self, parameter_name: str) -> list:
         """Get the function name(s) associated with a specific parameter
         name."""
         function_meta = self.function_meta
@@ -860,12 +862,29 @@ class Controller:
             for func_name, func_meta in function_meta.items()
             if parameter_name in func_meta.get("parameters", {})
         ]
-        if not associated_functions:
-            return None
-        elif len(associated_functions) == 1:
-            return associated_functions[0]
-        else:
-            return associated_functions
+        return associated_functions
+
+    def get_func_by_input(self, input_name: str) -> list:
+        """Get the function name(s) associated with a specific input
+        name."""
+        function_meta = self.function_meta
+        associated_functions = [
+            func_name
+            for func_name, func_meta in function_meta.items()
+            if input_name in func_meta.get("inputs", {})
+        ]
+        return associated_functions
+
+    def get_func_by_output(self, output_name: str) -> list:
+        """Get the function name(s) associated with a specific output
+        name."""
+        function_meta = self.function_meta
+        associated_functions = [
+            func_name
+            for func_name, func_meta in function_meta.items()
+            if output_name in func_meta.get("outputs", {})
+        ]
+        return associated_functions
 
     ####################################################################################
     # Modules

@@ -520,7 +520,13 @@ class NodeViewer(QGraphicsView):
         # Create nodes
         for node_info in viewer_dict["nodes"].values():
             node_class = getattr(nodes, node_info["class"])
-            node = node_class.from_dict(self.ct, node_info)
+            try:
+                node = node_class.from_dict(self.ct, node_info)
+            except KeyError:
+                logging.warning(
+                    f"Node class '{node_info['class']}' not found in nodes module. Skipping node."
+                )
+                continue
             if node_info["class"] == "InputNode":
                 self.add_input_node(node=node)
             elif node_info["class"] == "FunctionNode":
@@ -802,9 +808,13 @@ class NodeViewer(QGraphicsView):
             self._rmb_dragged = False
             event.accept()
             return
+        port = self._port_at_view_pos(event.pos())
+        if port is not None:
+            self._show_port_context_menu(port, event)
+            event.accept()
+            return
 
         menu = QMenu(self)
-        pos = self.mapToScene(event.pos())
         for category, cat_dict in self.ct.get_functions_categorized().items():
             category_menu = menu.addMenu(category)
             for sub_category, func_list in cat_dict.items():
@@ -813,16 +823,44 @@ class NodeViewer(QGraphicsView):
                 else:
                     sub_category_menu = category_menu
                 for func_name in func_list:
-                    func_action = QAction(func_name, sub_category_menu)
+                    func_action = QAction(func_name)
                     func_action.triggered.connect(
                         lambda checked=False, fn=func_name: self.add_function_node(
-                            function_name=fn, pos=pos
+                            function_name=fn, pos=self.mapToScene(event.pos())
                         )
                     )
                     sub_category_menu.addAction(func_action)
 
         menu.exec(event.globalPos())
         event.accept()
+
+    def _port_at_view_pos(self, pos: QPoint, tolerance: int = 8) -> Port | None:
+        """Return the top-most port under a view position."""
+        scene_pos = self.mapToScene(pos)
+        for item in self._items_near(scene_pos, tolerance, tolerance):
+            port = self._port_from_item(item)
+            if port is not None:
+                return port
+        return None
+
+    def _show_port_context_menu(self, port: Port, event) -> None:
+        """Show context menu with actions specific to a single port."""
+        menu = QMenu(self)
+
+        # Get corresponding functions for inputs/outputs
+        if port.port_type == "in":
+            funcs = self.ct.get_func_by_output(port.name)
+        else:
+            funcs = self.ct.get_func_by_input(port.name)
+        for func_name in funcs:
+            func_action = QAction(func_name)
+            func_action.triggered.connect(
+                lambda checked=False, fn=func_name: self.add_function_node(
+                    function_name=fn, pos=self.mapToScene(event.pos())
+                )
+            )
+            menu.addAction(func_action)
+        menu.exec(event.globalPos())
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
