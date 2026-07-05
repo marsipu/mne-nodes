@@ -838,7 +838,7 @@ class NodeViewer(QGraphicsView):
                 else:
                     sub_category_menu = category_menu
                 for func_name in func_list:
-                    func_action = QAction(func_name)
+                    func_action = QAction(func_name, sub_category_menu)
                     func_action.triggered.connect(
                         lambda checked=False, fn=func_name: self.add_function_node(
                             function_name=fn, pos=self.mapToScene(event.pos())
@@ -861,6 +861,7 @@ class NodeViewer(QGraphicsView):
     def _show_port_context_menu(self, port: Port, event) -> None:
         """Show context menu with actions specific to a single port."""
         menu = QMenu(self)
+        menus = {}
 
         # Get corresponding functions for inputs/outputs
         if port.port_type == "in":
@@ -870,8 +871,20 @@ class NodeViewer(QGraphicsView):
             funcs = self.ct.get_func_by_input(port.name)
             connected = {port.name: {"type": "in", "port_to": port}}
         scene_pos = self.mapToScene(event.pos())
+        # Sort funcs alphabetically
+        funcs.sort()
         for func_name in funcs:
-            func_action = QAction(func_name)
+            func_meta = self.ct.get_function_meta(func_name)
+            cls_name = func_meta.get("class_name")
+            if cls_name is not None:
+                if cls_name not in menus:
+                    sub_menu = menu.addMenu(cls_name)
+                    menus[cls_name] = sub_menu
+                else:
+                    sub_menu = menus[cls_name]
+            else:
+                sub_menu = menu
+            func_action = QAction(func_name, sub_menu)
             func_action.triggered.connect(
                 lambda checked=False, fn=func_name, pos=scene_pos: (
                     self.add_function_node(
@@ -879,7 +892,7 @@ class NodeViewer(QGraphicsView):
                     )
                 )
             )
-            menu.addAction(func_action)
+            sub_menu.addAction(func_action)
         print(len(menu.actions()))
         menu.exec(event.globalPos())
 
