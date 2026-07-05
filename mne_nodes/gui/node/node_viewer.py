@@ -254,7 +254,7 @@ class NodeViewer(QGraphicsView):
     ####################################################################################
     # Backend
     ####################################################################################
-    def add_node(self, node, pos=None):
+    def add_node(self, node, pos=None, connected=None):
         """Add a node to the node graph.
 
         Parameters
@@ -264,6 +264,8 @@ class NodeViewer(QGraphicsView):
         pos : QPointF | None, optional
             The position to place the node at. If None, the node is placed at the
             center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the node.
         Returns
         -------
         BaseNode
@@ -279,10 +281,17 @@ class NodeViewer(QGraphicsView):
         node.draw_node()
         if pos is not None:
             node.setPos(pos)
+        if connected is not None:
+            for port_name, port_config in connected.items():
+                port_from = node.port(
+                    port_type=port_config["type"], port_name=port_name
+                )
+                if port_from is not None:
+                    port_from.connect_to(port_config["port_to"])
 
         return node
 
-    def add_input_node(self, node=None, pos=None, **kwargs):
+    def add_input_node(self, node=None, pos=None, connected=None, **kwargs):
         """Add a input node to the project. Currently only one is allowed.
 
         Parameters
@@ -292,6 +301,8 @@ class NodeViewer(QGraphicsView):
         pos : QPointF | None, optional
             The position to place the node at. If None, the node is placed at the
             center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the input node.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the BaseNode constructor.
 
@@ -308,11 +319,13 @@ class NodeViewer(QGraphicsView):
         if node is None:
             node = InputNode(ct=self.ct, **kwargs)
         self.input_node = node
-        self.add_node(node, pos=pos)
+        self.add_node(node, pos=pos, connected=connected)
 
         return node
 
-    def add_function_node(self, function_name=None, node=None, pos=None, **kwargs):
+    def add_function_node(
+        self, function_name=None, node=None, pos=None, connected=None, **kwargs
+    ):
         """Add a new function node to the project.
 
         Parameters
@@ -325,6 +338,8 @@ class NodeViewer(QGraphicsView):
         pos : QPointF | None, optional
             The position to place the node at. If None, the node is placed at the
             center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the function node.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the FunctionNode constructor.
 
@@ -348,7 +363,7 @@ class NodeViewer(QGraphicsView):
         if function_name is None:
             raise ValueError("Function node name cannot be None.")
         self.function_nodes[function_name] = node
-        self.add_node(node, pos=pos)
+        self.add_node(node, pos=pos, connected=connected)
 
         return node
 
@@ -850,16 +865,22 @@ class NodeViewer(QGraphicsView):
         # Get corresponding functions for inputs/outputs
         if port.port_type == "in":
             funcs = self.ct.get_func_by_output(port.name)
+            connected = {port.name: {"type": "out", "port_to": port}}
         else:
             funcs = self.ct.get_func_by_input(port.name)
+            connected = {port.name: {"type": "in", "port_to": port}}
+        scene_pos = self.mapToScene(event.pos())
         for func_name in funcs:
             func_action = QAction(func_name)
             func_action.triggered.connect(
-                lambda checked=False, fn=func_name: self.add_function_node(
-                    function_name=fn, pos=self.mapToScene(event.pos())
+                lambda checked=False, fn=func_name, pos=scene_pos: (
+                    self.add_function_node(
+                        function_name=fn, pos=pos, connected=connected
+                    )
                 )
             )
             menu.addAction(func_action)
+        print(len(menu.actions()))
         menu.exec(event.globalPos())
 
     def mousePressEvent(self, event):
