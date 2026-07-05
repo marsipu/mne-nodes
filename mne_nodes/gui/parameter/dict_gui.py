@@ -4,7 +4,8 @@ from typing import Any
 
 from qtpy.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy
 
-from mne_nodes.gui.base_widgets import EditDict, SimpleDialog
+from mne_nodes.gui.widgets.dict_widgets import EditDict
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 from .param import Param
 from .utils import convert_dict_to_string

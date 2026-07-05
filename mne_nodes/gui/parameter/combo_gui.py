@@ -5,7 +5,7 @@ from typing import Any, Sequence
 
 from qtpy.QtWidgets import QComboBox, QHBoxLayout, QLabel
 
-from mne_nodes.gui.base_widgets import ComboBox
+from mne_nodes.gui.widgets.misc_widgets import ComboBox
 
 from .param import Param
 

@@ -5,7 +5,8 @@ from typing import Any
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout
 
-from mne_nodes.gui.base_widgets import EditList, SimpleDialog
+from mne_nodes.gui.widgets.list_widgets import EditList
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 from .param import Param
 from .utils import convert_list_to_string

@@ -4,7 +4,8 @@ from typing import Any, Sequence
 
 from qtpy.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy
 
-from mne_nodes.gui.base_widgets import CheckList, SimpleDialog
+from mne_nodes.gui.widgets.list_widgets import CheckList
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 from .param import Param
 from .utils import convert_list_to_string

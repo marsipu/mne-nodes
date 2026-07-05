@@ -19,21 +19,18 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes.gui.base_widgets import (
-    AssignWidget,
+from mne_nodes.gui.widgets.dict_widgets import EditDict, SimpleDict
+from mne_nodes.gui.widgets.list_widgets import (
     CheckDictEditList,
     CheckDictList,
     CheckList,
     CheckListProgress,
-    EditDict,
     EditList,
-    EditPandasTable,
-    ShallowTreeWidget,
-    SimpleDict,
     SimpleList,
-    SimplePandasTable,
-    TreeWidget,
 )
+from mne_nodes.gui.widgets.misc_widgets import AssignWidget
+from mne_nodes.gui.widgets.pandas_widgets import EditPandasTable, SimplePandasTable
+from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget, TreeWidget
 
 
 class BaseWidgetTester(QWidget):

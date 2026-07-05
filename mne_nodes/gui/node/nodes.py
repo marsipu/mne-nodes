@@ -15,8 +15,9 @@ from qtpy.QtWidgets import (
     QTabWidget,
 )
 
-from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
-from mne_nodes.gui.base_widgets import SimpleDialog
+from mne_nodes.gui.widgets.list_widgets import CheckListProgress
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
+from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
