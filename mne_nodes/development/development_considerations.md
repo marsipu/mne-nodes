@@ -40,7 +40,7 @@ to strings.
 - Avoid importing GUI-heavy mne-nodes modules before `QApplication` exists.
 - In launcher scripts, create `QApplication` first and only then import modules
   like `mne_nodes.gui.main_window`, `mne_nodes.gui.function_widgets`,
-  `mne_nodes.gui.node.node_viewer`, or `mne_nodes.gui.parameter_widgets`.
+  `mne_nodes.gui.node.node_viewer`, or `mne_nodes.gui.parameter`.
 - Keep GUI startup code in a `main()` function and protect it with
   `if __name__ == "__main__":` to avoid side effects on import.
 - Keep Qt backend selection consistent per process (do not mix bindings).

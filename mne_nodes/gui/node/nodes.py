@@ -162,7 +162,7 @@ class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
-        from mne_nodes.gui import parameter_widgets
+        from mne_nodes.gui import parameter
 
         func_meta = ct.get_function_meta(kwargs["name"])
         if any(v.get("save") is not None for v in func_meta["outputs"].values()):
@@ -196,7 +196,7 @@ class FunctionNode(BaseNode):
             param_kwargs = deepcopy(param_kwargs)
             param_kwargs["groupbox_layout"] = False
             gui_name = param_kwargs.pop("gui")
-            gui = getattr(parameter_widgets, gui_name)
+            gui = getattr(parameter, gui_name)
             # Importantly use self.name here to include the index suffix
             parameter_gui = gui(
                 data=self.ct, name=param_name, function_name=self.name, **param_kwargs

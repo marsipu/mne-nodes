@@ -1,4 +1,4 @@
-.. automodule:: mne_nodes.gui.parameter_widgets
+.. automodule:: mne_nodes.gui.parameter
    :no-members:
    :no-inherited-members:
 

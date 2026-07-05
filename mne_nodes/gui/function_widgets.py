@@ -42,7 +42,7 @@ from mne_nodes.gui.gui_utils import (
     get_user_input,
     ask_user_custom,
 )
-from mne_nodes.gui.parameter_widgets import (
+from mne_nodes.gui.parameter import (
     IntGui,
     FloatGui,
     StringGui,

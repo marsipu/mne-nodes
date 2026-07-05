@@ -23,10 +23,10 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.conftest import test_parameters
-from mne_nodes.gui import parameter_widgets
+from mne_nodes.gui import parameter
 from mne_nodes.gui.base_widgets import SimpleDict
 from mne_nodes.gui.gui_utils import center
-from mne_nodes.gui.parameter_widgets import Param
+from mne_nodes.gui.parameter import Param
 from mne_nodes.tests.test_parameter_widgets import gui_mapping, gui_kwargs
 
 
@@ -51,7 +51,7 @@ class ParamGuis(QWidget):
             max_cols = 4
             param_names = list(self.parameters.keys())
             for idx, gui_name in enumerate(param_names):
-                gui_class = getattr(parameter_widgets, gui_name, None)
+                gui_class = getattr(parameter, gui_name, None)
                 if gui_class is None:
                     print(f"Warning: No GUI class found for {gui_name}")
                     continue

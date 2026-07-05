@@ -152,7 +152,7 @@ make html
 
 **Documentation Notes:**
 - Uses Sphinx with autodoc for API documentation
-- Requires package to be installed (imports mne_nodes.gui.parameter_widgets)
+- Requires package to be installed (imports mne_nodes.gui.parameter)
 - Built docs are deployed to GitHub Pages on main branch
 - Documentation source is in docs/source/
 
