@@ -257,6 +257,36 @@ class NodeViewer(QGraphicsView):
     ####################################################################################
     # Backend
     ####################################################################################
+    def _adjust_node(self, node, direction="y"):
+        """Adjust node position to avoid overlapping with other nodes."""
+        max_iterations = 1000
+        iteration = 0
+
+        while iteration < max_iterations:
+            node_rect = node.sceneBoundingRect()
+            overlapping = False
+            for other_node in self._nodes.values():
+                if other_node.id == node.id:
+                    continue
+                other_rect = other_node.sceneBoundingRect()
+                if node_rect.intersects(other_rect):
+                    overlapping = True
+                    # Position node at exact default distance from the overlapping node
+                    if direction == "y":
+                        new_x = node_rect.left()
+                        new_y = other_rect.bottom() + self.default_y_distance
+                    else:
+                        new_x = other_rect.right() + self.default_x_distance
+                        new_y = node_rect.top()
+                    new_pos = QPointF(new_x, new_y)
+                    node.setPos(new_pos)
+                    break
+
+            if not overlapping:
+                break
+
+            iteration += 1
+
     def add_node(self, node, pos=None, connected=None):
         """Add a node to the node graph.
 
@@ -284,6 +314,8 @@ class NodeViewer(QGraphicsView):
         node.draw_node()
         if pos is not None:
             node.setPos(pos)
+        # Adjust position to avoid overlapping with other nodes
+        self._adjust_node(node, direction="y")
         if connected is not None:
             for port_name, port_config in connected.items():
                 port_from = node.port(
@@ -896,7 +928,6 @@ class NodeViewer(QGraphicsView):
                 )
             )
             sub_menu.addAction(func_action)
-        print(len(menu.actions()))
         menu.exec(event.globalPos())
 
     def mousePressEvent(self, event):

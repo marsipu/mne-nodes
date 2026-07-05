@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import builtins
 import logging
 from ast import literal_eval
 from copy import copy
@@ -1135,7 +1134,7 @@ class MultiTypeGui(Param):
         type_kwargs : dict[str, dict[str, Any]] | None
             Specify keyword-arguments as a dictionary for the different GUIs
             (look into their documentation),
-            the key is the name of the GUI (e.g. IntGui).
+            the key is the name of the type (e.g. int or combo).
         **kwargs : Any
             All the parameters fo :method:`~Param.__init__` go here.
         """
@@ -1156,9 +1155,6 @@ class MultiTypeGui(Param):
                 "slider",
             ]
         )
-        # Dynamically set self.data_type to the union of all specified types
-        types = [getattr(builtins, n) for n in self.types]
-        self.data_type = reduce(lambda a, b: a | b, types)
         # Defaults for types (can be overwritten by type_kwargs)
         self.type_defaults = {
             "int": 0,
@@ -1173,25 +1169,34 @@ class MultiTypeGui(Param):
             "slider": 0.0,
         }
         self.type_kwargs = type_kwargs or {
-            "ComboGui": {"options": [""], "editable": True},
-            "CheckListGui": {"options": [], "one_check": False},
+            "combo": {"options": [""], "editable": True},
+            "checklist": {"options": [], "one_check": False},
         }
 
         # A dictionary to map possible types with their GUI
         self.gui_types = {
-            "int": "IntGui",
-            "float": "FloatGui",
-            "bool": "BoolGui",
-            "str": "StringGui",
-            "list": "ListGui",
-            "dict": "DictGui",
-            "tuple": "DualTupleGui",
-            "combo": "ComboGui",
-            "checklist": "CheckListGui",
-            "slider": "SliderGui",
+            "int": IntGui,
+            "float": FloatGui,
+            "bool": BoolGui,
+            "str": StringGui,
+            "list": ListGui,
+            "dict": DictGui,
+            "tuple": DualTupleGui,
+            "combo": ComboGui,
+            "checklist": CheckListGui,
+            "slider": SliderGui,
         }
         self.gui_widgets = {}
         self.type_layout = QHBoxLayout()
+
+        # Dynamically set self.data_type to the union of all specified types
+        if "type" in self.types or type in self.types:
+            pass
+        for t in self.types:
+            if t not in self.gui_types:
+                pass
+        types = [self.gui_types[t].data_type for t in self.types]
+        self.data_type = reduce(lambda a, b: a | b, types)
 
         # Get current type (NoneType not allowed)
         self.param_type = type(self.value).__name__
@@ -1216,7 +1221,7 @@ class MultiTypeGui(Param):
         """Initialize the GUI for each type in self.types inside the stacked
         layout."""
         for type_name in self.types:
-            gui_name = self.gui_types[type_name]
+            gui_class = self.gui_types[type_name]
             # Load specifc keyword-arguments if given
             # Set standard parameter-keyword-arguments as given to MultiTypeGui
             kwargs = {}
@@ -1230,10 +1235,8 @@ class MultiTypeGui(Param):
             kwargs["description"] = self.description
             kwargs["unit"] = self.unit
             kwargs["parent_widget"] = self
-            if gui_name in self.type_kwargs:
-                kwargs.update(self.type_kwargs[gui_name])
-
-            gui_class = globals()[gui_name]
+            if type_name in self.type_kwargs:
+                kwargs.update(self.type_kwargs[type_name])
             gui_instance = gui_class(**kwargs)
             # Add (real) data later to avoid conflicts with not matching types
             gui_instance.data = self.data
@@ -1242,7 +1245,10 @@ class MultiTypeGui(Param):
             self.stack_layout.addWidget(gui_instance)
         # Set the current widget to the one matching
         # the current type
-        self.param_widget = self.gui_widgets[self.param_type]
+        if self.param_type not in self.gui_widgets:
+            self.param_widget = self.gui_widgets[self.types[0]]
+        else:
+            self.param_widget = self.gui_widgets[self.param_type]
         self.stack_layout.setCurrentWidget(self.param_widget)
 
     def change_type(self, type_idx):

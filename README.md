@@ -2,10 +2,10 @@
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/marsipu/mne-nodes/main.svg)](https://results.pre-commit.ci/latest/github/marsipu/mne-nodes/main)
 
 # mne-nodes
-![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/mne_nodes/extra/wip_overview.png "Overview of the mne-nodes GUI")
-
 > **Important notice:** This application is still in early
-> development and is not production-ready for real-world analysis.
+> development and is **NOT** production-ready for analysis.
+
+![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/mne_nodes/extra/wip_overview.png "Overview of the mne-nodes GUI")
 
 ## A Node-GUI for [mne-python](https://mne.tools/stable/index.html)
 This is a GUI to facilitate offline neurophysiological data processing with mne-python by visualizing the data-flow with nodes.

@@ -11,7 +11,10 @@
                 "enable": true
             },
             "justMyCode": false,
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "env": {
+                "MNENODES_DEBUG": "true"
+            }
         }
     ]
 }
