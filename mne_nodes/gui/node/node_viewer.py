@@ -60,6 +60,9 @@ class NodeViewer(QGraphicsView):
         super().__init__(parent)
         self.ct = ct
 
+        self.default_x_distance = 200
+        self.default_y_distance = 50
+
         # add to global object references
         _widgets["viewer"] = self
 
@@ -870,7 +873,7 @@ class NodeViewer(QGraphicsView):
         else:
             funcs = self.ct.get_func_by_input(port.name)
             connected = {port.name: {"type": "in", "port_to": port}}
-        scene_pos = self.mapToScene(event.pos())
+        scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
         # Sort funcs alphabetically
         funcs.sort()
         for func_name in funcs:
@@ -1293,6 +1296,8 @@ class NodeViewer(QGraphicsView):
                 break
 
         if port:
+            if event.button() == Qt.MouseButton.RightButton:
+                return
             if not port.multi_connection and len(port.connected_ports) > 0:
                 # ToDo: Might cause problems with multi-connections
                 self._detached_port = port.connected_ports[0]
@@ -1945,9 +1950,9 @@ class NodeViewer(QGraphicsView):
             for idx, node in enumerate(ranked_nodes):
                 dy = max(node_height, node.height)
                 node.setPos(current_x, current_y)
-                current_y += dy + 50
+                current_y += dy + self.default_y_distance
 
-            current_x += max_width + 200
+            current_x += max_width + self.default_x_distance
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]

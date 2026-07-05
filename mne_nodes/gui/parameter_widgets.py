@@ -4,10 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import builtins
 import logging
 from ast import literal_eval
 from copy import copy
-from functools import partial
+from functools import partial, reduce
 from math import log10
 from pathlib import Path
 from types import NoneType
@@ -1119,8 +1120,6 @@ class SliderGui(Param):
 class MultiTypeGui(Param):
     """A GUI which accepts multiple types of values in a single LineEdit."""
 
-    data_type = int | float | bool | str | list | dict | tuple
-
     def __init__(
         self,
         types: Sequence[str] | None = None,
@@ -1157,6 +1156,10 @@ class MultiTypeGui(Param):
                 "slider",
             ]
         )
+        # Dynamically set self.data_type to the union of all specified types
+        types = [getattr(builtins, n) for n in self.types]
+        self.data_type = reduce(lambda a, b: a | b, types)
+        # Defaults for types (can be overwritten by type_kwargs)
         self.type_defaults = {
             "int": 0,
             "float": 0.0,
