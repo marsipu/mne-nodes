@@ -223,13 +223,16 @@ class Port(QGraphicsItem):
         self.text.setPos(offset, -1.5)
 
     def paint(self, painter, option, widget=None):
-        """Draws the circular port.
+        """Draw the circular port.
 
-        Args:
-            painter (QtGui.QPainter): painter used for drawing the item.
-            option (QtGui.QStyleOptionGraphicsItem):
-                used to describe the parameters needed to draw.
-            widget (QtWidgets.QWidget): not used.
+        Parameters
+        ----------
+        painter : QtGui.QPainter
+            Painter used for drawing the item.
+        option : QtGui.QStyleOptionGraphicsItem
+            Option used to describe the parameters needed to draw.
+        widget : QtWidgets.QWidget, optional
+            Unused.
         """
         painter.save()
 
@@ -326,8 +329,18 @@ class Port(QGraphicsItem):
             raise ValueError("Invalid port type")
 
     def connected(self, target_port):
-        """Check if the specified port (port object, port name or port id) is
-        connected to this port."""
+        """Check whether the specified port is connected to this port.
+
+        Parameters
+        ----------
+        target_port : Port | str | int
+            Port object, port name, or port id.
+
+        Returns
+        -------
+        bool
+            ``True`` when the port is connected, otherwise ``False``.
+        """
         if isinstance(target_port, str):
             if target_port in [port.name for port in self.connected_ports]:
                 return True
@@ -345,7 +358,20 @@ class Port(QGraphicsItem):
         return False
 
     def compatible(self, port, verbose=True):
-        """Check if the specified port is compatible with this port."""
+        """Check whether the specified port is compatible with this port.
+
+        Parameters
+        ----------
+        port : Port
+            Port to test.
+        verbose : bool
+            Whether to log compatibility details.
+
+        Returns
+        -------
+        bool
+            ``True`` if the ports are compatible, otherwise ``False``.
+        """
         # check if the ports are the same.
         if self is port:
             if verbose:
@@ -373,11 +399,17 @@ class Port(QGraphicsItem):
         return False
 
     def connect_to(self, target_port=None):
-        """Create connection to the specified port and emits the
-        :attr:`NodeGraph.port_connected` signal from the parent node graph.
+        """Create a connection to the specified port.
 
-        Args:
-            target_port (Port): port object.
+        Parameters
+        ----------
+        target_port : Port | None
+            Target port.
+
+        Notes
+        -----
+        Emits the :attr:`NodeGraph.port_connected` signal from the parent
+        node graph.
         """
         if target_port is None:
             for pipe in self.connected_pipes.values():
@@ -435,11 +467,17 @@ class Port(QGraphicsItem):
         )
 
     def disconnect_from(self, target_port=None):
-        """Disconnect from the specified port and emits the
-        :attr:`NodeGraph.port_disconnected` signal from the parent node graph.
+        """Disconnect from the specified port.
 
-        Args:
-            target_port (NodeGrapchQt.Port): port object.
+        Parameters
+        ----------
+        target_port : Port | None
+            Target port.
+
+        Notes
+        -----
+        Emits the :attr:`NodeGraph.port_disconnected` signal from the parent
+        node graph.
         """
         if not target_port:
             return
