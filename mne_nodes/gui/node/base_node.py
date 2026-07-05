@@ -586,6 +586,10 @@ class BaseNode(QGraphicsItem):
         }
         return description
 
+    def enable_start(self, enable=True):
+        if self.start_button is not None:
+            self.start_button.setEnabled(enable)
+
     def start_clicked(self):
         if self.viewer is not None:
             node_sequence = self.viewer.get_node_sequence(self)

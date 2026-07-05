@@ -503,6 +503,18 @@ class NodeViewer(QGraphicsView):
             raise KeyError(f"Function '{name}' not found in project.")
         return func_nodes
 
+    def enable_start_buttons(self, enable=True):
+        """Enable or disable the start buttons of all nodes in the node graph.
+
+        Parameters
+        ----------
+        enable : bool, optional
+            If True, enable the start buttons. If False, disable them.
+            Default is True.
+        """
+        for node in self.nodes.values():
+            node.enable_start(enable=enable)
+
     def port(self, **kwargs):
         """Get a port from the node graph based on its properties.
 
@@ -628,6 +640,7 @@ class NodeViewer(QGraphicsView):
             )
             return
         self.from_dict(config)
+        self.ct.check_selection_enable()
         self.zoom_to_nodes()
 
     def clear(self):

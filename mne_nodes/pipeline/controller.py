@@ -810,6 +810,17 @@ class Controller:
             ]
         return items
 
+    def input_selection_changed(self, selected, data_type):
+        selected_inputs = self.get("selected_inputs")
+        selected_inputs[data_type] = selected
+        self.set("selected_inputs", selected_inputs)
+        self.check_selection_enable()
+
+    def check_selection_enable(self):
+        # Enable/Disable start buttons based on whether any inputs are selected
+        any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
+        self.viewer.enable_start_buttons(any_selected)
+
     ####################################################################################
     # Parameters
     ####################################################################################

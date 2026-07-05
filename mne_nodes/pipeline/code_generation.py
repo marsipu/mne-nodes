@@ -43,7 +43,7 @@ class CodeGenerator:
             "# Load controller\n"
             f"ct = Controller(config_path='{self.ct.ensure_config_path(interactive=False).as_posix()}')\n\n"
             "# Inject modules into global namespace\n"
-            "globals().update(ct.modules)\n"
+            "globals().update(ct.plugins)\n"
             "# Import modules\n"
         )
         # Add module imports
@@ -58,21 +58,19 @@ class CodeGenerator:
 
     def generate_code(self):
         """Convert a list of instructions to a Python code string."""
-        # start code with header and imports
-        functions = {
-            n["name"]: self.ct.get_function_meta(n["name"])["module"]
-            for n in self.node_sequence
-            if n["class"] == "FunctionNode"
-        }
-        code = self._build_header(functions)
-        code += "\n# Execute pipeline\n"
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         # Ordering targets (files first)
         targets = {t: [] for t in ["file", "group"]}
+        import_functions = {}
         for n in self.node_sequence:
             if n["class"] == "FunctionNode":
                 func_meta = self.ct.get_function_meta(n["name"])
+                # Only import functions that are not methods of classes
+                class_name = func_meta["class_name"]
+                if class_name is None:
+                    module = func_meta["module"]
+                    import_functions[n["name"]] = module
                 target = func_meta["target"]
                 if target not in targets:
                     logging.warning(
@@ -80,6 +78,8 @@ class CodeGenerator:
                     )
                     continue
                 targets[target].append(n)
+        # Create import header
+        code = self._build_header(import_functions)
         # Iterate nodes
         for target, nodes in targets.items():
             if len(nodes) == 0:
@@ -203,6 +203,10 @@ class CodeGenerator:
                     func_line = ""
                     if len(outputs) > 0:
                         func_line += f"{outputs} = "
+                    # Inject (lowercase) class-name if the function is a method of a class
+                    # This assumes, that instance references of a class always have the same name as the class but lowercase
+                    if func_meta["class_name"] is not None:
+                        func_line += f"{func_meta['class_name'].lower()}."
                     if "mne" in func_meta["module"]:
                         func_name = f"{func_meta['module']}.{name}"
                     else:

@@ -60,7 +60,9 @@ class InputWidget(QWidget):
             dt_list = CheckListProgress(
                 data, checked=self.selected_inputs[dt], ui_button_pos="bottom"
             )
-            dt_list.checkedChanged.connect(self.selected_changed)
+            dt_list.checkedChanged.connect(
+                lambda slct, dt=dt: self.ct.input_selection_changed(slct, data_type=dt)
+            )
             self.tab_widget.addTab(dt_list, dt)
         # Initialize group widget via combobox
         self.tab_widget.addTab(self.group_widget, "Groups")
@@ -69,9 +71,8 @@ class InputWidget(QWidget):
             self.group_cmbx.setCurrentText(gb)
         else:
             self.cmbx_changed(gb)
-
-    def selected_changed(self):
-        self.ct.set("selected_inputs", self.selected_inputs)
+        # Update enable/disable of start button
+        self.ct.check_selection_enable()
 
     def set_root(self):
         new_root = get_user_input(
@@ -226,6 +227,15 @@ class FunctionNode(BaseNode):
                 message_type="info",
                 parent=self,
             )
+
+
+class StrangeInputNode(BaseNode):
+    """This node is like FunctionWidget, it evaluates expressions and outputs them.
+    Output is dynamically changed with expression (assigned reference-name) and data-type (assigned reference-name)."""
+
+    def __init__(self, ct, **kwargs):
+        super().__init__(ct, **kwargs)
+        self.name = "Strange Input Node"
 
 
 class AssignmentNode(BaseNode):
