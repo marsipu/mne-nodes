@@ -207,7 +207,8 @@ class CodeGenerator:
                     # This assumes, that instance references of a class always have the same name as the class but lowercase
                     if func_meta["class_name"] is not None:
                         func_line += f"{func_meta['class_name'].lower()}."
-                    if "mne" in func_meta["module"]:
+                        func_name = name.split(".")[-1]
+                    elif "mne" in func_meta["module"]:
                         func_name = f"{func_meta['module']}.{name}"
                     else:
                         func_name = name

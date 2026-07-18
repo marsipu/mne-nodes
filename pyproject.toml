@@ -42,6 +42,9 @@ dependencies = [
     "filelock",
     "rich",
     "docstring_parser",
+    "ijson",
+    # plugins
+    "mne-nodes_mne-functions @ git+https://github.com/marsipu/mne-nodes_mne-functions.git",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
@@ -72,6 +75,9 @@ exclude = [
 [tool.hatch.version]
 source = "vcs"
 raw-options = { version_scheme = "release-branch-semver" }
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.ruff]
 line-length = 88

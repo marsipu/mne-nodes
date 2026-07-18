@@ -24,7 +24,8 @@ import mne
 from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 
-from mne_nodes import _widgets
+from mne_nodes import _widgets, gui_mode
+from mne_nodes.gui.dialogs import json_load_dialog
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
@@ -904,8 +905,11 @@ class Controller:
         """Load the configuration file for a module"""
         config_path = getattr(module, "CONFIG_PATH", None)
         if config_path is not None:
-            with open(config_path) as file:
-                config = json.load(file, object_hook=type_json_hook)
+            if gui_mode:
+                config = json_load_dialog(config_path)
+            else:
+                with open(config_path) as file:
+                    config = json.load(file, object_hook=type_json_hook)
             # Warn for duplicates
             duplicate_functions = [fn for fn in config if fn in self.function_meta]
             if len(duplicate_functions) > 0:

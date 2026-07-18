@@ -5,10 +5,21 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
+from pathlib import Path
 import sys
 
 from mne_nodes.gui.gui_utils import set_ratio_geometry
-from qtpy.QtWidgets import QDialog, QPushButton, QTextEdit, QVBoxLayout, QApplication
+from qtpy.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+)
+
+from mne_nodes.pipeline.io import load_json_progress
 
 
 class SysInfoMsg(QDialog):
@@ -117,6 +128,50 @@ class ErrorDialog(QDialog):
         layout.addWidget(self.close_bt)
 
         self.setLayout(layout)
+
+
+class ProgressDialog(QDialog):
+    def __init__(self, text, maximum=100, parent=None):
+        super().__init__(parent)
+
+        layout = QVBoxLayout()
+
+        self.label = QLabel(text)
+        layout.addWidget(self.label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, maximum)
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
+        self.setLayout(layout)
+
+    def set_value(self, value):
+        self.progress_bar.setValue(value)
+
+
+def json_load_dialog(file_path, parent=None):
+    """Load a JSON file with a progress dialog.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the JSON file.
+
+    Returns
+    -------
+    dict or list
+        The loaded JSON data.
+    """
+    progress_dialog = ProgressDialog(
+        f"Loading JSON file '{Path(file_path).name}'...", parent=parent
+    )
+    progress_dialog.show()
+
+    data = load_json_progress(file_path, progress_dialog.set_value)
+
+    progress_dialog.close()
+    return data
 
 
 def show_error_dialog(exc_str):
