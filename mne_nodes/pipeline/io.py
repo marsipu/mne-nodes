@@ -9,12 +9,13 @@ from ast import literal_eval
 from datetime import datetime
 import math
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Iterator
 
 import ijson
 import os
 
 import numpy as np
+from tqdm import tqdm
 
 
 def encode_tuples(input_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -80,7 +81,7 @@ class TypedJSONEncoder(json.JSONEncoder):
         new_o = self.sanitize_special_floats(new_o)
         return super().encode(new_o)
 
-    def iterencode(self, o: Any, _one_shot: bool = False) -> Generator[str, None, None]:
+    def iterencode(self, o: Any, _one_shot: bool = False) -> Iterator[str]:
         # Also encode tuples (not captured by default())
         new_o = encode_tuples(o)
         new_o = self.sanitize_special_floats(new_o)
@@ -213,3 +214,53 @@ def load_json_progress(file_path, progress_callback):
 
         progress_callback(100)
         return root
+
+
+def json_load_dialog(file_path, parent=None):
+    """Load a JSON file with a progress dialog.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the JSON file.
+
+    Returns
+    -------
+    dict or list
+        The loaded JSON data.
+    """
+    from mne_nodes.gui.dialogs import ProgressDialog
+
+    progress_dialog = ProgressDialog(
+        f"Loading JSON file '{Path(file_path).name}'...", parent=parent
+    )
+    progress_dialog.show()
+
+    data = load_json_progress(file_path, progress_dialog.set_value)
+
+    progress_dialog.close()
+    return data
+
+
+def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
+    """
+    Load a JSON file and print its contents to the console.
+
+    Parameters
+    ----------
+    file_path : os.PathLike
+        Path to the JSON file.
+    """
+    pbar = tqdm(total=100, desc=f"Loading JSON file '{Path(file_path).name}'...")
+    data = load_json_progress(file_path, lambda x: pbar.update(x - pbar.n))
+    pbar.close()
+    return data
+
+
+def load_json(file_path: os.PathLike) -> dict | list | None:
+    from mne_nodes import gui_mode
+
+    if gui_mode:
+        return json_load_dialog(file_path)
+    else:
+        return load_json_tqdm(file_path)

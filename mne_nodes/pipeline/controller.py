@@ -25,7 +25,6 @@ from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 
 from mne_nodes import _widgets, gui_mode
-from mne_nodes.gui.dialogs import json_load_dialog
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
@@ -33,7 +32,7 @@ from mne_nodes.gui.gui_utils import (
     ask_user,
 )
 from mne_nodes.pipeline.code_generation import CodeGenerator
-from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.io import TypedJSONEncoder, load_json, type_json_hook
 from mne_nodes.pipeline.pip_utils import install_pip_packages
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
@@ -630,8 +629,7 @@ class Controller:
         """Load the configuration from the config-file if necessary."""
         config_path = self.ensure_config_path(interactive=False)
         try:
-            with open(config_path) as file:
-                config = json.load(file, object_hook=type_json_hook)
+            config = load_json(config_path)
         except (
             OSError,
             json.JSONDecodeError,
@@ -742,8 +740,7 @@ class Controller:
             logging.warning(f"Dataset description file not found at {dataset_file}.")
             return None
         else:
-            with open(dataset_file) as file:
-                dataset_description = json.load(file)
+            dataset_description = load_json(dataset_file)
             return dataset_description["Name"]
 
     def get_group_by(self, group_by):
@@ -906,10 +903,10 @@ class Controller:
         config_path = getattr(module, "CONFIG_PATH", None)
         if config_path is not None:
             if gui_mode:
-                config = json_load_dialog(config_path)
+                config = load_json(config_path)
             else:
                 with open(config_path) as file:
-                    config = json.load(file, object_hook=type_json_hook)
+                    config = load_json(file, object_hook=type_json_hook)
             # Warn for duplicates
             duplicate_functions = [fn for fn in config if fn in self.function_meta]
             if len(duplicate_functions) > 0:
@@ -1083,8 +1080,7 @@ class Controller:
     # Pipeline
     ####################################################################################
     def import_pipeline(self, import_path):
-        with open(import_path) as file:
-            pipeline_dict = json.load(file, object_hook=type_json_hook)
+        pipeline_dict = load_json(import_path)
         # Import parameters
         self.set("parameters", pipeline_dict.get("parameters", {}))
         # import modules or install them if they have not been imported yet

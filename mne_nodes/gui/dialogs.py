@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import logging
-from pathlib import Path
 import sys
 
 from mne_nodes.gui.gui_utils import set_ratio_geometry
@@ -18,8 +17,6 @@ from qtpy.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
 )
-
-from mne_nodes.pipeline.io import load_json_progress
 
 
 class SysInfoMsg(QDialog):
@@ -148,30 +145,6 @@ class ProgressDialog(QDialog):
 
     def set_value(self, value):
         self.progress_bar.setValue(value)
-
-
-def json_load_dialog(file_path, parent=None):
-    """Load a JSON file with a progress dialog.
-
-    Parameters
-    ----------
-    file_path : str
-        Path to the JSON file.
-
-    Returns
-    -------
-    dict or list
-        The loaded JSON data.
-    """
-    progress_dialog = ProgressDialog(
-        f"Loading JSON file '{Path(file_path).name}'...", parent=parent
-    )
-    progress_dialog.show()
-
-    data = load_json_progress(file_path, progress_dialog.set_value)
-
-    progress_dialog.close()
-    return data
 
 
 def show_error_dialog(exc_str):
