@@ -13,7 +13,7 @@ from queue import Empty
 import numpy as np
 import pytest
 
-from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.io import TypedJSONEncoder, load_json_progress, type_json_hook
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -125,3 +125,48 @@ def test_settings_lock_multi_process(tmp_path, monkeypatch):
         assert stored_settings[key] == values[-1], (
             f"Expected final value {values[-1]} for {key}, got {stored_settings.get(key)}"
         )
+
+
+def _assert_no_none_keys(value):
+    if isinstance(value, dict):
+        assert None not in value
+        for nested in value.values():
+            _assert_no_none_keys(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            _assert_no_none_keys(nested)
+
+
+def test_load_json_progress_preserves_null_values(tmp_path):
+    payload = {
+        "name": "TestO",
+        "parameters": {
+            "plot_raw": {"annotation_colors": None, "scalings": None, "title": None}
+        },
+        "nested": [{"a": None}, {"b": [1, None, 3]}],
+    }
+    file_path = tmp_path / "config.json"
+    file_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    progress_values = []
+    loaded = load_json_progress(file_path, progress_values.append)
+
+    assert loaded == payload
+    _assert_no_none_keys(loaded)
+    assert progress_values
+    assert progress_values[-1] == 100
+
+
+def test_load_json_progress_no_none_keys_for_nested_maps(tmp_path):
+    payload = {
+        "outer": {"first": {"x": 1}, "second": {"y": None}, "third": {"z": {"k": 42}}}
+    }
+    file_path = tmp_path / "nested.json"
+    file_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_json_progress(file_path, lambda _: None)
+
+    assert loaded["outer"]["first"]["x"] == 1
+    assert loaded["outer"]["second"]["y"] is None
+    assert loaded["outer"]["third"]["z"]["k"] == 42
+    _assert_no_none_keys(loaded)

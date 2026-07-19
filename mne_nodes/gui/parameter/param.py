@@ -142,10 +142,12 @@ class Param(QWidget):
         if self.none_select:
             dt = dt | NoneType
         if not isinstance(value, dt):
-            raise RuntimeError(
-                f"Data for {name} has to be of type {self.data_type}, "
-                f"but is of type {type(value)} instead!"
+            logging.warning(
+                f"Data for {name} has to be of type {dt}, "
+                f"but is of type {type(value)} instead!\n"
+                f"Using default value {self.default} instead."
             )
+            value = self.default
         return value
 
     def _save_to_data(self, name, value):

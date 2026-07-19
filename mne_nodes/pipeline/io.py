@@ -123,7 +123,9 @@ def type_json_hook(obj: Dict[str, Any]) -> Any:
             return new_obj
 
 
-def load_json_progress(file_path, progress_callback):
+def load_json_progress(
+    file_path: os.PathLike | str, progress_callback: callable
+) -> dict | list | None:
     """
     Load nested JSON using ijson, calling object_hook for each completed dict.
 
@@ -139,65 +141,49 @@ def load_json_progress(file_path, progress_callback):
     dict or list
         Fully reconstructed JSON structure.
     """
-    file_size = os.path.getsize(file_path)
+    path = Path(file_path)
+    file_size = max(path.stat().st_size, 1)
 
-    with open(file_path, "rb") as f:
+    with path.open("rb") as f:
         parser = ijson.parse(f)
 
         stack = []
         current_key = None
         root = None
 
-        for prefix, event, value in parser:
+        def _attach_to_parent(value: Any, key: Any) -> None:
+            nonlocal root
+            if not stack:
+                root = value
+                return
+
+            parent = stack[-1]["value"]
+            if isinstance(parent, list):
+                parent.append(value)
+            else:
+                parent[key] = value
+
+        for _, event, value in parser:
             # progress update
             progress_callback(int(f.tell() / file_size * 100))
 
             if event == "start_map":
-                obj = {}
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, list):
-                        parent.append(obj)
-                    else:
-                        parent[current_key] = obj
-                else:
-                    root = obj
-                stack.append(obj)
+                stack.append({"value": {}, "key": current_key})
                 current_key = None
 
             elif event == "end_map":
-                obj = stack.pop()
-                obj = type_json_hook(obj)  # <-- your hook is applied here
-
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, list):
-                        parent[-1] = obj
-                    else:
-                        parent[current_key] = obj
+                frame = stack.pop()
+                obj = type_json_hook(frame["value"])
+                _attach_to_parent(obj, frame["key"])
                 current_key = None
 
             elif event == "start_array":
-                arr = []
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, list):
-                        parent.append(arr)
-                    else:
-                        parent[current_key] = arr
-                else:
-                    root = arr
-                stack.append(arr)
+                stack.append({"value": [], "key": current_key})
                 current_key = None
 
             elif event == "end_array":
-                arr = stack.pop()
-                if stack:
-                    parent = stack[-1]
-                    if isinstance(parent, list):
-                        parent[-1] = arr
-                    else:
-                        parent[current_key] = arr
+                frame = stack.pop()
+                _attach_to_parent(frame["value"], frame["key"])
                 current_key = None
 
             elif event == "map_key":
@@ -205,11 +191,14 @@ def load_json_progress(file_path, progress_callback):
 
             else:
                 # scalar value
-                parent = stack[-1]
-                if isinstance(parent, list):
-                    parent.append(value)
+                if not stack:
+                    root = value
                 else:
-                    parent[current_key] = value
+                    parent = stack[-1]["value"]
+                    if isinstance(parent, list):
+                        parent.append(value)
+                    else:
+                        parent[current_key] = value
                 current_key = None
 
         progress_callback(100)
