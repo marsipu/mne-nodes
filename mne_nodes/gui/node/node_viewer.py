@@ -794,6 +794,10 @@ class NodeViewer(QGraphicsView):
         super().resizeEvent(event)
 
     def contextMenuEvent(self, event):
+        # On macOS trackpads, context-menu gestures may not deliver a matching
+        # right-button release to the view, so clear stale RMB state here.
+        self.RMB_state = False
+
         menu = QMenu(self)
         pos = self.mapToScene(event.pos())
         for func_name in self.ct.function_meta:
@@ -807,6 +811,7 @@ class NodeViewer(QGraphicsView):
 
         # ToDo: implement context menu for nodes and pipes
         menu.exec(event.globalPos())
+        self.RMB_state = False
         event.accept()
 
     def mousePressEvent(self, event):
@@ -915,6 +920,13 @@ class NodeViewer(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
+        # Keep internal mouse-button state aligned with the currently pressed
+        # buttons to avoid stale state when native context menus steal release events.
+        buttons = event.buttons()
+        self.LMB_state = bool(buttons & Qt.MouseButton.LeftButton)
+        self.RMB_state = bool(buttons & Qt.MouseButton.RightButton)
+        self.MMB_state = bool(buttons & Qt.MouseButton.MiddleButton)
+
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
         if debug_mode():
             # Debug mouse
@@ -1066,7 +1078,7 @@ class NodeViewer(QGraphicsView):
         event.ignore()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Delete:
+        if event.key() in [Qt.Key.Key_Delete, Qt.Key.Key_Backspace]:
             # delete selected nodes and pipes
             for node in self.selected_nodes():
                 self.remove_node(node)
