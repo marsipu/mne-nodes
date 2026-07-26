@@ -37,8 +37,8 @@ class SliderGui(Param):
             self.param_widget.setMinimum(int(self.min_val * 10**self.decimal_count))
             self.param_widget.setMaximum(int(self.max_val * 10**self.decimal_count))
         else:
-            self.param_widget.setMinimum(self.min_val)
-            self.param_widget.setMaximum(self.max_val)
+            self.param_widget.setMinimum(int(self.min_val))
+            self.param_widget.setMaximum(int(self.max_val))
         self.param_widget.setSingleStep(int(step))
         self.param_widget.setOrientation(Qt.Orientation.Horizontal)
         self.param_widget.setTracking(tracking)
@@ -66,7 +66,7 @@ class SliderGui(Param):
             new_value = literal_eval(self.display_widget.text())
         except (ValueError, SyntaxError):
             new_value = None
-        if new_value:
+        if new_value is not None:
             self.value = new_value
             self.param_widget.setValue(int(new_value * 10**self.decimal_count))
 

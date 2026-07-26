@@ -99,7 +99,7 @@ class Param(QWidget):
             if self._value is None:
                 self.value = self._get_widget_value()
         else:
-            self._value = None
+            self.value = None
             self._set_enabled(False)
 
     def _set_enabled(self, enabled):

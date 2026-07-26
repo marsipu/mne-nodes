@@ -53,19 +53,16 @@ class TypedJSONEncoder(json.JSONEncoder):
             case Path():
                 return {"path_type": str(o)}
             case _:
-                try:
-                    return super().default(o)
-                except TypeError:
-                    pass
+                return super().default(o)
 
     @staticmethod
     def sanitize_special_floats(obj):
-        """Recursively replace inf, -inf, and nan with safe string tokens."""
+        """Recursively replace inf, -inf, and nan with typed dict sentinels."""
         if isinstance(obj, float):
             if math.isinf(obj):
-                return "Infinity" if obj > 0 else "-Infinity"
+                return {"special_float_type": "Infinity" if obj > 0 else "-Infinity"}
             if math.isnan(obj):
-                return "NaN"
+                return {"special_float_type": "NaN"}
             return obj
 
         elif isinstance(obj, dict):
@@ -102,16 +99,12 @@ def type_json_hook(obj: Dict[str, Any]) -> Any:
         new_obj[literal_key] = value
     # Match type specifiers
     match new_obj:
-        case value if value == "Infinity":
+        case {"special_float_type": "Infinity"}:
             return math.inf
-        case value if value == "-Infinity":
+        case {"special_float_type": "-Infinity"}:
             return -math.inf
-        case value if value == "NaN":
+        case {"special_float_type": "NaN"}:
             return math.nan
-        case {"numpy_int": value}:
-            return value
-        case {"numpy_float": value}:
-            return value
         case {"numpy_array_type": value}:
             return np.asarray(value)
         case {"datetime_type": value}:

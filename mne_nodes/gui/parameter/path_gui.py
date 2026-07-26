@@ -27,13 +27,13 @@ class PathGui(Param):
 
     def _pick_path(self):
         if self.pick_mode == "file":
-            self._path = compat.getopenfilename(self, self.description)[0]
+            self._path = compat.getopenfilename(self, self.description or "")[0]
         else:
-            self._path = compat.getexistingdirectory(self, self.description)
-        self.value = self._path
+            self._path = compat.getexistingdirectory(self, self.description or "")
+        self.value = Path(self._path)
 
     def _set_widget_value(self, value):
-        self._path = value
+        self._path = str(value)
         self.display_widget.setText(str(value))
 
     def _get_widget_value(self):

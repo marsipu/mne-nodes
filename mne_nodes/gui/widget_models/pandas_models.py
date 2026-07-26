@@ -130,7 +130,7 @@ class EditPandasModel(BasePandasModel):
         if row == 0:
             self._data = pd.concat([add_data, self._data])
         elif row == len(self._data.index):
-            self._data = self._data.append(add_data)
+            self._data = pd.concat([self._data, add_data])
         else:
             self._data = pd.concat(
                 [self._data.iloc[:row], add_data, self._data.iloc[row:]]

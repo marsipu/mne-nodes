@@ -13,7 +13,7 @@ def eval_param(param_exp: str) -> Any:
     Returns None for invalid expressions.
     """
     try:
-        return eval(param_exp, {"np": np})
+        return eval(param_exp, {"__builtins__": {}, "np": np})
     except (NameError, SyntaxError, ValueError, TypeError):
         return None
 
