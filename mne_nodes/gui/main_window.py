@@ -79,11 +79,6 @@ class MainWindow(QMainWindow):
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
         )
         sample_action.triggered.connect(self.add_sample_bids)
-        change_bids_root_action = QAction(
-            "&Change BIDS Root",
-            parent=self,
-            statusTip="Change the BIDS root directory for the current project.",
-        )
         load_action = QAction(
             "&Load Configuration",
             parent=self,
@@ -108,7 +103,6 @@ class MainWindow(QMainWindow):
         pipeline_menu.addAction(export_pipeline_action)
         bids_menu = self.menuBar().addMenu("&BIDS")
         bids_menu.addAction(sample_action)
-        bids_menu.addAction(change_bids_root_action)
         bids_menu.addSeparator()
         bids_menu.addAction(exit_action)
         config_menu = self.menuBar().addMenu("&Config")

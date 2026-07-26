@@ -90,4 +90,4 @@ RUN conda list
 
 RUN pip install git+https://github.com/mne-tools/mne-python.git@main
 
-ENTRYPOINT ["tini", "-g", "--", "/usr/bin/prepare.sh"]
+ENTRYPOINT ["tini", "-g", "--", "/usr/bin/docker_prepare.sh"]
