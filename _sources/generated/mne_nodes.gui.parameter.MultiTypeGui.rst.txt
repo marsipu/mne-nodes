@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.MultiTypeGui
-==============================================
+﻿mne\_nodes.gui.parameter.MultiTypeGui
+=====================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: MultiTypeGui
 
@@ -345,7 +345,6 @@
    .. autosummary::
    
       ~MultiTypeGui.customContextMenuRequested
-      ~MultiTypeGui.data_type
       ~MultiTypeGui.destroyed
       ~MultiTypeGui.objectNameChanged
       ~MultiTypeGui.painters

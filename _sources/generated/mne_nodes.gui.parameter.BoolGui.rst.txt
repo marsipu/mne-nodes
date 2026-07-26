@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.BoolGui
-=========================================
+﻿mne\_nodes.gui.parameter.BoolGui
+================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: BoolGui
 

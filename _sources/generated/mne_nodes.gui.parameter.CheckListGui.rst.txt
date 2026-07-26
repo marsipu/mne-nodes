@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.CheckListGui
-==============================================
+﻿mne\_nodes.gui.parameter.CheckListGui
+=====================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: CheckListGui
 

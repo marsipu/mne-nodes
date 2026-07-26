@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.LabelGui
-==========================================
+﻿mne\_nodes.gui.parameter.LabelGui
+=================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: LabelGui
 

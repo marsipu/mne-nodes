@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.DictGui
-=========================================
+﻿mne\_nodes.gui.parameter.DictGui
+================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: DictGui
 

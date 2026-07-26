@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.DualTupleGui
-==============================================
+﻿mne\_nodes.gui.parameter.DualTupleGui
+=====================================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: DualTupleGui
 

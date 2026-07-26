@@ -1,7 +1,7 @@
-﻿mne\_nodes.gui.parameter\_widgets.Param
-=======================================
+﻿mne\_nodes.gui.parameter.Param
+==============================
 
-.. currentmodule:: mne_nodes.gui.parameter_widgets
+.. currentmodule:: mne_nodes.gui.parameter
 
 .. autoclass:: Param
 
