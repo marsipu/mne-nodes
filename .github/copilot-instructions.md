@@ -15,6 +15,9 @@ MNE-Nodes is a GUI application for MEG/EEG neurophysiology data processing built
 
 Outdated instructions can lead to development workflow issues and should be updated promptly when infrastructure changes occur.
 
+## Scope of the project
+This project aims to be a graphical interface to the processing of neurophysiological data (EEG, MEG, etc.) using MNE-Python. While providing a quick entry for beginners, by also being able to export the resutling pipeline-code from a node-graph and by having a quick plugin system for quick drop-in of code but also to share more complex processing steps, it should also appeal to more advanced users. By using mne-bids for data-management, it aims to make data-processing more sharable and easier to reproduce.
+
 ## Working Effectively
 
 ### Installation and Setup
@@ -27,8 +30,8 @@ pip install PySide6  # Recommended
 
 # Install package in development mode with all dependencies
 pip install -e .[test]  # For testing dependencies
-# OR: pip install -e .[dev]  # For development dependencies
 # OR: pip install -e .[docs]  # For documentation dependencies
+# OR: pip install -e .[plugins]  # For optional MNE-functions plugin
 
 # Install pre-commit hooks for code quality
 pre-commit install
@@ -199,7 +202,13 @@ ruff format --check mne_nodes/
 - `mne_nodes/__main__.py` - Application entry point, handles GUI/headless mode
 - `mne_nodes/__init__.py` - Package initialization, platform detection
 - `mne_nodes/gui/` - Qt GUI components and widgets
+  - `node/` - Node graph implementation: `base_node.py`, `nodes.py`, `node_defaults.py`, `node_picker.py`, `node_scene.py`, `node_viewer.py`, `pipes.py`, `ports.py`
+  - `parameter/` - Parameter widget implementations: `param.py` (base), `bool_gui.py`, `checklist_gui.py`, `color_gui.py`, `combo_gui.py`, `dict_gui.py`, `dual_tuple_gui.py`, `float_gui.py`, `func_gui.py`, `int_gui.py`, `label_gui.py`, `list_gui.py`, `multitype_gui.py`, `path_gui.py`, `slider_gui.py`, `string_gui.py`, `utils.py`, `settings_dlg.py`
+  - `widgets/` - Reusable Qt widgets: `base.py`, `dict_widgets.py`, `list_widgets.py`, `misc_widgets.py`, `pandas_widgets.py`, `tree_widgets.py`
+  - `widget_models/` - Qt data models: `dict_models.py`, `function_picker_model.py`, `list_models.py`, `pandas_models.py`, `tree_models.py`
+  - Top-level GUI files: `code_editor.py`, `console.py`, `dialogs.py`, `function_widgets.py`, `gui_utils.py`, `loading_widgets.py`, `main_window.py`, `run_widgets.py`, `syntax_highlight.py`
 - `mne_nodes/pipeline/` - Data processing pipeline and function execution
+  - `controller.py`, `execution.py`, `code_generation.py`, `data_import.py`, `exception_handling.py`, `function_utils.py`, `io.py`, `pip_utils.py`, `pipeline_utils.py`, `settings.py`, `streams.py`
 - `mne_nodes/tests/` - Test suite with pytest and pytest-qt
 - `mne_nodes/extra/` - Extra files and development scripts, don't include this when thinking
 
