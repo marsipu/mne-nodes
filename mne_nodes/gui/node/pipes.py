@@ -31,10 +31,17 @@ class Pipe(QGraphicsPathItem):
     def __init__(self, input_port=None, output_port=None):
         """Initialize the pipe item.
 
+        Parameters
+        ----------
+        input_port : Port | None
+            Starting port for the pipe.
+        output_port : Port | None
+            Ending port for the pipe.
+
         Notes
         -----
-        The method "draw_path" has to be called at least once
-        after the pipe is added to the scene.
+        The method ``draw_path`` has to be called at least once after the
+        pipe is added to the scene.
         """
         super().__init__()
 
@@ -122,13 +129,16 @@ class Pipe(QGraphicsPathItem):
         return super().itemChange(change, value)
 
     def paint(self, painter, option, widget):
-        """Draws the connection line between nodes.
+        """Draw the connection line between nodes.
 
-        Args:
-            painter (QtGui.QPainter): painter used for drawing the item.
-            option (QtGui.QStyleOptionGraphicsItem):
-                used to describe the parameters needed to draw.
-            widget (QtWidgets.QWidget): not used.
+        Parameters
+        ----------
+        painter : QtGui.QPainter
+            Painter used for drawing the item.
+        option : QtGui.QStyleOptionGraphicsItem
+            Option used to describe the parameters needed to draw.
+        widget : QtWidgets.QWidget
+            Unused.
         """
         painter.save()
 
@@ -185,13 +195,17 @@ class Pipe(QGraphicsPathItem):
             self._dir_pointer.setScale(dist)
 
     def draw_path(self, start_port, end_port=None, cursor_pos=None):
-        """Draws the path between ports.
+        """Draw the path between ports.
 
-        Args:
-            start_port (PortItem): port used to draw the starting point.
-            end_port (PortItem): port used to draw the end point.
-            cursor_pos (QtCore.QPointF): cursor position if specified this
-                will be the draw end point.
+        Parameters
+        ----------
+        start_port : Port
+            Port used to draw the starting point.
+        end_port : Port | None
+            Port used to draw the end point.
+        cursor_pos : QtCore.QPointF | None
+            Cursor position if specified; otherwise this is the draw end
+            point.
         """
         if not start_port:
             return
@@ -279,13 +293,19 @@ class Pipe(QGraphicsPathItem):
         self._draw_direction_pointer()
 
     def port_from_pos(self, pos, reverse=False):
-        """
-        Args:
-            pos (QtCore.QPointF): current scene position.
-            reverse (bool): false to return the nearest port.
+        """Return the nearest port for a given scene position.
 
-        Returns:
-            PortItem: port item.
+        Parameters
+        ----------
+        pos : QtCore.QPointF
+            Current scene position.
+        reverse : bool
+            If ``True``, return the opposite port.
+
+        Returns
+        -------
+        Port
+            Port item.
         """
         inport_pos = self.input_port.scenePos()
         outport_pos = self.output_port.scenePos()
@@ -298,11 +318,16 @@ class Pipe(QGraphicsPathItem):
         return port
 
     def set_pipe_styling(self, color, width=2, style=Qt.PenStyle.SolidLine):
-        """
-        Args:
-            color (list or tuple): (r, g, b, a) values 0-255
-            width (int): pipe width.
-            style (int): pipe style.
+        """Set the pipe styling.
+
+        Parameters
+        ----------
+        color : list | tuple
+            ``(r, g, b, a)`` values in the range 0-255.
+        width : int
+            Pipe width.
+        style : Qt.PenStyle
+            Pipe style.
         """
         pen = self.pen()
         pen.setWidth(width)
@@ -398,24 +423,32 @@ class LivePipeItem(Pipe):
     def draw_path(self, start_port, end_port=None, cursor_pos=None, color=None):
         """Re-implemented to also update the index pointer arrow position.
 
-        Args:
-            start_port (PortItem): port used to draw the starting point.
-            end_port (PortItem): port used to draw the end point.
-            cursor_pos (QtCore.QPointF): cursor position if specified this
-                will be the draw end point.
-            color (list[int]): override arrow index pointer color. (r, g, b)
+        Parameters
+        ----------
+        start_port : Port
+            Port used to draw the starting point.
+        end_port : Port | None
+            Port used to draw the end point.
+        cursor_pos : QtCore.QPointF | None
+            Cursor position if specified; otherwise this is the draw end
+            point.
+        color : list[int] | tuple[int, int, int] | None
+            Override arrow index pointer color in ``(r, g, b)`` form.
         """
         super().draw_path(start_port, end_port, cursor_pos)
         self.draw_index_pointer(start_port, cursor_pos, color)
 
     def draw_index_pointer(self, start_port, cursor_pos, color=None):
-        """Update the index pointer arrow position and direction when the live
-        pipe path is redrawn.
+        """Update the index pointer arrow position and direction.
 
-        Args:
-            start_port (PortItem): start port item.
-            cursor_pos (QtCore.QPoint): cursor scene position.
-            color (list[int]): override arrow index pointer color. (r, g, b).
+        Parameters
+        ----------
+        start_port : Port
+            Start port item.
+        cursor_pos : QtCore.QPoint
+            Cursor scene position.
+        color : list[int] | tuple[int, int, int] | None
+            Override arrow index pointer color in ``(r, g, b)`` form.
         """
         text_rect = self._idx_text.boundingRect()
 
@@ -452,12 +485,16 @@ class LivePipePolygonItem(QGraphicsPolygonItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
 
     def paint(self, painter, option, widget):
-        """
-        Args:
-            painter (QtGui.QPainter): painter used for drawing the item.
-            option (QtGui.QStyleOptionGraphicsItem):
-                used to describe the parameters needed to draw.
-            widget (QtWidgets.QWidget): not used.
+        """Draw the live pipe polygon.
+
+        Parameters
+        ----------
+        painter : QtGui.QPainter
+            Painter used for drawing the item.
+        option : QtGui.QStyleOptionGraphicsItem
+            Option used to describe the parameters needed to draw.
+        widget : QtWidgets.QWidget
+            Unused.
         """
         painter.save()
         painter.setBrush(self.brush())
@@ -474,13 +511,16 @@ class SlicerPipeItem(QGraphicsPathItem):
         self.setZValue(5)
 
     def paint(self, painter, option, widget):
-        """Draws the slicer pipe.
+        """Draw the slicer pipe.
 
-        Args:
-            painter (QtGui.QPainter): painter used for drawing the item.
-            option (QtGui.QStyleOptionGraphicsItem):
-                used to describe the parameters needed to draw.
-            widget (QtWidgets.QWidget): not used.
+        Parameters
+        ----------
+        painter : QtGui.QPainter
+            Painter used for drawing the item.
+        option : QtGui.QStyleOptionGraphicsItem
+            Option used to describe the parameters needed to draw.
+        widget : QtWidgets.QWidget
+            Unused.
         """
         color = QColor(*defaults["slicer"]["color"])
         p1 = self.path().pointAtPercent(0)

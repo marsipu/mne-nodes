@@ -1,7 +1,7 @@
 {
-    "module": {},
+    "module_name": "mne_nodes.tests.validation_functions",
     "functions": {
-        "filter_bandpass": {
+        "test_filter": {
             "inputs": {
                 "raw": {
                     "accepted": [
@@ -41,7 +41,7 @@
             },
             "target": "file"
         },
-        "create_epochs": {
+        "test_epochs": {
             "inputs": {
                 "raw": {
                     "accepted": [
@@ -91,7 +91,7 @@
             },
             "target": "file"
         },
-        "create_evokeds": {
+        "test_evokeds": {
             "inputs": {
                 "epochs": {
                     "accepted": [
@@ -125,7 +125,7 @@
             },
             "target": "file"
         },
-        "plot_evokeds": {
+        "test_plot_evokeds": {
             "inputs": {
                 "evokeds": {
                     "accepted": [
@@ -139,55 +139,6 @@
             "parameters": {},
             "outputs": {},
             "target": "file"
-        },
-        "grand_average_evokeds": {
-            "inputs": {
-                "evokeds": {
-                    "accepted": [
-                        "evokeds"
-                    ],
-                    "optional": true,
-                    "load": "mne.read_evokeds",
-                    "suffix": "ave"
-                }
-            },
-            "parameters": {
-                "interpolate_bads": {
-                    "default": true,
-                    "gui": "BoolGui"
-                },
-                "drop_bads": {
-                    "default": true,
-                    "gui": "BoolGui"
-                }
-            },
-            "outputs": {
-                "ga_evokeds": {
-                    "accepted": [
-                        "ga_evokeds"
-                    ],
-                    "optional": false,
-                    "save": "mne.write_evokeds",
-                    "suffix": "ave",
-                    "save_kwargs": {
-                        "overwrite": true
-                    }
-                }
-            },
-            "target": "group"
-        },
-        "plot_ga_evokeds": {
-            "inputs": {
-                "ga_evokeds": {
-                    "accepted": [
-                        "ga_evokeds"
-                    ],
-                    "optional": false
-                }
-            },
-            "parameters": {},
-            "outputs": {},
-            "target": "group"
         }
     }
 }

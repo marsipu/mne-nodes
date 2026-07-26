@@ -11,8 +11,8 @@ from numpy.testing import assert_allclose
 
 from qtpy.QtCore import Qt
 
-from mne_nodes.gui import parameter_widgets
-from mne_nodes.gui.parameter_widgets import Param, LabelGui
+from mne_nodes.gui import parameter
+from mne_nodes.gui.parameter import Param, LabelGui
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 gui_mapping = {
@@ -57,7 +57,7 @@ def _check_param(gui, gui_name, value):
 def test_basic_param_guis(
     qtbot, gui_name, groupbox_layout, parameter_values, parameter_values_alt
 ):
-    gui_class = getattr(parameter_widgets, gui_name)
+    gui_class = getattr(parameter, gui_name)
     gui_parameters = list(inspect.signature(gui_class).parameters) + list(
         inspect.signature(Param).parameters
     )
@@ -140,15 +140,15 @@ def test_basic_param_guis(
     if gui_name == "MultiTypeGui":
         # Check if changing type works
         kwargs["type_kwargs"] = {}
-        for type_gui_name in gui.gui_types.values():
-            type_class = getattr(parameter_widgets, type_gui_name)
+        for gui_type, type_gui_name in gui.gui_types.items():
+            type_class = getattr(parameter, type_gui_name)
             gui_parameters = list(inspect.signature(type_class).parameters) + list(
                 inspect.signature(Param).parameters
             )
             t_kwargs = {
                 key: value for key, value in gui_kwargs.items() if key in gui_parameters
             }
-            kwargs["type_kwargs"][type_gui_name] = t_kwargs
+            kwargs["type_kwargs"][gui_type] = t_kwargs
         gui = gui_class(data=parameters, name=gui_name, **kwargs)
         for type_idx, (gui_type, type_gui_name) in enumerate(gui.gui_types.items()):
             gui.change_type(type_idx)

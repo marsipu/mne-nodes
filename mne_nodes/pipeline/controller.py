@@ -5,33 +5,37 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import ast
+from importlib.metadata import entry_points
 import json
 import logging
 import os
 import re
+import subprocess
 import sys
 from copy import deepcopy
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from os.path import isdir, isfile
+from os.path import isdir, join
 from pathlib import Path
+from types import SimpleNamespace
 from time import perf_counter
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import mne
 from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 
-from mne_nodes import _widgets
-from mne_nodes.core_functions import core_functions
+from mne_nodes import _widgets, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
     ask_user_custom,
     ask_user,
 )
-from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.pipeline.code_generation import CodeGenerator
+from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
+from mne_nodes.pipeline.pip_utils import install_pip_packages
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
@@ -95,12 +99,12 @@ class Controller:
         self._config = deepcopy(default_config)
         self._config_path: Path | None = None
         self._config_lock = None
-        self.lock_timeout = 5  # seconds
-        self.disk_interval = 1  # seconds
         self._last_load = 0
         self._local_set = False
-        self.modules = {}
+        self.plugins = {}
         self.function_meta = {}
+        self.lock_timeout = 5  # seconds
+        self.disk_interval = 1  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
         # possible scopes for grouping and selection
@@ -108,17 +112,9 @@ class Controller:
         self._process_count = 0
         # Initialize config_path here without prompting. Interactive setup is
         # handled explicitly via ensure_* methods after QApplication startup.
-        config_path = config_path or self.settings.get("config_path", default=None)
-        config_path = self._as_path(config_path)
-        if config_path is not None and not config_path.is_file():
-            logging.warning(f"Config file {config_path} does not exist!")
-            config_path = None
-        if config_path is not None:
-            self.config_path = config_path
-        # Add core functions to modules (until separated)
-        self.add_module(Path(core_functions.__file__))
-        # Initialize modules
-        self.load_modules()
+        self._initialize_startup_config_path(config_path)
+        # Initialize plugins
+        self.load_plugins()
 
     ####################################################################################
     # Initialization and Properties
@@ -126,58 +122,73 @@ class Controller:
     @property
     def config_path(self) -> Path | None:
         """Path to the config-file."""
-        return self._config_path
+        if self._config_path is not None:
+            return self._config_path
+        return self._setting_file("config_path")
 
-    @config_path.setter
-    def config_path(self, value):
-        """Set the path to the config-file (respects interactive mode)."""
-        # Check existence and prompt user for a new config-file if needed
-        if value is None:
-            ans = ask_user_custom(
-                "Do you want to create a new config-file or use an existing one?",
-                buttons=("Create new", "Use existing"),
-                close_on_cancel=True,
+    def _resolve_startup_config_path(self, config_path: Any) -> Path | None:
+        startup_path = config_path
+        if startup_path is None:
+            startup_path = self.settings.get("config_path", default=None)
+        startup_path = self._as_path(startup_path)
+        if startup_path is None:
+            return None
+        if startup_path.is_file():
+            return startup_path
+        logging.warning(f"Config file {startup_path} does not exist!")
+        return None
+
+    def _initialize_startup_config_path(self, config_path: Any) -> None:
+        startup_path = self._resolve_startup_config_path(config_path)
+        if startup_path is not None:
+            self._set_config_path(startup_path, reprompt_on_none=False)
+
+    def _prompt_config_path(self) -> Path:
+        ans = ask_user_custom(
+            "Do you want to create a new config-file or use an existing one?",
+            buttons=("Create new", "Use existing"),
+            close_on_cancel=True,
+        )
+        if ans is None:  # user cancelled
+            logging.info("User canceled, closing app.")
+            sys.exit(0)
+        if ans:
+            logging.info("Creating new config-file.")
+            config_folder = self._as_path(
+                get_user_input(
+                    "Set the folder-path to store the config-file",
+                    input_type="folder",
+                    exit_on_cancel=True,
+                )
             )
-            if ans is None:  # user cancelled
-                logging.info("User canceled, closing app.")
-                sys.exit(0)
-            elif ans:
-                logging.info("Creating new config-file.")
-                config_folder = self._as_path(
-                    get_user_input(
-                        "Set the folder-path to store the config-file",
-                        input_type="folder",
-                        exit_on_cancel=True,
-                    )
-                )
-                name = get_user_input(
-                    "Please enter a name for this project", input_type="string"
-                )
-                if config_folder is None or name is None:
-                    raise RuntimeError("Config path initialization failed.")
-                # Keep project name first in JSON for readability.
-                config = {"name": name, **deepcopy(default_config)}
-                value = config_folder / f"{name}_config.json"
-                with open(value, "w", encoding="utf-8") as file:
-                    json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-                raise_user_attention(f"New configuration created at:\n{value}", "info")
-            else:
-                logging.info("Using existing config-file.")
-                value = self._as_path(
-                    get_user_input(
-                        "Please enter the path to an exisiting config-file",
-                        input_type="file",
-                        file_filter="JSON files (*.json)",
-                        exit_on_cancel=True,
-                    )
-                )
-                raise_user_attention(
-                    f"Configuration sucessfully loaded from:\n{value}", "info"
-                )
-        config_path = self._as_path(value)
+            name = get_user_input(
+                "Please enter a name for this project", input_type="string"
+            )
+            if config_folder is None or name is None:
+                raise RuntimeError("Config path initialization failed.")
+            # Keep project name first in JSON for readability.
+            config = {"name": name, **deepcopy(default_config)}
+            config_path = config_folder / f"{name}_config.json"
+            with open(config_path, "w", encoding="utf-8") as file:
+                json.dump(config, file, indent=4, cls=TypedJSONEncoder)
+                logging.info(f"New configuration created at:\n{config_path}")
+            return config_path
+
+        logging.info("Using existing config-file.")
+        config_path = self._as_path(
+            get_user_input(
+                "Please enter the path to an exisiting config-file",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+                exit_on_cancel=True,
+            )
+        )
         if config_path is None:
             raise RuntimeError("Config path initialization failed.")
-        # Set the path and initialize the lock
+        logging.info(f"Configuration sucessfully loaded from:\n{config_path}")
+        return config_path
+
+    def _apply_config_path(self, config_path: Path) -> None:
         self._config_path = config_path
         self._config_lock = FileLock(self._config_path.with_suffix(".lock"))
         self.settings.set("config_path", self._config_path)
@@ -186,6 +197,25 @@ class Controller:
             self.load()
         else:
             self.flush()
+
+    def _set_config_path(self, value: Any, *, reprompt_on_none: bool = False) -> Path:
+        config_path = self._set_setting_file(
+            key="config_path",
+            value=value,
+            prompt=self._prompt_config_path,
+            missing_message=(
+                "Config file {path} does not exist! If you moved from another "
+                "device, please select/create the correct config-file."
+            ),
+            reprompt_on_none=reprompt_on_none,
+        )
+        self._apply_config_path(config_path)
+        return config_path
+
+    @config_path.setter
+    def config_path(self, value):
+        """Set the path to the config-file (respects interactive mode)."""
+        self._set_config_path(value, reprompt_on_none=True)
 
     @property
     def config_lock(self):
@@ -203,11 +233,32 @@ class Controller:
             return Path(value)
         return None
 
-    def _setting_path(self, key: str) -> Path | None:
+    def _setting_folder(self, key: str) -> Path | None:
         path_value = self._as_path(self.settings.get(key, None))
         if path_value is not None and path_value.is_dir():
             return path_value
         return None
+
+    def _setting_file(self, key: str) -> Path | None:
+        path_value = self._as_path(self.settings.get(key, None))
+        if path_value is not None and path_value.is_file():
+            return path_value
+        return None
+
+    @staticmethod
+    def _validate_existing_dir(value: Any, *, key: str) -> Path:
+        path_value = Controller._as_path(value)
+        if path_value is None or not path_value.is_dir():
+            raise ValueError(f"Path {value} does not exist for '{key}'!")
+        return path_value
+
+    def _prompt_path(self, prompt: str) -> Path:
+        selected_path = self._as_path(
+            get_user_input(prompt, "folder", cancel_allowed=False)
+        )
+        if selected_path is None:
+            raise RuntimeError("Failed to initialize required path.")
+        return selected_path
 
     def _ensure_setting_path(
         self, *, key: str, prompt: str, missing_message: str, interactive: bool
@@ -231,17 +282,251 @@ class Controller:
         self.settings.set(key, selected_path)
         return selected_path
 
+    def _ensure_setting_file(
+        self,
+        *,
+        key: str,
+        prompt: Callable[[], Path],
+        missing_message: str,
+        interactive: bool,
+    ) -> Path:
+        configured_path = self._as_path(self.settings.get(key, None))
+        if configured_path is not None and configured_path.is_file():
+            return configured_path
+        if configured_path is not None:
+            logging.warning(missing_message.format(path=configured_path))
+            if interactive:
+                raise_user_attention(missing_message.format(path=configured_path))
+        if not interactive:
+            raise RuntimeError(
+                f"Required file '{key}' is not configured. Call ensure_{key}() first."
+            )
+        selected_path = self._as_path(prompt())
+        if selected_path is None:
+            raise RuntimeError(f"Failed to initialize required file '{key}'.")
+        if selected_path.is_dir():
+            raise ValueError(
+                f"Path {selected_path} is a directory, expected a file path."
+            )
+        self.settings.set(key, selected_path)
+        return selected_path
+
+    def _set_setting_path(
+        self,
+        *,
+        key: str,
+        value: Any,
+        prompt: str,
+        missing_message: str,
+        reprompt_on_none: bool = False,
+    ) -> Path:
+        if value is None:
+            if reprompt_on_none:
+                selected_path = self._prompt_path(prompt)
+                self.settings.set(key, selected_path)
+                return selected_path
+            return self._ensure_setting_path(
+                key=key,
+                prompt=prompt,
+                missing_message=missing_message,
+                interactive=True,
+            )
+        path_value = self._validate_existing_dir(value, key=key)
+        self.settings.set(key, path_value)
+        return path_value
+
+    def _set_setting_file(
+        self,
+        *,
+        key: str,
+        value: Any,
+        prompt: Callable[[], Path],
+        missing_message: str,
+        reprompt_on_none: bool = False,
+    ) -> Path:
+        if value is None:
+            if reprompt_on_none:
+                selected_path = self._as_path(prompt())
+                if selected_path is None:
+                    raise RuntimeError(f"Failed to initialize required file '{key}'.")
+                if selected_path.is_dir():
+                    raise ValueError(
+                        f"Path {selected_path} is a directory, expected a file path."
+                    )
+                self.settings.set(key, selected_path)
+                return selected_path
+            return self._ensure_setting_file(
+                key=key,
+                prompt=prompt,
+                missing_message=missing_message,
+                interactive=True,
+            )
+
+        path_value = self._as_path(value)
+        if path_value is None:
+            raise RuntimeError(f"Failed to initialize required file '{key}'.")
+        if path_value.is_dir():
+            raise ValueError(f"Path {path_value} is a directory, expected a file path.")
+        self.settings.set(key, path_value)
+        return path_value
+
+    def _get_subjects_dir_path(self) -> Path | None:
+        if is_test():
+            subjects_dir = self.settings.get("subjects_dir", None)
+        else:
+            subjects_dir = mne.get_config("SUBJECTS_DIR", None)
+        subjects_dir = self._as_path(subjects_dir)
+        if subjects_dir is not None and subjects_dir.is_dir():
+            return subjects_dir
+        return None
+
+    def _set_subjects_dir_path(self, value: Path) -> None:
+        if is_test():
+            self.settings.set("subjects_dir", value)
+        else:
+            mne.set_config("SUBJECTS_DIR", value)
+
+    def _prompt_name(self) -> str:
+        name = get_user_input(
+            "Please enter a name for this project", "string", cancel_allowed=False
+        )
+        if name is None:
+            raise RuntimeError("Project name initialization failed.")
+        return str(name)
+
+    @property
+    def name(self) -> str | None:
+        return self.get("name", None)
+
+    @name.setter
+    def name(self, new_name):
+        if new_name is None:
+            new_name = self._prompt_name()
+        else:
+            new_name = str(new_name)
+        old_name = self.get("name")
+        if old_name != new_name and self._config_path is not None:
+            # Rename the config file if the name changes
+            old_path = self._config_path
+            new_path = self._config_path.parent / f"{new_name}_config.json"
+            os.rename(old_path, new_path)
+            self._config_path = new_path
+        self.set("name", new_name)
+
+    @property
+    def bids_root(self) -> Path | None:
+        """Configured BIDS root directory, if available."""
+        return self._setting_folder("bids_root")
+
+    @bids_root.setter
+    def bids_root(self, value: Any) -> None:
+        previous_root = self.bids_root
+        new_root = self._set_setting_path(
+            key="bids_root",
+            value=value,
+            prompt="Please select/create a folder for the bids-root.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select the bids-root folder."
+            ),
+            reprompt_on_none=True,
+        )
+        if previous_root == new_root:
+            return
+
+        ans = ask_user(
+            "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
+        )
+        if not ans:
+            if previous_root is not None:
+                self.settings.set("bids_root", previous_root)
+            return
+
+        # Clear selected inputs and custom groups
+        self.get("selected_inputs").clear()
+        self.get("custom_groups").clear()
+        # Update input widget when viewer is available.
+        try:
+            self.viewer.input_node.update_widgets()
+        except RuntimeError:
+            pass
+
+    @property
+    def deriv_root(self) -> Path | None:
+        """Configured derivatives root directory, if available."""
+        return self._setting_folder("deriv_root")
+
+    @deriv_root.setter
+    def deriv_root(self, value: Any) -> None:
+        self._set_setting_path(
+            key="deriv_root",
+            value=value,
+            prompt="Please select/create a folder for the derivatives root.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select the correct folder for data derivatives."
+            ),
+            reprompt_on_none=True,
+        )
+
+    @property
+    def subjects_dir(self) -> Path | None:
+        """Configured FreeSurfer subjects directory, if available."""
+        return self._get_subjects_dir_path()
+
+    @subjects_dir.setter
+    def subjects_dir(self, value):
+        if value is None:
+            selected_path = self._prompt_path(
+                "Please enter the path to the FreeSurfer subjects directory"
+            )
+            self._set_subjects_dir_path(selected_path)
+            return
+        selected_path = self._validate_existing_dir(value, key="subjects_dir")
+        self._set_subjects_dir_path(selected_path)
+
+    @property
+    def plot_root(self) -> Path | None:
+        """Configured plot output directory, if available."""
+        return self._setting_folder("plot_root")
+
+    @plot_root.setter
+    def plot_root(self, value):
+        self._set_setting_path(
+            key="plot_root",
+            value=value,
+            prompt="Please select/create a folder for saving plots.",
+            missing_message=(
+                "Path {path} does not exist! If you moved from another device, "
+                "please select/create the folder where plots should be saved."
+            ),
+            reprompt_on_none=True,
+        )
+
+    @property
+    def plot_path(self) -> Path:
+        """Path to the plot directory for the current project."""
+        plot_root = self.ensure_plot_root(interactive=False)
+        name = self.ensure_name(interactive=False)
+        plot_path = plot_root / name
+        if not isdir(plot_path):
+            plot_path.mkdir(parents=True, exist_ok=True)
+        return plot_path
+
     def ensure_config_path(self, interactive: bool = True) -> Path:
         if self._config_path is not None:
             return self._config_path
-        if not interactive:
-            raise RuntimeError(
-                "Config path is not initialized. Call ensure_config_path() first."
-            )
-        self.config_path = None
-        if self._config_path is None:
-            raise RuntimeError("Config path initialization failed.")
-        return self._config_path
+        config_path = self._ensure_setting_file(
+            key="config_path",
+            prompt=self._prompt_config_path,
+            missing_message=(
+                "Config file {path} does not exist! If you moved from another "
+                "device, please select/create the correct config-file."
+            ),
+            interactive=interactive,
+        )
+        self._apply_config_path(config_path)
+        return config_path
 
     def ensure_name(self, interactive: bool = True) -> str:
         name = self.get("name", None)
@@ -255,13 +540,8 @@ class Controller:
             raise RuntimeError(
                 "Project name is not initialized. Call ensure_name() first."
             )
-        name = get_user_input(
-            "Please enter a name for this project", "string", cancel_allowed=False
-        )
-        if name is None:
-            raise RuntimeError("Project name initialization failed.")
-        coerced_name = str(name)
-        self.set("name", coerced_name)
+        coerced_name = self._prompt_name()
+        self.name = coerced_name
         return coerced_name
 
     def ensure_bids_root(self, interactive: bool = True) -> Path:
@@ -305,17 +585,81 @@ class Controller:
             raise RuntimeError(
                 "FreeSurfer subjects directory is not configured. Call ensure_subjects_dir() first."
             )
-        selected_path = self._as_path(
-            get_user_input(
-                "Please enter the path to the FreeSurfer subjects directory",
-                "folder",
-                cancel_allowed=False,
-            )
+        selected_path = self._prompt_path(
+            "Please enter the path to the FreeSurfer subjects directory"
         )
-        if selected_path is None:
-            raise RuntimeError("FreeSurfer subjects directory initialization failed.")
         self.subjects_dir = selected_path
         return selected_path
+
+    def run_freesurfer_subprocess(self, command: list[str]) -> None:
+        """Run a FreeSurfer/MNE command using paths from controller settings."""
+        if len(command) == 0:
+            raise ValueError("Command must not be empty.")
+
+        fs_path_value = self.settings.get("fs_path", None)
+        if fs_path_value is None:
+            raise RuntimeError(
+                "Path to FREESURFER_HOME not set, can't run this function"
+            )
+        fs_path = str(fs_path_value)
+        subjects_dir = str(self.ensure_subjects_dir(interactive=False))
+        mne_path = self.settings.get("mne_path", None) or self.settings.get(
+            "wls_mne_path", None
+        )
+
+        environment = os.environ.copy()
+        environment["FREESURFER_HOME"] = fs_path
+        environment["SUBJECTS_DIR"] = subjects_dir
+
+        command_line = list(command)
+        if iswin:
+            command_line.insert(0, "wsl")
+            if mne_path is None:
+                raise RuntimeError(
+                    "Path to MNE environment in WSL not set, can't run this function"
+                )
+            environment["PATH"] = (
+                f"{fs_path}/bin:{mne_path}/bin:"
+                f"/usr/local/sbin:"
+                f"/usr/local/bin:"
+                f"/usr/sbin:"
+                f"/usr/bin:"
+                f"/sbin:"
+                f"/bin"
+            )
+            environment["WSLENV"] = "PATH/u:SUBJECTS_DIR/p:FREESURFER_HOME/u"
+        else:
+            environment["PATH"] = environment["PATH"] + f":{fs_path}/bin"
+
+        if ismac:
+            if isdir(join(fs_path, "lib/misc/lib")):
+                environment["PATH"] = environment["PATH"] + f":{fs_path}/lib/misc/bin"
+                environment["MISC_LIB"] = join(fs_path, "lib/misc/lib")
+                environment["LD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
+                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
+
+            if isdir(join(fs_path, "lib/gcc/lib")):
+                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/gcc/lib")
+
+        process = subprocess.Popen(
+            command_line,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            universal_newlines=True,
+        )
+
+        if process.stdout is not None:
+            for stdout_line in process.stdout:
+                if stdout_line:
+                    sys.stdout.write(stdout_line)
+
+        return_code = process.wait()
+        if return_code != 0:
+            raise RuntimeError(
+                f"FreeSurfer command failed with exit code {return_code}: {' '.join(command_line)}"
+            )
 
     def ensure_ready(
         self,
@@ -353,8 +697,7 @@ class Controller:
         """Load the configuration from the config-file if necessary."""
         config_path = self.ensure_config_path(interactive=False)
         try:
-            with open(config_path) as file:
-                config = json.load(file, object_hook=type_json_hook)
+            config = load_json(config_path)
         except (
             OSError,
             json.JSONDecodeError,
@@ -428,96 +771,6 @@ class Controller:
             self._local_set = True
 
     @property
-    def bids_root(self) -> Path | None:
-        """Configured BIDS root directory, if available."""
-        return self._setting_path("bids_root")
-
-    @bids_root.setter
-    def bids_root(self, value: os.PathLike) -> None:
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-        ans = ask_user(
-            "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
-        )
-        if ans:
-            # Clear selected inputs and custom groups
-            self.get("selected_inputs").clear()
-            self.get("custom_groups").clear()
-            # Update input widget
-            self.viewer.input_node.update_widgets()
-            self.settings.set("bids_root", value)
-
-    @property
-    def deriv_root(self) -> Path | None:
-        """Configured derivatives root directory, if available."""
-        return self._setting_path("deriv_root")
-
-    @deriv_root.setter
-    def deriv_root(self, value: str | Path) -> None:
-        if not isdir(value):
-            raise ValueError(f"Path {value} does not exist!")
-        self.settings.set("deriv_root", value)
-
-    @property
-    def subjects_dir(self) -> Path | None:
-        """Configured FreeSurfer subjects directory, if available."""
-        if is_test():
-            subjects_dir = self.settings.get("subjects_dir", None)
-        else:
-            subjects_dir = mne.get_config("SUBJECTS_DIR", None)
-        subjects_dir = self._as_path(subjects_dir)
-        if subjects_dir is not None and subjects_dir.is_dir():
-            return subjects_dir
-        return None
-
-    @subjects_dir.setter
-    def subjects_dir(self, value):
-        if value is not None:
-            if not isdir(value):
-                raise ValueError(f"Path {value} does not exist!")
-            if is_test():
-                self.settings.set("subjects_dir", value)
-            else:
-                mne.set_config("SUBJECTS_DIR", value)
-
-    @property
-    def plot_root(self) -> Path | None:
-        """Configured plot output directory, if available."""
-        return self._setting_path("plot_root")
-
-    @plot_root.setter
-    def plot_root(self, value):
-        if value is not None:
-            if not isdir(value):
-                raise ValueError(f"Path {value} does not exist!")
-            self.settings.set("plot_root", value)
-
-    @property
-    def plot_path(self) -> Path:
-        """Path to the plot directory for the current project."""
-        plot_root = self.ensure_plot_root(interactive=False)
-        name = self.ensure_name(interactive=False)
-        plot_path = plot_root / name
-        if not isdir(plot_path):
-            plot_path.mkdir(parents=True, exist_ok=True)
-        return plot_path
-
-    @property
-    def name(self) -> str | None:
-        return self.get("name", None)
-
-    @name.setter
-    def name(self, new_name):
-        old_name = self.get("name")
-        if old_name != new_name and self._config_path is not None:
-            # Rename the config file if the name changes
-            old_path = self._config_path
-            new_path = self._config_path.parent / f"{new_name}_config.json"
-            os.rename(old_path, new_path)
-            self._config_path = new_path
-        self.set("name", new_name)
-
-    @property
     def run_script_folder(self):
         """Path to the local config folder."""
         local_config_path = Path.home() / ".mne-nodes"
@@ -555,8 +808,7 @@ class Controller:
             logging.warning(f"Dataset description file not found at {dataset_file}.")
             return None
         else:
-            with open(dataset_file) as file:
-                dataset_description = json.load(file)
+            dataset_description = load_json(dataset_file)
             return dataset_description["Name"]
 
     def get_group_by(self, group_by):
@@ -589,6 +841,52 @@ class Controller:
 
         return data
 
+    def get_fsmri_subjects(self):
+        fsmri_subjects = (
+            os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
+        )
+        return fsmri_subjects
+
+    def check_subject(self, subject):
+        result = subject in self.get_fsmri_subjects()
+        if not result:
+            logging.warning(
+                f"Subject {subject} not found in FreeSurfer subjects directory!"
+            )
+            return False
+        return subject
+
+    def get_datatypes(self):
+        # ToDo: Implement data-types other than raw
+        bids_root = self.ensure_bids_root(interactive=False)
+        excluded_datatypes = ["func"]
+        return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
+
+    def get_datatype_items(self):
+        items = {}
+        data_types = self.get_datatypes()
+        for dt in data_types:
+            bp_kwargs = {"root": self.bids_root, "check": False}
+            if dt in self.raw_types:
+                bp_kwargs.update({"suffix": dt})
+            else:
+                bp_kwargs.update({"datatype": dt})
+            items[dt] = [
+                f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+            ]
+        return items
+
+    def input_selection_changed(self, selected, data_type):
+        selected_inputs = self.get("selected_inputs")
+        selected_inputs[data_type] = selected
+        self.set("selected_inputs", selected_inputs)
+        self.check_selection_enable()
+
+    def check_selection_enable(self):
+        # Enable/Disable start buttons based on whether any inputs are selected
+        any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
+        self.viewer.enable_start_buttons(any_selected)
+
     ####################################################################################
     # Parameters
     ####################################################################################
@@ -601,10 +899,12 @@ class Controller:
     def parameter(self, parameter_name: str, function_name: str) -> Any:
         """Get a specific parameter from the project parameters."""
         parameters = self.get("parameters")
-        if parameter_name not in parameters.get(function_name, {}):
-            logging.warning(
-                f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
-            )
+        if parameter_name == "subjects_dir":
+            return self.subjects_dir
+        elif parameter_name not in parameters.get(function_name, {}):
+            # logging.debug(
+            #     f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
+            # )
             value = self.get_default(parameter_name, function_name)
             self.set_parameter(parameter_name, value, function_name)
             return value
@@ -630,7 +930,7 @@ class Controller:
 
         return params
 
-    def get_func_from_param(self, parameter_name: str) -> list[str] | str | None:
+    def get_func_from_param(self, parameter_name: str) -> list:
         """Get the function name(s) associated with a specific parameter
         name."""
         function_meta = self.function_meta
@@ -639,82 +939,118 @@ class Controller:
             for func_name, func_meta in function_meta.items()
             if parameter_name in func_meta.get("parameters", {})
         ]
-        if not associated_functions:
-            return None
-        elif len(associated_functions) == 1:
-            return associated_functions[0]
-        else:
-            return associated_functions
+        return associated_functions
+
+    def get_func_by_input(self, input_name: str) -> list:
+        """Get the function name(s) associated with a specific input
+        name."""
+        function_meta = self.function_meta
+        associated_functions = [
+            func_name
+            for func_name, func_meta in function_meta.items()
+            if input_name in func_meta.get("inputs", {})
+        ]
+        return associated_functions
+
+    def get_func_by_output(self, output_name: str) -> list:
+        """Get the function name(s) associated with a specific output
+        name."""
+        function_meta = self.function_meta
+        associated_functions = [
+            func_name
+            for func_name, func_meta in function_meta.items()
+            if output_name in func_meta.get("outputs", {})
+        ]
+        return associated_functions
 
     ####################################################################################
     # Modules
     ####################################################################################
-    def _load_module_config(self, module_name, module_path):
-        """Load the configuration file for a module from the package path."""
-        config_file_path = Path(module_path).parent / f"{module_name}_config.json"
-        if not isfile(config_file_path):
-            raise RuntimeError(
-                f"Config file for {module_name} not found at {config_file_path}."
-            )
-        # load function-config
-        with open(config_file_path) as file:
-            config = json.load(file, object_hook=type_json_hook)["functions"]
-        # Add module-names to function-metas to allow identification
-        for func_dict in config.values():
-            func_dict["module"] = module_name
-        self.function_meta.update(config)
+    @staticmethod
+    def _get_module_name(config: dict[str, Any]) -> str:
+        """Return module_name from config or raise if it is missing/invalid."""
+        module_name = config.get("module_name")
+        if isinstance(module_name, str) and module_name.strip() != "":
+            return module_name
+        raise ValueError(
+            "Configuration must define a non-empty top-level 'module_name'."
+        )
 
-    def _import_module(self, module_name, module_path):
-        """Import a module from the given package path."""
-        pkg_path = Path(module_path).parent
-        # Add the package path to sys.path if not already present
-        if pkg_path not in sys.path:
-            sys.path.insert(0, str(pkg_path))
-        pkg_name = pkg_path.name
-        # Import the module from the package
-        try:
-            module = import_module(module_name, package=pkg_name)
-        except ModuleNotFoundError:
-            logging.error(f"Module {module_name} not found in {pkg_path}].")
-        else:
-            self.modules[module_name] = module
-        # Load the config file for the basic module
-        self._load_module_config(module_name, module_path)
-
-    def load_modules(self) -> None:
-        """Load custom modules from their config files."""
-        modules = self.settings.get("module_meta")
-        for module_name, module_config in modules.items():
-            module_path = module_config["path"]
-            if not isfile(module_path):
-                module_path = get_user_input(
-                    f"{module_path} was not found! Please supply the path to {Path(module_path).name}.",
-                    input_type="file",
-                    file_filter="Python files (*.py)",
+    def load_module_config(self, module):
+        """Load the configuration file for a module"""
+        config_path = getattr(module, "CONFIG_PATH", None)
+        if config_path is not None:
+            raw_config = load_json(config_path)
+            config = raw_config.get("functions", raw_config)
+            module_name = self._get_module_name(raw_config)
+            for function_name, function_meta in config.items():
+                function_meta.setdefault("module_name", module_name)
+            # Warn for duplicates
+            duplicate_functions = [fn for fn in config if fn in self.function_meta]
+            if len(duplicate_functions) > 0:
+                raise_user_attention(
+                    f"Duplicate function names found in module '{module.__name__}': {duplicate_functions}. Please rename those functions, they will not be imported until then",
+                    "warning",
                 )
-            self._import_module(module_name, module_path)
+                for df in duplicate_functions:
+                    del config[df]
+            self.function_meta.update(config)
 
-    def add_module(self, module_path: os.PathLike) -> None:
-        """Add a module to the controller from a config file or a script-file."""
-        if not isfile(module_path):
-            raise FileNotFoundError(f"Module file {module_path} not found.")
-        module_name = Path(module_path).stem
-        config_path = Path(module_path).parent / f"{module_name}_config.json"
-        if not isfile(config_path):
-            raise FileNotFoundError(f"Config file {config_path} not found.")
-        # Load module-config
-        with open(config_path) as file:
-            config = json.load(file, object_hook=type_json_hook)["module"]
-        # Add local path to module-meta to find it on this device (path is not stored in the json-config, since the module should be able to be copied easily between devices)
-        config["path"] = module_path
-        # Save module-meta to settings
-        module_meta = self.settings.get("module_meta", {})
-        module_meta[module_name] = config
-        self.settings.set("module_meta", module_meta)
-        # Import module
-        self._import_module(module_name, module_path)
+    def load_plugins(self):
+        for entry_point in [
+            ep
+            for ep in entry_points(group="mne_nodes.plugins")
+            if ep.name not in self.plugins
+        ]:
+            logging.info(f"Loading {entry_point.name}")
+            module = entry_point.load()
+            self.load_module_config(module)
+            self.plugins[entry_point.name] = module
+        return self.plugins
 
-    def reload_modules(self, module_name: Optional[str] = None) -> None:
+    def add_module(self, config_path: Union[str, Path]):
+        """Load function metadata from an external module config file."""
+        module_config_path = Path(config_path)
+        module_config = load_json(module_config_path)
+        functions = module_config.get("functions", module_config)
+        module_name = self._get_module_name(module_config)
+        for function_meta in functions.values():
+            function_meta.setdefault("module_name", module_name)
+
+        duplicate_functions = [fn for fn in functions if fn in self.function_meta]
+        if len(duplicate_functions) > 0:
+            raise_user_attention(
+                f"Duplicate function names found in module config '{module_config_path.name}': {duplicate_functions}.",
+                "warning",
+            )
+            for duplicate_function in duplicate_functions:
+                del functions[duplicate_function]
+        self.function_meta.update(functions)
+        declared_modules = {
+            function_meta.get("module_name")
+            for function_meta in functions.values()
+            if function_meta.get("module_name")
+        }
+        if len(declared_modules) == 0:
+            declared_modules = {module_name}
+
+        for declared_module in declared_modules:
+            self.plugins.setdefault(
+                declared_module, SimpleNamespace(CONFIG_PATH=module_config_path)
+            )
+        return module_name
+
+    def get_function_module_name(self, function_name: str) -> str:
+        """Return the module path configured for a function."""
+        function_meta = self.get_function_meta(function_name)
+        module_name = function_meta.get("module_name")
+        if not isinstance(module_name, str) or module_name.strip() == "":
+            raise KeyError(
+                f"Function '{function_name}' has no valid module configured."
+            )
+        return module_name
+
+    def reload_plugins(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
 
         This refreshes selected or all modules by removing them from sys.modules
@@ -728,20 +1064,20 @@ class Controller:
 
         Notes
         -----
-        This updates the controller's module objects, but it does not update
+        This updates the controller's plugins, but it does not update
         existing references to objects (e.g. functions) obtained before reload.
         Acquire fresh references after calling this.
 
         Examples
         --------
         >>> controller = Controller()
-        >>> func = controller.modules["module_name"].some_func
+        >>> func = controller.plugins["module_name"].some_func
         >>> controller.reload_modules()
-        >>> new_func = controller.modules["module_name"].some_func
+        >>> new_func = controller.plugins["module_name"].some_func
         """
 
         if module_name is None:
-            modules = self.modules
+            modules = self.plugins
         else:
             module = sys.modules[module_name]
             modules = {module_name: module}
@@ -760,7 +1096,7 @@ class Controller:
             # Import the module again
             new_module = import_module(module_name)
             # Update the module in the controller
-            self.modules[module_name] = new_module
+            self.plugins[module_name] = new_module
 
     def get_function_meta(self, function_name: str) -> Dict[str, Any]:
         """Get the metadata for a specific function."""
@@ -775,6 +1111,27 @@ class Controller:
                 )
 
         return function_meta
+
+    def get_functions_categorized(self) -> Dict[str, List[str]]:
+        """Get the functions categorized by their category and subcategory."""
+        categorized = {}
+        for func_name, func_meta in self.function_meta.items():
+            category = func_meta.get("category", "Uncategorized")
+            subcategory = func_meta.get("sub_category", None)
+            if category not in categorized:
+                categorized[category] = {}
+
+            if subcategory is not None:
+                # Add to subcategory dictionary
+                if subcategory not in categorized[category]:
+                    categorized[category][subcategory] = []
+                categorized[category][subcategory].append(func_name)
+            else:
+                # Add to category's main list if it doesn't exist yet
+                if "__main__" not in categorized[category]:
+                    categorized[category]["__main__"] = []
+                categorized[category]["__main__"].append(func_name)
+        return categorized
 
     def get_parameter_meta(
         self, parameter_name: str, function_name: str
@@ -826,8 +1183,8 @@ class Controller:
 
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
-        module_name = self.get_function_meta(function_name)["module"]
-        module = self.modules[module_name]
+        module_name = self.get_function_module_name(function_name)
+        module = self.plugins[module_name]
         function = getattr(module, function_name)
         if function is None:
             raise KeyError(
@@ -839,223 +1196,107 @@ class Controller:
 
         return func_code, start, end
 
-    def get_datatypes(self):
-        # ToDo: Implement data-types other than raw
-        bids_root = self.ensure_bids_root(interactive=False)
-        excluded_datatypes = ["anat", "func"]
-        return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
+    ####################################################################################
+    # Pipeline
+    ####################################################################################
+    def import_pipeline(self, import_path: Optional[Union[str, Path]] = None):
+        if import_path is None:
+            import_path = get_user_input(
+                "Select a pipeline configuration file to import.",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+            )
+            if import_path is None:
+                logging.warning("Pipeline import cancelled by user.")
+                return
 
-    @staticmethod
-    def tab(num_tabs=1, tab_size=4):
-        """Return a string of tabs for indentation."""
-        return " " * (num_tabs * tab_size)
-
-    def _build_header(self, functions):
-        code = (
-            "# This code was generated by mne-nodes\n\n"
-            "import os\n"
-            "import traceback\n"
-            "import logging\n"
-            "from tqdm import tqdm\n"
-            "from rich.pretty import pprint\n"
-            "import mne\n"
-            "from mne_bids import BIDSPath, read_raw_bids, get_datatypes, get_bids_path_from_fname\n"
-            "import mne_nodes\n"
-            "from mne_nodes.pipeline.controller import Controller\n"
-            "# Activate matplotlibs interactive mode\n"
-            "import matplotlib.pyplot as plt\n"
-            "plt.ion()\n"
-            "# Disable gui-mode\n"
-            "mne_nodes.gui_mode = False\n\n"
-            "# Load controller\n"
-            f"ct = Controller(config_path='{self.ensure_config_path(interactive=False).as_posix()}')\n\n"
-            "# Inject modules into global namespace\n"
-            "globals().update(ct.modules)\n"
-            "# Import modules\n"
-        )
-        # Add module imports
-        modules = set(functions.values())
-        for module in modules:
-            code += f"from {module} import {', '.join([f for f, m in functions.items() if m == module])}\n"
-        return code
-
-    @staticmethod
-    def _indent(code, num_tabs=1):
-        """Indent a code string by a given number of tabs."""
-        indent_str = Controller.tab(num_tabs)
-        # If line empty, don't indent
-        indented_code = "\n".join(
-            indent_str + line for line in code.splitlines() if line != ""
-        )
-        indented_code += "\n"
-        return indented_code
-
-    def convert_to_code(self, node_sequence):
-        """Convert a list of instructions to a Python code string."""
-        # start code with header and imports
-        functions = {
-            n["name"]: self.get_function_meta(n["name"])["module"]
-            for n in node_sequence
-            if n["class"] == "FunctionNode"
-        }
-        code = self._build_header(functions)
-        code += "\n# Execute pipeline\n"
-        # Get available datatypes
-        data_types = self.get_datatypes()
-        # Ordering targets (files first)
-        targets = {t: [] for t in ["file", "group"]}
-        for n in node_sequence:
-            if n["class"] == "FunctionNode":
-                func_meta = self.get_function_meta(n["name"])
-                target = func_meta["target"]
-                if target not in targets:
-                    logging.warning(
-                        f"Target '{target}' not recognized. Step {n['name']} will be ignored in code generation."
-                    )
-                    continue
-                targets[target].append(n)
-        # Iterate nodes
-        for target, nodes in targets.items():
-            if len(nodes) == 0:
+        pipeline_dict = load_json(import_path)
+        # Import parameters
+        self.set("parameters", pipeline_dict.get("parameters", {}))
+        # Import legacy module configs or install missing plugins.
+        missing_modules = [
+            module_name
+            for module_name in pipeline_dict.get("modules", [])
+            if module_name not in self.plugins
+        ]
+        for module_name in missing_modules:
+            module_config_path = get_user_input(
+                f"Select the config file for missing module '{module_name}'.",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+            )
+            if module_config_path is None:
+                logging.warning(
+                    f"Skipping missing module '{module_name}' during pipeline import."
+                )
                 continue
-            code += f"# Target: {target}\n"
-            loaded_data = []
-            for selection_type in [
-                key
-                for key, items in self.get("selected_inputs").items()
-                if len(items) > 0
-            ]:
-                if (selection_type in self.scopes and target == "file") or (
-                    selection_type in data_types and target == "group"
-                ):
-                    continue
-                code += f"# Selection-Type: {selection_type}\n"
-                if target == "group":
-                    code += f"group = ct.get_group_by('{selection_type}')\n"
-                code += f"for item in ct.get('selected_inputs')['{selection_type}']:\n"
-                # Prepare bids-paths
-                if target == "file" and selection_type in data_types:
-                    code += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
-                else:
-                    # For group-data, load and return generators of the group-members
-                    code += self._indent("members = group[item]\n", 1)
-                for n in nodes:
-                    name = n["name"]
-                    if target == "file":
-                        inputs = [i for i in n["inputs"] if i not in loaded_data]
-                    else:
-                        # For group-data generators need to be reloaded since they exhaust on every use
-                        inputs = n["inputs"]
-                    for ip in inputs:
-                        # Load selected data-types (if not already loaded)
-                        if ip == "raw":
-                            # Load raw from original bids-dataset
-                            if target == "file":
-                                code += self._indent(
-                                    "bp_raw = bp.copy().update(root=ct.bids_root)\n", 1
-                                )
-                                code += self._indent("raw = read_raw_bids(bp_raw)\n", 1)
-                            else:
-                                code += self._indent(
-                                    "raw = (read_raw_bids(rp) for rp in members)\n", 1
-                                )
-                            loaded_data.append("raw")
-                        else:
-                            # Load data from derivatives
-                            input_meta = self.get_input_meta(
-                                function_name=name, input_name=ip
-                            )
-                            load_func = input_meta.get("load", None)
-                            if load_func is not None:
-                                suffix = input_meta.get("suffix") or ip
-                                # Load data from storage
-                                code += self._indent(f"# Load {ip}", 1)
-                                code += self._indent(
-                                    f"load_kwargs = ct.get_input_meta('{name}', '{ip}').get('load_kwargs', {{}})\n",
-                                    1,
-                                )
-                                if target == "file":
-                                    code += self._indent(
-                                        f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                        1,
-                                    )
-                                    # This assumes, that the file-path is always the first argument in a load-function
-                                    code += self._indent(
-                                        f"{ip} = {load_func}(data_path, **load_kwargs)\n",
-                                        1,
-                                    )
-                                else:
-                                    code += self._indent(
-                                        f"{ip} = ({load_func}(dp, **load_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members])\n",
-                                        1,
-                                    )
-                            loaded_data.append(ip)
-                    code += self._indent(f"# Execute function {name}\n", 1)
-                    code += self._indent(
-                        f"print(f'Executing {name} for {{item}} with the following parameters:')\n",
-                        1,
-                    )
-                    code += self._indent(
-                        f"func_params = ct.func_parameters('{name}')", 1
-                    )
-                    code += self._indent("pprint(func_params)\n", 1)
-                    outputs = ", ".join([op for op in n["outputs"]])
-                    loaded_data += n["outputs"]
-                    inputs = ", ".join([f"{ip}={ip}" for ip in n["inputs"]])
-                    func_line = ""
-                    if outputs:
-                        func_line += f"{outputs} = "
-                    func_line += f"{name}("
-                    if inputs:
-                        func_line += f"{inputs}, **func_params)"
-                    else:
-                        func_line += "**func_params)"
-                    code += self._indent(func_line, 1)
-                    # Save outputs (if enabled)
-                    if n["checked"]:
-                        for op in n["outputs"]:
-                            output_meta = self.get_output_meta(
-                                function_name=name, output_name=op
-                            )
-                            save_func = output_meta.get("save", None)
-                            if save_func is not None:
-                                suffix = output_meta.get("suffix") or op
-                                # Save data to storage
-                                code += self._indent(f"# Save {op}\n", 1)
-                                if target == "file":
-                                    code += self._indent(
-                                        f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                        1,
-                                    )
-                                else:
-                                    code += self._indent(
-                                        f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"
-                                        "data_path.mkdir(exist_ok=True)\n",
-                                        1,
-                                    )
-                                code += self._indent(
-                                    f"save_kwargs = ct.get_output_meta(function_name='{name}', output_name='{op}').get('save_kwargs', {{}})\n",
-                                    1,
-                                )
-                                if save_func.startswith("."):
-                                    code += self._indent(
-                                        f"{op}{save_func}(data_path, **save_kwargs)\n",
-                                        1,
-                                    )
-                                else:
-                                    # This assumes, that the file-path is always the first argument in a save-function
-                                    code += self._indent(
-                                        f"{save_func}(data_path, {op}, **save_kwargs)\n",
-                                        1,
-                                    )
+            self.add_module(module_config_path)
 
-        code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
+        missing_plugins = [
+            plugin
+            for plugin in pipeline_dict.get("plugins", [])
+            if plugin not in self.plugins
+        ]
+        if len(missing_plugins) > 0:
+            logging.warning(
+                f"Missing plugins found for this pipeline: {missing_plugins}. Attempting to install them."
+            )
+            install_pip_packages(missing_plugins, self.main_window)
+            self.load_plugins()
 
-        return code
+        # import pipeline structure to viewer
+        self.viewer.from_dict(pipeline_dict["nodes"])
+        logging.info(f"Pipeline imported from {import_path}.")
+
+    def import_pipeline_user_prompt(self):
+        self.import_pipeline()
+
+    def get_used_plugins(self):
+        """Get all used plugins from the current function-nodes in the viewer."""
+        plugins = set()
+        if hasattr(self.viewer, "get_unique_functions"):
+            function_names = self.viewer.get_unique_functions()
+        else:
+            pipeline_dict = self.viewer.to_dict()
+            function_names = [
+                node_config.get("name")
+                for node_config in pipeline_dict.get("nodes", {}).values()
+                if node_config.get("name")
+            ]
+
+        for func_name in function_names:
+            try:
+                func_meta = self.get_function_meta(func_name)
+            except KeyError:
+                continue
+            plugins.add(func_meta["module_name"])
+        return plugins
+
+    def export_pipeline(self, export_path: Optional[Union[str, Path]] = None):
+        if export_path is None:
+            export_path = get_user_input(
+                "Select a location to save the pipeline configuration.",
+                input_type="file_new",
+                file_filter="JSON files (*.json)",
+            )
+            if export_path is None:
+                logging.warning("Pipeline export cancelled by user.")
+                return
+
+        pipeline_dict = {
+            "nodes": self.viewer.to_dict(),
+            "plugins": self.get_used_plugins(),
+            "parameters": self.get("parameters", {}),
+        }
+        with open(export_path, "w") as file:
+            json.dump(pipeline_dict, file, indent=4, cls=TypedJSONEncoder)
+
+    def export_pipeline_user_prompt(self):
+        self.export_pipeline()
 
     def start(self, node_sequence):
         # Generate code file
-        code = self.convert_to_code(node_sequence)
+        code = CodeGenerator(self, node_sequence).code
         run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)

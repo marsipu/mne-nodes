@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import faulthandler
 import json
 import os  # added
 from os import mkdir
@@ -65,10 +66,12 @@ def settings(tmp_path):
 
 
 # ToDo: Create a dummy function-configuration and parameterss
-@pytest.fixture
-def ct(tmp_path, monkeypatch, settings):
-    """Fixture to create a Controller with temporary config, data and subjects
-    directories."""
+def create_test_controller(settings, tmp_path, monkeypatch):
+    """Create a test controller with deterministic user-interaction patches.
+
+    This helper is reusable from test modules that need to create a Controller
+    with the same mocked setup as the `ct` fixture.
+    """
     from mne_nodes.pipeline.controller import Controller
 
     # Simulate user input
@@ -99,10 +102,24 @@ def ct(tmp_path, monkeypatch, settings):
     settings.set("bids_root", tiny_bids_root)
 
     # Create Controller
-    ct = Controller(settings=settings)
-    ct.ensure_ready(required=("config_path",))
+    faulthandler.enable()
+    controller = Controller(settings=settings)
+    controller.ensure_ready(required=("config_path",))
+    validation_functions_config = (
+        Path(__file__).parent / "tests" / "validation_functions_config.json"
+    )
+    controller.add_module(validation_functions_config)
 
-    return ct
+    return controller
+
+
+@pytest.fixture
+def ct(qtbot, tmp_path, monkeypatch, settings):
+    """Fixture to create a Controller with temporary config, data and subjects
+    directories."""
+    return create_test_controller(
+        settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
 
 
 @pytest.fixture
@@ -120,7 +137,7 @@ def parameter_values_alt():
 def _add_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node()
-    func_node = viewer.add_function_node("filter_bandpass")
+    func_node = viewer.add_function_node("test_filter")
 
     # Establish connection
     in_node.output(port_name="eeg").connect_to(func_node.input(port_name="raw"))
@@ -132,10 +149,10 @@ def _add_nodes(viewer):
 def _add_complex_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node()
-    filter_node = viewer.add_function_node("filter_bandpass")
-    epochs_node = viewer.add_function_node("create_epochs")
-    evokeds_node = viewer.add_function_node("create_evokeds")
-    plot_node = viewer.add_function_node("plot_evokeds")
+    filter_node = viewer.add_function_node("test_filter")
+    epochs_node = viewer.add_function_node("test_epochs")
+    evokeds_node = viewer.add_function_node("test_evokeds")
+    plot_node = viewer.add_function_node("test_plot_evokeds")
 
     # Connect the nodes
     in_node.output(port_idx=0).connect_to(filter_node.input(port_name="raw"))
@@ -217,7 +234,6 @@ def test_module_config(tmp_path, test_script):
         "module_alias": "test_module",
         "functions": {
             "test_func1": {
-                "alias": "test_func1",
                 "group": "Test",
                 "module": "test_module",
                 "thread-safe": True,
@@ -226,7 +242,6 @@ def test_module_config(tmp_path, test_script):
                 "outputs": ["a_squared"],
             },
             "test_func2": {
-                "alias": "test_func2",
                 "group": "Test",
                 "module": "test_module",
                 "thread-safe": True,

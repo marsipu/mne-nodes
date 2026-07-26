@@ -30,15 +30,11 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes.gui.base_widgets import (
-    AssignWidget,
-    CheckDictList,
-    CheckList,
-    EditDict,
-    SimpleList,
-)
+from mne_nodes.gui.widgets.dict_widgets import EditDict
+from mne_nodes.gui.widgets.list_widgets import CheckDictList, CheckList, SimpleList
+from mne_nodes.gui.widgets.misc_widgets import AssignWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
-from mne_nodes.gui.parameter_widgets import ComboGui
+from mne_nodes.gui.parameter import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.pipeline.pipeline_utils import get_n_jobs

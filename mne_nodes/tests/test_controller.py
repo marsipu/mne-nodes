@@ -5,8 +5,13 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 import pytest
+from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
@@ -39,7 +44,7 @@ def test_init(ct):
 def test_module_import(tmp_path, ct, test_module_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic modules are imported
-    assert list(ct.modules.keys()) == ["core_functions"]
+    assert "mne_nodes.tests.validation_functions" in ct.plugins
 
     # Add a custom module
     ct.add_module(test_module_config)
@@ -120,6 +125,197 @@ def test_getters_are_non_interactive(settings):
 
     with pytest.raises(RuntimeError):
         controller.ensure_ready(required=("config_path",), interactive=False)
+
+
+def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch):
+    controller = Controller(settings=settings)
+    prompts = {
+        "Please select/create a folder for the bids-root.": tmp_path / "bids",
+        "Please select/create a folder for the derivatives root.": tmp_path / "deriv",
+        "Please select/create a folder for saving plots.": tmp_path / "plots",
+        "Please enter the path to the FreeSurfer subjects directory": tmp_path
+        / "subjects",
+    }
+    for path in prompts.values():
+        path.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts[message],
+    )
+    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
+
+    controller.bids_root = None
+    controller.deriv_root = None
+    controller.plot_root = None
+    controller.subjects_dir = None
+
+    assert (
+        controller.bids_root
+        == prompts["Please select/create a folder for the bids-root."]
+    )
+    assert (
+        controller.deriv_root
+        == prompts["Please select/create a folder for the derivatives root."]
+    )
+    assert (
+        controller.plot_root
+        == prompts["Please select/create a folder for saving plots."]
+    )
+    assert (
+        controller.subjects_dir
+        == prompts["Please enter the path to the FreeSurfer subjects directory"]
+    )
+
+
+def test_import_pipeline_adds_missing_modules(ct, tmp_path, monkeypatch):
+    class DummyViewer:
+        def __init__(self):
+            self.received = None
+
+        def from_dict(self, pipeline_dict):
+            self.received = pipeline_dict
+
+    imported_nodes = {"nodes": {"input": {"name": "Input-0"}}, "connections": {}}
+    import_payload = {
+        "nodes": imported_nodes,
+        "modules": ["test_module"],
+        "parameters": {"test_func1": {"a": 12}},
+    }
+    import_path = tmp_path / "pipeline_import_missing_module.json"
+    module_config_path = tmp_path / "test_module_config.json"
+    module_config_path.write_text("{}", encoding="utf-8")
+    with open(import_path, "w") as file:
+        json.dump(import_payload, file, indent=4, cls=TypedJSONEncoder)
+
+    prompts = iter([import_path, module_config_path])
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda *a, **k: Path(next(prompts)),
+    )
+    added_modules = []
+    monkeypatch.setattr(ct, "add_module", lambda path: added_modules.append(Path(path)))
+    dummy_viewer = DummyViewer()
+    monkeypatch.setitem(_widgets, "viewer", dummy_viewer)
+
+    ct.import_pipeline()
+
+    assert added_modules == [module_config_path]
+    assert dummy_viewer.received == imported_nodes
+
+
+def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
+    class ExportViewer:
+        def __init__(self, pipeline_dict):
+            self._pipeline_dict = pipeline_dict
+
+        def to_dict(self):
+            return self._pipeline_dict
+
+    class ImportViewer:
+        def __init__(self):
+            self.received = None
+
+        def from_dict(self, pipeline_dict):
+            self.received = pipeline_dict
+
+    roundtrip_nodes = {
+        "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
+        "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
+    }
+    roundtrip_parameters = {
+        "test_filter": {"l_freq": 1.0, "h_freq": 40.0},
+        "test_epochs": {"tmin": -0.2, "tmax": 0.5},
+    }
+    ct.set("parameters", roundtrip_parameters)
+
+    export_path = tmp_path / "pipeline_roundtrip.json"
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", lambda *a, **k: export_path
+    )
+    monkeypatch.setitem(_widgets, "viewer", ExportViewer(roundtrip_nodes))
+    ct.export_pipeline()
+
+    ct.set("parameters", {})
+    import_viewer = ImportViewer()
+    monkeypatch.setitem(_widgets, "viewer", import_viewer)
+    ct.import_pipeline()
+
+    assert export_path.exists(), "Roundtrip export should create a JSON file"
+    assert ct.get("parameters") == roundtrip_parameters
+    assert import_viewer.received == roundtrip_nodes
+
+
+@pytest.mark.timeout(180)
+def test_code_generation_script_executes_complex_pipeline(
+    qtbot, tmp_path, monkeypatch, settings
+):
+    from mne_nodes.conftest import _add_complex_nodes, create_test_controller
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+    from mne_nodes.pipeline.code_generation import CodeGenerator
+
+    monkeypatch.setattr(Controller, "load_plugins", lambda self: self.plugins)
+    ct = create_test_controller(
+        settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    for function_meta in ct.function_meta.values():
+        function_meta.setdefault("class_name", None)
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    _add_complex_nodes(viewer)
+
+    eeg_files = []
+    for extension in (".vhdr", ".edf", ".bdf", ".set"):
+        eeg_files = sorted(ct.bids_root.rglob(f"*_eeg{extension}"))
+        if len(eeg_files) > 0:
+            break
+    assert len(eeg_files) > 0, "tiny_bids fixture should provide at least one EEG file"
+
+    deriv_root = tmp_path / "derivatives"
+    deriv_root.mkdir(parents=True, exist_ok=True)
+    ct.deriv_root = deriv_root
+    ct.set("selected_inputs", {"eeg": [eeg_files[0].name]})
+    ct.flush()
+
+    node_sequence = viewer.get_node_sequence(viewer.input_node)
+    # Keep all outputs in-memory to avoid filesystem format assumptions.
+    for node in node_sequence:
+        node["checked"] = False
+
+    generated_code = CodeGenerator(ct, node_sequence).code
+    validation_config_path = Path(__file__).parent / "validation_functions_config.json"
+    generated_code = generated_code.replace(
+        "# Load controller\n",
+        "# Load controller\nController.load_plugins = lambda self: self.plugins\n",
+        1,
+    )
+    generated_code = generated_code.replace(
+        "\n\n# Inject modules into global namespace\n",
+        (
+            f"\nct.add_module('{validation_config_path.as_posix()}')\n\n"
+            "# Inject modules into global namespace\n"
+        ),
+        1,
+    )
+    script_path = tmp_path / "generated_pipeline.py"
+    script_path.write_text(generated_code, encoding="utf-8")
+
+    env = os.environ.copy()
+    env["MPLBACKEND"] = "Agg"
+    completed = subprocess.run(
+        [sys.executable, str(script_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=180,
+        check=False,
+    )
+    assert completed.returncode == 0, (
+        "Generated script failed.\n"
+        f"STDOUT:\n{completed.stdout}\n"
+        f"STDERR:\n{completed.stderr}"
+    )
 
 
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference

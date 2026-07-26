@@ -42,7 +42,7 @@ from mne_nodes.gui.gui_utils import (
     get_user_input,
     ask_user_custom,
 )
-from mne_nodes.gui.parameter_widgets import (
+from mne_nodes.gui.parameter import (
     IntGui,
     FloatGui,
     StringGui,
@@ -445,7 +445,14 @@ class FunctionImporter(QDialog):
             if isfile(config_path):
                 with open(config_path) as f:
                     config = json.load(f, object_hook=type_json_hook)
-                    self.module_config = config.get("module", {})
+                    module_config = {
+                        key: value
+                        for key, value in config.items()
+                        if key != "functions"
+                    }
+                    if "module_name" not in module_config:
+                        module_config["module_name"] = self.module_name
+                    self.module_config = module_config
                     self.func_config = config.get("functions", {})
                     logging.info(f"Successfully loaded config from {config_path}")
             self.clear_editor_tabs()
@@ -476,6 +483,7 @@ class FunctionImporter(QDialog):
                     "parameters": {},
                     "outputs": {},
                     "target": "file",
+                    "category": self.module_name,
                 }
             start_line = func.lineno - 1
             end_line = func.end_lineno
@@ -746,11 +754,15 @@ class FunctionImporter(QDialog):
         ParameterConfiguration(param_name, config, parent=self).open()
 
     def _get_config_path(self):
-        return self._pkg_dir / f"{self.module_name}_config.json"
+        if self._pkg_dir is not None:
+            return Path(self._pkg_dir) / f"{self.module_name}_config.json"
 
     def save_config(self):
         save_path = self._get_config_path()
-        config = {"module": self.module_config, "functions": self.func_config}
+        if not isinstance(self.module_config, dict):
+            self.module_config = {}
+        self.module_config.setdefault("module_name", self.module_name)
+        config = {**self.module_config, "functions": self.func_config}
         with open(save_path, "w") as f:
             json.dump(config, f, indent=4, cls=TypedJSONEncoder)
             logging.info(f"Saved config to {save_path}")

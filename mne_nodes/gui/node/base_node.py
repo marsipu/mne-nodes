@@ -586,6 +586,10 @@ class BaseNode(QGraphicsItem):
         }
         return description
 
+    def enable_start(self, enable=True):
+        if self.start_button is not None:
+            self.start_button.setEnabled(enable)
+
     def start_clicked(self):
         if self.viewer is not None:
             node_sequence = self.viewer.get_node_sequence(self)
@@ -745,10 +749,13 @@ class BaseNode(QGraphicsItem):
         painter.restore()
 
     def mousePressEvent(self, event):
-        """Re-implemented to ignore event if LMB is over port collision area.
+        """Re-implemented to ignore the event when the left mouse button
+        is over the port collision area.
 
-        Args:
-            event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            Mouse event.
         """
         if event.button() == Qt.MouseButton.LeftButton:
             for p in self.inputs + self.outputs:
@@ -758,10 +765,12 @@ class BaseNode(QGraphicsItem):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Re-implemented to ignore event if Alt modifier is pressed.
+        """Re-implemented to ignore the event when Alt is pressed.
 
-        Args:
-            event (QtWidgets.QGraphicsSceneMouseEvent): mouse event.
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            Mouse event.
         """
         if event.modifiers() == Qt.KeyboardModifier.AltModifier:
             event.ignore()
@@ -769,11 +778,14 @@ class BaseNode(QGraphicsItem):
         super().mouseReleaseEvent(event)
 
     def itemChange(self, change, value):
-        """Re-implemented to update pipes on selection changed.
+        """Re-implemented to update pipes when selection changes.
 
-        Args:
-            change:
-            value:
+        Parameters
+        ----------
+        change : QGraphicsItem.GraphicsItemChange
+            Item change type.
+        value : Any
+            New value.
         """
         if change == self.GraphicsItemChange.ItemSelectedChange and self.scene():
             self.reset_pipes()
@@ -787,11 +799,14 @@ class BaseNode(QGraphicsItem):
         return super().itemChange(change, value)
 
     def _set_base_size(self, add_w=0.0, add_h=0.0):
-        """Sets the initial base size for the node.
+        """Set the initial base size for the node.
 
-        Args:
-            add_w (float): add additional width.
-            add_h (float): add additional height.
+        Parameters
+        ----------
+        add_w : float
+            Additional width to add.
+        add_h : float
+            Additional height to add.
         """
         width, height = self.calc_size(add_w, add_h)
         if (width, height) != (self.width, self.height):
@@ -801,8 +816,10 @@ class BaseNode(QGraphicsItem):
     def _set_text_color(self, color):
         """Set text color.
 
-        Args:
-            color (tuple): color value in (r, g, b, a).
+        Parameters
+        ----------
+        color : tuple
+            Color value in ``(r, g, b, a)`` format.
         """
         for port in self.inputs + self.outputs:
             port.text_color = color

@@ -151,13 +151,13 @@ class Process(QProcess):
     def _write_stdout(self, text):
         if self.console is not None:
             self.console.push_stdout(text)
-        else:
+        elif isinstance(text, str):
             sys.stdout.write(text)
 
     def _write_stderr(self, text):
         if self.console is not None:
             self.console.push_stderr(text)
-        else:
+        elif isinstance(text, str):
             sys.stderr.write(text)
 
     def handle_error(self, error):

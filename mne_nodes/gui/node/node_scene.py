@@ -62,13 +62,18 @@ class NodeScene(QGraphicsScene):
         self.setBackgroundBrush(QColor(*self._bg_color))
 
     def _draw_grid(self, painter, rect, pen, grid_size):
-        """Draws the grid lines in the scene.
+        """Draw the grid lines in the scene.
 
-        Args:
-            painter (QPainter): painter object.
-            rect (QRectF): rect object.
-            pen (QPen): pen object.
-            grid_size (int): grid size.
+        Parameters
+        ----------
+        painter : QPainter
+            Painter object.
+        rect : QRectF
+            Scene rectangle.
+        pen : QPen
+            Pen object.
+        grid_size : int
+            Grid size.
         """
         left = int(rect.left())
         right = int(rect.right())
@@ -90,13 +95,18 @@ class NodeScene(QGraphicsScene):
         painter.drawLines(lines)
 
     def _draw_dots(self, painter, rect, pen, grid_size):
-        """Draws the grid dots in the scene.
+        """Draw the grid dots in the scene.
 
-        Args:
-            painter (QPainter): painter object.
-            rect (QRectF): rect object.
-            pen (QPen): pen object.
-            grid_size (int): grid size.
+        Parameters
+        ----------
+        painter : QPainter
+            Painter object.
+        rect : QRectF
+            Scene rectangle.
+        pen : QPen
+            Pen object.
+        grid_size : int
+            Grid size.
         """
         zoom = self.viewer().get_zoom()
         if zoom < 0:

@@ -7,7 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDockWidget, QTableView, QAbstractItemView
 
-from mne_nodes.gui.models import FunctionPickerModel
+from mne_nodes.gui.widget_models.function_picker_model import FunctionPickerModel
 
 
 class DraggableTableView(QTableView):

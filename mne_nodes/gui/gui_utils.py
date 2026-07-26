@@ -14,7 +14,7 @@ from os.path import join
 from pathlib import Path
 
 import darkdetect
-from qtpy.QtCore import QEvent, QPoint, Qt
+from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
 from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -332,6 +332,21 @@ def _get_open_file(prompt, parent=None, file_filter=None):
     return (selected[0] if selected else ""), True
 
 
+def _get_save_file(prompt, parent=None, file_filter=None):
+    dialog = QFileDialog(parent, prompt)
+    dialog.setFileMode(QFileDialog.FileMode.AnyFile)
+    dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+    if file_filter:
+        dialog.setNameFilter(file_filter)
+
+    ok = dialog.exec() == QDialog.DialogCode.Accepted
+    if not ok:
+        return "", False
+
+    selected = dialog.selectedFiles()
+    return (selected[0] if selected else ""), True
+
+
 def get_user_input(
     prompt,
     input_type="string",
@@ -339,7 +354,7 @@ def get_user_input(
     cancel_allowed=True,
     exit_on_cancel=False,
     parent=None,
-):
+) -> str | os.PathLike | None:
     """Get user input either via GUI or terminal, supporting string and path
     input.
 
@@ -348,7 +363,7 @@ def get_user_input(
     prompt : str
         The prompt message to display to the user.
     input_type : str, optional
-        The type of input to request: "string", "folder" or "file".
+        The type of input to request: "string", "folder", "file" or "file_new".
     file_filter : str, optional
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
     cancel_allowed : bool, optional
@@ -371,7 +386,7 @@ def get_user_input(
         If `input_type` is not "string" or "path".
     """
     type_error_message = (
-        f"input_type must be 'string', 'folder' or 'file', not '{input_type}'"
+        f"input_type must be 'string', 'folder', 'file', 'file_new', not '{input_type}'"
     )
     if gui_mode:
         if input_type == "string":
@@ -380,6 +395,10 @@ def get_user_input(
             user_input, ok = _get_existing_directory(prompt, parent=parent)
         elif input_type == "file":
             user_input, ok = _get_open_file(
+                prompt, parent=parent, file_filter=file_filter
+            )
+        elif input_type == "file_new":
+            user_input, ok = _get_save_file(
                 prompt, parent=parent, file_filter=file_filter
             )
         else:
@@ -399,6 +418,10 @@ def get_user_input(
             user_input = input(
                 f"{prompt} | Please enter the full path to the file (c/cancel): "
             )
+        elif input_type == "file_new":
+            user_input = input(
+                f"{prompt} | Please enter the full path for the new file (c/cancel): "
+            )
         else:
             raise ValueError(type_error_message)
         ok = user_input is not None and user_input.lower() not in ["cancel", "c"]
@@ -415,7 +438,7 @@ def get_user_input(
     elif input_type == "folder" and not os.path.isdir(user_input):
         warning_message = "The provided path is not a valid directory!"
     elif input_type == "file" and not os.path.isfile(user_input):
-        warning_message = "The provided path is not a valid file!"
+        warning_message = "The provided path does not exist!"
     elif input_type == "string" and not isinstance(user_input, str):
         warning_message = "The provided input is not a valid string!"
     else:
@@ -425,7 +448,7 @@ def get_user_input(
         return get_user_input(prompt, input_type)
 
     # Convert path-strings to Path-objects
-    if input_type in ["folder", "file"] and user_input is not None:
+    if input_type in ["folder", "file", "file_new"] and user_input is not None:
         user_input = Path(user_input)
 
     return user_input
@@ -474,37 +497,69 @@ def mouse_interaction(func):
     return wrapper
 
 
+def _event_positions(widget, pos):
+    """Return local and global positions as QPointF for Qt6 mouse events."""
+    if widget is None:
+        raise ValueError("widget must not be None")
+    if pos is None:
+        raise ValueError("pos must not be None")
+    local_pos = QPointF(pos)
+    global_point = widget.mapToGlobal(local_pos.toPoint())
+    global_pos = QPointF(global_point)
+    return local_pos, global_pos
+
+
 @mouse_interaction
 def mousePress(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
+    if button is None:
+        button = Qt.MouseButton.LeftButton
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseButtonPress, pos, button, Qt.MouseButton.NoButton, modifier
+        QEvent.Type.MouseButtonPress, local_pos, global_pos, button, button, modifier
     )
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseRelease(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
+    if button is None:
+        button = Qt.MouseButton.LeftButton
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseButtonRelease, pos, button, Qt.MouseButton.NoButton, modifier
+        QEvent.Type.MouseButtonRelease,
+        local_pos,
+        global_pos,
+        button,
+        Qt.MouseButton.NoButton,
+        modifier,
     )
     QApplication.sendEvent(widget, event)
 
 
 @mouse_interaction
 def mouseMove(widget=None, pos=None, button=None, modifier=None):
+    if widget is None:
+        raise ValueError("widget must not be None")
     if button is None:
         button = Qt.MouseButton.NoButton
     if modifier is None:
         modifier = Qt.KeyboardModifier.NoModifier
-
-    if isinstance(pos, QPoint):
-        pass
+    local_pos, global_pos = _event_positions(widget, pos)
     event = QMouseEvent(
-        QEvent.Type.MouseMove, pos, Qt.MouseButton.NoButton, button, modifier
+        QEvent.Type.MouseMove,
+        local_pos,
+        global_pos,
+        Qt.MouseButton.NoButton,
+        button,
+        modifier,
     )
     QApplication.sendEvent(widget, event)
 

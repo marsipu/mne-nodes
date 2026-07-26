@@ -22,7 +22,38 @@ from mne_nodes.pipeline.execution import Worker, Process
 
 
 class WorkerDialog(QDialog):
-    """A Dialog for a Worker doing a function."""
+    """A Dialog for a Worker doing a function.
+
+    This dialog manages the execution of a worker thread and provides UI elements
+    for progress tracking and user interaction.
+
+    Parameters
+    ----------
+    parent : QWidget
+        Parent widget for this dialog.
+    function : callable
+        The function to be executed in the worker thread.
+    show_buttons : bool, default False
+        If True, displays Cancel and Close buttons.
+    show_console : bool, default False
+        If True, displays a console output widget.
+    close_directly : bool, default True
+        If True, closes the dialog automatically when the worker finishes.
+    blocking : bool, default False
+        If True, blocks execution until the dialog is closed (exec mode).
+        If False, displays the dialog non-blocking (open mode).
+    return_exception : bool, default False
+        If True, returns exception information; otherwise returns None on error.
+    title : str, optional
+        Title to display at the top of the dialog.
+    **kwargs
+        Additional keyword arguments passed to the Worker.
+
+    Signals
+    -------
+    thread_finished : Signal(object)
+        Emitted when the worker thread finishes, carrying the return value.
+    """
 
     thread_finished = Signal(object)
 
@@ -160,11 +191,11 @@ class ProcessDialog(QDialog):
         self.title = title
         self.console = None
 
-        self.process = None
-        self.is_finished = False
-
         self.init_ui()
-        self.start_process()
+        self.process = Process(self.commands, console=self.console, self_destruct=True)
+        self.is_finished = False
+        self.process.finished.connect(self.process_finished)
+        self.process.start()
 
         set_ratio_geometry(0.5, self)
 
@@ -207,11 +238,6 @@ class ProcessDialog(QDialog):
             self.close_bt.setEnabled(True)
         if self.close_directly:
             self.close()
-
-    def start_process(self):
-        self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.process.finished.connect(self.process_finished)
-        self.process.start()
 
     def closeEvent(self, event):
         if self.is_finished:

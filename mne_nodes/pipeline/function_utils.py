@@ -32,7 +32,8 @@ class StreamSender(io.TextIOBase):
 
     def write(self, text):
         # Still send output to the command-line
-        self.original_stream.write(text)
+        if self.original_stream:
+            self.original_stream.write(text)
         # Wait until pipe is free
         while self.manager.pipe_busy:
             pass
@@ -40,6 +41,7 @@ class StreamSender(io.TextIOBase):
         kind = self.kind
         self.pipe.send((text, kind))
         self.manager.pipe_busy = False
+        return len(text)
 
 
 class StreamRcvSignals(QObject):

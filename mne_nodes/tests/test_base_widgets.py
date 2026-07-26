@@ -69,17 +69,10 @@ def test_widget_reference_preservation(
     qtbot, widget_name, data_type, test_data, new_test_data
 ):
     """Test widget with reference preservation."""
-    from mne_nodes.gui.base_widgets import (
-        SimpleList,
-        EditList,
-        CheckList,
-        SimpleDict,
-        EditDict,
-        SimplePandasTable,
-        EditPandasTable,
-        ShallowTreeWidget,
-        TreeWidget,
-    )
+    from mne_nodes.gui.widgets.dict_widgets import EditDict, SimpleDict
+    from mne_nodes.gui.widgets.list_widgets import CheckList, EditList, SimpleList
+    from mne_nodes.gui.widgets.pandas_widgets import EditPandasTable, SimplePandasTable
+    from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget, TreeWidget
 
     # Get the widget class
     widget_class = {
@@ -154,7 +147,7 @@ def test_widget_reference_preservation(
 
 def test_shallow_tree_widget_checking(qtbot):
     """Test check handling in ShallowTreeWidget."""
-    from mne_nodes.gui.base_widgets import ShallowTreeWidget
+    from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
 
     data = {"g1": ["a", "b"], "g2": ["c"]}
     checked = []
@@ -179,14 +172,14 @@ def test_shallow_tree_widget_checking(qtbot):
 
 def test_shallow_tree_widget_editing(qtbot, monkeypatch):
     """Test add/remove editing operations in ShallowTreeWidget."""
-    from mne_nodes.gui import base_widgets
+    from mne_nodes.gui.widgets import tree_widgets
 
     data = {"g1": ["a"], "g2": ["b", "c"]}
     checked = ["g2"]
-    widget = base_widgets.ShallowTreeWidget(data=data, checked=checked)
+    widget = tree_widgets.ShallowTreeWidget(data=data, checked=checked)
     qtbot.addWidget(widget)
 
-    monkeypatch.setattr(base_widgets, "get_user_input", lambda *_: "g3")
+    monkeypatch.setattr(tree_widgets, "get_user_input", lambda *_: "g3")
     widget.add_group()
     assert "g3" in data
     assert data["g3"] == []
@@ -201,7 +194,7 @@ def test_shallow_tree_widget_editing(qtbot, monkeypatch):
 
     g1_index = widget.model.index(0, 0)
     widget.view.setCurrentIndex(g1_index)
-    monkeypatch.setattr(base_widgets, "get_user_input", lambda *_: "new_item")
+    monkeypatch.setattr(tree_widgets, "get_user_input", lambda *_: "new_item")
     widget.add_item()
     assert data["g1"][-1] == "new_item"
 
@@ -216,7 +209,7 @@ def test_shallow_tree_widget_editing(qtbot, monkeypatch):
 
 def test_tree_widget_content_changed_rebuilds_view(qtbot):
     """TreeWidget should rebuild its internal tree after data changes."""
-    from mne_nodes.gui.base_widgets import TreeWidget
+    from mne_nodes.gui.widgets.tree_widgets import TreeWidget
 
     data = {"a": {"b": "c"}}
     widget = TreeWidget(data=data)
@@ -266,7 +259,8 @@ def test_widget_selection(
     qtbot, widget_type, widget_names, data_type, select_params, test_data
 ):
     """Test widget selection methods for different widget types."""
-    from mne_nodes.gui.base_widgets import SimpleList, EditList, SimpleDict, EditDict
+    from mne_nodes.gui.widgets.dict_widgets import EditDict, SimpleDict
+    from mne_nodes.gui.widgets.list_widgets import EditList, SimpleList
 
     # Map of widget names to classes
     widget_classes = {
@@ -324,7 +318,11 @@ def test_widget_selection(
 @pytest.mark.parametrize("widget_name, data_type", checklist_widgets)
 def test_checklist_functionality(qtbot, widget_name, data_type, test_data):
     """Test CheckList and related widgets with checking functionality."""
-    from mne_nodes.gui.base_widgets import CheckList, CheckDictList, CheckDictEditList
+    from mne_nodes.gui.widgets.list_widgets import (
+        CheckDictEditList,
+        CheckDictList,
+        CheckList,
+    )
 
     # Get the widget class
     widget_classes = {
@@ -392,7 +390,9 @@ def test_checklist_functionality(qtbot, widget_name, data_type, test_data):
 )
 def test_widget_modification(qtbot, widget_class_name, test_data):
     """Test widget modification functionality for different widget types."""
-    from mne_nodes.gui.base_widgets import EditList, EditDict, EditPandasTable
+    from mne_nodes.gui.widgets.dict_widgets import EditDict
+    from mne_nodes.gui.widgets.list_widgets import EditList
+    from mne_nodes.gui.widgets.pandas_widgets import EditPandasTable
 
     # Map of widget class names to classes and data types
     widget_info = {
@@ -511,7 +511,7 @@ def test_widget_modification(qtbot, widget_class_name, test_data):
 
 def test_timed_messagebox(qtbot):
     """Test TimedMessageBox."""
-    from mne_nodes.gui.base_widgets import TimedMessageBox
+    from mne_nodes.gui.widgets.misc_widgets import TimedMessageBox
 
     # Test text and countdown
     timed_messagebox = TimedMessageBox(timeout=2, step_length=100, text="Test")
@@ -554,7 +554,7 @@ def test_timed_messagebox(qtbot):
 
 def test_progress_checklist(qtbot):
     """Test ProgressCheckList."""
-    from mne_nodes.gui.base_widgets import CheckListProgress
+    from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 
     data = [f"item_{i}" for i in range(5)]
     checked = []

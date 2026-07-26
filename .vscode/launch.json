@@ -10,7 +10,11 @@
             "autoReload": {
                 "enable": true
             },
-            "console": "integratedTerminal"
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "MNENODES_DEBUG": "true"
+            }
         }
     ]
 }

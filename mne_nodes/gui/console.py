@@ -205,7 +205,7 @@ class ConsoleWidget(QPlainTextEdit):
     def __init__(self):
         super().__init__()
         self.setReadOnly(True)
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         self.setFont(QFont("Consolas", 12))
         self._progress_line: str | None = None
         self.autoscroll = True

@@ -6,7 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from pprint import pprint
 
-from qtpy.QtCore import QPointF, Qt
+from qtpy.QtCore import QObject, QPoint, QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
@@ -16,7 +16,7 @@ from mne_nodes.gui.node.ports import Port
 
 def test_nodes_basic_interaction(nodeviewer):
     node1 = nodeviewer.input_node
-    node2 = nodeviewer.node(node_name="filter_bandpass")
+    node2 = nodeviewer.node(node_name="test_filter")
     port1 = node1.output(port_idx=0)
     port2 = node2.input(port_name="raw")
     assert port1.connected(port2)
@@ -66,7 +66,7 @@ def test_nodes_basic_interaction(nodeviewer):
 
 def test_nodes_click_to_click_connection(nodeviewer, qtbot):
     node1 = nodeviewer.input_node
-    node2 = nodeviewer.node(node_name="filter_bandpass")
+    node2 = nodeviewer.node(node_name="test_filter")
     out_port = node1.output(port_idx=0)
     in_port = node2.input(port_name="raw")
 
@@ -89,6 +89,135 @@ def test_nodes_click_to_click_connection(nodeviewer, qtbot):
     assert out_port.connected(in_port)
 
 
+def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
+    calls = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+
+        def addMenu(self, _title):
+            return self
+
+        def addAction(self, action):
+            return action
+
+        def addSeparator(self):
+            return None
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    class FakeContextMenuEvent:
+        def __init__(self, pos):
+            self._pos = pos
+            self.accepted = False
+
+        def pos(self):
+            return self._pos
+
+        def globalPos(self):
+            return self._pos
+
+        def accept(self):
+            self.accepted = True
+
+    click_pos = nodeviewer.viewport().rect().center()
+    nodeviewer.contextMenuEvent(FakeContextMenuEvent(click_pos))
+
+    assert calls
+
+
+def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
+    calls = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+
+        def addMenu(self, _title):
+            return self
+
+        def addAction(self, action):
+            return action
+
+        def addSeparator(self):
+            return None
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    start_pos = nodeviewer.viewport().rect().center()
+    end_pos = start_pos + QPoint(60, 0)
+    mouseDrag(
+        widget=nodeviewer.viewport(),
+        positions=[start_pos, end_pos],
+        button=Qt.MouseButton.RightButton,
+    )
+
+    assert not calls
+
+
+def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
+    calls = []
+    action_texts = []
+
+    class FakeMenu(QObject):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.parent = parent
+            self.actions = []
+
+        def addMenu(self, _title):
+            return self
+
+        def addAction(self, action):
+            self.actions.append(action)
+            return action
+
+        def addSeparator(self):
+            return None
+
+        def exec(self, *args, **kwargs):
+            calls.append(True)
+            action_texts.extend(
+                [action.text() for action in self.actions if hasattr(action, "text")]
+            )
+            return None
+
+    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
+
+    class FakeContextMenuEvent:
+        def __init__(self, pos):
+            self._pos = pos
+            self.accepted = False
+
+        def pos(self):
+            return self._pos
+
+        def globalPos(self):
+            return self._pos
+
+        def accept(self):
+            self.accepted = True
+
+    click_pos = nodeviewer.port_position_view(
+        port_type="out", port_idx=0, node_idx=0
+    ).toPoint()
+    nodeviewer.contextMenuEvent(FakeContextMenuEvent(click_pos))
+
+    assert calls
+    assert "Disconnect all" in action_texts
+
+
 def test_node_serialization(nodeviewer):
     """Test serialization and deserialization of NodeViewer."""
     viewer_dict = nodeviewer.to_dict()
@@ -97,7 +226,7 @@ def test_node_serialization(nodeviewer):
     second_viewer_dict = nodeviewer.to_dict()
 
     input_node = nodeviewer.input_node
-    function_node = nodeviewer.node(node_name="filter_bandpass")
+    function_node = nodeviewer.node(node_name="test_filter")
 
     assert len(viewer_dict["nodes"]) == len(second_viewer_dict["nodes"])
     assert input_node is not None
@@ -136,12 +265,12 @@ def test_exec_order(qtbot, ct):
     pprint("first node:")
     pprint(eo)
 
-    n = viewer.node(node_name="filter_bandpass")
+    n = viewer.node(node_name="test_filter")
     eo = viewer.get_node_sequence(n)
-    pprint("filter_bandpass:")
+    pprint("test_filter:")
     pprint(eo)
 
-    n = viewer.node(node_name="create_epochs")
+    n = viewer.node(node_name="test_epochs")
     eo = viewer.get_node_sequence(n)
     pprint("epoch_raw:")
     pprint(eo)
@@ -151,11 +280,11 @@ def test_exec_order(qtbot, ct):
 
 def test_multiple_func_nodes(nodeviewer):
     """Test adding multiple function nodes of the same type."""
-    node1 = nodeviewer.node(node_name="filter_bandpass")
-    nodeviewer.add_function_node("filter_bandpass")
-    nodes = nodeviewer.get_node_by_function("filter_bandpass")
+    node1 = nodeviewer.node(node_name="test_filter")
+    nodeviewer.add_function_node("test_filter")
+    nodes = nodeviewer.get_node_by_function("test_filter")
     assert len(nodes) == 2
-    node2 = nodeviewer.node(node_name="filter_bandpass-1")
+    node2 = nodeviewer.node(node_name="test_filter-1")
     assert node2 is not None
     # Make sure, that parameters are independent
     node1.parameter_guis["l_freq"].value = 0.5
@@ -171,8 +300,8 @@ def test_node_resizes_and_autolayouts_on_proxywidget_resize(qtbot, ct):
 
     nodeviewer = NodeViewer(ct)
     qtbot.addWidget(nodeviewer)
-    node_a = nodeviewer.add_function_node("filter_bandpass")
-    node_b = nodeviewer.add_function_node("create_epochs")
+    node_a = nodeviewer.add_function_node("test_filter")
+    node_b = nodeviewer.add_function_node("test_epochs")
     nodeviewer.auto_layout_nodes(nodes=[node_a, node_b])
 
     label = QLabel("Resize trigger")

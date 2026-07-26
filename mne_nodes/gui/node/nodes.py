@@ -5,8 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from copy import deepcopy
-
-from mne_bids import BIDSPath
 from qtpy.QtWidgets import (
     QScrollArea,
     QGroupBox,
@@ -17,8 +15,9 @@ from qtpy.QtWidgets import (
     QTabWidget,
 )
 
-from mne_nodes.gui.base_widgets import CheckListProgress, ShallowTreeWidget
-from mne_nodes.gui.base_widgets import SimpleDialog
+from mne_nodes.gui.widgets.list_widgets import CheckListProgress
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
+from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
@@ -29,16 +28,17 @@ class InputWidget(QWidget):
         super().__init__(**kwargs)
         self.ct = ct
         self.selected_inputs = self.ct.get("selected_inputs")
-        self.setLayout(QVBoxLayout())
+        layout = QVBoxLayout()
+        self.setLayout(layout)
         self.setMinimumSize(400, 300)
 
         # Add bids-root button
         self.root_bt = QPushButton("Set BIDS Root Directory")
         self.root_bt.clicked.connect(self.set_root)
-        self.layout().addWidget(self.root_bt)
+        layout.addWidget(self.root_bt)
         # Datatype Tab Widget
         self.tab_widget = QTabWidget()
-        self.layout().addWidget(self.tab_widget)
+        layout.addWidget(self.tab_widget)
         # Group Widget
         self.group_widget = QWidget()
         self.group_tree = None
@@ -54,20 +54,15 @@ class InputWidget(QWidget):
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        data_types = self.ct.get_datatypes()
-        for dt in data_types:
-            bp_kwargs = {"root": self.ct.bids_root}
-            if dt in self.ct.raw_types:
-                bp_kwargs.update({"suffix": dt})
-            else:
-                bp_kwargs.update({"datatype": dt})
-            data = [f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)]
+        for dt, data in self.ct.get_datatype_items().items():
             if dt not in self.selected_inputs:
                 self.selected_inputs[dt] = []
             dt_list = CheckListProgress(
                 data, checked=self.selected_inputs[dt], ui_button_pos="bottom"
             )
-            dt_list.checkedChanged.connect(self.selected_changed)
+            dt_list.checkedChanged.connect(
+                lambda slct, dt=dt: self.ct.input_selection_changed(slct, data_type=dt)
+            )
             self.tab_widget.addTab(dt_list, dt)
         # Initialize group widget via combobox
         self.tab_widget.addTab(self.group_widget, "Groups")
@@ -76,9 +71,8 @@ class InputWidget(QWidget):
             self.group_cmbx.setCurrentText(gb)
         else:
             self.cmbx_changed(gb)
-
-    def selected_changed(self):
-        self.ct.set("selected_inputs", self.selected_inputs)
+        # Update enable/disable of start button
+        self.ct.check_selection_enable()
 
     def set_root(self):
         new_root = get_user_input(
@@ -144,31 +138,40 @@ class InputNode(BaseNode):
         else:
             self.input_widget.update_widgets()
 
-        # ToDo: Check for freesurfer-reconstructions
-
         # Clear existing ports
         self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
+        raw_port_added = False
         for dt in data_types:
-            port_kwargs = existing_outputs.get(dt, {})
-            accepted = port_kwargs.get("accepted_ports") or [dt]
-            if dt in self.ct.raw_types and "raw" not in accepted:
-                accepted.append("raw")
-            self.add_output(
-                dt,
-                multi_connection=port_kwargs.get("multi_connection", True),
-                accepted_ports=accepted,
-                old_id=port_kwargs.get("old_id"),
-                warn_existing=False,
-            )
+            port_names = [dt]
+            if dt in self.ct.raw_types and not raw_port_added:
+                port_names.append("raw")
+                raw_port_added = True
+
+            for name in port_names:
+                if name in self.outputs:
+                    continue
+                port_kwargs = existing_outputs.get(name, {})
+                accepted = port_kwargs.get("accepted_ports") or [name]
+                if dt in self.ct.raw_types and "raw" not in accepted:
+                    accepted.append("raw")
+                if name not in accepted:
+                    accepted.append(name)
+                self.add_output(
+                    name,
+                    multi_connection=port_kwargs.get("multi_connection", True),
+                    accepted_ports=accepted,
+                    old_id=port_kwargs.get("old_id"),
+                    warn_existing=False,
+                )
 
 
 class FunctionNode(BaseNode):
     """Node for functions with inputs, outputs and parameters."""
 
     def __init__(self, ct, **kwargs):
-        from mne_nodes.gui import parameter_widgets
+        from mne_nodes.gui import parameter
 
         func_meta = ct.get_function_meta(kwargs["name"])
         if any(v.get("save") is not None for v in func_meta["outputs"].values()):
@@ -178,12 +181,8 @@ class FunctionNode(BaseNode):
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
-            if input_name == "raw":
-                accepted_ports = ct.raw_types
-            else:
-                accepted_ports = [input_name]
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=accepted_ports
+                input_name, multi_connection=True, accepted_ports=[input_name]
             )
         for output_name in func_meta["outputs"]:
             self.add_output(
@@ -206,7 +205,7 @@ class FunctionNode(BaseNode):
             param_kwargs = deepcopy(param_kwargs)
             param_kwargs["groupbox_layout"] = False
             gui_name = param_kwargs.pop("gui")
-            gui = getattr(parameter_widgets, gui_name)
+            gui = getattr(parameter, gui_name)
             # Importantly use self.name here to include the index suffix
             parameter_gui = gui(
                 data=self.ct, name=param_name, function_name=self.name, **param_kwargs
@@ -218,10 +217,11 @@ class FunctionNode(BaseNode):
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
-        func_meta = self.ct.get_function_meta(self.name)
-        module_meta = self.ct.settings.get("module_meta", {})
-        if func_meta["module"] in module_meta:
-            file_path = module_meta[func_meta["module"]]["path"]
+        # ToDo: fix code editing
+        module_config = self.ct.settings.get("module_config", {})
+        module_name = self.ct.get_function_module_name(self.name)
+        if module_name in module_config:
+            file_path = module_config[module_name]["path"]
             editor_widget = CodeEditorWidget(
                 file_section=(start, end), file_path=file_path
             )
@@ -234,6 +234,15 @@ class FunctionNode(BaseNode):
                 message_type="info",
                 parent=self,
             )
+
+
+class StrangeInputNode(BaseNode):
+    """This node is like FunctionWidget, it evaluates expressions and outputs them.
+    Output is dynamically changed with expression (assigned reference-name) and data-type (assigned reference-name)."""
+
+    def __init__(self, ct, **kwargs):
+        super().__init__(ct, **kwargs)
+        self.name = "Strange Input Node"
 
 
 class AssignmentNode(BaseNode):
