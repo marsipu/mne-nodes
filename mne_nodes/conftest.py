@@ -32,6 +32,7 @@ test_parameters = {
     "slider": 5,
     "color": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
+    "array": np.arange(6).reshape(2, 3),
 }
 
 alternative_test_parameters = {
@@ -50,6 +51,7 @@ alternative_test_parameters = {
     "slider": 2,
     "color": {"A": "#12345678", "B": "#13243546"},
     "path": Path().home() / "test_path",
+    "array": np.arange(24).reshape(2, 3, 4),
 }
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"

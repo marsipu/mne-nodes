@@ -8,11 +8,10 @@ import inspect
 
 import pytest
 from numpy.testing import assert_allclose
-
 from qtpy.QtCore import Qt
 
 from mne_nodes.gui import parameter
-from mne_nodes.gui.parameter import Param, LabelGui
+from mne_nodes.gui.parameter import LabelGui, Param
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 gui_mapping = {
@@ -30,6 +29,7 @@ gui_mapping = {
     "SliderGui": "slider",
     "ColorGui": "color",
     "PathGui": "path",
+    "ArrayGui": "array",
 }
 
 gui_kwargs = {
@@ -46,7 +46,7 @@ gui_kwargs = {
 
 
 def _check_param(gui, gui_name, value):
-    if gui_name == "FuncGui":
+    if gui_name in ("FuncGui", "ArrayGui"):
         assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}"
     else:
         assert gui.value == value, f"Expected {value}, got {gui.value}"
@@ -72,7 +72,7 @@ def test_basic_param_guis(
 
     # Check if paramChanged signal is emitted and value send correctly
     def test_slot(value):
-        if gui_name == "FuncGui" and value is not None:
+        if gui_name in ("FuncGui", "ArrayGui") and value is not None:
             (
                 assert_allclose(value, parameters[gui_name]),
                 (f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"),
