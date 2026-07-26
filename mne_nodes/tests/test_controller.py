@@ -5,7 +5,10 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 from mne_nodes import _widgets
@@ -241,6 +244,78 @@ def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
     assert export_path.exists(), "Roundtrip export should create a JSON file"
     assert ct.get("parameters") == roundtrip_parameters
     assert import_viewer.received == roundtrip_nodes
+
+
+@pytest.mark.timeout(180)
+def test_code_generation_script_executes_complex_pipeline(
+    qtbot, tmp_path, monkeypatch, settings
+):
+    from mne_nodes.conftest import _add_complex_nodes, create_test_controller
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+    from mne_nodes.pipeline.code_generation import CodeGenerator
+
+    monkeypatch.setattr(Controller, "load_plugins", lambda self: self.plugins)
+    ct = create_test_controller(
+        settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    for function_meta in ct.function_meta.values():
+        function_meta.setdefault("class_name", None)
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    _add_complex_nodes(viewer)
+
+    eeg_files = []
+    for extension in (".vhdr", ".edf", ".bdf", ".set"):
+        eeg_files = sorted(ct.bids_root.rglob(f"*_eeg{extension}"))
+        if len(eeg_files) > 0:
+            break
+    assert len(eeg_files) > 0, "tiny_bids fixture should provide at least one EEG file"
+
+    deriv_root = tmp_path / "derivatives"
+    deriv_root.mkdir(parents=True, exist_ok=True)
+    ct.deriv_root = deriv_root
+    ct.set("selected_inputs", {"eeg": [eeg_files[0].name]})
+    ct.flush()
+
+    node_sequence = viewer.get_node_sequence(viewer.input_node)
+    # Keep all outputs in-memory to avoid filesystem format assumptions.
+    for node in node_sequence:
+        node["checked"] = False
+
+    generated_code = CodeGenerator(ct, node_sequence).code
+    validation_config_path = Path(__file__).parent / "validation_functions_config.json"
+    generated_code = generated_code.replace(
+        "# Load controller\n",
+        "# Load controller\nController.load_plugins = lambda self: self.plugins\n",
+        1,
+    )
+    generated_code = generated_code.replace(
+        "\n\n# Inject modules into global namespace\n",
+        (
+            f"\nct.add_module('{validation_config_path.as_posix()}')\n\n"
+            "# Inject modules into global namespace\n"
+        ),
+        1,
+    )
+    script_path = tmp_path / "generated_pipeline.py"
+    script_path.write_text(generated_code, encoding="utf-8")
+
+    env = os.environ.copy()
+    env["MPLBACKEND"] = "Agg"
+    completed = subprocess.run(
+        [sys.executable, str(script_path)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=180,
+        check=False,
+    )
+    assert completed.returncode == 0, (
+        "Generated script failed.\n"
+        f"STDOUT:\n{completed.stdout}\n"
+        f"STDERR:\n{completed.stderr}"
+    )
 
 
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference

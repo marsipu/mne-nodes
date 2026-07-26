@@ -16,6 +16,7 @@ import os
 
 import numpy as np
 from tqdm import tqdm
+from qtpy.QtWidgets import QApplication
 
 
 def encode_tuples(input_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -202,7 +203,7 @@ def load_json_progress(
         return root
 
 
-def json_load_dialog(file_path, parent=None):
+def json_load_dialog(file_path, parent=None) -> dict | list | None:
     """Load a JSON file with a progress dialog.
 
     Parameters
@@ -221,6 +222,7 @@ def json_load_dialog(file_path, parent=None):
         f"Loading JSON file '{Path(file_path).name}'...", parent=parent
     )
     progress_dialog.show()
+    QApplication.processEvents()
 
     data = load_json_progress(file_path, progress_dialog.set_value)
 
@@ -228,7 +230,7 @@ def json_load_dialog(file_path, parent=None):
     return data
 
 
-def load_json_tqdm(file_path: os.PathLike) -> dict | None:
+def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
     """
     Load a JSON file and print its contents to the console.
 
@@ -238,12 +240,16 @@ def load_json_tqdm(file_path: os.PathLike) -> dict | None:
         Path to the JSON file.
     """
     pbar = tqdm(total=100, desc=f"Loading JSON file '{Path(file_path).name}'...")
-    data = load_json_progress(file_path, lambda x: pbar.update(x - pbar.n))
+
+    def update_progress(value: int) -> None:
+        pbar.update(value - pbar.n)
+
+    data = load_json_progress(file_path, update_progress)
     pbar.close()
     return data
 
 
-def load_json(file_path: os.PathLike) -> dict | None:
+def load_json(file_path: os.PathLike) -> dict | list | None:
     from mne_nodes import gui_mode
 
     if gui_mode:

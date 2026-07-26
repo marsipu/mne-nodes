@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import logging
 import sys
+import time
 
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from qtpy.QtWidgets import (
@@ -128,8 +129,11 @@ class ErrorDialog(QDialog):
 
 
 class ProgressDialog(QDialog):
-    def __init__(self, text, maximum=100, parent=None):
+    def __init__(self, text, maximum=100, parent=None, update_interval_ms=50):
         super().__init__(parent)
+
+        self.update_interval_s = update_interval_ms / 1000
+        self.last_update = time.monotonic() - self.update_interval_s
 
         layout = QVBoxLayout()
 
@@ -144,7 +148,13 @@ class ProgressDialog(QDialog):
         self.setLayout(layout)
 
     def set_value(self, value):
-        self.progress_bar.setValue(value)
+        now = time.monotonic()
+        if value == self.progress_bar.maximum() or (
+            now - self.last_update >= self.update_interval_s
+        ):
+            self.progress_bar.setValue(value)
+            self.last_update = now
+            QApplication.processEvents()
 
 
 def show_error_dialog(exc_str):
