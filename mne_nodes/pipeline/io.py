@@ -228,7 +228,7 @@ def json_load_dialog(file_path, parent=None):
     return data
 
 
-def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
+def load_json_tqdm(file_path: os.PathLike) -> dict | None:
     """
     Load a JSON file and print its contents to the console.
 
@@ -243,7 +243,7 @@ def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
     return data
 
 
-def load_json(file_path: os.PathLike) -> dict | list | None:
+def load_json(file_path: os.PathLike) -> dict | None:
     from mne_nodes import gui_mode
 
     if gui_mode:

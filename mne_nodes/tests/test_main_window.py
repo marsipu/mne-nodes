@@ -26,9 +26,9 @@ def test_app_start(ct, main_window):
     assert main_window.controller.name == "test2"
 
     # add node
-    epoch_node = main_window.viewer.add_function_node("create_epochs")
+    epoch_node = main_window.viewer.add_function_node("test_epochs")
     epoch_node.input(port_name="raw").connect_to(
-        main_window.viewer.node(node_name="filter_bandpass").output(port_name="raw")
+        main_window.viewer.node(node_name="test_filter").output(port_name="raw")
     )
 
     # test proper closing
@@ -45,4 +45,4 @@ def test_app_start(ct, main_window):
     assert new_main_window.isVisible()
     assert new_main_window.controller.name == "test2"
     assert new_main_window.controller.get("show_plots") is False
-    assert new_main_window.viewer.node(node_name="create_epochs") is not None
+    assert new_main_window.viewer.node(node_name="test_epochs") is not None

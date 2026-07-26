@@ -914,6 +914,11 @@ class NodeViewer(QGraphicsView):
         menu = QMenu(self)
         menus = {}
 
+        disconnect_action = QAction("Disconnect all", menu)
+        disconnect_action.triggered.connect(port.clear_connections)
+        menu.addAction(disconnect_action)
+        menu.addSeparator()
+
         # Get corresponding functions for inputs/outputs
         if port.port_type == "in":
             funcs = self.ct.get_func_by_output(port.name)

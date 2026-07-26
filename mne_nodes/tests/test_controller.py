@@ -41,7 +41,7 @@ def test_init(ct):
 def test_module_import(tmp_path, ct, test_module_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic modules are imported
-    assert list(ct.modules.keys()) == ["core_functions"]
+    assert "mne_nodes.tests.validation_functions" in ct.plugins
 
     # Add a custom module
     ct.add_module(test_module_config)
@@ -217,12 +217,12 @@ def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
             self.received = pipeline_dict
 
     roundtrip_nodes = {
-        "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "filter_bandpass"}},
+        "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
         "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
     }
     roundtrip_parameters = {
-        "filter_bandpass": {"l_freq": 1.0, "h_freq": 40.0},
-        "create_epochs": {"tmin": -0.2, "tmax": 0.5},
+        "test_filter": {"l_freq": 1.0, "h_freq": 40.0},
+        "test_epochs": {"tmin": -0.2, "tmax": 0.5},
     }
     ct.set("parameters", roundtrip_parameters)
 

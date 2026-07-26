@@ -37,4 +37,6 @@ class PathGui(Param):
         self.display_widget.setText(str(value))
 
     def _get_widget_value(self):
-        return self._path
+        if self._path in (None, ""):
+            return None
+        return Path(self._path)

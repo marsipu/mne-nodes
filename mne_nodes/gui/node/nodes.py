@@ -142,22 +142,29 @@ class InputNode(BaseNode):
         self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
+        raw_port_added = False
         for dt in data_types:
-            # Defining the name of the output port as "raw" if the data type is in raw_types, otherwise use the data type name
-            name = "raw" if dt in self.ct.raw_types else dt
-            if name in self.outputs:
-                continue
-            port_kwargs = existing_outputs.get(name, {})
-            accepted = port_kwargs.get("accepted_ports") or [name]
-            if name not in accepted:
-                accepted.append(name)
-            self.add_output(
-                name,
-                multi_connection=port_kwargs.get("multi_connection", True),
-                accepted_ports=accepted,
-                old_id=port_kwargs.get("old_id"),
-                warn_existing=False,
-            )
+            port_names = [dt]
+            if dt in self.ct.raw_types and not raw_port_added:
+                port_names.append("raw")
+                raw_port_added = True
+
+            for name in port_names:
+                if name in self.outputs:
+                    continue
+                port_kwargs = existing_outputs.get(name, {})
+                accepted = port_kwargs.get("accepted_ports") or [name]
+                if dt in self.ct.raw_types and "raw" not in accepted:
+                    accepted.append("raw")
+                if name not in accepted:
+                    accepted.append(name)
+                self.add_output(
+                    name,
+                    multi_connection=port_kwargs.get("multi_connection", True),
+                    accepted_ports=accepted,
+                    old_id=port_kwargs.get("old_id"),
+                    warn_existing=False,
+                )
 
 
 class FunctionNode(BaseNode):
@@ -210,11 +217,11 @@ class FunctionNode(BaseNode):
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
         func_code, start, end = self.ct.get_function_code(self.name)
-        func_meta = self.ct.get_function_meta(self.name)
         # ToDo: fix code editing
         module_config = self.ct.settings.get("module_config", {})
-        if func_meta["module"] in module_config:
-            file_path = module_config[func_meta["module"]]["path"]
+        module_name = self.ct.get_function_module_name(self.name)
+        if module_name in module_config:
+            file_path = module_config[module_name]["path"]
             editor_widget = CodeEditorWidget(
                 file_section=(start, end), file_path=file_path
             )

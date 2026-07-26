@@ -44,6 +44,7 @@ class Param(QWidget):
         self.function_name = function_name
         self.alias = alias if alias else self.name
         self._value = None
+        self._previous_value = None
         self.default = default
         self.unit = unit
         self.groupbox_layout = groupbox_layout
@@ -56,6 +57,8 @@ class Param(QWidget):
         self.param_layout = None
 
         self._value = self._load_from_data(self.name)
+        if self._value is not None:
+            self._previous_value = self._value
 
     def read_param(self):
         self._value = self._load_from_data(self.name)
@@ -73,6 +76,8 @@ class Param(QWidget):
     @value.setter
     def value(self, new_value):
         self._value = new_value
+        if new_value is not None:
+            self._previous_value = new_value
         self._update_param()
 
     def _update_param(self):
@@ -97,7 +102,10 @@ class Param(QWidget):
         if checked == Qt.CheckState.Checked or checked is True:
             self._set_enabled(True)
             if self._value is None:
-                self.value = self._get_widget_value()
+                restored_value = self._previous_value
+                if restored_value is None:
+                    restored_value = self._get_widget_value()
+                self.value = restored_value
         else:
             self.value = None
             self._set_enabled(False)

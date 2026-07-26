@@ -84,6 +84,9 @@ class FuncGui(Param):
             new_value = eval_param(new_value)
         else:
             self.param_exp = str(new_value)
+            self._cached_value = new_value
+        if new_value is not None:
+            self._previous_value = new_value
         self._value = new_value
 
         self._update_param()

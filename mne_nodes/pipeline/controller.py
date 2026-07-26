@@ -10,13 +10,15 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 from copy import deepcopy
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from os.path import isdir
+from os.path import isdir, join
 from pathlib import Path
+from types import SimpleNamespace
 from time import perf_counter
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -24,7 +26,7 @@ import mne
 from filelock import FileLock, Timeout
 from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
 
-from mne_nodes import _widgets, gui_mode
+from mne_nodes import _widgets, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
@@ -32,7 +34,7 @@ from mne_nodes.gui.gui_utils import (
     ask_user,
 )
 from mne_nodes.pipeline.code_generation import CodeGenerator
-from mne_nodes.pipeline.io import TypedJSONEncoder, load_json, type_json_hook
+from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
 from mne_nodes.pipeline.pip_utils import install_pip_packages
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
@@ -169,7 +171,7 @@ class Controller:
             config_path = config_folder / f"{name}_config.json"
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-            logging.info(f"New configuration created at:\n{config_path}", "info")
+                logging.info(f"New configuration created at:\n{config_path}")
             return config_path
 
         logging.info("Using existing config-file.")
@@ -183,7 +185,7 @@ class Controller:
         )
         if config_path is None:
             raise RuntimeError("Config path initialization failed.")
-        logging.info(f"Configuration sucessfully loaded from:\n{config_path}", "info")
+        logging.info(f"Configuration sucessfully loaded from:\n{config_path}")
         return config_path
 
     def _apply_config_path(self, config_path: Path) -> None:
@@ -589,6 +591,76 @@ class Controller:
         self.subjects_dir = selected_path
         return selected_path
 
+    def run_freesurfer_subprocess(self, command: list[str]) -> None:
+        """Run a FreeSurfer/MNE command using paths from controller settings."""
+        if len(command) == 0:
+            raise ValueError("Command must not be empty.")
+
+        fs_path_value = self.settings.get("fs_path", None)
+        if fs_path_value is None:
+            raise RuntimeError(
+                "Path to FREESURFER_HOME not set, can't run this function"
+            )
+        fs_path = str(fs_path_value)
+        subjects_dir = str(self.ensure_subjects_dir(interactive=False))
+        mne_path = self.settings.get("mne_path", None) or self.settings.get(
+            "wls_mne_path", None
+        )
+
+        environment = os.environ.copy()
+        environment["FREESURFER_HOME"] = fs_path
+        environment["SUBJECTS_DIR"] = subjects_dir
+
+        command_line = list(command)
+        if iswin:
+            command_line.insert(0, "wsl")
+            if mne_path is None:
+                raise RuntimeError(
+                    "Path to MNE environment in WSL not set, can't run this function"
+                )
+            environment["PATH"] = (
+                f"{fs_path}/bin:{mne_path}/bin:"
+                f"/usr/local/sbin:"
+                f"/usr/local/bin:"
+                f"/usr/sbin:"
+                f"/usr/bin:"
+                f"/sbin:"
+                f"/bin"
+            )
+            environment["WSLENV"] = "PATH/u:SUBJECTS_DIR/p:FREESURFER_HOME/u"
+        else:
+            environment["PATH"] = environment["PATH"] + f":{fs_path}/bin"
+
+        if ismac:
+            if isdir(join(fs_path, "lib/misc/lib")):
+                environment["PATH"] = environment["PATH"] + f":{fs_path}/lib/misc/bin"
+                environment["MISC_LIB"] = join(fs_path, "lib/misc/lib")
+                environment["LD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
+                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
+
+            if isdir(join(fs_path, "lib/gcc/lib")):
+                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/gcc/lib")
+
+        process = subprocess.Popen(
+            command_line,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            universal_newlines=True,
+        )
+
+        if process.stdout is not None:
+            for stdout_line in process.stdout:
+                if stdout_line:
+                    sys.stdout.write(stdout_line)
+
+        return_code = process.wait()
+        if return_code != 0:
+            raise RuntimeError(
+                f"FreeSurfer command failed with exit code {return_code}: {' '.join(command_line)}"
+            )
+
     def ensure_ready(
         self,
         *,
@@ -894,15 +966,25 @@ class Controller:
     ####################################################################################
     # Modules
     ####################################################################################
+    @staticmethod
+    def _get_module_name(config: dict[str, Any]) -> str:
+        """Return module_name from config or raise if it is missing/invalid."""
+        module_name = config.get("module_name")
+        if isinstance(module_name, str) and module_name.strip() != "":
+            return module_name
+        raise ValueError(
+            "Configuration must define a non-empty top-level 'module_name'."
+        )
+
     def load_module_config(self, module):
         """Load the configuration file for a module"""
         config_path = getattr(module, "CONFIG_PATH", None)
         if config_path is not None:
-            if gui_mode:
-                config = load_json(config_path)
-            else:
-                with open(config_path) as file:
-                    config = load_json(file, object_hook=type_json_hook)
+            raw_config = load_json(config_path)
+            config = raw_config.get("functions", raw_config)
+            module_name = self._get_module_name(raw_config)
+            for function_name, function_meta in config.items():
+                function_meta.setdefault("module_name", module_name)
             # Warn for duplicates
             duplicate_functions = [fn for fn in config if fn in self.function_meta]
             if len(duplicate_functions) > 0:
@@ -925,6 +1007,48 @@ class Controller:
             self.load_module_config(module)
             self.plugins[entry_point.name] = module
         return self.plugins
+
+    def add_module(self, config_path: Union[str, Path]):
+        """Load function metadata from an external module config file."""
+        module_config_path = Path(config_path)
+        module_config = load_json(module_config_path)
+        functions = module_config.get("functions", module_config)
+        module_name = self._get_module_name(module_config)
+        for function_meta in functions.values():
+            function_meta.setdefault("module_name", module_name)
+
+        duplicate_functions = [fn for fn in functions if fn in self.function_meta]
+        if len(duplicate_functions) > 0:
+            raise_user_attention(
+                f"Duplicate function names found in module config '{module_config_path.name}': {duplicate_functions}.",
+                "warning",
+            )
+            for duplicate_function in duplicate_functions:
+                del functions[duplicate_function]
+        self.function_meta.update(functions)
+        declared_modules = {
+            function_meta.get("module_name")
+            for function_meta in functions.values()
+            if function_meta.get("module_name")
+        }
+        if len(declared_modules) == 0:
+            declared_modules = {module_name}
+
+        for declared_module in declared_modules:
+            self.plugins.setdefault(
+                declared_module, SimpleNamespace(CONFIG_PATH=module_config_path)
+            )
+        return module_name
+
+    def get_function_module_name(self, function_name: str) -> str:
+        """Return the module path configured for a function."""
+        function_meta = self.get_function_meta(function_name)
+        module_name = function_meta.get("module_name")
+        if not isinstance(module_name, str) or module_name.strip() == "":
+            raise KeyError(
+                f"Function '{function_name}' has no valid module configured."
+            )
+        return module_name
 
     def reload_plugins(self, module_name: Optional[str] = None) -> None:
         """Reload all modules in the controller.
@@ -1059,7 +1183,7 @@ class Controller:
 
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the modules."""
-        module_name = self.get_function_meta(function_name)["module"]
+        module_name = self.get_function_module_name(function_name)
         module = self.plugins[module_name]
         function = getattr(module, function_name)
         if function is None:
@@ -1075,11 +1199,39 @@ class Controller:
     ####################################################################################
     # Pipeline
     ####################################################################################
-    def import_pipeline(self, import_path):
+    def import_pipeline(self, import_path: Optional[Union[str, Path]] = None):
+        if import_path is None:
+            import_path = get_user_input(
+                "Select a pipeline configuration file to import.",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+            )
+            if import_path is None:
+                logging.warning("Pipeline import cancelled by user.")
+                return
+
         pipeline_dict = load_json(import_path)
         # Import parameters
         self.set("parameters", pipeline_dict.get("parameters", {}))
-        # import modules or install them if they have not been imported yet
+        # Import legacy module configs or install missing plugins.
+        missing_modules = [
+            module_name
+            for module_name in pipeline_dict.get("modules", [])
+            if module_name not in self.plugins
+        ]
+        for module_name in missing_modules:
+            module_config_path = get_user_input(
+                f"Select the config file for missing module '{module_name}'.",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+            )
+            if module_config_path is None:
+                logging.warning(
+                    f"Skipping missing module '{module_name}' during pipeline import."
+                )
+                continue
+            self.add_module(module_config_path)
+
         missing_plugins = [
             plugin
             for plugin in pipeline_dict.get("plugins", [])
@@ -1097,25 +1249,40 @@ class Controller:
         logging.info(f"Pipeline imported from {import_path}.")
 
     def import_pipeline_user_prompt(self):
-        import_path = get_user_input(
-            "Select a pipeline configuration file to import.",
-            input_type="file",
-            file_filter="JSON files (*.json)",
-        )
-        if import_path is None:
-            logging.warning("Pipeline import cancelled by user.")
-            return
-        self.import_pipeline(import_path)
+        self.import_pipeline()
 
     def get_used_plugins(self):
         """Get all used plugins from the current function-nodes in the viewer."""
         plugins = set()
-        for func_name in self.viewer.get_unique_functions():
-            func_meta = self.get_function_meta(func_name)
-            plugins.add(func_meta["module"])
+        if hasattr(self.viewer, "get_unique_functions"):
+            function_names = self.viewer.get_unique_functions()
+        else:
+            pipeline_dict = self.viewer.to_dict()
+            function_names = [
+                node_config.get("name")
+                for node_config in pipeline_dict.get("nodes", {}).values()
+                if node_config.get("name")
+            ]
+
+        for func_name in function_names:
+            try:
+                func_meta = self.get_function_meta(func_name)
+            except KeyError:
+                continue
+            plugins.add(func_meta["module_name"])
         return plugins
 
-    def export_pipeline(self, export_path):
+    def export_pipeline(self, export_path: Optional[Union[str, Path]] = None):
+        if export_path is None:
+            export_path = get_user_input(
+                "Select a location to save the pipeline configuration.",
+                input_type="file_new",
+                file_filter="JSON files (*.json)",
+            )
+            if export_path is None:
+                logging.warning("Pipeline export cancelled by user.")
+                return
+
         pipeline_dict = {
             "nodes": self.viewer.to_dict(),
             "plugins": self.get_used_plugins(),
@@ -1125,15 +1292,7 @@ class Controller:
             json.dump(pipeline_dict, file, indent=4, cls=TypedJSONEncoder)
 
     def export_pipeline_user_prompt(self):
-        export_path = get_user_input(
-            "Select a location to save the pipeline configuration.",
-            input_type="file_new",
-            file_filter="JSON files (*.json)",
-        )
-        if export_path is None:
-            logging.warning("Pipeline export cancelled by user.")
-            return
-        self.export_pipeline(export_path)
+        self.export_pipeline()
 
     def start(self, node_sequence):
         # Generate code file

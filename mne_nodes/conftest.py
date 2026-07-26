@@ -105,6 +105,10 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     faulthandler.enable()
     controller = Controller(settings=settings)
     controller.ensure_ready(required=("config_path",))
+    validation_functions_config = (
+        Path(__file__).parent / "tests" / "validation_functions_config.json"
+    )
+    controller.add_module(validation_functions_config)
 
     return controller
 
@@ -133,7 +137,7 @@ def parameter_values_alt():
 def _add_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node()
-    func_node = viewer.add_function_node("filter_bandpass")
+    func_node = viewer.add_function_node("test_filter")
 
     # Establish connection
     in_node.output(port_name="eeg").connect_to(func_node.input(port_name="raw"))
@@ -145,10 +149,10 @@ def _add_nodes(viewer):
 def _add_complex_nodes(viewer):
     # Create nodes
     in_node = viewer.add_input_node()
-    filter_node = viewer.add_function_node("filter_bandpass")
-    epochs_node = viewer.add_function_node("create_epochs")
-    evokeds_node = viewer.add_function_node("create_evokeds")
-    plot_node = viewer.add_function_node("plot_evokeds")
+    filter_node = viewer.add_function_node("test_filter")
+    epochs_node = viewer.add_function_node("test_epochs")
+    evokeds_node = viewer.add_function_node("test_evokeds")
+    plot_node = viewer.add_function_node("test_plot_evokeds")
 
     # Connect the nodes
     in_node.output(port_idx=0).connect_to(filter_node.input(port_name="raw"))
@@ -230,7 +234,6 @@ def test_module_config(tmp_path, test_script):
         "module_alias": "test_module",
         "functions": {
             "test_func1": {
-                "alias": "test_func1",
                 "group": "Test",
                 "module": "test_module",
                 "thread-safe": True,
@@ -239,7 +242,6 @@ def test_module_config(tmp_path, test_script):
                 "outputs": ["a_squared"],
             },
             "test_func2": {
-                "alias": "test_func2",
                 "group": "Test",
                 "module": "test_module",
                 "thread-safe": True,
