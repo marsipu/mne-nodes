@@ -80,8 +80,8 @@ class FuncGui(Param):
         if new_value is None:
             self._cached_value = self._value
         elif isinstance(new_value, str):
-            new_value = eval_param(new_value)
             self.param_exp = new_value
+            new_value = eval_param(new_value)
         else:
             self.param_exp = str(new_value)
         self._value = new_value
