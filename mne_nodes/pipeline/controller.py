@@ -169,9 +169,7 @@ class Controller:
             config_path = config_folder / f"{name}_config.json"
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-            raise_user_attention(
-                f"New configuration created at:\n{config_path}", "info"
-            )
+            logging.info(f"New configuration created at:\n{config_path}", "info")
             return config_path
 
         logging.info("Using existing config-file.")
@@ -185,9 +183,7 @@ class Controller:
         )
         if config_path is None:
             raise RuntimeError("Config path initialization failed.")
-        raise_user_attention(
-            f"Configuration sucessfully loaded from:\n{config_path}", "info"
-        )
+        logging.info(f"Configuration sucessfully loaded from:\n{config_path}", "info")
         return config_path
 
     def _apply_config_path(self, config_path: Path) -> None:

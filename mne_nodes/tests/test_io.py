@@ -8,12 +8,18 @@ import json
 from datetime import datetime
 import multiprocessing
 import os
+from pathlib import Path
 from queue import Empty
 
 import numpy as np
 import pytest
 
-from mne_nodes.pipeline.io import TypedJSONEncoder, load_json_progress, type_json_hook
+from mne_nodes.pipeline.io import (
+    TypedJSONEncoder,
+    datetime_format,
+    load_json_progress,
+    type_json_hook,
+)
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -170,3 +176,56 @@ def test_load_json_progress_no_none_keys_for_nested_maps(tmp_path):
     assert loaded["outer"]["second"]["y"] is None
     assert loaded["outer"]["third"]["z"]["k"] == 42
     _assert_no_none_keys(loaded)
+
+
+def test_load_json_progress_preserves_native_json_types(tmp_path):
+    payload = {
+        "int": 7,
+        "float": 1.25,
+        "string": "hello",
+        "bool": True,
+        "none": None,
+        "list": [1, 2.5, "x", False, None],
+        "dict": {"nested_int": 2, "nested_float": 3.75, "nested_none": None},
+    }
+    file_path = tmp_path / "native_types.json"
+    file_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_json_progress(file_path, lambda _: None)
+
+    assert loaded == payload
+    assert isinstance(loaded["int"], int)
+    assert isinstance(loaded["float"], float)
+    assert isinstance(loaded["string"], str)
+    assert isinstance(loaded["bool"], bool)
+    assert loaded["none"] is None
+    assert isinstance(loaded["list"], list)
+    assert isinstance(loaded["dict"], dict)
+    assert isinstance(loaded["dict"]["nested_float"], float)
+
+
+def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path):
+    payload = {
+        "tuple": {"tuple_type": [1, 2, 3]},
+        "set": {"set_type": [1, 2, 3]},
+        "path": {"path_type": str(Path("some") / "relative" / "path.txt")},
+        "datetime": {
+            "datetime_type": datetime(2024, 1, 2, 3, 4, 5).strftime(datetime_format)
+        },
+        "array": {"numpy_array_type": [[1, 2], [3, 4]]},
+    }
+    file_path = tmp_path / "special_types.json"
+    file_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    loaded = load_json_progress(file_path, lambda _: None)
+
+    assert loaded["tuple"] == (1, 2, 3)
+    assert isinstance(loaded["tuple"], tuple)
+    assert loaded["set"] == {1, 2, 3}
+    assert isinstance(loaded["set"], set)
+    assert loaded["path"] == Path("some") / "relative" / "path.txt"
+    assert isinstance(loaded["path"], Path)
+    assert loaded["datetime"] == datetime(2024, 1, 2, 3, 4, 5)
+    assert isinstance(loaded["datetime"], datetime)
+    np.testing.assert_array_equal(loaded["array"], np.array([[1, 2], [3, 4]]))
+    assert isinstance(loaded["array"], np.ndarray)

@@ -9,7 +9,7 @@ from ast import literal_eval
 from datetime import datetime
 import math
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Callable, Dict, Iterator
 
 import ijson
 import os
@@ -53,7 +53,10 @@ class TypedJSONEncoder(json.JSONEncoder):
             case Path():
                 return {"path_type": str(o)}
             case _:
-                return super().default(o)
+                try:
+                    return super().default(o)
+                except TypeError:
+                    pass
 
     @staticmethod
     def sanitize_special_floats(obj):
@@ -124,7 +127,7 @@ def type_json_hook(obj: Dict[str, Any]) -> Any:
 
 
 def load_json_progress(
-    file_path: os.PathLike | str, progress_callback: callable
+    file_path: os.PathLike | str, progress_callback: Callable[[int], None]
 ) -> dict | list | None:
     """
     Load nested JSON using ijson, calling object_hook for each completed dict.
@@ -145,7 +148,8 @@ def load_json_progress(
     file_size = max(path.stat().st_size, 1)
 
     with path.open("rb") as f:
-        parser = ijson.parse(f)
+        # Keep native JSON float behavior (float), not Decimal.
+        parser = ijson.parse(f, use_float=True)
 
         stack = []
         current_key = None
