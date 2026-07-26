@@ -43,8 +43,6 @@ dependencies = [
     "rich",
     "docstring_parser",
     "ijson",
-    # plugins
-    "mne-nodes_mne-functions @ git+https://github.com/marsipu/mne-nodes_mne-functions.git",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
@@ -57,6 +55,9 @@ test = [
 docs = [
     "sphinx",
     "pydata-sphinx-theme",
+]
+plugins = [
+    "mne-nodes_mne-functions @ git+https://github.com/marsipu/mne-nodes_mne-functions.git",
 ]
 
 [project.urls]
