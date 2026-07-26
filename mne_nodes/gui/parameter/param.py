@@ -167,7 +167,7 @@ class Param(QWidget):
             return key in self.data.keys()
         return False
 
-    def _get_widget_value(self):
+    def _get_widget_value(self) -> Any:
         pass
 
     def _set_widget_value(self, value):
