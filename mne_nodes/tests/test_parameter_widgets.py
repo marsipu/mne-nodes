@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import inspect
 
+import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from qtpy.QtCore import Qt
@@ -154,6 +155,45 @@ def test_basic_param_guis(
             gui.change_type(type_idx)
             gui.value = parameters[type_gui_name]
             assert gui.value == parameters[type_gui_name]
+
+
+def test_array_gui_large_array(qtbot):
+    """ArrayGui must construct without error for a large 3-D array.
+
+    Only the model is exercised here — no actual table cells are rendered,
+    so this validates the spinbox navigation path stays O(1) in array size.
+    """
+    big = np.zeros((300, 200, 50))
+    data = {"arr": big}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    # Three dimensions: one QSpinBox for axis 0
+    assert len(gui._spinboxes) == 1
+    assert gui._spinboxes[0].maximum() == 299
+
+    # Navigate to last slice — model must report correct shape
+    gui._spinboxes[0].setValue(299)
+    assert gui._table_model.rowCount() == 200
+    assert gui._table_model.columnCount() == 50
+
+
+def test_array_gui_expr_mode(qtbot):
+    """Switching to expr mode evaluates numpy expressions correctly."""
+    data = {"arr": np.zeros((2, 3))}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    # Switch to expr mode
+    gui._mode_cmbx.setCurrentIndex(1)
+    gui._on_mode_changed(1)
+
+    # Type a numpy expression and trigger evaluation
+    gui._expr_edit.setText("np.ones((4, 5))")
+    gui._on_expr_changed()
+
+    assert gui.value is not None
+    assert_allclose(gui.value, np.ones((4, 5)))
 
 
 @pytest.mark.skip(reason="temporarily disabled")

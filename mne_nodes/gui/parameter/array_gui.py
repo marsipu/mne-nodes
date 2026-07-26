@@ -6,26 +6,53 @@ from typing import Any
 
 import numpy as np
 from qtpy.QtCore import QAbstractTableModel, Qt
-from qtpy.QtWidgets import QHBoxLayout, QTableView, QTabWidget, QVBoxLayout, QWidget
+from qtpy.QtWidgets import (
+    QComboBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QSpinBox,
+    QStackedLayout,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .param import Param
+from .utils import eval_param
 
 
-class _ArrayTableModel(QAbstractTableModel):
-    """Table model for displaying a 2D numpy array slice.
+class _ArraySliceModel(QAbstractTableModel):
+    """Table model for displaying and editing a 2D numpy array slice.
 
     Parameters
     ----------
-    data : numpy.ndarray
-        A 1D or 2D array to display. 1D arrays are shown as a single column.
+    data : numpy.ndarray | None
+        A 2D array to display. If *None* an empty (0×0) array is used.
+        1D arrays are reshaped to a single column.
     """
 
-    def __init__(self, data, **kwargs):
+    def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
+        self._data = self._coerce(data)
+
+    @staticmethod
+    def _coerce(data):
+        if data is None:
+            return np.empty((0, 0))
         arr = np.asarray(data)
         if arr.ndim == 1:
             arr = arr.reshape(-1, 1)
-        self._data = arr
+        elif arr.ndim == 0:
+            arr = arr.reshape(1, 1)
+        return arr
+
+    def replace_data(self, data):
+        """Replace displayed slice without creating a new model."""
+        self.beginResetModel()
+        self._data = self._coerce(data)
+        self.endResetModel()
 
     def rowCount(self, parent=None):
         """Return the number of rows."""
@@ -33,53 +60,55 @@ class _ArrayTableModel(QAbstractTableModel):
 
     def columnCount(self, parent=None):
         """Return the number of columns."""
-        return self._data.shape[1]
+        return self._data.shape[1] if self._data.ndim >= 2 else 1
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
-        """Return display data for a given index."""
+        """Return data for a given index."""
         if not index.isValid():
             return None
-        if role == Qt.ItemDataRole.DisplayRole:
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return str(self._data[index.row(), index.column()])
         return None
 
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        """Edit a cell value."""
+        if role == Qt.ItemDataRole.EditRole:
+            try:
+                self._data[index.row(), index.column()] = float(value)
+                self.dataChanged.emit(index, index, [role])
+                return True
+            except (ValueError, TypeError):
+                return False
+        return False
+
+    def flags(self, index):
+        """All cells are editable."""
+        return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        """Return header data."""
+        """Return numeric axis labels."""
         if role == Qt.ItemDataRole.DisplayRole:
             return str(section)
         return None
 
 
-def _make_array_view(arr):
-    """Recursively build a widget to display an N-D numpy array.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray
-        Array to display. Must have ndim in [1, 5].
-
-    Returns
-    -------
-    QWidget
-        A QTableView for 1D/2D arrays, or a nested QTabWidget for 3D–5D.
-    """
-    if arr.ndim <= 2:
-        view = QTableView()
-        view.setModel(_ArrayTableModel(arr))
-        return view
-    tab_widget = QTabWidget()
-    for i in range(arr.shape[0]):
-        sub_widget = _make_array_view(arr[i])
-        tab_widget.addTab(sub_widget, str(i))
-    return tab_widget
-
-
 class ArrayGui(Param):
-    """Parameter GUI for displaying numpy arrays up to 5 dimensions.
+    """Parameter GUI for numpy arrays of up to 5 dimensions.
 
-    For 1D and 2D arrays, a QTableView is used directly.
-    For 3D–5D arrays, a QTabWidget nests the sub-array views along axis 0,
-    recursively down to 2D slices shown in QTableView.
+    Provides two input modes, switchable via a combo-box:
+
+    **table**
+        An editable :class:`~qtpy.QtWidgets.QTableView` that always shows the
+        2-D slice selected by the dimension :class:`~qtpy.QtWidgets.QSpinBox`
+        widgets (one per extra dimension beyond the last two).  Only the
+        currently-visible cells are queried by Qt, so even arrays like
+        300×20 000×5 000 remain responsive.  An empty array can be
+        initialised when no value is present.
+
+    **expr**
+        A :class:`~qtpy.QtWidgets.QLineEdit` in which the user types any
+        NumPy expression (``np`` is available in the evaluation namespace).
+        The result is displayed next to the input field.
 
     Parameters
     ----------
@@ -91,32 +120,170 @@ class ArrayGui(Param):
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
-        self._array_container = QWidget()
-        self._container_layout = QVBoxLayout()
-        self._container_layout.setContentsMargins(0, 0, 0, 0)
-        self._array_container.setLayout(self._container_layout)
 
-        layout = QHBoxLayout()
-        layout.addWidget(self._array_container)
-        self.init_ui(layout)
+        # ── mode selector ──────────────────────────────────────────────────
+        self._mode_cmbx = QComboBox()
+        self._mode_cmbx.addItems(["table", "expr"])
+        self._mode_cmbx.activated.connect(self._on_mode_changed)
+
+        self._stack = QStackedLayout()
+
+        # ── TABLE mode ─────────────────────────────────────────────────────
+        self._table_widget = QWidget()
+        table_outer = QVBoxLayout()
+        table_outer.setContentsMargins(0, 0, 0, 0)
+
+        # Row of spinboxes for extra dimensions
+        self._spinbox_row = QWidget()
+        self._spinbox_layout = QHBoxLayout()
+        self._spinbox_layout.setContentsMargins(0, 0, 0, 0)
+        self._spinbox_row.setLayout(self._spinbox_layout)
+        self._spinboxes: list[QSpinBox] = []
+        table_outer.addWidget(self._spinbox_row)
+
+        # Table view (lazy – only renders visible cells)
+        self._table_model = _ArraySliceModel()
+        self._table_view = QTableView()
+        self._table_view.setModel(self._table_model)
+        table_outer.addWidget(self._table_view)
+        self._table_widget.setLayout(table_outer)
+        self._stack.addWidget(self._table_widget)
+
+        # ── EXPR mode ──────────────────────────────────────────────────────
+        self._expr_widget = QWidget()
+        expr_grid = QGridLayout()
+        expr_grid.setContentsMargins(0, 0, 0, 0)
+        expr_grid.addWidget(QLabel("NumPy expression"), 0, 0)
+        expr_grid.addWidget(QLabel("Result"), 0, 1)
+        self._expr_edit = QLineEdit()
+        self._expr_edit.setToolTip(
+            "Enter a NumPy expression (np is available). Example: np.zeros((3, 4))"
+        )
+        self._expr_edit.editingFinished.connect(self._on_expr_changed)
+        self._expr_display = QLabel()
+        expr_grid.addWidget(self._expr_edit, 1, 0)
+        expr_grid.addWidget(self._expr_display, 1, 1)
+        self._expr_widget.setLayout(expr_grid)
+        self._stack.addWidget(self._expr_widget)
+
+        # ── parameter expression cache (mirrors FuncGui pattern) ───────────
+        self._param_exp: str | None = None
+
+        # ── overall layout ─────────────────────────────────────────────────
+        outer = QVBoxLayout()
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Input mode:"))
+        mode_row.addWidget(self._mode_cmbx)
+        mode_row.addStretch()
+        outer.addLayout(mode_row)
+        outer.addLayout(self._stack)
+        self.init_ui(outer)
+
+    # ── mode switching ─────────────────────────────────────────────────────
+
+    def _on_mode_changed(self, index: int):
+        self._stack.setCurrentIndex(index)
+        if index == 0 and self._value is not None:
+            self._refresh_table(self._value)
+        elif index == 1:
+            exp = self._param_exp if self._param_exp is not None else ""
+            self._expr_edit.setText(exp)
+
+    # ── expr mode ──────────────────────────────────────────────────────────
+
+    def _on_expr_changed(self):
+        text = self._expr_edit.text()
+        result = eval_param(text)
+        if isinstance(result, np.ndarray):
+            self._param_exp = text
+            self.value = result
+        else:
+            self._expr_display.setText("Invalid expression")
+
+    # ── table mode helpers ─────────────────────────────────────────────────
+
+    def _clear_spinboxes(self):
+        for sb in self._spinboxes:
+            self._spinbox_layout.removeWidget(sb)
+            sb.deleteLater()
+        self._spinboxes.clear()
+        # remove labels too
+        while self._spinbox_layout.count():
+            item = self._spinbox_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+    def _build_spinboxes(self, arr: np.ndarray):
+        """Create one QSpinBox per extra dimension (ndim > 2)."""
+        self._clear_spinboxes()
+        n_extra = max(0, arr.ndim - 2)
+        if n_extra == 0:
+            self._spinbox_row.setVisible(False)
+            return
+        self._spinbox_row.setVisible(True)
+        for dim in range(n_extra):
+            label = QLabel(f"Dim {dim}:")
+            self._spinbox_layout.addWidget(label)
+            sb = QSpinBox()
+            sb.setMinimum(0)
+            sb.setMaximum(arr.shape[dim] - 1)
+            sb.setToolTip(f"Axis {dim}, size {arr.shape[dim]}")
+            sb.valueChanged.connect(self._on_spinbox_changed)
+            self._spinbox_layout.addWidget(sb)
+            self._spinboxes.append(sb)
+        self._spinbox_layout.addStretch()
+
+    def _current_slice(self, arr: np.ndarray) -> np.ndarray:
+        """Return the 2-D slice selected by the current spinbox values."""
+        idx = tuple(sb.value() for sb in self._spinboxes)
+        if idx:
+            sliced = arr[idx]
+        else:
+            sliced = arr
+        if sliced.ndim == 1:
+            sliced = sliced.reshape(-1, 1)
+        return sliced
+
+    def _on_spinbox_changed(self):
+        if self._value is not None:
+            arr = np.asarray(self._value)
+            slc = self._current_slice(arr)
+            self._table_model.replace_data(slc)
+
+    def _refresh_table(self, arr: np.ndarray):
+        """Rebuild spinboxes and refresh the table for *arr*."""
+        self._build_spinboxes(arr)
+        slc = self._current_slice(arr)
+        self._table_model.replace_data(slc)
+
+    # ── Param interface ─────────────────────────────────────────────────────
 
     def _set_widget_value(self, value):
-        # Clear previous widget
-        while self._container_layout.count():
-            item = self._container_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-
         arr = np.asarray(value)
-        if arr.ndim == 0:
-            arr = arr.reshape(1, 1)
-        elif arr.ndim > 5:
-            # Flatten dimensions beyond 5 into the last axis
+        if arr.ndim > 5:
             arr = arr.reshape(arr.shape[:4] + (-1,))
-
-        widget = _make_array_view(arr)
-        self._container_layout.addWidget(widget)
+        # Update table
+        self._refresh_table(arr)
+        # Update expr display
+        exp = self._param_exp if self._param_exp is not None else repr(arr)
+        self._expr_edit.setText(exp)
+        self._expr_display.setText(str(arr.shape))
 
     def _get_widget_value(self):
         return self._value
+
+    # ── FuncGui-style expression persistence ───────────────────────────────
+
+    def _load_from_data(self, name):
+        real_value = super()._load_from_data(name)
+        exp_name = name + "_exp"
+        if self.is_key(exp_name):
+            self._param_exp = super()._load_from_data(exp_name)
+        return real_value
+
+    def _save_to_data(self, name, value):
+        super()._save_to_data(name, value)
+        exp_name = name + "_exp"
+        exp_value = self._param_exp if self._param_exp is not None else str(value)
+        super()._save_to_data(exp_name, exp_value)
