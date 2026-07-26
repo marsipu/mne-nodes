@@ -10,6 +10,9 @@ venv/
 # PyCharm Project-Settings
 .idea/
 
+# MacOS DS_Store
+.DS_Store
+
 # Documentation
 docs/build/
 docs/generated/
