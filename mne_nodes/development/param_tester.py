@@ -9,25 +9,26 @@ import sys
 import traceback
 from ast import literal_eval
 
-from qtpy.QtWidgets import QLabel, QGroupBox
 from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QGridLayout,
+    QApplication,
     QComboBox,
+    QDialog,
+    QGridLayout,
+    QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
-    QDialog,
-    QApplication,
+    QVBoxLayout,
+    QWidget,
 )
 
 from mne_nodes.conftest import test_parameters
 from mne_nodes.gui import parameter
-from mne_nodes.gui.widgets.dict_widgets import SimpleDict
 from mne_nodes.gui.gui_utils import center
 from mne_nodes.gui.parameter import Param
-from mne_nodes.tests.test_parameter_widgets import gui_mapping, gui_kwargs
+from mne_nodes.gui.widgets.dict_widgets import SimpleDict
+from mne_nodes.tests.test_parameter_widgets import gui_kwargs, gui_mapping
 
 
 class ParamGuis(QWidget):

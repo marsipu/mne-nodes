@@ -12,53 +12,54 @@ from functools import partial
 from os import PathLike
 from os.path import isfile
 from pathlib import Path
-from types import UnionType, NoneType
-from typing import get_args, get_type_hints, get_origin, Union
+from types import NoneType, UnionType
+from typing import Union, get_args, get_origin, get_type_hints
 
 import qtawesome as qta
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
-    QDialog,
-    QHBoxLayout,
-    QFormLayout,
-    QVBoxLayout,
-    QLabel,
     QComboBox,
-    QPushButton,
+    QDialog,
+    QFormLayout,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
     QPlainTextEdit,
+    QPushButton,
     QSizePolicy,
     QTabWidget,
-    QWidget,
     QTextEdit,
-    QGridLayout,
+    QVBoxLayout,
+    QWidget,
 )
+
 from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import (
-    edit_font,
-    raise_user_attention,
     ask_user,
-    get_user_input,
     ask_user_custom,
+    edit_font,
+    get_user_input,
+    raise_user_attention,
 )
 from mne_nodes.gui.parameter import (
-    IntGui,
-    FloatGui,
-    StringGui,
-    FuncGui,
     BoolGui,
-    DualTupleGui,
-    ComboGui,
-    ListGui,
     CheckListGui,
-    DictGui,
-    SliderGui,
-    MultiTypeGui,
-    LabelGui,
     ColorGui,
-    PathGui,
+    ComboGui,
+    DictGui,
+    DualTupleGui,
+    FloatGui,
+    FuncGui,
+    IntGui,
+    LabelGui,
+    ListGui,
+    MultiTypeGui,
     Param,
+    PathGui,
+    SliderGui,
+    StringGui,
 )
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook

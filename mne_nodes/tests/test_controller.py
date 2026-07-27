@@ -6,11 +6,12 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
+
 from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder

@@ -8,11 +8,10 @@ import inspect
 
 import pytest
 from numpy.testing import assert_allclose
-
 from qtpy.QtCore import Qt
 
 from mne_nodes.gui import parameter
-from mne_nodes.gui.parameter import Param, LabelGui
+from mne_nodes.gui.parameter import LabelGui, Param
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 gui_mapping = {

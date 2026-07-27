@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import json
 
-
 from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.io import type_json_hook
 

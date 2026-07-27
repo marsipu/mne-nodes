@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import mne
 from mne.datasets import sample
-
 from mne_bids import (
     BIDSPath,
     make_dataset_description,
@@ -14,7 +13,6 @@ from mne_bids import (
     write_meg_crosstalk,
     write_raw_bids,
 )
-
 
 datasets = {
     "testing": {

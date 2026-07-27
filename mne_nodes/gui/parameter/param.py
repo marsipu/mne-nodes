@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
 from types import NoneType
-from typing import Any, MutableMapping
+from typing import Any
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget

@@ -1,12 +1,12 @@
 import sys
 
-from qtpy.QtCore import QVariantAnimation, Qt
-from qtpy.QtGui import QPen, QColor, QPainterPath
+from qtpy.QtCore import Qt, QVariantAnimation
+from qtpy.QtGui import QColor, QPainterPath, QPen
 from qtpy.QtWidgets import (
     QApplication,
     QGraphicsPathItem,
-    QGraphicsView,
     QGraphicsScene,
+    QGraphicsView,
 )
 
 

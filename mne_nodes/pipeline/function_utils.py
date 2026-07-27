@@ -9,7 +9,7 @@ import io
 import sys
 
 from matplotlib import pyplot as plt
-from qtpy.QtCore import QRunnable, Slot, QObject, Signal
+from qtpy.QtCore import QObject, QRunnable, Signal, Slot
 
 
 class StreamManager:

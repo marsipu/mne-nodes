@@ -9,9 +9,8 @@ from datetime import date
 from pathlib import Path
 
 import mne
-import numpy as np
-
 import mne_bids
+import numpy as np
 from mne_bids import BIDSPath, write_raw_bids
 
 data_path = mne.datasets.testing.data_path(download=False)

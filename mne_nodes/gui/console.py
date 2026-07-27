@@ -6,34 +6,34 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from __future__ import annotations
 
-import sys
 import codecs
 import logging
 import queue
 import re
+import sys
 import time
 from functools import wraps
 
 from qtpy.QtCore import (
     QMutex,
-    QProcess,
-    QWaitCondition,
-    QRunnable,
-    QThreadPool,
     QObject,
-    Signal,
+    QProcess,
+    QRunnable,
     Qt,
+    QThreadPool,
+    QWaitCondition,
+    Signal,
 )
-from qtpy.QtGui import QTextCursor, QFont
+from qtpy.QtGui import QFont, QTextCursor
 from qtpy.QtWidgets import (
-    QPlainTextEdit,
     QDockWidget,
-    QTabWidget,
     QHBoxLayout,
-    QWidget,
     QLabel,
+    QPlainTextEdit,
     QTabBar,
+    QTabWidget,
     QVBoxLayout,
+    QWidget,
 )
 
 from mne_nodes.gui.gui_utils import ask_user
@@ -268,10 +268,10 @@ class ConsoleWidget(QPlainTextEdit):
 
     # Event overrides ----------------------------------------------------
     # The cursor should not be moved my mouse clicks
-    def mousePressEvent(self, event):  # noqa: D401
+    def mousePressEvent(self, event):
         event.accept()
 
-    def mouseDoubleClickEvent(self, event):  # noqa: D401
+    def mouseDoubleClickEvent(self, event):
         event.accept()
 
 

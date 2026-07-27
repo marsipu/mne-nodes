@@ -11,10 +11,11 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 from types import NoneType
-from typing import Any, List
+from typing import Any
 
 from filelock import FileLock, Timeout
-from mne_nodes.pipeline.io import type_json_hook, TypedJSONEncoder
+
+from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 
 # Default device specific settings (formerly partly stored in QSettings)
 # NOTE: Add new keys here when introducing additional persistent settings.
@@ -148,6 +149,6 @@ class Settings:
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         settings = self._load()
         return list(settings.keys())

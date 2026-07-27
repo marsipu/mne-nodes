@@ -5,9 +5,9 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-from datetime import datetime
 import multiprocessing
 import os
+from datetime import datetime
 from pathlib import Path
 from queue import Empty
 
@@ -64,9 +64,7 @@ def test_settings(parameter_values):
         # Check if the value is set correctly
         assert value == v, f"Expected {v} for key {k}, got {value}"
         # Check if the type is preserved
-        assert isinstance(value, type(parameter_values[k])), (
-            f"Type mismatch for key {k}"
-        )
+        assert isinstance(value, type(v)), f"Type mismatch for key {k}"
         # Check if unsupported types raise an error (e.g. for dicts)
         with pytest.raises(TypeError):
             settings.set("unsupported_type", Settings)

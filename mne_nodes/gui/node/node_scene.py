@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from qtpy.QtCore import QLineF, Qt
-from qtpy.QtGui import QColor, QPen, QPainter
+from qtpy.QtGui import QColor, QPainter, QPen
 from qtpy.QtWidgets import QGraphicsScene
 
 from mne_nodes.gui.node.node_defaults import defaults

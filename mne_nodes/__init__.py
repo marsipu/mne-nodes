@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 import os
 import sys
 
-
 # Global variables to check the platform
 ismac = sys.platform.startswith("darwin")
 iswin = sys.platform.startswith("win32")
