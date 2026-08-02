@@ -217,7 +217,7 @@ class FunctionNode(BaseNode):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
-        func_code, start, end = self.ct.get_function_code(self.name)
+        _func_code, start, end = self.ct.get_function_code(self.name)
         # ToDo: fix code editing
         module_config = self.ct.settings.get("module_config", {})
         module_name = self.ct.get_function_module_name(self.name)

@@ -36,7 +36,7 @@ bids_path = BIDSPath(
 raw = mne.io.read_raw_brainvision(vhdr_path, preload=True)
 montage = mne.channels.read_dig_captrak(captrak_path)
 
-raw.set_channel_types(dict(ECG="ecg", HEOG="eog", VEOG="eog"))
+raw.set_channel_types({"ECG": "ecg", "HEOG": "eog", "VEOG": "eog"})
 raw.set_montage(montage)
 raw.info["line_freq"] = 50
 

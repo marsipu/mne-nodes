@@ -9,7 +9,7 @@ import math
 import os
 from ast import literal_eval
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -109,7 +109,7 @@ def type_json_hook(obj: dict[str, Any]) -> Any:
         case {"numpy_array_type": value}:
             return np.asarray(value)
         case {"datetime_type": value}:
-            return datetime.strptime(value, datetime_format)
+            return datetime.strptime(value, datetime_format).replace(tzinfo=UTC)
         case {"tuple_type": value}:
             return tuple(value)
         case {"set_type": value}:
