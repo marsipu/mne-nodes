@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 import sys
 import traceback
 from contextlib import contextmanager
@@ -33,7 +33,7 @@ def get_exception_tuple() -> ExceptionTuple:
     traceback.print_exc()
     exctype, value = sys.exc_info()[:2]
     traceback_str = traceback.format_exc(limit=-10)
-    logging.error(f"{exctype}: {value}")
+    logger.error(f"{exctype}: {value}")
     exc_tuple = ExceptionTuple(exctype, value, traceback_str)
 
     return exc_tuple
@@ -89,7 +89,7 @@ class UncaughtHook(QObject):
                 exc_value,
                 "".join(traceback.format_tb(exc_traceback)),
             )
-            logging.critical("Uncaught exception:", exc_info=exc_info)
+            logger.critical("Uncaught exception:", exc_info=exc_info)
 
             # trigger showing of error-dialog
             self._exception_caught.emit(exc_str)

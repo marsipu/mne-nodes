@@ -7,7 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 from __future__ import annotations
 
 import codecs
-import logging
+from mne_nodes.logger import logger
 import queue
 import re
 import sys
@@ -99,7 +99,7 @@ class StreamWorker(QRunnable):
             self._dropped_count += 1
             # Log warning periodically (every 10th drop)
             if self._dropped_count % 10 == 1:
-                logging.warning(
+                logger.warning(
                     f"Console queue full, dropped {self._dropped_count} items total"
                 )
             self.queue.put_nowait((data, kind))
@@ -279,7 +279,7 @@ class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
         if not hasattr(sys.stdout, "signal") or not hasattr(sys.stderr, "signal"):
-            logging.warning(
+            logger.warning(
                 "Streams have not been initialized as Qt-objects yet, initializing them now."
             )
             init_streams()

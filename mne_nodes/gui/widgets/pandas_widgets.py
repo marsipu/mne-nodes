@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import itertools
-import logging
+from mne_nodes.logger import logger
 
 import numpy as np
 from qtpy.QtCore import QItemSelectionModel, Qt
@@ -101,7 +101,7 @@ class BasePandasTable(Base):
 
         self.currentChanged.emit(current_list, previous_list)
 
-        logging.debug(f"Current changed from {previous_list} to {current_list}")
+        logger.debug(f"Current changed from {previous_list} to {current_list}")
 
     def get_selected(self):
         # Somehow, the indexes got from selectionChanged
@@ -116,7 +116,7 @@ class BasePandasTable(Base):
         selection_list = self.get_selected()
         self.selectionChanged.emit(selection_list)
 
-        logging.debug(f"Selection changed to {selection_list}")
+        logger.debug(f"Selection changed to {selection_list}")
 
     def select(self, values=None, rows=None, columns=None, clear_selection=True):
         """Select items in Pandas DataFrame by value or select complete

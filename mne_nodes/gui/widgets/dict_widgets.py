@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 
 from qtpy.QtCore import QItemSelectionModel, Qt
 from qtpy.QtGui import QFont
@@ -71,7 +71,7 @@ class BaseDict(Base):
 
         self.currentChanged.emit(current_data, previous_data)
 
-        logging.debug(f"Current changed from {current_data} to {previous_data}")
+        logger.debug(f"Current changed from {current_data} to {previous_data}")
 
     def _selected_keyvalue(self, indexes):
         try:
@@ -87,7 +87,7 @@ class BaseDict(Base):
 
         self.selectionChanged.emit(selected_data)
 
-        logging.debug(f"Selection to {selected_data}")
+        logger.debug(f"Selection to {selected_data}")
 
     def select(self, keys, values, clear_selection=True):
         key_indices = [i for i, x in enumerate(self.model._data.keys()) if x in keys]

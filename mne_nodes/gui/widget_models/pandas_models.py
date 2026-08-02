@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 from ast import literal_eval
 
 from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
@@ -33,7 +33,7 @@ class BasePandasModel(QAbstractTableModel):
         if data is None:
             self._data = pd.DataFrame([])
         elif not isinstance(data, pd.DataFrame):
-            logging.warning(
+            logger.warning(
                 "BasePandasModel expects a pandas DataFrame for 'data', got %s. Initializing empty DataFrame.",
                 type(data).__name__,
             )

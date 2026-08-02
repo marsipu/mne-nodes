@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 import os
 import shutil
 import time
@@ -57,7 +57,7 @@ def find_bads(meeg, n_jobs, **kwargs):
     noisy_chs, flat_chs = mne.preprocessing.find_bad_channels_maxwell(
         raw, coord_frame=coord_frame, **kwargs
     )
-    logging.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
+    logger.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
     raw.info["bads"] = noisy_chs + flat_chs + raw.info["bads"]
     meeg.set_bad_channels(raw.info["bads"])
     meeg.save_raw(raw)
@@ -271,7 +271,7 @@ def index_parser(index, all_items, groups=None):
         try:
             files = np.asarray(all_items)[indices].tolist()
         except IndexError:
-            logging.warning("Index out of range")
+            logger.warning("Index out of range")
             files = []
 
         return files
@@ -1169,7 +1169,7 @@ class ReloadRaw(QDialog):
         meeg = MEEG(selected_raw, self.ct)
         raw = mne.io.read_raw(raw_path, preload=True)
         meeg.save_raw(raw)
-        logging.info(f"Reloaded raw for {selected_raw}")
+        logger.info(f"Reloaded raw for {selected_raw}")
 
     def start_reload(self):
         # Not with partial because otherwise the clicked-arg
@@ -1246,18 +1246,18 @@ class ExportDialog(QDialog):
 
     def export_data(self):
         if self.dest_path:
-            logging.info("Starting Export\n")
+            logger.info("Starting Export\n")
             for meeg_name, path_types in self.export_paths.items():
                 os.mkdir(join(self.dest_path, meeg_name))
                 for path_type in [pt for pt in path_types if pt in self.selected_types]:
                     paths = path_types[path_type]
-                    logging.info(f"\r{meeg_name}: Copying {path_type}...")
+                    logger.info(f"\r{meeg_name}: Copying {path_type}...")
                     for src_path in paths:
                         dest_name = Path(src_path).name
                         shutil.copy2(
                             src_path, join(self.dest_path, meeg_name, dest_name)
                         )
-                    logging.info(f"\r{meeg_name}: Copied {path_type}!")
+                    logger.info(f"\r{meeg_name}: Copied {path_type}!")
 
         else:
             warning_message("Destination-Path not set!", parent=self)

@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 from os.path import isfile
 from pathlib import Path
 
@@ -145,7 +145,7 @@ class CodeFileEditor(CodeEditor):
         if self.file_section is not None:
             change_file_section(self.file_path, self.file_section, code)
         self.codeSaved.emit(self.file_path)
-        logging.info(f"Saved code to file: {self.file_path}")
+        logger.info(f"Saved code to file: {self.file_path}")
 
 
 class CodeEditorWidget(QWidget):

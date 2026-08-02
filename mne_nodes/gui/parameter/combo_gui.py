@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+from mne_nodes.logger import logger
 from collections.abc import Sequence
 from typing import Any
 
@@ -43,7 +43,7 @@ class ComboGui(Param):
         if not isinstance(value, str):
             value = str(value)
         if value not in self.options:
-            logging.info(
+            logger.info(
                 f"Value '{value}' not in options for {self.alias}. "
                 "Adding it to the options."
             )

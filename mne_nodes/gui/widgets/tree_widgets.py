@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QFont
@@ -175,7 +175,7 @@ class ShallowTreeWidget(Base):
 
     def _checked_changed(self):
         self.checkedChanged.emit(self.model._checked)
-        logging.debug("Changed groups: %s", self.model._checked)
+        logger.debug("Changed groups: %s", self.model._checked)
 
     def get_checked(self):
         return self.model._checked

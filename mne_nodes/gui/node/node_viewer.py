@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 import math
 import re
 from collections import OrderedDict
@@ -211,7 +211,7 @@ class NodeViewer(QGraphicsView):
             The input node to set in the node graph.
         """
         if self._input_node is not None:
-            logging.info("Replacing existing input node.")
+            logger.info("Replacing existing input node.")
             self.remove_node(self._input_node)
         self._input_node = input_node
 
@@ -248,7 +248,7 @@ class NodeViewer(QGraphicsView):
             Pipe layout mode (either 'straight', 'curved', or 'angle').
         """
         if layout not in ["straight", "curved", "angle"]:
-            logging.warning(
+            logger.warning(
                 f"{layout} is not a valid pipe layout, defaulting to 'curved'."
             )
             layout = "curved"
@@ -389,7 +389,7 @@ class NodeViewer(QGraphicsView):
                 func_idx = len(self.get_node_by_function(function_name))
                 # Add function node index to name
                 function_name = f"{function_name}-{func_idx}"
-                logging.info(
+                logger.info(
                     f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
                 )
             node = FunctionNode(self.ct, name=function_name, **kwargs or {})
@@ -465,10 +465,10 @@ class NodeViewer(QGraphicsView):
         elif node_name is not None:
             node_list = [n for n in self.nodes.values() if n.name == node_name]
             if len(node_list) == 0:
-                logging.warning(f"No node found with name '{node_name}'.")
+                logger.warning(f"No node found with name '{node_name}'.")
             else:
                 if len(node_list) > 1:
-                    logging.warning(
+                    logger.warning(
                         f"Multiple nodes found with name '{node_name}'. Returning the first one."
                     )
                 return node_list[0]
@@ -478,7 +478,7 @@ class NodeViewer(QGraphicsView):
             for node in self.nodes.values():
                 if node.old_id == old_id:
                     return node
-        logging.warning("No node found with the provided parameters.")
+        logger.warning("No node found with the provided parameters.")
         return None
 
     def get_node_by_function(self, name):
@@ -536,12 +536,12 @@ class NodeViewer(QGraphicsView):
             if node.port(ignore_warnings=True, **kwargs) is not None
         ]
         if len(ports) == 0:
-            logging.warning("No port found with the provided parameters.")
+            logger.warning("No port found with the provided parameters.")
             return None
         elif len(ports) == 1:
             return ports[0]
         else:
-            logging.warning(f"Found {len(ports)} ports with the provided parameters.")
+            logger.warning(f"Found {len(ports)} ports with the provided parameters.")
             return ports
 
     def to_dict(self):
@@ -585,7 +585,7 @@ class NodeViewer(QGraphicsView):
             try:
                 node = node_class.from_dict(self.ct, node_info)
             except KeyError:
-                logging.warning(
+                logger.warning(
                     f"Node class '{node_info['class']}' not found in nodes module. Skipping node."
                 )
                 continue
@@ -630,12 +630,12 @@ class NodeViewer(QGraphicsView):
         if not isinstance(config, dict) or not all(
             k in config for k in ("nodes", "connections")
         ):
-            logging.warning("Invalid configuration dictionary provided.")
+            logger.warning("Invalid configuration dictionary provided.")
             return
         if not isinstance(config["nodes"], dict) or not isinstance(
             config["connections"], dict
         ):
-            logging.warning(
+            logger.warning(
                 "Invalid configuration structure: nodes and connections must be dicts."
             )
             return
@@ -1186,7 +1186,7 @@ class NodeViewer(QGraphicsView):
         # Handle drop from NodePicker
         text = mime.text() if hasattr(mime, "text") else ""
         if text is None:
-            logging.debug("No text payload in drop event, ignoring.")
+            logger.debug("No text payload in drop event, ignoring.")
             return
         if text.startswith("mne-nodes/function:"):
             fname = text[len("mne-nodes/function:") :]
@@ -1474,7 +1474,7 @@ class NodeViewer(QGraphicsView):
         if output_port.multi_connection and output_port.connected(input_port):
             self._detached_port = None
             self.end_live_connection()
-            logging.debug("Target Port is already connected.")
+            logger.debug("Target Port is already connected.")
             return
 
         # disconnect target port from its connections if not multi connection.

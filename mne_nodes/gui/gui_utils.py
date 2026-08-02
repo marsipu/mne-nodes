@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-import logging
+from mne_nodes.logger import logger
 import os
 import sys
 from functools import partial
@@ -149,10 +149,10 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
         ans = ans.strip().lower() in ["yes", "y"]
     if cancel and cancel_allowed:
         if close_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.info("User cancelled the operation.")
+            logger.info("User cancelled the operation.")
             return None
     if not ok or ans is None:
         message = "You need to provide an appropriate input to proceed (yes/n or no/n)!"
@@ -162,7 +162,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
         if gui_mode:
             warning_message(message, parent=parent)
         else:
-            logging.warning(message)
+            logger.warning(message)
         return ask_user(prompt)
 
     return ans
@@ -259,10 +259,10 @@ def ask_user_custom(
         ans = alias_map.get(ans_text)
     if cancel and cancel_allowed:
         if close_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.info("User cancelled the operation.")
+            logger.info("User cancelled the operation.")
             return None
     if not ok or ans is None:
         if len(button_labels) == 2:
@@ -281,7 +281,7 @@ def ask_user_custom(
         if gui_mode:
             warning_message(message, parent=parent)
         else:
-            logging.warning(message)
+            logger.warning(message)
         return ask_user_custom(
             prompt,
             buttons=button_labels,
@@ -427,10 +427,10 @@ def get_user_input(
         ok = user_input is not None and user_input.lower() not in ["cancel", "c"]
     if cancel_allowed and not ok:
         if exit_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.debug("User cancelled the input operation.")
+            logger.debug("User cancelled the input operation.")
             return None
     # Check user input
     if not ok or user_input is None:
@@ -466,11 +466,11 @@ def raise_user_attention(message, message_type="warning", parent=None):
         else:
             raise ValueError(f"Unknown message type: {message_type}")
     if message_type == "warning":
-        logging.warning(message)
+        logger.warning(message)
     elif message_type == "error":
-        logging.error(message)
+        logger.error(message)
     elif message_type == "info":
-        logging.info(message)
+        logger.info(message)
     else:
         raise ValueError(f"Unknown message type: {message_type}")
 
@@ -727,7 +727,7 @@ def get_palette(theme):
 def _get_auto_theme():
     system_theme = darkdetect.theme().lower()
     if system_theme is None:
-        logging.info("System theme detection failed. Using light theme.")
+        logger.info("System theme detection failed. Using light theme.")
         system_theme = "light"
     return system_theme
 

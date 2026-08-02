@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-import logging
+from mne_nodes.logger import logger
 import os
 import sys
 from copy import deepcopy
@@ -88,7 +88,7 @@ class Settings:
             with self.lock:
                 return self._load_locked()
         except Timeout:
-            logging.warning(
+            logger.warning(
                 f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
             )
             return deepcopy(self._defaults)
@@ -103,7 +103,7 @@ class Settings:
             UnicodeDecodeError,
             FileNotFoundError,
         ) as err:
-            logging.warning(
+            logger.warning(
                 f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
             )
             return deepcopy(self._defaults)
@@ -133,7 +133,7 @@ class Settings:
                 settings[key] = value
                 self._save_locked(settings)
         except Timeout:
-            logging.error(
+            logger.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
@@ -145,7 +145,7 @@ class Settings:
                     settings.pop(key)
                     self._save_locked(settings)
         except Timeout:
-            logging.error(
+            logger.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 

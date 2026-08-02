@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+from mne_nodes.logger import logger
 from collections.abc import MutableMapping
 from types import NoneType
 from typing import Any
@@ -142,7 +142,7 @@ class Param(QWidget):
         elif isinstance(self.data, Settings) and name in self.data.keys():
             value = self.data.get(name)
         else:
-            logging.warning(
+            logger.warning(
                 f"Parameter {name} not found in data source, using default value."
             )
             value = self.default
@@ -151,7 +151,7 @@ class Param(QWidget):
         if self.none_select:
             dt = dt | NoneType
         if not isinstance(value, dt):
-            logging.warning(
+            logger.warning(
                 f"Data for {name} has to be of type {dt}, "
                 f"but is of type {type(value)} instead!\n"
                 f"Using default value {self.default} instead."

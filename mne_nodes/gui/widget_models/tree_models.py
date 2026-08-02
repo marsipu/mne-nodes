@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
 
@@ -101,7 +101,7 @@ class TreeModel(QAbstractItemModel):
         if data is None:
             self._data = {}
         elif not isinstance(data, dict):
-            logging.warning(
+            logger.warning(
                 "TreeModel expects a dict for 'data', got %s. Initializing empty dict.",
                 type(data).__name__,
             )
@@ -242,7 +242,7 @@ class ShallowTreeModel(TreeModel):
         if checked is None:
             self._checked = []
         elif not isinstance(checked, list):
-            logging.warning(
+            logger.warning(
                 "ShallowTreeModel expects a list for 'checked', got %s. Initializing empty list.",
                 type(checked).__name__,
             )
@@ -260,7 +260,7 @@ class ShallowTreeModel(TreeModel):
             if isinstance(values, list):
                 normalized_values = values
             else:
-                logging.warning(
+                logger.warning(
                     "ShallowTreeModel expects list values, got %s for key '%s'. Treating as empty list.",
                     type(values).__name__,
                     key,

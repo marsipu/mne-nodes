@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 from ast import literal_eval
 
 from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
@@ -30,7 +30,7 @@ class BaseDictModel(QAbstractTableModel):
         if data is None:
             self._data = {}
         elif not isinstance(data, dict):
-            logging.warning(
+            logger.warning(
                 "BaseDictModel expects a dict for 'data', got %s. Initializing empty dict.",
                 type(data).__name__,
             )

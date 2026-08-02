@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 from collections import OrderedDict
 
 import qtawesome as qta
@@ -300,7 +300,7 @@ class BaseNode(QGraphicsItem):
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
             if warn_existing:
-                logging.debug(
+                logger.debug(
                     f"Port '{name}' already exists for '{port_type}'. Returning existing port."
                 )
             return self.port(port_name=name)
@@ -428,18 +428,18 @@ class BaseNode(QGraphicsItem):
                 return port_list[port_idx]
             else:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_idx} not found.")
+                    logger.warning(f"{port_type} port {port_idx} not found.")
         elif port_name is not None:
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
             port_names = [p for p in port_list if p.name == port_name]
             if len(port_names) > 2:
-                logging.warning(
+                logger.warning(
                     "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_name} not found.")
+                    logger.warning(f"{port_type} port {port_name} not found.")
             else:
                 return port_names[0]
         elif port_id is not None:
@@ -449,22 +449,22 @@ class BaseNode(QGraphicsItem):
                 return ports[port_id]
             else:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_id} not found.")
+                    logger.warning(f"{port_type} port {port_id} not found.")
         elif old_id is not None:
             if not isinstance(old_id, int):
                 raise ValueError(f"Invalid old port id: {old_id}")
             old_id_ports = [p for p in port_list if p.old_id == old_id]
             if len(old_id_ports) > 1:
-                logging.warning(
+                logger.warning(
                     "More than one port with the same old id. This should not be allowed."
                 )
             elif len(old_id_ports) == 0:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port with old id {old_id} not found.")
+                    logger.warning(f"{port_type} port with old id {old_id} not found.")
             else:
                 return old_id_ports[0]
         else:
-            logging.warning("No port identifier provided.")
+            logger.warning("No port identifier provided.")
         return None
 
     def input(self, **port_kwargs):
@@ -986,4 +986,4 @@ class BaseNode(QGraphicsItem):
             # Update the widget
             self.update()
         else:
-            logging.warning("Node not in scene.")
+            logger.warning("Node not in scene.")

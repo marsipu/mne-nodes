@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QColor, QFont
@@ -284,7 +284,7 @@ class CheckList(BaseList):
 
     def _checked_changed(self):
         self.checkedChanged.emit(self.model._checked)
-        logging.debug(f"Changed values: {self.model._checked}")
+        logger.debug(f"Changed values: {self.model._checked}")
 
     def replace_checked(self, new_checked):
         """Replaces model._checked with new checked list."""

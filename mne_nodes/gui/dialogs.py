@@ -4,7 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
+from mne_nodes.logger import logger
 import sys
 import time
 
@@ -167,4 +167,4 @@ def show_error_dialog(exc_str):
     if QApplication.instance() is not None:
         ErrorDialog(exc_str, title="A unexpected error occurred").exec()
     else:
-        logging.debug("No QApplication instance available.")
+        logger.debug("No QApplication instance available.")
