@@ -780,7 +780,7 @@ class ColorTester(QDialog):
         self.theme_cmbx.setCurrentText(self.theme)
         self.theme_cmbx.currentTextChanged.connect(self.change_theme)
         layout.addRow("Theme", self.theme_cmbx)
-        for field_name in theme_colors[self.theme].keys():
+        for field_name in theme_colors[self.theme]:
             button_widget = QWidget()
             button_layout = QHBoxLayout(button_widget)
             button_display = QLabel()
@@ -804,7 +804,6 @@ class ColorTester(QDialog):
         color_dlg.open()
 
     def change_color(self, field_name, color):
-        global theme_colors
         theme_colors[self.theme][field_name] = color.name()
         self.setPalette(get_palette(self.theme))
         self.color_display[field_name].setStyleSheet(

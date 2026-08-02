@@ -175,9 +175,9 @@ class TreeModel(QAbstractItemModel):
         if (
             orientation == Qt.Orientation.Horizontal
             and role == Qt.ItemDataRole.DisplayRole
+            and 0 <= section < len(self._headers)
         ):
-            if 0 <= section < len(self._headers):
-                return self._headers[section]
+            return self._headers[section]
         return None
 
     def index(self, row, column, parent=None, *args, **kwargs):

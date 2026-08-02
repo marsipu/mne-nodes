@@ -289,7 +289,7 @@ class Port(QGraphicsItem):
     def redraw_connected_pipes(self):
         if len(self.connected_pipes) == 0:
             return
-        for node_id, pipe in self.connected_pipes.items():
+        for pipe in self.connected_pipes.values():
             if self.port_type == "in":
                 pipe.draw_path(self, pipe.output_port)
             elif self.port_type == "out":
@@ -326,7 +326,7 @@ class Port(QGraphicsItem):
         elif isinstance(ports, str):
             self._accepted_ports.append(ports)
         else:
-            raise ValueError("Invalid port type")
+            raise TypeError("Invalid port type")
 
     def connected(self, target_port):
         """Check whether the specified port is connected to this port.

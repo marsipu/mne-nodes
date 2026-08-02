@@ -130,7 +130,7 @@ class EditDictModel(BaseDictModel):
         self.beginInsertRows(parent, row, row + count - 1)
         for n in range(count):
             key_name = f"__new{n}__"
-            while key_name in self._data.keys():
+            while key_name in self._data:
                 n += 1
                 key_name = f"__new{n}__"
             self._data[key_name] = ""

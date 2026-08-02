@@ -35,7 +35,7 @@ class Param(QWidget):
         *args: Any,
         **kwargs: Any,
     ):
-        super().__init__(parent=parent_widget, *args, **kwargs)
+        super().__init__(*args, parent=parent_widget, **kwargs)
         if isinstance(data, Controller) and function_name is None:
             raise RuntimeError(
                 "Function name must be provided when using Controller as data source."
@@ -139,7 +139,7 @@ class Param(QWidget):
             value = self.data.parameter(name, function_name=self.function_name)
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
-        elif isinstance(self.data, Settings) and name in self.data.keys():
+        elif isinstance(self.data, Settings) and name in self.data:
             value = self.data.get(name)
         else:
             logger.warning(
@@ -173,7 +173,7 @@ class Param(QWidget):
         if isinstance(self.data, dict):
             return key in self.data
         if isinstance(self.data, Settings):
-            return key in self.data.keys()
+            return key in self.data
         return False
 
     def _get_widget_value(self) -> Any:

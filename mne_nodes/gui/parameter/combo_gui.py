@@ -33,7 +33,7 @@ class ComboGui(Param):
         self.param_widget.clear()
         for option in self.options:
             if not isinstance(option, str):
-                raise RuntimeError(
+                raise TypeError(
                     f"Options for {self.name} must be strings, "
                     f"but got type:{type(option)} for  {option}"
                 )

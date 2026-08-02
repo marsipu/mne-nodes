@@ -982,7 +982,7 @@ class Controller:
             raw_config = load_json(config_path)
             config = raw_config.get("functions", raw_config)
             module_name = self._get_module_name(raw_config)
-            for function_name, function_meta in config.items():
+            for function_meta in config.values():
                 function_meta.setdefault("module_name", module_name)
             # Warn for duplicates
             duplicate_functions = [fn for fn in config if fn in self.function_meta]
@@ -1081,21 +1081,21 @@ class Controller:
             module = sys.modules[module_name]
             modules = {module_name: module}
 
-        for module_name, module in modules.items():
+        for loaded_module_name, module in modules.items():
             # Remove the module from sys.modules
-            del sys.modules[module_name]
+            del sys.modules[loaded_module_name]
 
             # Clear bytecode cache if possible
             bytecode_file = cache_from_source(str(module.__file__))
             try:
                 os.remove(bytecode_file)
-            except Exception as e:
+            except OSError as e:
                 logger.warning(f"Error clearing bytecode cache: {e}")
 
             # Import the module again
-            new_module = import_module(module_name)
+            new_module = import_module(loaded_module_name)
             # Update the module in the controller
-            self.plugins[module_name] = new_module
+            self.plugins[loaded_module_name] = new_module
 
     def get_function_meta(self, function_name: str) -> dict[str, Any]:
         """Get the metadata for a specific function."""

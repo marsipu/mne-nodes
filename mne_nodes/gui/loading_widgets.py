@@ -116,8 +116,8 @@ def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
 def plot_ica_properties(meeg, ica_fitto, show_plots):
     ica = meeg.load_ica()
 
-    eog_indices = meeg.load_json("eog_indices", default=list())
-    ecg_indices = meeg.load_json("ecg_indices", default=list())
+    eog_indices = meeg.load_json("eog_indices", default=[])
+    ecg_indices = meeg.load_json("ecg_indices", default=[])
     psd_args = {"fmax": meeg.pa["lowpass"]}
 
     if len(eog_indices) > 0:
@@ -218,15 +218,13 @@ def index_parser(index, all_items, groups=None):
                     if "!" in sp and "-" in sp:
                         x, y = sp.split("-")
                         x = x[1:]
-                        for n in range(int(x), int(y) + 1):
-                            rm.append(n)
+                        rm.extend(range(int(x), int(y) + 1))
                     elif "!" in sp:
                         rm.append(int(sp[1:]))
                     elif "all" in sp:
-                        for i in range(len(all_items)):
-                            indices.append(i)
+                        indices.extend(range(len(all_items)))
             else:
-                indices = [x for x in range(len(all_items))]
+                indices = list(range(len(all_items)))
 
         elif "," in index and "-" in index:
             z = index.split(",")
@@ -240,8 +238,7 @@ def index_parser(index, all_items, groups=None):
                 elif "!" in i and "-" in i:
                     x, y = i.split("-")
                     x = x[1:]
-                    for n in range(int(x), int(y) + 1):
-                        rm.append(n)
+                    rm.extend(range(int(x), int(y) + 1))
                 elif "!" in i:
                     rm.append(int(i[1:]))
 
@@ -732,19 +729,18 @@ class EventIDGui(QDialog):
         self.event_id_label.setText(label_text)
 
     def save_event_id(self):
-        if self.name:
-            if len(self.event_id) > 0:
-                # Write Event-ID to Project
-                self.pr.meeg_event_id[self.name] = self.event_id
+        if self.name and len(self.event_id) > 0:
+            # Write Event-ID to Project
+            self.pr.meeg_event_id[self.name] = self.event_id
 
-                # Get selected Trials, add queries and write them to meeg.pr
-                sel_event_id = {}
-                for label in self.checked_labels:
-                    if label in self.queries:
-                        sel_event_id[label] = self.queries[label]
-                    else:
-                        sel_event_id[label] = None
-                self.pr.sel_event_id[self.name] = sel_event_id
+            # Get selected Trials, add queries and write them to meeg.pr
+            sel_event_id = {}
+            for label in self.checked_labels:
+                if label in self.queries:
+                    sel_event_id[label] = self.queries[label]
+                else:
+                    sel_event_id[label] = None
+            self.pr.sel_event_id[self.name] = sel_event_id
 
     def file_selected(self, current, _):
         """Called when File from file_widget is selected."""
@@ -773,9 +769,9 @@ class EventIDGui(QDialog):
 
     # ToDo: Make all combinations possible and also int-keys (can't split)
     def update_check_list(self):
-        self.labels = [k for k in self.queries.keys()]
+        self.labels = list(self.queries)
         # Get selectable trials and update widget
-        prelabels = [i.split("/") for i in self.event_id.keys() if i != ""]
+        prelabels = [i.split("/") for i in self.event_id if i != ""]
         if len(prelabels) > 0:
             # Concatenate all lists
             conc_labels = prelabels[0]

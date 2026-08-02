@@ -153,8 +153,8 @@ def restart_program():
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
             os.close(handler.fd)
-    except Exception as e:
-        logger.error(e)
+    except (OSError, psutil.Error):
+        logger.exception("Failed to close all open file descriptors during restart.")
 
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -162,7 +162,7 @@ def restart_program():
 
 def _get_func_param_kwargs(func, params):
     kwargs = {
-        kwarg: params[kwarg] if kwarg in params else None
+        kwarg: params.get(kwarg, None)
         for kwarg in inspect.signature(func).parameters
     }
 
@@ -170,9 +170,7 @@ def _get_func_param_kwargs(func, params):
 
 
 def is_test():
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return True
-    return False
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def _run_from_script():

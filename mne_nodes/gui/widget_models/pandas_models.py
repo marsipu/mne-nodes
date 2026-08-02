@@ -87,7 +87,7 @@ class EditPandasModel(BasePandasModel):
             try:
                 value = literal_eval(value)
                 # List or Dictionary not allowed here as PandasDataFrame-Item
-                if isinstance(value, dict) or isinstance(value, list):
+                if isinstance(value, (dict, list)):
                     value = str(value)
             except (SyntaxError, ValueError):
                 pass

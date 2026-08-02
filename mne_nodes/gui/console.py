@@ -113,9 +113,7 @@ class StreamWorker(QRunnable):
         if m and m.group(1) == m.group(2) and m.group(1) != "0":
             return True
         m2 = self._RE_PERCENT.search(line)
-        if m2 and m2.group(1) == "100":
-            return True
-        return False
+        return bool(m2 and m2.group(1) == "100")
 
     def _emit_chunk(self, force: bool = False):
         # Emit chunk if too large or flush interval passed

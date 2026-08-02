@@ -464,8 +464,8 @@ class FunctionImporter(QDialog):
         namespace = {}
         if self.allow_exec:
             try:
-                exec(code, globals=namespace)
-            except Exception:
+                exec(code, globals=namespace)  # noqa: S102
+            except Exception:  # noqa: BLE001
                 exc_tuple = get_exception_tuple()
                 ErrorDialog(
                     exc_tuple, self, "There was an error executing the code."
@@ -701,7 +701,7 @@ class FunctionImporter(QDialog):
 
     def get_code(self):
         code = ""
-        for func_name, editor in self.editors.items():
+        for editor in self.editors.values():
             code += editor.toPlainText() + "\n\n"
         return code
 

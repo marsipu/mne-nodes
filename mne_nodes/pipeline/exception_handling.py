@@ -43,7 +43,7 @@ def gui_error_decorator(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001
             exc_tuple = get_exception_tuple()
             ErrorDialog(exc_tuple).exec()
 
@@ -54,7 +54,7 @@ def gui_error_decorator(func):
 def gui_error():
     try:
         yield
-    except Exception:
+    except Exception:  # noqa: BLE001
         exc_tuple = get_exception_tuple()
         ErrorDialog(exc_tuple).exec()
 

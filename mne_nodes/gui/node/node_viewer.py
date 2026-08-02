@@ -559,7 +559,7 @@ class NodeViewer(QGraphicsView):
 
         # Save connections
         viewer_dict["connections"] = {}
-        for node_id, node in self.nodes.items():
+        for node in self.nodes.values():
             viewer_dict["connections"][node.id] = {}
             for port in node.ports:
                 viewer_dict["connections"][node.id][port.id] = {}
@@ -735,12 +735,10 @@ class NodeViewer(QGraphicsView):
 
         scale = (0.9 + sensitivity) if value < 0.0 else (1.1 - sensitivity)
         zoom = self.get_zoom()
-        if defaults["viewer"]["zoom_min"] >= zoom:
-            if scale == 0.9:
-                return
-        if defaults["viewer"]["zoom_max"] <= zoom:
-            if scale == 1.1:
-                return
+        if defaults["viewer"]["zoom_min"] >= zoom and scale == 0.9:
+            return
+        if defaults["viewer"]["zoom_max"] <= zoom and scale == 1.1:
+            return
         self.scale(scale, scale, pos)
 
     def _set_viewer_pan(self, pos_x, pos_y):
@@ -970,11 +968,10 @@ class NodeViewer(QGraphicsView):
         map_pos = self.mapToScene(event.pos())
 
         # debug path
-        if debug_mode():
-            if self.LMB_state:
-                path = self._debug_path.path()
-                path.moveTo(map_pos)
-                self._debug_path.setPath(path)
+        if debug_mode() and self.LMB_state:
+            path = self._debug_path.path()
+            path.moveTo(map_pos)
+            self._debug_path.setPath(path)
 
         # pipe slicer enabled.
         if self.LMB_state and event.modifiers() == (
@@ -1074,13 +1071,12 @@ class NodeViewer(QGraphicsView):
 
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
         origin_pos = self._origin_pos or event.pos()
-        if debug_mode():
+        if debug_mode() and self.LMB_state:
             # Debug mouse
-            if self.LMB_state:
-                to_pos = self.mapToScene(event.pos())
-                path = self._debug_path.path()
-                path.lineTo(to_pos)
-                self._debug_path.setPath(path)
+            to_pos = self.mapToScene(event.pos())
+            path = self._debug_path.path()
+            path.lineTo(to_pos)
+            self._debug_path.setPath(path)
 
         # Draw slicer
         if self.LMB_state and event.modifiers() == (
@@ -1548,9 +1544,7 @@ class NodeViewer(QGraphicsView):
             True if the item is a node.
         """
         # For some reason, issubclass(item.__class__, BaseNode) does not work
-        if item in self.nodes.values():
-            return True
-        return False
+        return item in self.nodes.values()
 
     def isport(self, item) -> TypeGuard[Port]:
         """Check if the item is a port.
@@ -1893,7 +1887,7 @@ class NodeViewer(QGraphicsView):
             raise ValueError("No node found with the provided parameters.")
         port = node.port(port_type, port_idx, port_name, port_id)
         if not isinstance(port, Port):
-            raise ValueError("No port found with the provided parameters.")
+            raise TypeError("No port found with the provided parameters.")
         scene_pos = port.scenePos() + port.boundingRect().center()
         # Convert to float point
         scene_pos = QPointF(scene_pos)
@@ -2068,10 +2062,8 @@ class NodeViewer(QGraphicsView):
         # Clear old labels
         if self._coord_tick_labels:
             for t in self._coord_tick_labels:
-                try:
+                if t.scene() is self.scene():
                     self.scene().removeItem(t)
-                except Exception:
-                    pass
             self._coord_tick_labels = []
 
         # Color and font for ticks
@@ -2129,8 +2121,6 @@ class NodeViewer(QGraphicsView):
             self._set_grid_visible(False)
             # also clear labels to avoid stale items
             for t in getattr(self, "_coord_tick_labels", []) or []:
-                try:
+                if t.scene() is self.scene():
                     self.scene().removeItem(t)
-                except Exception:
-                    pass
             self._coord_tick_labels = []

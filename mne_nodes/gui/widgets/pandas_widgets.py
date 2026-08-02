@@ -139,8 +139,7 @@ class BasePandasTable(Base):
         if values:
             for value in values:
                 row, column = np.nonzero((self.model._data == value).values)
-                for idx in zip(row, column):
-                    indexes.append(idx)
+                indexes.extend(zip(row, column))
 
         # Select complete rows
         if rows:
@@ -148,8 +147,7 @@ class BasePandasTable(Base):
             row_idxs = [list(self.model._data.index).index(row) for row in rows]
             n_cols = len(self.model._data.columns)
             for row in row_idxs:
-                for idx in zip(itertools.repeat(row, n_cols), range(n_cols)):
-                    indexes.append(idx)
+                indexes.extend(zip(itertools.repeat(row, n_cols), range(n_cols)))
 
         # Select complete columns
         if columns:
@@ -157,8 +155,7 @@ class BasePandasTable(Base):
             column_idxs = [list(self.model._data.columns).index(col) for col in columns]
             n_rows = len(self.model._data.index)
             for column in column_idxs:
-                for idx in zip(range(n_rows), itertools.repeat(column, n_rows)):
-                    indexes.append(idx)
+                indexes.extend(zip(range(n_rows), itertools.repeat(column, n_rows)))
 
         if clear_selection:
             self.view.selectionModel().clearSelection()

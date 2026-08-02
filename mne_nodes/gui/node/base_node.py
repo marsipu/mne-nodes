@@ -538,10 +538,10 @@ class BaseNode(QGraphicsItem):
             connected_nodes = self.connected_output_nodes()
         else:
             connected_nodes = self.connected_nodes(port_id=port_id)
-        for port_id, nodes in connected_nodes.items():
-            down_dict[port_id] = {}
+        for connected_port_id, nodes in connected_nodes.items():
+            down_dict[connected_port_id] = {}
             for node in nodes:
-                down_dict[port_id][node.id] = node.downstream_node_dict()
+                down_dict[connected_port_id][node.id] = node.downstream_node_dict()
 
         return down_dict
 
@@ -552,10 +552,10 @@ class BaseNode(QGraphicsItem):
             connected_nodes = self.connected_input_nodes()
         else:
             connected_nodes = self.connected_nodes(port_id=port_id)
-        for port_id, nodes in connected_nodes.items():
-            up_dict[port_id] = {}
+        for connected_port_id, nodes in connected_nodes.items():
+            up_dict[connected_port_id] = {}
             for node in nodes:
-                up_dict[port_id][node.id] = node.upstream_node_dict()
+                up_dict[connected_port_id][node.id] = node.upstream_node_dict()
 
         return up_dict
 
