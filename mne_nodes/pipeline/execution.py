@@ -4,13 +4,13 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 import sys
 from inspect import signature
 from os.path import isdir
 
 from qtpy.QtCore import QObject, QProcess, QRunnable, QThreadPool, Signal, Slot
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 
 

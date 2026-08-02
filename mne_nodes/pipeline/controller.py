@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import ast
 import json
-from mne_nodes.logger import logger
 import os
 import re
 import subprocess
@@ -34,6 +33,7 @@ from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
 )
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
 from mne_nodes.pipeline.pip_utils import install_pip_packages
@@ -1299,9 +1299,7 @@ class Controller:
         run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)
-        logger.info(
-            f"Pipeline code generated at {run_file_path}.\nStarting execution."
-        )
+        logger.info(f"Pipeline code generated at {run_file_path}.\nStarting execution.")
         # Start process in Console-Dock (handle processes there)
         self.main_window.console_dock.start_process(
             sys.executable, [str(run_file_path)]

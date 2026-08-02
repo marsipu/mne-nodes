@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 import sys
 import traceback
 from contextlib import contextmanager
@@ -13,6 +12,7 @@ from qtpy.QtCore import QObject, Signal
 
 from mne_nodes import debug_mode
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
+from mne_nodes.logger import logger
 
 
 class ExceptionTuple:

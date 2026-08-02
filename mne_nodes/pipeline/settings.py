@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-from mne_nodes.logger import logger
 import os
 import sys
 from copy import deepcopy
@@ -15,6 +14,7 @@ from typing import Any
 
 from filelock import FileLock, Timeout
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 
 # Default device specific settings (formerly partly stored in QSettings)

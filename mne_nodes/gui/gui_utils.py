@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-from mne_nodes.logger import logger
 import os
 import sys
 from functools import partial
@@ -33,6 +32,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import extra, gui_mode
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
 

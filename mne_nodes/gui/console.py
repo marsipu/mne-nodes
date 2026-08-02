@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 from __future__ import annotations
 
 import codecs
-from mne_nodes.logger import logger
 import queue
 import re
 import sys
@@ -37,6 +36,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.streams import init_streams
 

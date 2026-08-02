@@ -5,13 +5,13 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import inspect
-from mne_nodes.logger import logger
 import multiprocessing
 import os
 import sys
 from pathlib import Path
 
 from mne_nodes import islin, ismac, iswin
+from mne_nodes.logger import logger
 
 
 def get_n_jobs(n_jobs):

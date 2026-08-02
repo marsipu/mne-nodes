@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import json
-from mne_nodes.logger import logger
 from functools import partial
 from os import PathLike
 from os.path import isfile
@@ -61,6 +60,7 @@ from mne_nodes.gui.parameter import (
     SliderGui,
     StringGui,
 )
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 

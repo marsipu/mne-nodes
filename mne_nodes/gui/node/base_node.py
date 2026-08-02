@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 from collections import OrderedDict
 
 import qtawesome as qta
@@ -21,6 +20,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.logger import logger
 
 
 class NodeTextItem(QGraphicsTextItem):

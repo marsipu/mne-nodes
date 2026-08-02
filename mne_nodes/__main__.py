@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import argparse
-from mne_nodes.logger import logger
 import sys
 
 import qtpy
@@ -14,6 +13,7 @@ from qtpy.QtWidgets import QApplication
 
 import mne_nodes
 from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
 from mne_nodes.pipeline.streams import init_logging, init_streams

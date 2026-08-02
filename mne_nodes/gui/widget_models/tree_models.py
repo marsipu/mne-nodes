@@ -4,9 +4,9 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
-
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
+
+from mne_nodes.logger import logger
 
 
 class TreeItem:

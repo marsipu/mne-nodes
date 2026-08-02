@@ -4,8 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
-
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QColor, QFont
 from qtpy.QtWidgets import (
@@ -27,6 +25,7 @@ from mne_nodes.gui.widget_models.list_models import (
     EditListModel,
 )
 from mne_nodes.gui.widgets.base import BaseList
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
 

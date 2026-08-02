@@ -4,10 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 from ast import literal_eval
 
 from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
+
+from mne_nodes.logger import logger
 
 
 class BaseDictModel(QAbstractTableModel):

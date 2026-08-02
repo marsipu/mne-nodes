@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from mne_nodes.logger import logger
 from collections.abc import MutableMapping
 from types import NoneType
 from typing import Any
@@ -10,6 +9,7 @@ from typing import Any
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.settings import Settings
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from mne_nodes.logger import logger
 from collections.abc import Sequence
 from typing import Any
 
 from qtpy.QtWidgets import QComboBox, QHBoxLayout, QLabel
 
 from mne_nodes.gui.widgets.misc_widgets import ComboBox
+from mne_nodes.logger import logger
 
 from .param import Param
 

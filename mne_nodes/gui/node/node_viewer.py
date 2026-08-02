@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 import math
 import re
 from collections import OrderedDict
@@ -31,6 +30,7 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.logger import logger
 
 
 class NodeViewer(QGraphicsView):

@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import itertools
-from mne_nodes.logger import logger
 
 import numpy as np
 from qtpy.QtCore import QItemSelectionModel, Qt
@@ -23,6 +22,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
 from mne_nodes.gui.widgets.base import Base
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
 

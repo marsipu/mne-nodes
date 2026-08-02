@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from mne_nodes.logger import logger
 import sys
 import time
 
@@ -19,6 +18,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.logger import logger
 
 
 class SysInfoMsg(QDialog):
