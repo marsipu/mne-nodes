@@ -249,10 +249,10 @@ def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
     return data
 
 
-def load_json(file_path: os.PathLike) -> dict | list | None:
+def load_json(file_path: os.PathLike, no_gui: bool = False) -> dict | list | None:
     from mne_nodes import gui_mode
 
-    if gui_mode:
+    if gui_mode and not no_gui:
         return json_load_dialog(file_path)
     else:
         return load_json_tqdm(file_path)

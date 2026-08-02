@@ -143,12 +143,8 @@ class InputNode(BaseNode):
         self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
-        raw_port_added = False
         for dt in data_types:
             port_names = [dt]
-            if dt in self.ct.raw_types and not raw_port_added:
-                port_names.append("raw")
-                raw_port_added = True
 
             for name in port_names:
                 if name in self.outputs:
@@ -182,12 +178,20 @@ class FunctionNode(BaseNode):
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
+            if input_name == "raw":
+                accepted_ports = ["raw", *ct.raw_types]
+            else:
+                accepted_ports = [input_name]
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=[input_name]
+                input_name, multi_connection=True, accepted_ports=accepted_ports
             )
         for output_name in func_meta["outputs"]:
+            if output_name == "raw":
+                accepted_ports = ["raw", *ct.raw_types]
+            else:
+                accepted_ports = [output_name]
             self.add_output(
-                output_name, multi_connection=True, accepted_ports=[output_name]
+                output_name, multi_connection=True, accepted_ports=accepted_ports
             )
         # Initialize the parameters
         self.parameter_guis = {}

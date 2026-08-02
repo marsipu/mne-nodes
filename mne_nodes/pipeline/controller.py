@@ -696,7 +696,7 @@ class Controller:
         """Load the configuration from the config-file if necessary."""
         config_path = self.ensure_config_path(interactive=False)
         try:
-            config = load_json(config_path)
+            config = load_json(config_path, no_gui=True)
         except (
             OSError,
             json.JSONDecodeError,
@@ -807,7 +807,7 @@ class Controller:
             logger.warning(f"Dataset description file not found at {dataset_file}.")
             return None
         else:
-            dataset_description = load_json(dataset_file)
+            dataset_description = load_json(dataset_file, no_gui=True)
             return dataset_description["Name"]
 
     def get_group_by(self, group_by):
