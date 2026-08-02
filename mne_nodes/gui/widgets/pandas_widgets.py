@@ -21,9 +21,9 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_utils import get_user_input
-from mne_nodes.pipeline.settings import Settings
-from mne_nodes.gui.widgets.base import Base
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
+from mne_nodes.gui.widgets.base import Base
+from mne_nodes.pipeline.settings import Settings
 
 
 class BasePandasTable(Base):

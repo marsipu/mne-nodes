@@ -11,15 +11,15 @@ from collections import OrderedDict
 from typing import TypeGuard
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPointF, QPoint, QRectF, QRect, QSize, Signal, Qt
-from qtpy.QtGui import QColor, QPainter, QPainterPath, QAction
+from qtpy.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
-    QGraphicsView,
-    QRubberBand,
-    QGraphicsTextItem,
     QGraphicsPathItem,
+    QGraphicsTextItem,
+    QGraphicsView,
     QMenu,
+    QRubberBand,
 )
 
 from mne_nodes import _widgets, debug_mode
@@ -29,7 +29,7 @@ from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
-from mne_nodes.gui.node.pipes import LivePipeItem, SlicerPipeItem, Pipe
+from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
 
 
@@ -1307,9 +1307,10 @@ class NodeViewer(QGraphicsView):
                 pointer_color = [150, 60, 255]
                 break
 
-            if item.node == self._start_port.node:
-                pointer_color = defaults["pipes"]["disabled_color"]
-            elif item.port_type == self._start_port.port_type:
+            if (
+                item.node == self._start_port.node
+                or item.port_type == self._start_port.port_type
+            ):
                 pointer_color = defaults["pipes"]["disabled_color"]
             break
 
@@ -1727,7 +1728,7 @@ class NodeViewer(QGraphicsView):
         """
         transform = self.transform()
         cur_scale = (transform.m11(), transform.m22())
-        return float("{:0.2f}".format(cur_scale[0] - 1.0))
+        return float(f"{cur_scale[0] - 1.0:0.2f}")
 
     def set_zoom(self, value=0.0):
         """Set the viewer zoom level.

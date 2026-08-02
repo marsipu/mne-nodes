@@ -6,7 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import re
 
-from qtpy.QtCore import QTimer, Qt
+from qtpy.QtCore import Qt, QTimer
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QComboBox,
@@ -22,9 +22,9 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import _widgets
-from mne_nodes.pipeline.settings import Settings
 from mne_nodes.gui.widgets.dict_widgets import EditDict
 from mne_nodes.gui.widgets.list_widgets import CheckDictList, EditList, SimpleList
+from mne_nodes.pipeline.settings import Settings
 
 
 class ComboBox(QComboBox):

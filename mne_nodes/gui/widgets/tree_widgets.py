@@ -10,18 +10,18 @@ from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QSizePolicy,
     QTreeView,
     QVBoxLayout,
-    QHeaderView,
 )
 
 from mne_nodes.gui.gui_utils import get_user_input
-from mne_nodes.pipeline.settings import Settings
-from mne_nodes.gui.widgets.base import Base
 from mne_nodes.gui.widget_models.tree_models import ShallowTreeModel, TreeModel
+from mne_nodes.gui.widgets.base import Base
+from mne_nodes.pipeline.settings import Settings
 
 
 class TreeWidget(Base):

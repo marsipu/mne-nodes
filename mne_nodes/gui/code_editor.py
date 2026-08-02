@@ -9,8 +9,8 @@ from os.path import isfile
 from pathlib import Path
 
 from qtpy.QtCore import QRegularExpression, Signal
-from qtpy.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFont
-from qtpy.QtWidgets import QPlainTextEdit, QWidget, QVBoxLayout, QPushButton
+from qtpy.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
+from qtpy.QtWidgets import QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.pipeline.pipeline_utils import change_file_section

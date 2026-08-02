@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from mne_nodes import ismac, iswin, islin
+from mne_nodes import islin, ismac, iswin
 
 
 def get_n_jobs(n_jobs):

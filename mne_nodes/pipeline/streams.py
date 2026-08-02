@@ -4,12 +4,13 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import io
 import logging
 import sys
 from pathlib import Path
 
 from qtpy.QtCore import QObject, Signal
-import io
+
 from mne_nodes.pipeline.settings import Settings
 
 

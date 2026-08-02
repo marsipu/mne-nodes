@@ -16,9 +16,9 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from mne_nodes.gui.gui_utils import center
 from mne_nodes.gui.widgets.list_widgets import CheckList, SimpleList
 from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
-from mne_nodes.gui.gui_utils import center
 from mne_nodes.pipeline.controller import Controller
 
 from .param import Param

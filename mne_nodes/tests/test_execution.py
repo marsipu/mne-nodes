@@ -13,8 +13,8 @@ import pytest
 from qtpy.QtCore import Qt
 
 from mne_nodes.gui.console import ConsoleWidget
-from mne_nodes.pipeline.execution import Process
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.pipeline.execution import Process
 
 
 def _wait_for_console_output(qtbot, get_text, expected_substrings, timeout_s=5.0):

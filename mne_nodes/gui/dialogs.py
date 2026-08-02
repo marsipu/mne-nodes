@@ -8,7 +8,6 @@ import logging
 import sys
 import time
 
-from mne_nodes.gui.gui_utils import set_ratio_geometry
 from qtpy.QtWidgets import (
     QApplication,
     QDialog,
@@ -18,6 +17,8 @@ from qtpy.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
 )
+
+from mne_nodes.gui.gui_utils import set_ratio_geometry
 
 
 class SysInfoMsg(QDialog):

@@ -9,12 +9,12 @@ from collections import OrderedDict
 
 import qtawesome as qta
 from qtpy.QtCore import QRectF, Qt
-from qtpy.QtGui import QColor, QPen, QPainterPath
+from qtpy.QtGui import QColor, QPainterPath, QPen
 from qtpy.QtWidgets import (
-    QGraphicsItem,
-    QGraphicsTextItem,
-    QGraphicsProxyWidget,
     QCheckBox,
+    QGraphicsItem,
+    QGraphicsProxyWidget,
+    QGraphicsTextItem,
     QPushButton,
 )
 

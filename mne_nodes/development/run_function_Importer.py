@@ -4,12 +4,12 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import faulthandler
 import sys
 from pathlib import Path
 
-import faulthandler
-
 from qtpy.QtWidgets import QApplication
+
 from mne_nodes.pipeline.streams import init_logging
 
 

@@ -8,28 +8,28 @@ from .dict_models import BaseDictModel, EditDictModel
 from .function_picker_model import FunctionPickerModel
 from .list_models import (
     BaseListModel,
-    EditListModel,
-    CheckListModel,
-    CheckDictModel,
     CheckDictEditModel,
+    CheckDictModel,
+    CheckListModel,
     CheckListProgressModel,
+    EditListModel,
 )
 from .pandas_models import BasePandasModel, EditPandasModel
-from .tree_models import TreeItem, TreeModel, ShallowTreeModel
+from .tree_models import ShallowTreeModel, TreeItem, TreeModel
 
 __all__ = [
-    "BaseListModel",
-    "EditListModel",
-    "CheckListModel",
-    "CheckDictModel",
-    "CheckDictEditModel",
-    "CheckListProgressModel",
     "BaseDictModel",
-    "EditDictModel",
+    "BaseListModel",
     "BasePandasModel",
+    "CheckDictEditModel",
+    "CheckDictModel",
+    "CheckListModel",
+    "CheckListProgressModel",
+    "EditDictModel",
+    "EditListModel",
     "EditPandasModel",
+    "FunctionPickerModel",
+    "ShallowTreeModel",
     "TreeItem",
     "TreeModel",
-    "ShallowTreeModel",
-    "FunctionPickerModel",
 ]

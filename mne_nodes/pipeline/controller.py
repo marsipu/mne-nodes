@@ -5,33 +5,34 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import ast
-from importlib.metadata import entry_points
 import json
 import logging
 import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from copy import deepcopy
 from importlib import import_module
+from importlib.metadata import entry_points
 from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, join
 from pathlib import Path
-from types import SimpleNamespace
 from time import perf_counter
-from typing import Any, Callable, Dict, List, Optional, Union
+from types import SimpleNamespace
+from typing import Any
 
 import mne
 from filelock import FileLock, Timeout
-from mne_bids import get_datatypes, get_entity_vals, BIDSPath, get_bids_path_from_fname
+from mne_bids import BIDSPath, get_bids_path_from_fname, get_datatypes, get_entity_vals
 
 from mne_nodes import _widgets, ismac, iswin
 from mne_nodes.gui.gui_utils import (
+    ask_user,
+    ask_user_custom,
     get_user_input,
     raise_user_attention,
-    ask_user_custom,
-    ask_user,
 )
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
@@ -90,9 +91,7 @@ class Controller:
     """
 
     def __init__(
-        self,
-        config_path: Optional[Union[str, Path]] = None,
-        settings: Optional[Settings] = None,
+        self, config_path: str | Path | None = None, settings: Settings | None = None
     ):
         self.settings = settings or Settings()
         # These hidden attributes should not be set directly
@@ -1008,7 +1007,7 @@ class Controller:
             self.plugins[entry_point.name] = module
         return self.plugins
 
-    def add_module(self, config_path: Union[str, Path]):
+    def add_module(self, config_path: str | Path):
         """Load function metadata from an external module config file."""
         module_config_path = Path(config_path)
         module_config = load_json(module_config_path)
@@ -1050,7 +1049,7 @@ class Controller:
             )
         return module_name
 
-    def reload_plugins(self, module_name: Optional[str] = None) -> None:
+    def reload_plugins(self, module_name: str | None = None) -> None:
         """Reload all modules in the controller.
 
         This refreshes selected or all modules by removing them from sys.modules
@@ -1098,7 +1097,7 @@ class Controller:
             # Update the module in the controller
             self.plugins[module_name] = new_module
 
-    def get_function_meta(self, function_name: str) -> Dict[str, Any]:
+    def get_function_meta(self, function_name: str) -> dict[str, Any]:
         """Get the metadata for a specific function."""
         function_meta = self.function_meta.get(function_name, None)
         if function_meta is None:
@@ -1112,7 +1111,7 @@ class Controller:
 
         return function_meta
 
-    def get_functions_categorized(self) -> Dict[str, List[str]]:
+    def get_functions_categorized(self) -> dict[str, list[str]]:
         """Get the functions categorized by their category and subcategory."""
         categorized = {}
         for func_name, func_meta in self.function_meta.items():
@@ -1135,7 +1134,7 @@ class Controller:
 
     def get_parameter_meta(
         self, parameter_name: str, function_name: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get the metadata for a specific parameter."""
         function_meta = self.get_function_meta(function_name)
         parameter_meta = function_meta["parameters"].get(parameter_name, None)
@@ -1146,7 +1145,7 @@ class Controller:
 
         return parameter_meta
 
-    def get_input_meta(self, function_name: str, input_name: str) -> Dict[str, Any]:
+    def get_input_meta(self, function_name: str, input_name: str) -> dict[str, Any]:
         """Get the metadata for a specific data input/output."""
         function_meta = self.get_function_meta(function_name)
         input_meta = function_meta["inputs"].get(input_name, None)
@@ -1157,7 +1156,7 @@ class Controller:
 
         return input_meta
 
-    def get_output_meta(self, function_name: str, output_name: str) -> Dict[str, Any]:
+    def get_output_meta(self, function_name: str, output_name: str) -> dict[str, Any]:
         """Get the metadata for a specific data output."""
         function_meta = self.get_function_meta(function_name)
         output_meta = function_meta["outputs"].get(output_name, None)
@@ -1199,7 +1198,7 @@ class Controller:
     ####################################################################################
     # Pipeline
     ####################################################################################
-    def import_pipeline(self, import_path: Optional[Union[str, Path]] = None):
+    def import_pipeline(self, import_path: str | Path | None = None):
         if import_path is None:
             import_path = get_user_input(
                 "Select a pipeline configuration file to import.",
@@ -1272,7 +1271,7 @@ class Controller:
             plugins.add(func_meta["module_name"])
         return plugins
 
-    def export_pipeline(self, export_path: Optional[Union[str, Path]] = None):
+    def export_pipeline(self, export_path: str | Path | None = None):
         if export_path is None:
             export_path = get_user_input(
                 "Select a location to save the pipeline configuration.",

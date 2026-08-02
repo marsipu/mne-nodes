@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from mne_qt_browser._pg_figure import _get_color
+from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -11,7 +13,6 @@ from qtpy.QtWidgets import (
     QPushButton,
     QSizePolicy,
 )
-from qtpy.QtGui import QPixmap
 
 from .param import Param
 
