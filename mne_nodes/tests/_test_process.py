@@ -5,8 +5,9 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import time
-import tqdm
 import traceback
+
+import tqdm
 
 print("Test1")
 for _ in tqdm.tqdm(range(10), desc="Progress"):

@@ -5,22 +5,23 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from copy import deepcopy
+
 from qtpy.QtWidgets import (
-    QScrollArea,
+    QComboBox,
     QGroupBox,
     QPushButton,
-    QWidget,
-    QComboBox,
-    QVBoxLayout,
+    QScrollArea,
     QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
-from mne_nodes.gui.widgets.list_widgets import CheckListProgress
-from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
-from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
+from mne_nodes.gui.widgets.list_widgets import CheckListProgress
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
+from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
 
 
 class InputWidget(QWidget):

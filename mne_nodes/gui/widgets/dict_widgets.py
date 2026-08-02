@@ -17,9 +17,9 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
-from mne_nodes.pipeline.settings import Settings
-from mne_nodes.gui.widgets.base import Base
 from mne_nodes.gui.widget_models.dict_models import BaseDictModel, EditDictModel
+from mne_nodes.gui.widgets.base import Base
+from mne_nodes.pipeline.settings import Settings
 
 
 class BaseDict(Base):

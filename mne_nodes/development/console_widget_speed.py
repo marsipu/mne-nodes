@@ -1,7 +1,7 @@
 import sys
 
 from qtpy.QtCore import QTimer
-from qtpy.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
+from qtpy.QtWidgets import QApplication, QPushButton, QVBoxLayout, QWidget
 
 from mne_nodes.gui.console import MainConsoleWidget
 

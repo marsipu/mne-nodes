@@ -108,7 +108,6 @@ def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
 
         def exec(self, *args, **kwargs):
             calls.append(True)
-            return None
 
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 
@@ -151,7 +150,6 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
 
         def exec(self, *args, **kwargs):
             calls.append(True)
-            return None
 
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 
@@ -191,7 +189,6 @@ def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
             action_texts.extend(
                 [action.text() for action in self.actions if hasattr(action, "text")]
             )
-            return None
 
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 

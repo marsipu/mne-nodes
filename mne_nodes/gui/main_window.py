@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import mne
-from qtpy.QtCore import QProcess, Signal, Qt
+from qtpy.QtCore import QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
@@ -22,7 +22,7 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.pipeline.data_import import load_sample_bids
-from mne_nodes.pipeline.pipeline_utils import restart_program, _run_from_script
+from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
 
 class MainWindow(QMainWindow):

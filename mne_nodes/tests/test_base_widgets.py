@@ -6,8 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import pandas as pd
 import pytest
-from qtpy.QtCore import Qt
-from qtpy.QtCore import QItemSelectionModel
+from qtpy.QtCore import QItemSelectionModel, Qt
 
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
@@ -292,7 +291,7 @@ def test_widget_selection(
 
         if "expected_current" in select_params:
             assert current == select_params["expected_current"]
-        elif "current_in_items" in select_params and select_params["current_in_items"]:
+        elif select_params.get("current_in_items"):
             assert current in original_data.items()
 
         # Test select method

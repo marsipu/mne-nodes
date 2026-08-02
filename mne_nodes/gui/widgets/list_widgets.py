@@ -18,8 +18,6 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
-from mne_nodes.pipeline.settings import Settings
-from mne_nodes.gui.widgets.base import BaseList
 from mne_nodes.gui.widget_models.list_models import (
     BaseListModel,
     CheckDictEditModel,
@@ -28,6 +26,8 @@ from mne_nodes.gui.widget_models.list_models import (
     CheckListProgressModel,
     EditListModel,
 )
+from mne_nodes.gui.widgets.base import BaseList
+from mne_nodes.pipeline.settings import Settings
 
 
 class SimpleList(BaseList):

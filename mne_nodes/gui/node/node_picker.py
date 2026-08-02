@@ -5,7 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDockWidget, QTableView, QAbstractItemView
+from qtpy.QtWidgets import QAbstractItemView, QDockWidget, QTableView
 
 from mne_nodes.gui.widget_models.function_picker_model import FunctionPickerModel
 

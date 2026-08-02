@@ -6,19 +6,19 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import math
 
-from qtpy.QtCore import QPointF, QLineF, QRectF, Qt
+from qtpy.QtCore import QLineF, QPointF, QRectF, Qt
 from qtpy.QtGui import (
-    QPolygonF,
-    QColor,
-    QPainterPath,
     QBrush,
-    QTransform,
-    QPen,
+    QColor,
     QPainter,
+    QPainterPath,
+    QPen,
+    QPolygonF,
+    QTransform,
 )
 from qtpy.QtWidgets import (
-    QGraphicsPathItem,
     QGraphicsItem,
+    QGraphicsPathItem,
     QGraphicsPolygonItem,
     QGraphicsTextItem,
 )
@@ -463,7 +463,7 @@ class LivePipeItem(Pipe):
         else:
             transform.rotate(90)
         self._idx_text.setPos(*text_pos)
-        self._idx_text.setPlainText("{}".format(start_port.name))
+        self._idx_text.setPlainText(f"{start_port.name}")
 
         self._idx_pointer.setPolygon(transform.map(self._poly))
 

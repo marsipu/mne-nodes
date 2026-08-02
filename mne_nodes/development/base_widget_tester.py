@@ -6,8 +6,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from __future__ import annotations
 
-from copy import deepcopy
 import sys
+from copy import deepcopy
 
 import pandas as pd
 from qtpy.QtWidgets import (

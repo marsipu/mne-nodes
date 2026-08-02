@@ -7,9 +7,9 @@ GitHub: https://github.com/marsipu/mne-nodes
 from contextlib import contextmanager
 
 from qtpy.QtCore import Qt
-from mne_nodes.pipeline.streams import init_streams
-from mne_nodes.pipeline.streams import init_logging
-from mne_nodes.gui.console import MainConsoleWidget, ConsoleWidget
+
+from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
+from mne_nodes.pipeline.streams import init_logging, init_streams
 
 
 def toggle_checked_list_model(model, value=1, row=0, column=0):

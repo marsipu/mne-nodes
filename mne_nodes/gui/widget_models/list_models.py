@@ -7,8 +7,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 import logging
 from ast import literal_eval
 
-from qtpy.QtCore import QAbstractItemModel, QAbstractListModel, Qt
 import qtawesome as qta
+from qtpy.QtCore import QAbstractItemModel, QAbstractListModel, Qt
 
 
 class BaseListModel(QAbstractListModel):

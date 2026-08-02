@@ -15,20 +15,20 @@ from pathlib import Path
 
 import darkdetect
 from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
-from qtpy.QtGui import QFont, QMouseEvent, QPalette, QColor, QIcon
+from qtpy.QtGui import QColor, QFont, QIcon, QMouseEvent, QPalette
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
     QApplication,
+    QColorDialog,
+    QComboBox,
     QDialog,
     QFileDialog,
+    QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
-    QInputDialog,
-    QColorDialog,
-    QFormLayout,
-    QComboBox,
     QWidget,
 )
 

@@ -8,10 +8,10 @@ import logging
 import os
 import shutil
 import time
+from collections.abc import Callable
 from functools import partial
 from os.path import isfile, join
 from pathlib import Path
-from typing import Optional, Callable
 
 import mne
 import numpy as np
@@ -30,13 +30,13 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
+from mne_nodes.gui.parameter import ComboGui
+from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.widgets.dict_widgets import EditDict
 from mne_nodes.gui.widgets.list_widgets import CheckDictList, CheckList, SimpleList
 from mne_nodes.gui.widgets.misc_widgets import AssignWidget
-from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
-from mne_nodes.gui.parameter import ComboGui
 from mne_nodes.pipeline.exception_handling import gui_error
-from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.pipeline.pipeline_utils import get_n_jobs
 from mne_nodes.pipeline.settings import Settings
 
@@ -161,7 +161,7 @@ def _save_raw_on_close(_, meeg: "MEEG", raw, raw_type: str) -> None:
 def plot_raw(
     meeg: "MEEG",
     show_plots: bool,
-    close_func: Optional[Callable] = _save_raw_on_close,
+    close_func: Callable | None = _save_raw_on_close,
     **kwargs,
 ) -> None:
     raw = meeg.load_raw()

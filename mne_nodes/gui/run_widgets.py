@@ -4,21 +4,21 @@ License: BSD 3-Clause
 Github: https://github.com/marsipu/mne-nodes
 """
 
-from qtpy.QtCore import Signal, Qt
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
-    QVBoxLayout,
+    QHBoxLayout,
     QLabel,
     QProgressBar,
-    QHBoxLayout,
     QPushButton,
+    QVBoxLayout,
 )
 
-from mne_nodes.gui.console import MainConsoleWidget, ConsoleWidget
+from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
 from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
 from mne_nodes.pipeline.exception_handling import ExceptionTuple
-from mne_nodes.pipeline.execution import Worker, Process
+from mne_nodes.pipeline.execution import Process, Worker
 
 
 class WorkerDialog(QDialog):

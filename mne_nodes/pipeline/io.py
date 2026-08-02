@@ -5,21 +5,21 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-from ast import literal_eval
-from datetime import datetime
 import math
+import os
+from ast import literal_eval
+from collections.abc import Callable, Iterator
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator
+from typing import Any
 
 import ijson
-import os
-
 import numpy as np
-from tqdm import tqdm
 from qtpy.QtWidgets import QApplication
+from tqdm import tqdm
 
 
-def encode_tuples(input_dict: Dict[str, Any]) -> Dict[str, Any]:
+def encode_tuples(input_dict: dict[str, Any]) -> dict[str, Any]:
     """Encode tuples in a dictionary, because JSON does not recognize them."""
     encoded_dict = input_dict.copy()
     for key, value in input_dict.items():
@@ -89,7 +89,7 @@ class TypedJSONEncoder(json.JSONEncoder):
         return super().iterencode(new_o, _one_shot=_one_shot)
 
 
-def type_json_hook(obj: Dict[str, Any]) -> Any:
+def type_json_hook(obj: dict[str, Any]) -> Any:
     # Convert keys if converted to string by json
     new_obj = {}
     for key, value in obj.items():

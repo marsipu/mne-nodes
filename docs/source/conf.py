@@ -10,7 +10,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from importlib.metadata import version
 
 # import sys
@@ -26,7 +26,7 @@ from importlib.metadata import version
 project = "mne-nodes"
 author = "Martin G. Schulz"
 
-td = datetime.now(tz=timezone.utc)
+td = datetime.now(tz=UTC)
 copyright = (
     f"2019-{datetime.now().year}, {author}, "
     f"Last updated {td.strftime('%Y-%m-%d %H:%M %Z')}"
