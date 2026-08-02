@@ -71,11 +71,11 @@ class ParamGuis(QWidget):
                         groupbox_layout=groupbox_layout,
                         **kwargs,
                     )
-                except Exception as e:
+                except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                     traceback.print_exc()
                     gui = QWidget(self)
                     layout = QVBoxLayout(gui)
-                    layout.addWidget(QLabel(f"Error creating GUI for {gui_name}:\n{e}"))
+                    layout.addWidget(QLabel(f"Error creating GUI for {gui_name}"))
                 grid_layout.addWidget(gui, idx // max_cols, idx % max_cols)
                 if gui_name in self.gui_dict:
                     self.gui_dict[gui_name].append(gui)

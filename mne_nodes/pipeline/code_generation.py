@@ -1,4 +1,4 @@
-import logging
+from mne_nodes.logger import logger
 
 
 class CodeGenerator:
@@ -76,7 +76,7 @@ class CodeGenerator:
                     import_function_names.append(n["name"])
                 target = func_meta["target"]
                 if target not in targets:
-                    logging.warning(
+                    logger.warning(
                         f"Target '{target}' not recognized. Step {n['name']} will be ignored in code generation."
                     )
                     continue

@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import sys
 import time
 
@@ -19,6 +18,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.logger import logger
 
 
 class SysInfoMsg(QDialog):
@@ -167,4 +167,4 @@ def show_error_dialog(exc_str):
     if QApplication.instance() is not None:
         ErrorDialog(exc_str, title="A unexpected error occurred").exec()
     else:
-        logging.debug("No QApplication instance available.")
+        logger.debug("No QApplication instance available.")

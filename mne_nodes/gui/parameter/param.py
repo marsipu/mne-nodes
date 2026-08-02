@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import MutableMapping
 from types import NoneType
 from typing import Any
@@ -10,6 +9,7 @@ from typing import Any
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.settings import Settings
 
@@ -36,7 +36,7 @@ class Param(QWidget):
         *args: Any,
         **kwargs: Any,
     ):
-        super().__init__(parent=parent_widget, *args, **kwargs)
+        super().__init__(*args, parent=parent_widget, **kwargs)
         if isinstance(data, Controller) and function_name is None:
             raise RuntimeError(
                 "Function name must be provided when using Controller as data source."
@@ -141,10 +141,10 @@ class Param(QWidget):
             value = self.data.parameter(name, function_name=self.function_name)
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
-        elif isinstance(self.data, Settings) and name in self.data.keys():
+        elif isinstance(self.data, Settings) and name in self.data:
             value = self.data.get(name)
         else:
-            logging.warning(
+            logger.warning(
                 f"Parameter {name} not found in data source, using default value."
             )
             value = self.default
@@ -153,7 +153,7 @@ class Param(QWidget):
         if self.none_select:
             dt = dt | NoneType
         if not isinstance(value, dt):
-            logging.warning(
+            logger.warning(
                 f"Data for {name} has to be of type {dt}, "
                 f"but is of type {type(value)} instead!\n"
                 f"Using default value {self.default} instead."
@@ -175,7 +175,7 @@ class Param(QWidget):
         if isinstance(self.data, dict):
             return key in self.data
         if isinstance(self.data, Settings):
-            return key in self.data.keys()
+            return key in self.data
         return False
 
     def _get_widget_value(self) -> Any:

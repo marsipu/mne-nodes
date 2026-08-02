@@ -4,10 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from ast import literal_eval
 
 from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
+
+from mne_nodes.logger import logger
 
 
 class BaseDictModel(QAbstractTableModel):
@@ -30,7 +31,7 @@ class BaseDictModel(QAbstractTableModel):
         if data is None:
             self._data = {}
         elif not isinstance(data, dict):
-            logging.warning(
+            logger.warning(
                 "BaseDictModel expects a dict for 'data', got %s. Initializing empty dict.",
                 type(data).__name__,
             )
@@ -129,7 +130,7 @@ class EditDictModel(BaseDictModel):
         self.beginInsertRows(parent, row, row + count - 1)
         for n in range(count):
             key_name = f"__new{n}__"
-            while key_name in self._data.keys():
+            while key_name in self._data:
                 n += 1
                 key_name = f"__new{n}__"
             self._data[key_name] = ""

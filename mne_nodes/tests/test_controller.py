@@ -56,7 +56,7 @@ def test_module_import(tmp_path, ct, test_module_config, test_script):
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
-    func1_code, start, end = ct.get_function_code("test_func1")
+    _func1_code, start, end = ct.get_function_code("test_func1")
 
     new_test_code = "def test_func1(a):\n    return a ** 3\n"
     change_file_section(test_script, (start, end), new_test_code)
