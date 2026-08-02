@@ -179,7 +179,7 @@ class FunctionNode(BaseNode):
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
             if input_name == "raw":
-                accepted_ports = [*ct.raw_types]
+                accepted_ports = ["raw", *ct.raw_types]
             else:
                 accepted_ports = [input_name]
             self.add_input(
@@ -187,7 +187,7 @@ class FunctionNode(BaseNode):
             )
         for output_name in func_meta["outputs"]:
             if output_name == "raw":
-                accepted_ports = [*ct.raw_types]
+                accepted_ports = ["raw", *ct.raw_types]
             else:
                 accepted_ports = [output_name]
             self.add_output(
