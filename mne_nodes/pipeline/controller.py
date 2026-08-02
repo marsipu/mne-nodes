@@ -45,35 +45,14 @@ default_config = {
     "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
-    # Legacy entries from old Project class
-    "all_meeg": [],
-    "all_fsmri": [],
-    "all_erm": [],
-    "all_groups": {},
-    "sel_meeg": [],
-    "sel_fsmri": [],
-    "bad_channels": {},
-    "event_ids": {},
-    "selected_event_ids": {},
-    "ica_exclude": {},
-    "add_kwargs": {},
     # Parameters
     "parameters": {},
     # Application Configuration
     "show_plots": True,
     "save_plots": True,
-    "shutdown": False,
-    "img_format": ".png",
-    "dpi": 150,
     "overwrite": False,
-    "use_plot_manager": False,
-    "log_level": 20,
-    "education": 0,
-    "app_font": "Calibri",
-    "app_font_size": 10,
-    "app_style": "fusion",
-    "app_theme": "auto",
-    "padding": 20,
+    "shutdown": False,
+    # Nodes
     "node_config": {"nodes": {}, "connections": {}},
 }
 
