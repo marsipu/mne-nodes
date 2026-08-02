@@ -162,8 +162,7 @@ def restart_program():
 
 def _get_func_param_kwargs(func, params):
     kwargs = {
-        kwarg: params.get(kwarg, None)
-        for kwarg in inspect.signature(func).parameters
+        kwarg: params.get(kwarg, None) for kwarg in inspect.signature(func).parameters
     }
 
     return kwargs
