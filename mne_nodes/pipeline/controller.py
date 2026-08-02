@@ -176,7 +176,7 @@ class Controller:
         logger.info("Using existing config-file.")
         config_path = self._as_path(
             get_user_input(
-                "Please enter the path to an exisiting config-file",
+                "Please enter the path to an existing config-file",
                 input_type="file",
                 file_filter="JSON files (*.json)",
                 exit_on_cancel=True,

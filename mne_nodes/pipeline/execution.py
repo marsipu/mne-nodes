@@ -174,7 +174,7 @@ class Process(QProcess):
     def start(self, *args, **kwargs):
         # If commands are given to start(), execute them first
         if any([len(a) > 0 for a in [args, kwargs]]):
-            logger.debug("Starting external commmand")
+            logger.debug("Starting external command")
             super().start(*args, **kwargs)
             return
         # Otherwise, start the next command in the list
