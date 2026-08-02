@@ -30,6 +30,7 @@ class Param(QWidget):
         unit: str | None = None,
         groupbox_layout: bool = True,
         none_select: bool = False,
+        show_title: bool = True,
         description: str | None = None,
         parent_widget: QWidget | None = None,
         *args: Any,
@@ -50,6 +51,7 @@ class Param(QWidget):
         self.unit = unit
         self.groupbox_layout = groupbox_layout
         self.none_select = none_select
+        self.show_title = show_title
         self.description = description
         if description is not None:
             self.setToolTip(description)
@@ -197,10 +199,10 @@ class Param(QWidget):
             main_layout.addWidget(self.group_box)
         else:
             if self.none_select:
-                self.none_chkbx = QCheckBox(self.alias)
+                self.none_chkbx = QCheckBox(self.alias if self.show_title else "")
                 self.none_chkbx.checkStateChanged.connect(self._on_none_changed)
                 main_layout.addWidget(self.none_chkbx)
-            else:
+            elif self.show_title:
                 name_label = QLabel(self.alias)
                 main_layout.addWidget(name_label)
             main_layout.addLayout(layout)
