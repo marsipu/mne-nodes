@@ -4,13 +4,15 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+from typing import ClassVar
+
 from qtpy.QtCore import QAbstractTableModel, QMimeData, Qt
 
 
 class FunctionPickerModel(QAbstractTableModel):
     """Simple table model for draggable function entries in the node picker."""
 
-    _headers = ["Name", "Module", "Description"]
+    _headers: ClassVar[list[str]] = ["Name", "Module", "Description"]
 
     def __init__(self, function_meta, parent=None):
         super().__init__(parent)

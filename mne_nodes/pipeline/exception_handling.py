@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import sys
 import traceback
 from contextlib import contextmanager
@@ -13,6 +12,7 @@ from qtpy.QtCore import QObject, Signal
 
 from mne_nodes import debug_mode
 from mne_nodes.gui.dialogs import ErrorDialog, show_error_dialog
+from mne_nodes.logger import logger
 
 
 class ExceptionTuple:
@@ -33,7 +33,7 @@ def get_exception_tuple() -> ExceptionTuple:
     traceback.print_exc()
     exctype, value = sys.exc_info()[:2]
     traceback_str = traceback.format_exc(limit=-10)
-    logging.error(f"{exctype}: {value}")
+    logger.error(f"{exctype}: {value}")
     exc_tuple = ExceptionTuple(exctype, value, traceback_str)
 
     return exc_tuple
@@ -43,7 +43,7 @@ def gui_error_decorator(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except Exception:
+        except Exception:  # noqa: BLE001
             exc_tuple = get_exception_tuple()
             ErrorDialog(exc_tuple).exec()
 
@@ -54,7 +54,7 @@ def gui_error_decorator(func):
 def gui_error():
     try:
         yield
-    except Exception:
+    except Exception:  # noqa: BLE001
         exc_tuple = get_exception_tuple()
         ErrorDialog(exc_tuple).exec()
 
@@ -89,7 +89,7 @@ class UncaughtHook(QObject):
                 exc_value,
                 "".join(traceback.format_tb(exc_traceback)),
             )
-            logging.critical("Uncaught exception:", exc_info=exc_info)
+            logger.critical("Uncaught exception:", exc_info=exc_info)
 
             # trigger showing of error-dialog
             self._exception_caught.emit(exc_str)

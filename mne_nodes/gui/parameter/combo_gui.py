@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from typing import Any
 
 from qtpy.QtWidgets import QComboBox, QHBoxLayout, QLabel
 
 from mne_nodes.gui.widgets.misc_widgets import ComboBox
+from mne_nodes.logger import logger
 
 from .param import Param
 
@@ -33,7 +33,7 @@ class ComboGui(Param):
         self.param_widget.clear()
         for option in self.options:
             if not isinstance(option, str):
-                raise RuntimeError(
+                raise TypeError(
                     f"Options for {self.name} must be strings, "
                     f"but got type:{type(option)} for  {option}"
                 )
@@ -43,7 +43,7 @@ class ComboGui(Param):
         if not isinstance(value, str):
             value = str(value)
         if value not in self.options:
-            logging.info(
+            logger.info(
                 f"Value '{value}' not in options for {self.alias}. "
                 "Adding it to the options."
             )

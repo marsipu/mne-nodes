@@ -4,6 +4,8 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+# ruff: noqa: N999
+
 import faulthandler
 import sys
 from pathlib import Path

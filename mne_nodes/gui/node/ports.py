@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from collections import OrderedDict
 
 from qtpy.QtCore import QRectF
@@ -14,6 +13,7 @@ from qtpy.QtWidgets import QGraphicsItem, QGraphicsTextItem
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.pipes import Pipe
+from mne_nodes.logger import logger
 
 
 class PortText(QGraphicsTextItem):
@@ -289,7 +289,7 @@ class Port(QGraphicsItem):
     def redraw_connected_pipes(self):
         if len(self.connected_pipes) == 0:
             return
-        for node_id, pipe in self.connected_pipes.items():
+        for pipe in self.connected_pipes.values():
             if self.port_type == "in":
                 pipe.draw_path(self, pipe.output_port)
             elif self.port_type == "out":
@@ -326,7 +326,7 @@ class Port(QGraphicsItem):
         elif isinstance(ports, str):
             self._accepted_ports.append(ports)
         else:
-            raise ValueError("Invalid port type")
+            raise TypeError("Invalid port type")
 
     def connected(self, target_port):
         """Check whether the specified port is connected to this port.
@@ -351,7 +351,7 @@ class Port(QGraphicsItem):
             if target_port in self.connected_ports:
                 return True
         else:
-            logging.warning(
+            logger.warning(
                 "Invalid port type for connection check "
                 "(only port object, port name or port id accepted)."
             )
@@ -375,26 +375,26 @@ class Port(QGraphicsItem):
         # check if the ports are the same.
         if self is port:
             if verbose:
-                logging.debug("Can't connect the same port.")
+                logger.debug("Can't connect the same port.")
         # check if the ports are from the same node.
         elif self.node is port.node:
             if verbose:
-                logging.debug("Can't connect ports from the same node.")
+                logger.debug("Can't connect ports from the same node.")
         # check if the ports are from the same type (can't connect input to input).
         elif self.port_type == port.port_type:
             if verbose:
-                logging.debug("Can't connect the same port type.")
+                logger.debug("Can't connect the same port type.")
         # check if the ports are already connected.
         elif self.connected(port):
             if verbose:
-                logging.debug("Ports are already connected.")
+                logger.debug("Ports are already connected.")
         # check if the ports are compatible.
         elif self.accepted_ports is not None and port.name not in self.accepted_ports:
             if verbose:
-                logging.debug("Ports are not compatible.")
+                logger.debug("Ports are not compatible.")
         else:
             if verbose:
-                logging.debug("Ports are compatible.")
+                logger.debug("Ports are compatible.")
             return True
         return False
 
@@ -414,7 +414,7 @@ class Port(QGraphicsItem):
         if target_port is None:
             for pipe in self.connected_pipes.values():
                 pipe.delete()
-            logging.debug("No target port specified.")
+            logger.debug("No target port specified.")
             return
 
         # validate accept connection.
@@ -451,7 +451,7 @@ class Port(QGraphicsItem):
             if not self.node.isVisible() or not target_port.node.isVisible():
                 pipe.hide()
         else:
-            logging.warning(
+            logger.warning(
                 f"Scene not found, could not draw pipe from "
                 f"{self.name} to {target_port.name}."
             )
@@ -461,7 +461,7 @@ class Port(QGraphicsItem):
 
         self.update()
         target_port.update()
-        logging.debug(
+        logger.debug(
             f"Connected {self.node.name}/{self.name} to "
             f"{target_port.node.name}/{target_port.name}"
         )
@@ -499,7 +499,7 @@ class Port(QGraphicsItem):
 
         self.update()
         target_port.update()
-        logging.debug(
+        logger.debug(
             f"Disconnected {self.node.name}/{self.name} from "
             f"{target_port.node.name}/{target_port.name}"
         )

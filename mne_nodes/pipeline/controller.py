@@ -6,7 +6,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import ast
 import json
-import logging
 import os
 import re
 import subprocess
@@ -34,6 +33,7 @@ from mne_nodes.gui.gui_utils import (
     get_user_input,
     raise_user_attention,
 )
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
 from mne_nodes.pipeline.pip_utils import install_pip_packages
@@ -134,7 +134,7 @@ class Controller:
             return None
         if startup_path.is_file():
             return startup_path
-        logging.warning(f"Config file {startup_path} does not exist!")
+        logger.warning(f"Config file {startup_path} does not exist!")
         return None
 
     def _initialize_startup_config_path(self, config_path: Any) -> None:
@@ -149,10 +149,10 @@ class Controller:
             close_on_cancel=True,
         )
         if ans is None:  # user cancelled
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         if ans:
-            logging.info("Creating new config-file.")
+            logger.info("Creating new config-file.")
             config_folder = self._as_path(
                 get_user_input(
                     "Set the folder-path to store the config-file",
@@ -170,13 +170,13 @@ class Controller:
             config_path = config_folder / f"{name}_config.json"
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-                logging.info(f"New configuration created at:\n{config_path}")
+                logger.info(f"New configuration created at:\n{config_path}")
             return config_path
 
-        logging.info("Using existing config-file.")
+        logger.info("Using existing config-file.")
         config_path = self._as_path(
             get_user_input(
-                "Please enter the path to an exisiting config-file",
+                "Please enter the path to an existing config-file",
                 input_type="file",
                 file_filter="JSON files (*.json)",
                 exit_on_cancel=True,
@@ -184,7 +184,7 @@ class Controller:
         )
         if config_path is None:
             raise RuntimeError("Config path initialization failed.")
-        logging.info(f"Configuration sucessfully loaded from:\n{config_path}")
+        logger.info(f"Configuration sucessfully loaded from:\n{config_path}")
         return config_path
 
     def _apply_config_path(self, config_path: Path) -> None:
@@ -266,7 +266,7 @@ class Controller:
         if configured_path is not None and configured_path.is_dir():
             return configured_path
         if configured_path is not None:
-            logging.warning(missing_message.format(path=configured_path))
+            logger.warning(missing_message.format(path=configured_path))
             if interactive:
                 raise_user_attention(missing_message.format(path=configured_path))
         if not interactive:
@@ -293,7 +293,7 @@ class Controller:
         if configured_path is not None and configured_path.is_file():
             return configured_path
         if configured_path is not None:
-            logging.warning(missing_message.format(path=configured_path))
+            logger.warning(missing_message.format(path=configured_path))
             if interactive:
                 raise_user_attention(missing_message.format(path=configured_path))
         if not interactive:
@@ -703,7 +703,7 @@ class Controller:
             UnicodeDecodeError,
             FileNotFoundError,
         ) as err:
-            logging.warning(
+            logger.warning(
                 f"Loading config from {config_path} failed with:\n{err}\nUsing defaults."
             )
             config = deepcopy(default_config)
@@ -718,27 +718,27 @@ class Controller:
     def load(self):
         """Force loading the config from disk."""
         if self._config_path is None:
-            logging.debug("Config path is not set. Keeping in-memory configuration.")
+            logger.debug("Config path is not set. Keeping in-memory configuration.")
             return
         try:
             with self.config_lock:
                 self._config = self._load_config()
 
         except Timeout:
-            logging.warning(
+            logger.warning(
                 f"Could not acquire lock for settings after {self.lock_timeout} seconds."
             )
 
     def flush(self):
         """Force writing the current config to disk."""
         if self._config_path is None:
-            logging.debug("Config path is not set. Skipping config flush.")
+            logger.debug("Config path is not set. Skipping config flush.")
             return
         try:
             with self.config_lock:
                 self._save_config(self._config)
         except Timeout:
-            logging.error(
+            logger.error(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
@@ -804,7 +804,7 @@ class Controller:
         bids_root = self.ensure_bids_root(interactive=False)
         dataset_file = bids_root / "dataset_description.json"
         if not dataset_file.is_file():
-            logging.warning(f"Dataset description file not found at {dataset_file}.")
+            logger.warning(f"Dataset description file not found at {dataset_file}.")
             return None
         else:
             dataset_description = load_json(dataset_file)
@@ -849,7 +849,7 @@ class Controller:
     def check_subject(self, subject):
         result = subject in self.get_fsmri_subjects()
         if not result:
-            logging.warning(
+            logger.warning(
                 f"Subject {subject} not found in FreeSurfer subjects directory!"
             )
             return False
@@ -901,7 +901,7 @@ class Controller:
         if parameter_name == "subjects_dir":
             return self.subjects_dir
         elif parameter_name not in parameters.get(function_name, {}):
-            # logging.debug(
+            # logger.debug(
             #     f"Parameter '{parameter_name}' not found in project for function '{function_name}'. Setting default value."
             # )
             value = self.get_default(parameter_name, function_name)
@@ -982,7 +982,7 @@ class Controller:
             raw_config = load_json(config_path)
             config = raw_config.get("functions", raw_config)
             module_name = self._get_module_name(raw_config)
-            for function_name, function_meta in config.items():
+            for function_meta in config.values():
                 function_meta.setdefault("module_name", module_name)
             # Warn for duplicates
             duplicate_functions = [fn for fn in config if fn in self.function_meta]
@@ -1001,7 +1001,7 @@ class Controller:
             for ep in entry_points(group="mne_nodes.plugins")
             if ep.name not in self.plugins
         ]:
-            logging.info(f"Loading {entry_point.name}")
+            logger.info(f"Loading {entry_point.name}")
             module = entry_point.load()
             self.load_module_config(module)
             self.plugins[entry_point.name] = module
@@ -1081,21 +1081,21 @@ class Controller:
             module = sys.modules[module_name]
             modules = {module_name: module}
 
-        for module_name, module in modules.items():
+        for loaded_module_name, module in modules.items():
             # Remove the module from sys.modules
-            del sys.modules[module_name]
+            del sys.modules[loaded_module_name]
 
             # Clear bytecode cache if possible
             bytecode_file = cache_from_source(str(module.__file__))
             try:
                 os.remove(bytecode_file)
-            except Exception as e:
-                logging.warning(f"Error clearing bytecode cache: {e}")
+            except OSError as e:
+                logger.warning(f"Error clearing bytecode cache: {e}")
 
             # Import the module again
-            new_module = import_module(module_name)
+            new_module = import_module(loaded_module_name)
             # Update the module in the controller
-            self.plugins[module_name] = new_module
+            self.plugins[loaded_module_name] = new_module
 
     def get_function_meta(self, function_name: str) -> dict[str, Any]:
         """Get the metadata for a specific function."""
@@ -1176,7 +1176,7 @@ class Controller:
                 end_line = (node.end_lineno or node.lineno) - 1
 
                 return start_line, end_line
-        logging.warning("Could not find function in module code.")
+        logger.warning("Could not find function in module code.")
 
         return None, None
 
@@ -1206,7 +1206,7 @@ class Controller:
                 file_filter="JSON files (*.json)",
             )
             if import_path is None:
-                logging.warning("Pipeline import cancelled by user.")
+                logger.warning("Pipeline import cancelled by user.")
                 return
 
         pipeline_dict = load_json(import_path)
@@ -1225,7 +1225,7 @@ class Controller:
                 file_filter="JSON files (*.json)",
             )
             if module_config_path is None:
-                logging.warning(
+                logger.warning(
                     f"Skipping missing module '{module_name}' during pipeline import."
                 )
                 continue
@@ -1237,7 +1237,7 @@ class Controller:
             if plugin not in self.plugins
         ]
         if len(missing_plugins) > 0:
-            logging.warning(
+            logger.warning(
                 f"Missing plugins found for this pipeline: {missing_plugins}. Attempting to install them."
             )
             install_pip_packages(missing_plugins, self.main_window)
@@ -1245,7 +1245,7 @@ class Controller:
 
         # import pipeline structure to viewer
         self.viewer.from_dict(pipeline_dict["nodes"])
-        logging.info(f"Pipeline imported from {import_path}.")
+        logger.info(f"Pipeline imported from {import_path}.")
 
     def import_pipeline_user_prompt(self):
         self.import_pipeline()
@@ -1279,7 +1279,7 @@ class Controller:
                 file_filter="JSON files (*.json)",
             )
             if export_path is None:
-                logging.warning("Pipeline export cancelled by user.")
+                logger.warning("Pipeline export cancelled by user.")
                 return
 
         pipeline_dict = {
@@ -1299,9 +1299,7 @@ class Controller:
         run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
         with open(run_file_path, "w") as file:
             file.write(code)
-        logging.info(
-            f"Pipeline code generated at {run_file_path}.\nStarting execution."
-        )
+        logger.info(f"Pipeline code generated at {run_file_path}.\nStarting execution.")
         # Start process in Console-Dock (handle processes there)
         self.main_window.console_dock.start_process(
             sys.executable, [str(run_file_path)]

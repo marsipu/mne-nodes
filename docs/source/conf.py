@@ -27,10 +27,7 @@ project = "mne-nodes"
 author = "Martin G. Schulz"
 
 td = datetime.now(tz=UTC)
-copyright = (
-    f"2019-{datetime.now().year}, {author}, "
-    f"Last updated {td.strftime('%Y-%m-%d %H:%M %Z')}"
-)
+copyright = f"2019-{td.year}, {author}, Last updated {td.strftime('%Y-%m-%d %H:%M %Z')}"
 
 # The full version, including alpha/beta/rc tags
 release = version("mne_nodes")
@@ -61,11 +58,11 @@ html_theme = "pydata_sphinx_theme"
 switcher_version_match = "dev" if ".dev" in version else version
 html_theme_options = {
     "icon_links": [
-        dict(
-            name="GitHub",
-            url="https://github.com/marsipu/mne-nodes",
-            icon="fa-brands fa-square-github fa-fw",
-        )
+        {
+            "name": "GitHub",
+            "url": "https://github.com/marsipu/mne-nodes",
+            "icon": "fa-brands fa-square-github fa-fw",
+        }
     ],
     "icon_links_label": "External Links",
     "navbar_end": ["theme-switcher", "version-switcher", "navbar-icon-links"],

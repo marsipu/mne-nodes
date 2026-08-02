@@ -5,13 +5,13 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import inspect
-import logging
 import multiprocessing
 import os
 import sys
 from pathlib import Path
 
 from mne_nodes import islin, ismac, iswin
+from mne_nodes.logger import logger
 
 
 def get_n_jobs(n_jobs):
@@ -73,12 +73,12 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
             if str(previous_value) == str(current_value):
                 result_dict[param] = "equal"
                 if verbose:
-                    logging.debug(f"{param} equal for {file_name}")
+                    logger.debug(f"{param} equal for {file_name}")
             else:
                 if param in critical_params:
                     result_dict[param] = (previous_value, current_value, True)
                     if verbose:
-                        logging.debug(
+                        logger.debug(
                             f"{param} changed from {previous_value} to "
                             f"{current_value} for {file_name} "
                             f"and is probably crucial for {function}"
@@ -86,19 +86,19 @@ def compare_filep(obj, path, target_parameters=None, verbose=True):
                 else:
                     result_dict[param] = (previous_value, current_value, False)
                     if verbose:
-                        logging.debug(
+                        logger.debug(
                             f"{param} changed from {previous_value} to "
                             f"{current_value} for {file_name}"
                         )
         except KeyError:
             result_dict[param] = "missing"
             if verbose:
-                logging.warning(f"{param} is missing in records for {file_name}")
+                logger.warning(f"{param} is missing in records for {file_name}")
 
     if obj.ct.settings.get("overwrite"):
         result_dict[param] = "overwrite"
         if verbose:
-            logging.info(
+            logger.info(
                 f"{file_name} will be overwritten anyway"
                 f" because Overwrite=True (Settings)"
             )
@@ -146,15 +146,15 @@ def shutdown():
 def restart_program():
     """Restarts the current program, with file objects and descriptors
     cleanup."""
-    logging.info("Restarting")
+    logger.info("Restarting")
     import psutil
 
     try:
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
             os.close(handler.fd)
-    except Exception as e:
-        logging.error(e)
+    except (OSError, psutil.Error):
+        logger.exception("Failed to close all open file descriptors during restart.")
 
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -162,17 +162,14 @@ def restart_program():
 
 def _get_func_param_kwargs(func, params):
     kwargs = {
-        kwarg: params[kwarg] if kwarg in params else None
-        for kwarg in inspect.signature(func).parameters
+        kwarg: params.get(kwarg, None) for kwarg in inspect.signature(func).parameters
     }
 
     return kwargs
 
 
 def is_test():
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return True
-    return False
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def _run_from_script():

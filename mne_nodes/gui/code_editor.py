@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from os.path import isfile
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from qtpy.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat
 from qtpy.QtWidgets import QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
 
 from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.pipeline_utils import change_file_section
 
 
@@ -145,7 +145,7 @@ class CodeFileEditor(CodeEditor):
         if self.file_section is not None:
             change_file_section(self.file_path, self.file_section, code)
         self.codeSaved.emit(self.file_path)
-        logging.info(f"Saved code to file: {self.file_path}")
+        logger.info(f"Saved code to file: {self.file_path}")
 
 
 class CodeEditorWidget(QWidget):

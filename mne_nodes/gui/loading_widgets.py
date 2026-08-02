@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import os
 import shutil
 import time
@@ -36,6 +35,7 @@ from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.widgets.dict_widgets import EditDict
 from mne_nodes.gui.widgets.list_widgets import CheckDictList, CheckList, SimpleList
 from mne_nodes.gui.widgets.misc_widgets import AssignWidget
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import gui_error
 from mne_nodes.pipeline.pipeline_utils import get_n_jobs
 from mne_nodes.pipeline.settings import Settings
@@ -57,7 +57,7 @@ def find_bads(meeg, n_jobs, **kwargs):
     noisy_chs, flat_chs = mne.preprocessing.find_bad_channels_maxwell(
         raw, coord_frame=coord_frame, **kwargs
     )
-    logging.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
+    logger.info(f"Noisy channels: {noisy_chs}\nFlat channels: {flat_chs}")
     raw.info["bads"] = noisy_chs + flat_chs + raw.info["bads"]
     meeg.set_bad_channels(raw.info["bads"])
     meeg.save_raw(raw)
@@ -116,8 +116,8 @@ def plot_ica_overlay(meeg, ica_overlay_data, show_plots):
 def plot_ica_properties(meeg, ica_fitto, show_plots):
     ica = meeg.load_ica()
 
-    eog_indices = meeg.load_json("eog_indices", default=list())
-    ecg_indices = meeg.load_json("ecg_indices", default=list())
+    eog_indices = meeg.load_json("eog_indices", default=[])
+    ecg_indices = meeg.load_json("ecg_indices", default=[])
     psd_args = {"fmax": meeg.pa["lowpass"]}
 
     if len(eog_indices) > 0:
@@ -218,15 +218,13 @@ def index_parser(index, all_items, groups=None):
                     if "!" in sp and "-" in sp:
                         x, y = sp.split("-")
                         x = x[1:]
-                        for n in range(int(x), int(y) + 1):
-                            rm.append(n)
+                        rm.extend(range(int(x), int(y) + 1))
                     elif "!" in sp:
                         rm.append(int(sp[1:]))
                     elif "all" in sp:
-                        for i in range(len(all_items)):
-                            indices.append(i)
+                        indices.extend(range(len(all_items)))
             else:
-                indices = [x for x in range(len(all_items))]
+                indices = list(range(len(all_items)))
 
         elif "," in index and "-" in index:
             z = index.split(",")
@@ -240,8 +238,7 @@ def index_parser(index, all_items, groups=None):
                 elif "!" in i and "-" in i:
                     x, y = i.split("-")
                     x = x[1:]
-                    for n in range(int(x), int(y) + 1):
-                        rm.append(n)
+                    rm.extend(range(int(x), int(y) + 1))
                 elif "!" in i:
                     rm.append(int(i[1:]))
 
@@ -271,7 +268,7 @@ def index_parser(index, all_items, groups=None):
         try:
             files = np.asarray(all_items)[indices].tolist()
         except IndexError:
-            logging.warning("Index out of range")
+            logger.warning("Index out of range")
             files = []
 
         return files
@@ -732,19 +729,18 @@ class EventIDGui(QDialog):
         self.event_id_label.setText(label_text)
 
     def save_event_id(self):
-        if self.name:
-            if len(self.event_id) > 0:
-                # Write Event-ID to Project
-                self.pr.meeg_event_id[self.name] = self.event_id
+        if self.name and len(self.event_id) > 0:
+            # Write Event-ID to Project
+            self.pr.meeg_event_id[self.name] = self.event_id
 
-                # Get selected Trials, add queries and write them to meeg.pr
-                sel_event_id = {}
-                for label in self.checked_labels:
-                    if label in self.queries:
-                        sel_event_id[label] = self.queries[label]
-                    else:
-                        sel_event_id[label] = None
-                self.pr.sel_event_id[self.name] = sel_event_id
+            # Get selected Trials, add queries and write them to meeg.pr
+            sel_event_id = {}
+            for label in self.checked_labels:
+                if label in self.queries:
+                    sel_event_id[label] = self.queries[label]
+                else:
+                    sel_event_id[label] = None
+            self.pr.sel_event_id[self.name] = sel_event_id
 
     def file_selected(self, current, _):
         """Called when File from file_widget is selected."""
@@ -773,9 +769,9 @@ class EventIDGui(QDialog):
 
     # ToDo: Make all combinations possible and also int-keys (can't split)
     def update_check_list(self):
-        self.labels = [k for k in self.queries.keys()]
+        self.labels = list(self.queries)
         # Get selectable trials and update widget
-        prelabels = [i.split("/") for i in self.event_id.keys() if i != ""]
+        prelabels = [i.split("/") for i in self.event_id if i != ""]
         if len(prelabels) > 0:
             # Concatenate all lists
             conc_labels = prelabels[0]
@@ -1169,7 +1165,7 @@ class ReloadRaw(QDialog):
         meeg = MEEG(selected_raw, self.ct)
         raw = mne.io.read_raw(raw_path, preload=True)
         meeg.save_raw(raw)
-        logging.info(f"Reloaded raw for {selected_raw}")
+        logger.info(f"Reloaded raw for {selected_raw}")
 
     def start_reload(self):
         # Not with partial because otherwise the clicked-arg
@@ -1246,18 +1242,18 @@ class ExportDialog(QDialog):
 
     def export_data(self):
         if self.dest_path:
-            logging.info("Starting Export\n")
+            logger.info("Starting Export\n")
             for meeg_name, path_types in self.export_paths.items():
                 os.mkdir(join(self.dest_path, meeg_name))
                 for path_type in [pt for pt in path_types if pt in self.selected_types]:
                     paths = path_types[path_type]
-                    logging.info(f"\r{meeg_name}: Copying {path_type}...")
+                    logger.info(f"\r{meeg_name}: Copying {path_type}...")
                     for src_path in paths:
                         dest_name = Path(src_path).name
                         shutil.copy2(
                             src_path, join(self.dest_path, meeg_name, dest_name)
                         )
-                    logging.info(f"\r{meeg_name}: Copied {path_type}!")
+                    logger.info(f"\r{meeg_name}: Copied {path_type}!")
 
         else:
             warning_message("Destination-Path not set!", parent=self)

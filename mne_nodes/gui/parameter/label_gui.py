@@ -373,7 +373,7 @@ class LabelGui(Param):
         super().__init__(**kwargs)
         self.value_string_length = value_string_length
         if not isinstance(self.data, Controller):
-            raise RuntimeError(
+            raise TypeError(
                 "LabelGui can only used with an instance of Controller passed as data."
             )
         self._dialog = None

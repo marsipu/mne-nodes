@@ -4,10 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from ast import literal_eval
 
 from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
+
+from mne_nodes.logger import logger
 
 
 def _get_pandas():
@@ -33,7 +34,7 @@ class BasePandasModel(QAbstractTableModel):
         if data is None:
             self._data = pd.DataFrame([])
         elif not isinstance(data, pd.DataFrame):
-            logging.warning(
+            logger.warning(
                 "BasePandasModel expects a pandas DataFrame for 'data', got %s. Initializing empty DataFrame.",
                 type(data).__name__,
             )
@@ -86,7 +87,7 @@ class EditPandasModel(BasePandasModel):
             try:
                 value = literal_eval(value)
                 # List or Dictionary not allowed here as PandasDataFrame-Item
-                if isinstance(value, dict) or isinstance(value, list):
+                if isinstance(value, (dict, list)):
                     value = str(value)
             except (SyntaxError, ValueError):
                 pass

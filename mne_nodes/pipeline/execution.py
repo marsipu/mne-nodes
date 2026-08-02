@@ -4,13 +4,13 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import sys
 from inspect import signature
 from os.path import isdir
 
 from qtpy.QtCore import QObject, QProcess, QRunnable, QThreadPool, Signal, Slot
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
 
 
@@ -161,7 +161,7 @@ class Process(QProcess):
             sys.stderr.write(text)
 
     def handle_error(self, error):
-        logging.warning(f"Process {self.proc_id} encountered an error {error.value}.")
+        logger.warning(f"Process {self.proc_id} encountered an error {error.value}.")
 
     def handle_stdout(self):
         text = self.readAllStandardOutput().data()
@@ -173,8 +173,8 @@ class Process(QProcess):
 
     def start(self, *args, **kwargs):
         # If commands are given to start(), execute them first
-        if any([len(a) > 0 for a in [args, kwargs]]):
-            logging.debug("Starting external commmand")
+        if any(len(a) > 0 for a in (args, kwargs)):
+            logger.debug("Starting external command")
             super().start(*args, **kwargs)
             return
         # Otherwise, start the next command in the list
@@ -186,4 +186,4 @@ class Process(QProcess):
             self.setArguments(args)
             super().start()
         else:
-            logging.warning("Process.start() called but no commands left to execute.")
+            logger.warning("Process.start() called but no commands left to execute.")

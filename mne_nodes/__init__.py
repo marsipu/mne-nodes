@@ -19,7 +19,7 @@ gui_mode = True
 
 # Check if running in debug mode
 def debug_mode():
-    return os.environ.get("MNENODES_DEBUG", False) == "true"
+    return os.environ.get("MNENODES_DEBUG", "false") == "true"
 
 
 # Keep reference to Qt-objects without parent for tests

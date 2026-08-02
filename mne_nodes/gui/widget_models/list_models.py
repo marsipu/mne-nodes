@@ -4,11 +4,12 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from ast import literal_eval
 
 import qtawesome as qta
 from qtpy.QtCore import QAbstractItemModel, QAbstractListModel, Qt
+
+from mne_nodes.logger import logger
 
 
 class BaseListModel(QAbstractListModel):
@@ -30,7 +31,7 @@ class BaseListModel(QAbstractListModel):
         else:
             # Only lists are supported; warn on wrong types
             if not isinstance(data, list):
-                logging.warning(
+                logger.warning(
                     "BaseListModel expects a list for 'data', got %s. Initializing empty list.",
                     type(data).__name__,
                 )
@@ -40,14 +41,14 @@ class BaseListModel(QAbstractListModel):
 
     def getData(self, index):
         if not index or not index.isValid():
-            logging.debug("Invalid model index")
+            logger.debug("Invalid model index")
             return None
         if len(self._data) == 0:
-            logging.debug("List is empty")
+            logger.debug("List is empty")
             return None
         row = index.row()
         if row < 0 or row >= len(self._data):
-            logging.debug("Row %s out of range (size=%s)", row, len(self._data))
+            logger.debug("Row %s out of range (size=%s)", row, len(self._data))
             return None
         return self._data[row]
 
@@ -143,7 +144,7 @@ class CheckListModel(BaseListModel):
         if data is None:
             self._data = []
         elif not isinstance(data, list):
-            logging.warning(
+            logger.warning(
                 "CheckListModel expects a list for 'data', got %s. Initializing empty list.",
                 type(data).__name__,
             )
@@ -154,7 +155,7 @@ class CheckListModel(BaseListModel):
         if checked is None:
             self._checked = []
         elif not isinstance(checked, list):
-            logging.warning(
+            logger.warning(
                 "CheckListModel expects a list for 'checked', got %s. Initializing empty list.",
                 type(checked).__name__,
             )
@@ -233,7 +234,7 @@ class CheckDictModel(BaseListModel):
         if data is None:
             self._data = []
         elif not isinstance(data, list):
-            logging.warning(
+            logger.warning(
                 "CheckDictModel expects a list for 'data', got %s. Initializing empty list.",
                 type(data).__name__,
             )
@@ -244,7 +245,7 @@ class CheckDictModel(BaseListModel):
         if check_dict is None:
             self._check_dict = {}
         elif not isinstance(check_dict, dict):
-            logging.warning(
+            logger.warning(
                 "CheckDictModel expects a dict for 'check_dict', got %s. Initializing empty dict.",
                 type(check_dict).__name__,
             )
