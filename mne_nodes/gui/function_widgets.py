@@ -104,9 +104,9 @@ class TitleLabel(QLabel):
 
 
 class DescriptionEditor(QDialog):
-    def __init__(self, module_config, parent):
+    def __init__(self, plugin_config, parent):
         super().__init__(parent)
-        self.module_config = module_config
+        self.plugin_config = plugin_config
         # Initialize Layout
         layout = QGridLayout(self)
         layout.addWidget(TitleLabel("Editor (Markdown)"), 0, 0)
@@ -118,14 +118,14 @@ class DescriptionEditor(QDialog):
         self.viewer.setReadOnly(True)
         layout.addWidget(self.viewer, 1, 1)
         # Initialize text if existing
-        if "description" in module_config:
-            self.editor.setPlainText(module_config["description"])
+        if "description" in plugin_config:
+            self.editor.setPlainText(plugin_config["description"])
         self.setMinimumSize(600, 300)
 
     def _update_viewer(self):
         text = self.editor.toPlainText()
         self.viewer.setMarkdown(text)
-        self.module_config["description"] = text
+        self.plugin_config["description"] = text
 
 
 class FunctionHighlighter(PythonHighlighter):
@@ -327,7 +327,7 @@ class FunctionImporter(QDialog):
         # Attributes
         self._file_path = file_path
         self._pkg_dir = None
-        self.module_config = {}
+        self.plugin_config = {}
         self.func_config = {}
         self.current_func = None
         self.editors = {}
@@ -356,7 +356,7 @@ class FunctionImporter(QDialog):
         analyze_bt.clicked.connect(self.reanalyze)
         bt_layout.addWidget(analyze_bt)
         dsc_bt = QPushButton(
-            qta.icon("mdi.file-document-edit"), "Change Module Description"
+            qta.icon("mdi.file-document-edit"), "Change Plugin Description"
         )
         dsc_bt.clicked.connect(self.change_description)
         bt_layout.addWidget(dsc_bt)
@@ -401,12 +401,12 @@ class FunctionImporter(QDialog):
             self.load_file(file_path)
 
     @property
-    def module_name(self):
+    def plugin_name(self):
         if self.file_path is not None:
             name = Path(self.file_path).stem
         else:
             name = get_user_input(
-                "What is the name of this module?", cancel_allowed=False, parent=self
+                "What is the name of this plugin?", cancel_allowed=False, parent=self
             )
         return name
 
@@ -446,14 +446,14 @@ class FunctionImporter(QDialog):
             if isfile(config_path):
                 with open(config_path) as f:
                     config = json.load(f, object_hook=type_json_hook)
-                    module_config = {
+                    plugin_config = {
                         key: value
                         for key, value in config.items()
                         if key != "functions"
                     }
-                    if "module_name" not in module_config:
-                        module_config["module_name"] = self.module_name
-                    self.module_config = module_config
+                    if "plugin_name" not in plugin_config:
+                        plugin_config["plugin_name"] = self.plugin_name
+                    self.plugin_config = plugin_config
                     self.func_config = config.get("functions", {})
                     logger.info(f"Successfully loaded config from {config_path}")
             self.clear_editor_tabs()
@@ -484,7 +484,7 @@ class FunctionImporter(QDialog):
                     "parameters": {},
                     "outputs": {},
                     "target": "file",
-                    "category": self.module_name,
+                    "category": self.plugin_name,
                 }
             start_line = func.lineno - 1
             end_line = func.end_lineno
@@ -641,7 +641,7 @@ class FunctionImporter(QDialog):
         self.tab_widget.clear()
 
     def change_description(self):
-        DescriptionEditor(self.module_config, self).open()
+        DescriptionEditor(self.plugin_config, self).open()
 
     def reanalyze(self):
         # Get code from editors
@@ -756,14 +756,14 @@ class FunctionImporter(QDialog):
 
     def _get_config_path(self):
         if self._pkg_dir is not None:
-            return Path(self._pkg_dir) / f"{self.module_name}_config.json"
+            return Path(self._pkg_dir) / f"{self.plugin_name}_config.json"
 
     def save_config(self):
         save_path = self._get_config_path()
-        if not isinstance(self.module_config, dict):
-            self.module_config = {}
-        self.module_config.setdefault("module_name", self.module_name)
-        config = {**self.module_config, "functions": self.func_config}
+        if not isinstance(self.plugin_config, dict):
+            self.plugin_config = {}
+        self.plugin_config.setdefault("plugin_name", self.plugin_name)
+        config = {**self.plugin_config, "functions": self.func_config}
         with open(save_path, "w") as f:
             json.dump(config, f, indent=4, cls=TypedJSONEncoder)
             logger.info(f"Saved config to {save_path}")
@@ -771,7 +771,7 @@ class FunctionImporter(QDialog):
     def save(self):
         # Todo: Implement change of code with existing file (consider imports)
         if self.file_path is None:
-            self.file_path = f"{self.module_name}.py"
+            self.file_path = f"{self.plugin_name}.py"
             code = self.get_code()
             with open(self.file_path, "w") as f:
                 f.write(code)

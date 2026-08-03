@@ -191,12 +191,12 @@ class ProcessDialog(QDialog):
         self.title = title
         self.console = None
 
-        self.init_ui()
         self.process = Process(self.commands, console=self.console, self_destruct=True)
         self.is_finished = False
         self.process.finished.connect(self.process_finished)
         self.process.start()
 
+        self.init_ui()
         set_ratio_geometry(0.5, self)
 
         if blocking:

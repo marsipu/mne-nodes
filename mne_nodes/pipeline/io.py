@@ -122,7 +122,7 @@ def type_json_hook(obj: dict[str, Any]) -> Any:
 
 def load_json_progress(
     file_path: os.PathLike | str, progress_callback: Callable[[int], None]
-) -> dict | list | None:
+) -> dict:
     """
     Load nested JSON using ijson, calling object_hook for each completed dict.
 
@@ -147,7 +147,7 @@ def load_json_progress(
 
         stack = []
         current_key = None
-        root = None
+        root = {}
 
         def _attach_to_parent(value: Any, key: Any) -> None:
             nonlocal root
@@ -203,7 +203,7 @@ def load_json_progress(
         return root
 
 
-def json_load_dialog(file_path, parent=None) -> dict | list | None:
+def json_load_dialog(file_path, parent=None) -> dict:
     """Load a JSON file with a progress dialog.
 
     Parameters
@@ -230,7 +230,7 @@ def json_load_dialog(file_path, parent=None) -> dict | list | None:
     return data
 
 
-def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
+def load_json_tqdm(file_path: os.PathLike) -> dict:
     """
     Load a JSON file and print its contents to the console.
 
@@ -249,7 +249,7 @@ def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
     return data
 
 
-def load_json(file_path: os.PathLike, no_gui: bool = False) -> dict | list | None:
+def load_json(file_path: os.PathLike, no_gui: bool = False) -> dict:
     from mne_nodes import gui_mode
 
     if gui_mode and not no_gui:

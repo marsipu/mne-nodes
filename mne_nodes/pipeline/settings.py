@@ -22,7 +22,7 @@ from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 # Keep values JSON-serializable (TypedJSONEncoder handles Path objects).
 default_device_settings = {
     "config_path": None,  # Last used project config file
-    "module_config": {},  # Modules and their config-paths
+    "plugin_config": {},  # Plugins and their config-paths
     "log_file_path": None,  # Optional custom log file path
     "data_path": None,  # Project data directory (device specific)
     "plot_path": None,  # Plot export directory (device specific)

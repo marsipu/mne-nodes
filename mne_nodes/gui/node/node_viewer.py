@@ -621,12 +621,12 @@ class NodeViewer(QGraphicsView):
         func_names = [
             n.name
             for n in self.nodes.values()
-            if not re.match(r".*-\d+$", n.name or "")
+            if isinstance(n, FunctionNode) and not re.match(r".*-\d+$", n.name or "")
         ]
 
         return func_names
 
-    def load_config(self, config: dict):
+    def load_nodes(self, config: dict):
         if not isinstance(config, dict) or not all(
             k in config for k in ("nodes", "connections")
         ):

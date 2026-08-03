@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
         # Init Node-Viewer
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.load_config(controller.get("node_config"))
+        self.viewer.load_nodes(controller.get("node_config"))
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -64,28 +64,25 @@ class MainWindow(QMainWindow):
         self.console_dock.hide()
 
         # Pipeline Actions
-        import_pipeline_action = QAction(
-            "&Import Pipeline",
+        load_pipeline_action = QAction(
+            "&Load Pipeline",
             parent=self,
-            statusTip="Import a Pipeline from a JSON file",
+            statusTip="Load another pipeline from a configuration file.",
+            shortcut=QKeySequence("Ctrl+O"),
         )
-        import_pipeline_action.triggered.connect(self.controller.import_pipeline)
-        export_pipeline_action = QAction(
-            "&Export Pipeline", parent=self, statusTip="Export Pipeline to a JSON file"
+        load_pipeline_action.triggered.connect(self.load_pipeline)
+        save_pipeline_action = QAction(
+            "&Save Pipeline",
+            parent=self,
+            statusTip="Save the current pipeline to the configuration file.",
+            shortcut=QKeySequence("Ctrl+S"),
         )
-        export_pipeline_action.triggered.connect(self.controller.export_pipeline)
+        save_pipeline_action.triggered.connect(self.save_pipeline)
         # BIDS Actions
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
         )
         sample_action.triggered.connect(self.add_sample_bids)
-        load_action = QAction(
-            "&Load Configuration",
-            parent=self,
-            statusTip="Load another project with a new configuration file.",
-            shortcut=QKeySequence("Ctrl+O"),
-        )
-        load_action.triggered.connect(self.load_config)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
@@ -99,14 +96,12 @@ class MainWindow(QMainWindow):
 
         # Menu
         pipeline_menu = self.menuBar().addMenu("&Pipeline")
-        pipeline_menu.addAction(import_pipeline_action)
-        pipeline_menu.addAction(export_pipeline_action)
+        pipeline_menu.addAction(load_pipeline_action)
+        pipeline_menu.addAction(save_pipeline_action)
         bids_menu = self.menuBar().addMenu("&BIDS")
         bids_menu.addAction(sample_action)
         bids_menu.addSeparator()
-        bids_menu.addAction(exit_action)
-        config_menu = self.menuBar().addMenu("&Config")
-        config_menu.addAction(load_action)
+        self.menuBar().addAction(exit_action)
         # Toolbar
         self.toolbar = self.addToolBar("Main Toolbar")
         self.toolbar.addAction(autolayout_action)
@@ -140,9 +135,24 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
-    def load_config(self):
-        # Initialize new config-path by setting it to None
+    def load_pipeline(self):
         self.controller.config_path = None
+        self.controller.load(plugins=True)
+        self.viewer.load_nodes(self.controller.get("node_config"))
+        self.statusBar().showMessage(f"{self.controller.name} is ready.")
+
+    def save_pipeline(self, show_status: bool = True):
+        export_path = get_user_input(
+            "Select a location to save the pipeline configuration.",
+            input_type="file_new",
+            file_filter="JSON files (*.json)",
+            parent=self,
+        )
+        if export_path is None:
+            return
+        self.controller.export_pipeline(export_path)
+        if show_status:
+            self.statusBar().showMessage(f"{self.controller.name} saved.")
 
     def add_sample_bids(self):
         sample_root = get_user_input(

@@ -108,7 +108,7 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     validation_functions_config = (
         Path(__file__).parent / "tests" / "validation_functions_config.json"
     )
-    controller.add_module(validation_functions_config)
+    controller.add_plugin(validation_functions_config)
 
     return controller
 
@@ -223,19 +223,19 @@ def test_script(tmp_path, test_code):
 
 
 @pytest.fixture
-def test_module_config(tmp_path, test_script):
+def test_plugin_config(tmp_path, test_script):
     """Fixture to create a temporary JSON configuration file for the test
     module."""
     from mne_nodes.pipeline.io import TypedJSONEncoder
 
     # Generate test configuration file
     test_config = {
-        "module_name": "test_module",
-        "module_alias": "test_module",
+        "plugin_name": "test_module",
+        "plugin_alias": "test_module",
         "functions": {
             "test_func1": {
                 "group": "Test",
-                "module": "test_module",
+                "plugin": "test_module",
                 "thread-safe": True,
                 "plot": False,
                 "inputs": ["a"],
@@ -243,7 +243,7 @@ def test_module_config(tmp_path, test_script):
             },
             "test_func2": {
                 "group": "Test",
-                "module": "test_module",
+                "plugin": "test_module",
                 "thread-safe": True,
                 "plot": False,
                 "inputs": ["b"],
@@ -271,7 +271,7 @@ def test_module_config(tmp_path, test_script):
             },
         },
     }
-    test_config_path = test_script.parent / "test_module_config.json"
+    test_config_path = test_script.parent / "test_plugin_config.json"
     with open(test_config_path, "w") as f:
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 
