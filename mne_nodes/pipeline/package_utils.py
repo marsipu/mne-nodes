@@ -7,6 +7,8 @@ from mne_nodes.gui.run_widgets import ProcessDialog
 
 
 def install_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+    if len(package_names) == 0:
+        raise ValueError("No package names provided for installation.")
     dlg = ProcessDialog(
         parent,
         commands=[(sys.executable, "-m", "pip", "install", *package_names)],
@@ -39,6 +41,19 @@ def update_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
             (sys.executable, "-m", "pip", "install", "--upgrade", *package_names)
         ],
         title=f"Updating Packages {', '.join(package_names)}",
+        blocking=True,
+    )
+
+    importlib.invalidate_caches()
+
+    return dlg
+
+
+def install_github_package(repo_url: str, parent: QWidget) -> ProcessDialog:
+    dlg = ProcessDialog(
+        parent,
+        commands=[(sys.executable, "-m", "pip", "install", f"git+{repo_url}")],
+        title=f"Installing GitHub Package {repo_url}",
         blocking=True,
     )
 

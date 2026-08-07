@@ -13,15 +13,13 @@ import sys
 from collections.abc import Callable
 from copy import deepcopy
 from importlib import import_module
-from importlib.metadata import entry_points
-from importlib.util import cache_from_source
+from importlib.util import cache_from_source, find_spec
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
 from time import perf_counter
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 
 import mne
 from filelock import FileLock, Timeout
@@ -37,7 +35,10 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
-from mne_nodes.pipeline.pip_utils import install_pip_packages
+from mne_nodes.pipeline.package_utils import (
+    install_github_package,
+    install_pip_packages,
+)
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
@@ -55,7 +56,7 @@ default_config = {
     "shutdown": False,
     # Plugins
     "plugin_meta": {},
-    "function_plugin_map": {},
+    "functions": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
 }
@@ -84,8 +85,6 @@ class Controller:
         self._last_load = 0
         self._local_set = False
         self.plugins = {}
-        self.plugin_github_map = {}
-        self.func_plugin_map = {}
         self.function_meta = {}
         self.lock_timeout = 5  # seconds
         self.disk_interval = 1  # seconds
@@ -98,7 +97,7 @@ class Controller:
         # handled explicitly via ensure_* methods after QApplication startup.
         self._initialize_startup_config_path(config_path)
         # Initialize plugins
-        self.load_plugins()
+        self.load_plugins_entry_points()
 
     ####################################################################################
     # Initialization and Properties
@@ -699,15 +698,24 @@ class Controller:
             self.viewer.load_nodes(config["nodes"])
         # Todo Next: Fix and declutter this
         if plugins and self.viewer:
-            missing_plugins = []
+            plugin_meta = config.get("plugin_meta", {})
+            missing_plugins = {
+                p: v for p, v in plugin_meta.items() if p not in self.plugins
+            }
             if len(missing_plugins) > 0:
                 logger.warning(
                     f"Missing plugins found in config: {missing_plugins}. Attempting to install them."
                 )
-                install_pip_packages(
-                    missing_plugins, cast(Any, _widgets.get("main_window"))
-                )
-                self.load_plugins()
+            # Install github plugins if available
+            github_plugins = [
+                v.get("plugin_github")
+                for p, v in missing_plugins.items()
+                if v.get("plugin_github") is not None
+            ]
+            if len(github_plugins) > 0:
+                install_pip_packages(github_plugins, parent=self.main_window)
+
+            self.load_plugins_entry_points()
 
         return config
 
@@ -745,7 +753,6 @@ class Controller:
             with self.config_lock:
                 config_path = self.ensure_config_path(interactive=False)
                 config_to_save = deepcopy(self._config)
-                config_to_save["plugins"] = self.get_used_plugins()
                 with open(config_path, "w") as file:
                     json.dump(config_to_save, file, indent=4, cls=TypedJSONEncoder)
         except Timeout:
@@ -982,7 +989,7 @@ class Controller:
     ####################################################################################
     # Plugins
     ####################################################################################
-    def load_plugin(self, plugin_name, plugin_meta):
+    def load_plugin(self, plugin, plugin_name, plugin_meta):
         """Load the configuration file for a plugin."""
         config_path = plugin_meta.get("config_path")
         # config-path can already be the config-dict if suplied by load_plugin_code
@@ -992,7 +999,8 @@ class Controller:
             functions = load_json(config_path, no_gui=False)
         # add plugin-name to function metadata for later retrival
         for func in functions:
-            self.function_meta[func]["plugin"] = plugin_name
+            self.set_dict_value("functions", func, plugin_name)
+            functions[func]["plugin"] = plugin_name
         # Populate plugin-meta
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         # Warn for duplicates
@@ -1004,6 +1012,7 @@ class Controller:
             )
             for df in duplicate_functions:
                 del functions[df]
+        self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
 
     def load_plugin_module(self, plugin):
@@ -1020,7 +1029,25 @@ class Controller:
         plugin_github = getattr(plugin, "PLUGIN_GITHUB", None)
         if plugin_github is not None:
             plugin_meta["plugin_github"] = plugin_github
-        self.load_plugin(plugin_name, plugin_meta)
+            plugin_meta["plugin_type"] = "github"
+        self.load_plugin(plugin, plugin_name, plugin_meta)
+
+    def load_plugin_github(self, plugin_name: str) -> None:
+        # Check if package is installed
+        if find_spec("numpy") is None:
+            install_github_package(plugin_name, parent=self.main_window)
+
+    def load_plugin_script(
+        self, plugin_name: str, script_path: str | Path, config_path: str | Path
+    ) -> None:
+        sys.path.append(str(Path(config_path).parent))
+        plugin = import_module(plugin_name)
+        plugin_meta = {
+            "config_path": config_path,
+            "script_path": script_path,
+            "plugin_type": "script",
+        }
+        self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def load_plugin_path(self, config_path: str | Path):
         pattern = r"([\w]+)_config\.json$"
@@ -1036,72 +1063,24 @@ class Controller:
             raise RuntimeError(
                 f"Expected script file '{script_path.name}' not found in {script_path.parent}. For just loading a plugin from a config-file, the script file is required to be in the same folder as the config-file and named like '<plugin_name>.py'."
             )
-        plugin_meta = {"config_path": config_path, "script_path": script_path}
-        self.load_plugin(plugin_name, plugin_meta)
+        self.load_plugin_script(plugin_name, script_path, config_path)
 
     def load_plugin_code(self, code: str):
+        # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
         pass
 
-    def load_plugins(self) -> None:
-        eps = [
-            ep
-            for ep in entry_points(group="mne_nodes.plugins")
-            if ep.name not in self.plugins
-        ]
-        for entry_point in eps:
-            logger.info(f"Loading {entry_point.name}")
-            plugin = entry_point.load()
-            self.load_plugin_module(plugin)
-
-    # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
-    def add_plugin(self, config_path: str | Path):
-        """Load function metadata from an external plugin config file."""
-        plugin_config_path = Path(config_path)
-        plugin_config = load_json(plugin_config_path)
-        if not isinstance(plugin_config, dict):
-            raise TypeError(
-                f"Plugin config at {plugin_config_path} must be a JSON object."
-            )
-        functions = plugin_config.get("functions", plugin_config)
-        if not isinstance(functions, dict):
-            raise TypeError(
-                f"Plugin functions in config at {plugin_config_path} must be an object mapping."
-            )
-        plugin_name = self._get_plugin_name(plugin_config)
-        plugin_github = plugin_config.get("plugin_github")
-        if not isinstance(plugin_github, str):
-            plugin_github = ""
-        for function_meta in functions.values():
-            if not isinstance(function_meta, dict):
-                continue
-            function_meta.setdefault("plugin_name", plugin_name)
-            function_meta.setdefault("plugin_github", plugin_github)
-
-        duplicate_functions = [fn for fn in functions if fn in self.function_meta]
-        if len(duplicate_functions) > 0:
-            raise_user_attention(
-                f"Duplicate function names found in plugin config '{plugin_config_path.name}': {duplicate_functions}.",
-                "warning",
-            )
-            for duplicate_function in duplicate_functions:
-                del functions[duplicate_function]
-        self.function_meta.update(functions)
-        declared_plugins = {
-            function_meta.get("plugin_name")
-            for function_meta in functions.values()
-            if isinstance(function_meta, dict) and function_meta.get("plugin_name")
-        }
-        if len(declared_plugins) == 0:
-            declared_plugins = {plugin_name}
-
-        for declared_plugin in declared_plugins:
-            self.plugins.setdefault(
-                declared_plugin,
-                SimpleNamespace(
-                    CONFIG_PATH=plugin_config_path, PLUGIN_GITHUB=plugin_github
-                ),
-            )
-        return plugin_name
+    def load_all_plugins(self) -> None:
+        for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
+            plugin_type = plugin_meta.get("plugin_type")
+            match plugin_type:
+                case "script":
+                    self.load_plugin_script(
+                        plugin_name,
+                        plugin_meta["script_path"],
+                        plugin_meta["config_path"],
+                    )
+                case "github":
+                    self.load_plugin_github(plugin_name)
 
     def get_function_plugin_name(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""

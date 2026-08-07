@@ -108,7 +108,7 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     validation_functions_config = (
         Path(__file__).parent / "tests" / "validation_functions_config.json"
     )
-    controller.add_plugin(validation_functions_config)
+    controller.load_plugin_path(validation_functions_config)
 
     return controller
 
