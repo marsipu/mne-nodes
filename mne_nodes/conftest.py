@@ -14,6 +14,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from mne_nodes.logger import init_logging
+
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
 test_parameters = {
@@ -53,6 +55,8 @@ alternative_test_parameters = {
 }
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"
+
+init_logging(debug_mode=True)  # Initialize logging for tests
 
 
 @pytest.fixture

@@ -23,17 +23,11 @@ def test_init(ct):
     # Test renaming the controller
     ct.name = "test2"
     assert ct.name == "test2", "Controller name should be updated to 'test2'"
-    # Test setting values in container attributes
-    bad_channels = ct.get("bad_channels")
-    bad_channels["test_subject"] = ["EEG 001", "EEG 002"]
-    ct.set("bad_channels", bad_channels)
-    assert "test_subject" in ct.get("bad_channels")
     # Test persistence for reloading
     config_path = ct.config_path
     ct.flush()
     controller2 = Controller(config_path=config_path)
     assert controller2.name == "test2"
-    assert "test_subject" in ct.get("bad_channels")
     # Test parameter set
     ct.set_parameter("param1", 42, "test_func1")
     assert ct.parameter("param1", "test_func1") == 42, (

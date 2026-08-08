@@ -6,7 +6,9 @@ from qtpy.QtWidgets import QWidget
 from mne_nodes.gui.run_widgets import ProcessDialog
 
 
-def install_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+def install_pip_packages(
+    package_names: list, parent: QWidget | None = None
+) -> ProcessDialog:
     if len(package_names) == 0:
         raise ValueError("No package names provided for installation.")
     dlg = ProcessDialog(
@@ -21,7 +23,9 @@ def install_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
     return dlg
 
 
-def uninstall_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+def uninstall_pip_packages(
+    package_names: list, parent: QWidget | None = None
+) -> ProcessDialog:
     dlg = ProcessDialog(
         parent,
         commands=[(sys.executable, "-m", "pip", "uninstall", "-y", *package_names)],
@@ -34,7 +38,9 @@ def uninstall_pip_packages(package_names: list, parent: QWidget) -> ProcessDialo
     return dlg
 
 
-def update_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
+def update_pip_packages(
+    package_names: list, parent: QWidget | None = None
+) -> ProcessDialog:
     dlg = ProcessDialog(
         parent,
         commands=[
@@ -49,7 +55,9 @@ def update_pip_packages(package_names: list, parent: QWidget) -> ProcessDialog:
     return dlg
 
 
-def install_github_package(repo_url: str, parent: QWidget) -> ProcessDialog:
+def install_github_package(
+    repo_url: str, parent: QWidget | None = None
+) -> ProcessDialog:
     dlg = ProcessDialog(
         parent,
         commands=[(sys.executable, "-m", "pip", "install", f"git+{repo_url}")],

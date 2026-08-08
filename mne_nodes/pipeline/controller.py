@@ -87,7 +87,7 @@ class Controller:
         self.plugins = {}
         self.function_meta = {}
         self.lock_timeout = 5  # seconds
-        self.disk_interval = 1  # seconds
+        self.disk_interval = 10  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
         # possible scopes for grouping and selection
@@ -97,7 +97,7 @@ class Controller:
         # handled explicitly via ensure_* methods after QApplication startup.
         self._initialize_startup_config_path(config_path)
         # Initialize plugins
-        self.load_plugins_entry_points()
+        self.load_all_plugins()
 
     ####################################################################################
     # Initialization and Properties
@@ -995,8 +995,12 @@ class Controller:
         # config-path can already be the config-dict if suplied by load_plugin_code
         if isinstance(config_path, dict):
             functions = config_path
-        else:
+        elif isfile(config_path):
             functions = load_json(config_path, no_gui=False)
+        else:
+            raise ValueError(
+                f"Invalid config_path for plugin '{plugin_name}': {config_path}. Must be a dict or a valid path to a JSON config file."
+            )
         # add plugin-name to function metadata for later retrival
         for func in functions:
             self.set_dict_value("functions", func, plugin_name)
@@ -1032,26 +1036,23 @@ class Controller:
             plugin_meta["plugin_type"] = "github"
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
-    def load_plugin_github(self, plugin_name: str) -> None:
+    def load_plugin_github(self, plugin_name: str, plugin_meta: dict) -> None:
         # Check if package is installed
-        if find_spec("numpy") is None:
-            install_github_package(plugin_name, parent=self.main_window)
-
-    def load_plugin_script(
-        self, plugin_name: str, script_path: str | Path, config_path: str | Path
-    ) -> None:
-        sys.path.append(str(Path(config_path).parent))
+        if find_spec(plugin_name) is None:
+            install_github_package(
+                plugin_meta["plugin_github"], parent=self.main_window
+            )
         plugin = import_module(plugin_name)
-        plugin_meta = {
-            "config_path": config_path,
-            "script_path": script_path,
-            "plugin_type": "script",
-        }
+        self.load_plugin(plugin, plugin_name, plugin_meta)
+
+    def load_plugin_script(self, plugin_name: str, plugin_meta: dict) -> None:
+        sys.path.append(str(Path(plugin_meta["config_path"]).parent))
+        plugin = import_module(plugin_name)
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def load_plugin_path(self, config_path: str | Path):
-        pattern = r"([\w]+)_config\.json$"
-        match = re.match(pattern, str(config_path))
+        pattern = r"([\w_]+)_config\.json$"
+        match = re.search(pattern, str(config_path))
         if match:
             plugin_name = match.group(1)
         else:
@@ -1063,7 +1064,12 @@ class Controller:
             raise RuntimeError(
                 f"Expected script file '{script_path.name}' not found in {script_path.parent}. For just loading a plugin from a config-file, the script file is required to be in the same folder as the config-file and named like '<plugin_name>.py'."
             )
-        self.load_plugin_script(plugin_name, script_path, config_path)
+        plugin_meta = {
+            "config_path": config_path,
+            "script_path": script_path,
+            "plugin_type": "script",
+        }
+        self.load_plugin_script(plugin_name, plugin_meta)
 
     def load_plugin_code(self, code: str):
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
@@ -1074,13 +1080,9 @@ class Controller:
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
                 case "script":
-                    self.load_plugin_script(
-                        plugin_name,
-                        plugin_meta["script_path"],
-                        plugin_meta["config_path"],
-                    )
+                    self.load_plugin_script(plugin_name, plugin_meta)
                 case "github":
-                    self.load_plugin_github(plugin_name)
+                    self.load_plugin_github(plugin_name, plugin_meta)
 
     def get_function_plugin_name(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""
