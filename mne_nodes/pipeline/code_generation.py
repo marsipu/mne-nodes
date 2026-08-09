@@ -53,10 +53,7 @@ class CodeGenerator:
         }
         plugins = set(functions.values())
         for plugin in plugins:
-            if plugin == "mne_functions":
-                code += "import mne\n"
-            else:
-                code += f"from {plugin} import {', '.join([f for f, p in functions.items() if p == plugin])}\n"
+            code += f"from {plugin} import {', '.join([f for f, p in functions.items() if p == plugin])}\n"
 
         return code
 

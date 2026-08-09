@@ -35,10 +35,7 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
-from mne_nodes.pipeline.package_utils import (
-    install_github_package,
-    install_pip_packages,
-)
+from mne_nodes.pipeline.package_utils import install_github_package
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
@@ -695,27 +692,10 @@ class Controller:
             config = deepcopy(default_config)
 
         if nodes and self.viewer is not None:
-            self.viewer.load_nodes(config["nodes"])
+            self.viewer.load_nodes(config["node_config"])
         # Todo Next: Fix and declutter this
         if plugins and self.viewer:
-            plugin_meta = config.get("plugin_meta", {})
-            missing_plugins = {
-                p: v for p, v in plugin_meta.items() if p not in self.plugins
-            }
-            if len(missing_plugins) > 0:
-                logger.warning(
-                    f"Missing plugins found in config: {missing_plugins}. Attempting to install them."
-                )
-            # Install github plugins if available
-            github_plugins = [
-                v.get("plugin_github")
-                for p, v in missing_plugins.items()
-                if v.get("plugin_github") is not None
-            ]
-            if len(github_plugins) > 0:
-                install_pip_packages(github_plugins, parent=self.main_window)
-
-            self.load_plugins_entry_points()
+            self.load_all_plugins()
 
         return config
 
@@ -1046,7 +1026,7 @@ class Controller:
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def load_plugin_script(self, plugin_name: str, plugin_meta: dict) -> None:
-        sys.path.append(str(Path(plugin_meta["config_path"]).parent))
+        sys.path.append(str(Path(plugin_meta["script_path"]).parent))
         plugin = import_module(plugin_name)
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
@@ -1087,7 +1067,7 @@ class Controller:
     def get_function_plugin_name(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""
         function_meta = self.get_function_meta(function_name)
-        plugin_name = function_meta.get("plugin_name")
+        plugin_name = function_meta.get("plugin")
         if not isinstance(plugin_name, str) or plugin_name.strip() == "":
             raise KeyError(
                 f"Function '{function_name}' has no valid plugin configured."
@@ -1243,54 +1223,6 @@ class Controller:
     ####################################################################################
     # Pipeline
     ####################################################################################
-    def get_used_plugins(self):
-        """Get used plugins as ``{plugin_name: github_url}`` mapping."""
-
-        def _plugin_github(plugin_name: str) -> str:
-            plugin = self.plugins.get(plugin_name)
-            if plugin is not None:
-                plugin_github = getattr(plugin, "PLUGIN_GITHUB", "")
-                if isinstance(plugin_github, str):
-                    return plugin_github
-            for function_meta in self.function_meta.values():
-                if function_meta.get("plugin_name") != plugin_name:
-                    continue
-                plugin_github = function_meta.get("plugin_github", "")
-                if isinstance(plugin_github, str):
-                    return plugin_github
-            return ""
-
-        plugins = {}
-        viewer = _widgets.get("viewer")
-        if viewer is not None and hasattr(viewer, "get_unique_functions"):
-            function_names = viewer.get_unique_functions()
-        elif viewer is not None and hasattr(viewer, "to_dict"):
-            pipeline_dict = viewer.to_dict()
-            function_names = [
-                node_config.get("name")
-                for node_config in pipeline_dict.get("nodes", {}).values()
-                if node_config.get("name")
-            ]
-        else:
-            node_config = self.get("node_config", {})
-            function_names = [
-                node_data.get("name")
-                for node_data in node_config.get("nodes", {}).values()
-                if isinstance(node_data, dict) and node_data.get("name")
-            ]
-
-        for func_name in function_names:
-            if not isinstance(func_name, str):
-                continue
-            try:
-                func_meta = self.get_function_meta(func_name)
-            except KeyError:
-                continue
-            plugin_name = func_meta.get("plugin_name")
-            if not isinstance(plugin_name, str):
-                continue
-            plugins[plugin_name] = _plugin_github(plugin_name)
-        return plugins
 
     def export_pipeline(self, export_path=None):
         if export_path is None:

@@ -109,7 +109,7 @@ def test_config_change(tmp_path, ct, monkeypatch):
     )
 
 
-def test_getters_are_non_interactive(settings):
+def test_getters_noninteractive(settings):
     controller = Controller(settings=settings)
 
     assert controller.config_path is None
@@ -122,7 +122,7 @@ def test_getters_are_non_interactive(settings):
         controller.ensure_ready(required=("config_path",), interactive=False)
 
 
-def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch):
+def test_path_prompts(settings, tmp_path, monkeypatch):
     controller = Controller(settings=settings)
     prompts = {
         "Please select/create a folder for the bids-root.": tmp_path / "bids",
@@ -163,11 +163,15 @@ def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch)
     )
 
 
-def test_load_config_with_pipeline_adds_missing_plugins(ct, tmp_path, monkeypatch):
+def test_load_missing_plugins(ct, tmp_path, monkeypatch):
+    class DummyViewer:
+        def load_nodes(self, *_args, **_kwargs):
+            return None
+
     imported_nodes = {"nodes": {"input": {"name": "Input-0"}}, "connections": {}}
     import_payload = {
-        "nodes": imported_nodes,
-        "plugins": ["test_module"],
+        "node_config": imported_nodes,
+        "plugin_meta": {"test_module": {"plugin_github": "org/test_module"}},
         "parameters": {"test_func1": {"a": 12}},
     }
     import_path = tmp_path / "pipeline_import_missing_module.json"
@@ -179,23 +183,17 @@ def test_load_config_with_pipeline_adds_missing_plugins(ct, tmp_path, monkeypatc
         "mne_nodes.pipeline.controller.install_pip_packages",
         lambda plugins, *args, **kwargs: installed_plugins.extend(plugins),
     )
-    monkeypatch.setattr(ct, "load_plugins", lambda: None)
+    monkeypatch.setattr(ct, "load_all_plugins", lambda: None)
+    monkeypatch.setitem(_widgets, "viewer", DummyViewer())
+    monkeypatch.setitem(_widgets, "main_window", object())
 
     ct.config_path = import_path
-    ct.load(plugins=True)
 
-    assert installed_plugins == ["test_module"]
+    assert installed_plugins == ["org/test_module"]
     assert ct.get("node_config") == imported_nodes
 
 
-def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
-    class ExportViewer:
-        def __init__(self, pipeline_dict):
-            self._pipeline_dict = pipeline_dict
-
-        def to_dict(self):
-            return self._pipeline_dict
-
+def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     roundtrip_nodes = {
         "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
         "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
@@ -205,9 +203,9 @@ def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
         "test_epochs": {"tmin": -0.2, "tmax": 0.5},
     }
     ct.set("parameters", roundtrip_parameters)
+    ct.set("node_config", roundtrip_nodes)
 
     export_path = tmp_path / "pipeline_roundtrip.json"
-    monkeypatch.setitem(_widgets, "viewer", ExportViewer(roundtrip_nodes))
     ct.export_pipeline(export_path)
 
     ct.set("parameters", {})
@@ -221,19 +219,19 @@ def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
 
 
 @pytest.mark.timeout(180)
-def test_code_generation_script_executes_complex_pipeline(
-    qtbot, tmp_path, monkeypatch, settings
-):
+def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     from mne_nodes.conftest import _add_complex_nodes, create_test_controller
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from mne_nodes.pipeline.code_generation import CodeGenerator
 
-    monkeypatch.setattr(Controller, "load_plugins", lambda self: self.plugins)
+    monkeypatch.setattr(Controller, "load_all_plugins", lambda self: self.plugins)
     ct = create_test_controller(
         settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
     )
+    default_plugin = next(iter(ct.plugins))
     for function_meta in ct.function_meta.values():
         function_meta.setdefault("class_name", None)
+        function_meta.setdefault("plugin_name", default_plugin)
 
     viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
@@ -261,13 +259,13 @@ def test_code_generation_script_executes_complex_pipeline(
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
     generated_code = generated_code.replace(
         "# Load controller\n",
-        "# Load controller\nController.load_plugins = lambda self: self.plugins\n",
+        "# Load controller\nController.load_all_plugins = lambda self: self.plugins\n",
         1,
     )
     generated_code = generated_code.replace(
         "\n\n# Inject plugins into global namespace\n",
         (
-            f"\nct.add_plugin('{validation_config_path.as_posix()}')\n\n"
+            f"\nct.load_plugin_path('{validation_config_path.as_posix()}')\n\n"
             "# Inject plugins into global namespace\n"
         ),
         1,

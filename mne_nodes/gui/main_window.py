@@ -4,6 +4,8 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import sys
+
 import mne
 from qtpy.QtCore import QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
@@ -78,11 +80,34 @@ class MainWindow(QMainWindow):
             shortcut=QKeySequence("Ctrl+S"),
         )
         save_pipeline_action.triggered.connect(self.save_pipeline)
-        # BIDS Actions
+        pipeline_menu = self.menuBar().addMenu("&Pipeline")
+        pipeline_menu.addAction(load_pipeline_action)
+        pipeline_menu.addAction(save_pipeline_action)
+        # BIDS Menu
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
         )
         sample_action.triggered.connect(self.add_sample_bids)
+        bids_menu = self.menuBar().addMenu("&BIDS")
+        bids_menu.addAction(sample_action)
+        bids_menu.addSeparator()
+
+        # Plugin Menu
+        load_plugin_path_action = QAction(
+            "&Load Plugin from Path",
+            parent=self,
+            statusTip="Load a plugin from a configuration file.",
+        )
+        load_plugin_path_action.triggered.connect(self.load_plugin_from_path)
+        load_plugin_module_action = QAction(
+            "&Load Plugin from Module",
+            parent=self,
+            statusTip="Load a plugin from a Python module.",
+        )
+        load_plugin_module_action.triggered.connect(self.load_plugin_from_module)
+        plugin_menu = self.menuBar().addMenu("&Plugins")
+        plugin_menu.addAction(load_plugin_path_action)
+        plugin_menu.addAction(load_plugin_module_action)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
@@ -94,17 +119,8 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
-        # Menu
-        pipeline_menu = self.menuBar().addMenu("&Pipeline")
-        pipeline_menu.addAction(load_pipeline_action)
-        pipeline_menu.addAction(save_pipeline_action)
-        bids_menu = self.menuBar().addMenu("&BIDS")
-        bids_menu.addAction(sample_action)
-        bids_menu.addSeparator()
+        # Pipeline Menu
         self.menuBar().addAction(exit_action)
-        # Toolbar
-        self.toolbar = self.addToolBar("Main Toolbar")
-        self.toolbar.addAction(autolayout_action)
 
         # Show the main window
         self.show()
@@ -154,6 +170,29 @@ class MainWindow(QMainWindow):
         if show_status:
             self.statusBar().showMessage(f"{self.controller.name} saved.")
 
+    def load_plugin_from_path(self):
+        plugin_path = get_user_input(
+            "Select a plugin configuration file to load.",
+            input_type="file",
+            file_filter="JSON files (*.json)",
+            parent=self,
+        )
+        if plugin_path is None:
+            return
+        self.controller.load_plugin_path(plugin_path)
+        self.statusBar().showMessage(f"{self.controller.name} loaded plugin.")
+
+    def load_plugin_from_module(self):
+        plugin_name = get_user_input(
+            "Enter the name of the plugin module to load.",
+            input_type="text",
+            parent=self,
+        )
+        if plugin_name is None:
+            return
+        self.controller.load_plugin_module(plugin_name)
+        self.statusBar().showMessage(f"{self.controller.name} loaded plugin.")
+
     def add_sample_bids(self):
         sample_root = get_user_input(
             "Enter the BIDS root directory for the sample data:", "folder", parent=self
@@ -178,9 +217,21 @@ class MainWindow(QMainWindow):
 
     def update_app(self, version):
         if version == "stable":
-            command = "pip install --upgrade mne_nodes"
+            command = [
+                (sys.executable, ["-m", "pip", "install", "--upgrade", "mne_nodes"])
+            ]
         else:
-            command = "pip install https://github.com/marsipu/mne-nodes/zipball/main"
+            command = [
+                (
+                    sys.executable,
+                    [
+                        "-m",
+                        "pip",
+                        "install",
+                        "https://github.com/marsipu/mne-nodes/zipball/main",
+                    ],
+                )
+            ]
         if iswin and not _run_from_script():
             information_message(
                 f"Manual install required! To update you need to exit the program and type '{command}' into the terminal!",

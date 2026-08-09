@@ -78,18 +78,18 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     """
     from mne_nodes.pipeline.controller import Controller
 
-    # Simulate user input
+    # Simulate user input for tests that still prompt interactively.
     def dummy_user_input(*args, **kwargs):
-        # Set the controller name
-        if kwargs["input_type"] == "string":
+        input_type = kwargs.get("input_type")
+        if input_type is None and len(args) > 1:
+            input_type = args[1]
+        if input_type == "string":
             return "test"
-        # set the directory where to save the config-file
-        elif kwargs["input_type"] == "folder":
+        if input_type == "folder":
             return tmp_path
-        else:
-            raise RuntimeError(
-                f"Unknown input type: '{kwargs['input_type']}' for dummy function"
-            )
+        if input_type == "file":
+            return tmp_path / "test_config.json"
+        raise RuntimeError(f"Unknown input type: '{input_type}' for dummy function")
 
     # Monkeypatch needs to be set on controller-module, since its already imported
     monkeypatch.setattr(
@@ -108,7 +108,9 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     # Create Controller
     faulthandler.enable()
     controller = Controller(settings=settings)
-    controller.ensure_ready(required=("config_path",))
+    controller.config_path = tmp_path / "test_config.json"
+    controller.set("name", "test")
+    controller.ensure_ready(required=("config_path",), interactive=False)
     validation_functions_config = (
         Path(__file__).parent / "tests" / "validation_functions_config.json"
     )
