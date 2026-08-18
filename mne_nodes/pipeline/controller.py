@@ -1072,6 +1072,21 @@ class Controller:
             self.load_plugin_module(plugin)
 
     def load_plugin_path(self, config_path: str | Path):
+        config_path = Path(config_path)
+        if not config_path.is_file():
+            information_message(
+                f"Plugin config file '{config_path}' not found. Please select "
+                "the new location.",
+                parent=self,
+            )
+            config_path = get_user_input(
+                "Select a plugin configuration file to load.",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+                parent=self,
+            )  # type: ignore
+            if config_path is None:
+                return
         pattern = r"([\w_]+)_config\.json$"
         match = re.search(pattern, str(config_path))
         if match:
