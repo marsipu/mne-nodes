@@ -12,6 +12,7 @@ from os.path import isdir
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from mne_nodes.logger import init_logging
@@ -34,6 +35,8 @@ test_parameters = {
     "slider": 5,
     "color": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
+    "slice": slice(1, 10, 2),
+    "dataframe": pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}),
 }
 
 alternative_test_parameters = {
@@ -52,6 +55,8 @@ alternative_test_parameters = {
     "slider": 2,
     "color": {"A": "#12345678", "B": "#13243546"},
     "path": Path().home() / "test_path",
+    "slice": slice(2, 20, 3),
+    "dataframe": pd.DataFrame({"X": [10, 20], "Y": [30, 40]}),
 }
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"

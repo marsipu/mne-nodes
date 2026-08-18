@@ -31,6 +31,7 @@ dependencies = [
     "autoreject",
     "h5io",
     "h5netcdf",
+    "pandas",
     # Qt
     "qtpy",
     "darkdetect",

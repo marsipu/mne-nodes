@@ -47,6 +47,7 @@ from mne_nodes.gui.parameter import (
     CheckListGui,
     ColorGui,
     ComboGui,
+    DataFrameGui,
     DictGui,
     DualTupleGui,
     FloatGui,
@@ -57,6 +58,7 @@ from mne_nodes.gui.parameter import (
     MultiTypeGui,
     Param,
     PathGui,
+    SliceGui,
     SliderGui,
     StringGui,
 )
@@ -80,6 +82,8 @@ parameter_guis = [
     LabelGui,
     ColorGui,
     PathGui,
+    SliceGui,
+    DataFrameGui,
 ]
 
 default_type_guis = {
@@ -92,6 +96,8 @@ default_type_guis = {
     "object": MultiTypeGui,
     "NoneType": MultiTypeGui,
     "tuple": DualTupleGui,
+    "slice": SliceGui,
+    "DataFrame": DataFrameGui,
 }
 
 

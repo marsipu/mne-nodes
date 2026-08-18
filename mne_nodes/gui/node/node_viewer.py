@@ -921,12 +921,13 @@ class NodeViewer(QGraphicsView):
         menu.addSeparator()
 
         # Get corresponding functions for inputs/outputs
+        port_name = port.name if port.name not in self.ct.raw_types else "raw"
         if port.port_type == "in":
-            funcs = self.ct.get_func_by_output(port.name)
-            connected = {port.name: {"type": "out", "port_to": port}}
+            funcs = self.ct.get_func_by_output(port_name)
+            connected = {port_name: {"type": "out", "port_to": port}}
         else:
-            funcs = self.ct.get_func_by_input(port.name)
-            connected = {port.name: {"type": "in", "port_to": port}}
+            funcs = self.ct.get_func_by_input(port_name)
+            connected = {port_name: {"type": "in", "port_to": port}}
         scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
         # Sort funcs alphabetically
         funcs.sort()

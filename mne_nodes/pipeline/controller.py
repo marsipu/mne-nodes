@@ -995,15 +995,13 @@ class Controller:
             functions[func]["plugin"] = plugin_name
         # Populate plugin-meta
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
-        # Warn for duplicates
+        # Warn for duplicates, but let the newly loaded plugin's functions win
         duplicate_functions = [fn for fn in functions if fn in self.function_meta]
         if len(duplicate_functions) > 0:
             raise_user_attention(
-                f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. Please rename those functions, they will not be imported until then",
+                f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
                 "warning",
             )
-            for df in duplicate_functions:
-                del functions[df]
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
 
