@@ -111,7 +111,7 @@ class InputWidget(QWidget):
 
 class InputNode(BaseNode):
     def __init__(self, **kwargs):
-        super().__init__(startable=True, **kwargs)
+        super().__init__(startable=True, deletable=False, **kwargs)
         self.input_widget = None
         self.update_widgets()
 
@@ -224,7 +224,7 @@ class FunctionNode(BaseNode):
         _func_code, start, end = self.ct.get_function_code(self.name)
         # ToDo: fix code editing
         plugin_config = self.ct.settings.get("plugin_config", {})
-        plugin_name = self.ct.get_function_plugin_name(self.name)
+        plugin_name = self.ct.get_plugin_from_function(self.name)
         if plugin_name in plugin_config:
             file_path = plugin_config[plugin_name]["path"]
             editor_widget = CodeEditorWidget(

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from mne_nodes.logger import logger
 
 
@@ -47,13 +49,22 @@ class CodeGenerator:
             "# Import plugins\n"
         )
         # Add plugin imports
-        functions = {
-            function_name: self.ct.get_function_plugin_name(function_name)
-            for function_name in function_names
-        }
-        plugins = set(functions.values())
-        for plugin in plugins:
-            code += f"from {plugin} import {', '.join([f for f, p in functions.items() if p == plugin])}\n"
+        plugins_functions = defaultdict(list)
+        for function_name in function_names:
+            plugin_name = self.ct.get_plugin_from_function(function_name)
+            plugins_functions[plugin_name].append(function_name)
+        plugin_functions = self.ct.get_plugins_functions_sorted(function_names)
+        for plugin, functions in plugin_functions.items():
+            if plugin == "mne_functions":
+                mne_plugin_functions = defaultdict(list)
+                for func in functions:
+                    module_name = self.ct.get_function_meta(func).get("module_name")
+                    if module_name is not None:
+                        mne_plugin_functions[module_name].append(func)
+                for module_name, funcs in mne_plugin_functions.items():
+                    code += f"from {module_name} import {', '.join(funcs)}\n"
+            else:
+                code += f"from {plugin} import {', '.join(functions)}\n"
 
         return code
 
@@ -209,7 +220,7 @@ class CodeGenerator:
                         func_line += f"{func_meta['class_name'].lower()}."
                         func_name = name.split(".")[-1]
                     else:
-                        plugin_name = self.ct.get_function_plugin_name(name)
+                        plugin_name = self.ct.get_plugin_from_function(name)
                         if "mne" in plugin_name:
                             func_name = f"{plugin_name}.{name}"
                         else:

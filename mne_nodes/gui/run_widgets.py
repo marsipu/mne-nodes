@@ -176,8 +176,8 @@ class WorkerDialog(QDialog):
 class ProcessDialog(QDialog):
     def __init__(
         self,
-        parent: QWidget | None,
         commands: list[tuple[str, ...]],
+        parent: QWidget | None = None,
         show_buttons: bool = True,
         show_console: bool = True,
         close_directly: bool = False,

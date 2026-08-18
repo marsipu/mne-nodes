@@ -11,6 +11,7 @@ from functools import partial
 from importlib import resources
 from os.path import join
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import darkdetect
 from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
@@ -363,7 +364,8 @@ def get_user_input(
     prompt : str
         The prompt message to display to the user.
     input_type : str, optional
-        The type of input to request: "string", "folder", "file" or "file_new".
+        The type of input to request: "string", "url", "folder", "file" or
+        "file_new".
     file_filter : str, optional
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
     cancel_allowed : bool, optional
@@ -383,13 +385,11 @@ def get_user_input(
     RuntimeError
         If input is not available in the current environment.
     ValueError
-        If `input_type` is not "string" or "path".
+        If `input_type` is not a supported input type.
     """
-    type_error_message = (
-        f"input_type must be 'string', 'folder', 'file', 'file_new', not '{input_type}'"
-    )
+    type_error_message = f"input_type must be 'string', 'url', 'folder', 'file', 'file_new', not '{input_type}'"
     if gui_mode:
-        if input_type == "string":
+        if input_type in ("string", "url"):
             user_input, ok = _get_text_input(prompt, parent=parent)
         elif input_type == "folder":
             user_input, ok = _get_existing_directory(prompt, parent=parent)
@@ -404,7 +404,7 @@ def get_user_input(
         else:
             raise ValueError(type_error_message)
     else:
-        if input_type == "string":
+        if input_type in ("string", "url"):
             user_input = input(f"{prompt}: ")
         elif input_type == "folder":
             ans = input("Do you want to use the current directory? (y/n/c/cancel): ")
@@ -439,13 +439,20 @@ def get_user_input(
         warning_message = "The provided path is not a valid directory!"
     elif input_type == "file" and not os.path.isfile(user_input):
         warning_message = "The provided path does not exist!"
-    elif input_type == "string" and not isinstance(user_input, str):
+    elif input_type in ("string", "url") and not isinstance(user_input, str):
         warning_message = "The provided input is not a valid string!"
+    elif input_type == "url":
+        user_input = user_input.strip().replace("\\", "/")
+        url_parts = urlsplit(user_input)
+        if url_parts.scheme not in {"http", "https"} or not url_parts.netloc:
+            warning_message = "The provided input is not a valid URL!"
+        else:
+            warning_message = None
     else:
         warning_message = None
     if warning_message is not None:
         raise_user_attention(warning_message, message_type="warning")
-        return get_user_input(prompt, input_type)
+        return get_user_input(prompt, input_type, parent=parent)
 
     # Convert path-strings to Path-objects
     if input_type in ["folder", "file", "file_new"] and user_input is not None:

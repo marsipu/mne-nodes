@@ -98,16 +98,23 @@ class MainWindow(QMainWindow):
             parent=self,
             statusTip="Load a plugin from a configuration file.",
         )
-        load_plugin_path_action.triggered.connect(self.load_plugin_from_path)
+        load_plugin_path_action.triggered.connect(self.load_plugin_path)
         load_plugin_module_action = QAction(
             "&Load Plugin from Module",
             parent=self,
             statusTip="Load a plugin from a Python module.",
         )
-        load_plugin_module_action.triggered.connect(self.load_plugin_from_module)
+        load_plugin_module_action.triggered.connect(self.load_plugin_module)
+        load_plugin_github_action = QAction(
+            "&Load Plugin from GitHub",
+            parent=self,
+            statusTip="Load a plugin from a GitHub repository.",
+        )
+        load_plugin_github_action.triggered.connect(self.load_plugin_github)
         plugin_menu = self.menuBar().addMenu("&Plugins")
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
+        plugin_menu.addAction(load_plugin_github_action)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
@@ -170,7 +177,7 @@ class MainWindow(QMainWindow):
         if show_status:
             self.statusBar().showMessage(f"{self.controller.name} saved.")
 
-    def load_plugin_from_path(self):
+    def load_plugin_path(self):
         plugin_path = get_user_input(
             "Select a plugin configuration file to load.",
             input_type="file",
@@ -180,9 +187,9 @@ class MainWindow(QMainWindow):
         if plugin_path is None:
             return
         self.controller.load_plugin_path(plugin_path)
-        self.statusBar().showMessage(f"{self.controller.name} loaded plugin.")
+        self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
-    def load_plugin_from_module(self):
+    def load_plugin_module(self):
         plugin_name = get_user_input(
             "Enter the name of the plugin module to load.",
             input_type="text",
@@ -190,8 +197,17 @@ class MainWindow(QMainWindow):
         )
         if plugin_name is None:
             return
-        self.controller.load_plugin_module(plugin_name)
-        self.statusBar().showMessage(f"{self.controller.name} loaded plugin.")
+        self.controller.load_plugin_module_name(plugin_name)
+        self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
+
+    def load_plugin_github(self):
+        plugin_url = get_user_input(
+            "Enter the GitHub URL of the plugin to load.", input_type="url", parent=self
+        )
+        if plugin_url is None:
+            return
+        self.controller.load_plugin_github(plugin_url)
+        self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def add_sample_bids(self):
         sample_root = get_user_input(
@@ -241,8 +257,8 @@ class MainWindow(QMainWindow):
         else:
             # Register with controller for central tracking
             ProcessDialog(
-                self,
                 command,
+                parent=self,
                 show_buttons=True,
                 show_console=True,
                 close_directly=True,
@@ -260,8 +276,8 @@ class MainWindow(QMainWindow):
     def update_mne(self):
         command = "pip install --upgrade mne"
         ProcessDialog(
-            self,
             command,
+            parent=self,
             show_buttons=True,
             show_console=True,
             close_directly=True,

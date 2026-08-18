@@ -81,8 +81,8 @@ def test_process_dialog(qtbot):
     commands = [(sys.executable, "-u", "-c", py_snippet)]
 
     dialog = ProcessDialog(
-        parent=None,
         commands=commands,
+        parent=None,
         show_buttons=False,
         show_console=True,
         close_directly=False,

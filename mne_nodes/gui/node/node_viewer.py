@@ -416,6 +416,9 @@ class NodeViewer(QGraphicsView):
             node = self.node(**kwargs)
         if node is None:
             return
+        if node.deletable is False:
+            logger.warning(f"Node '{node.name}' is not deletable.")
+            return
         # Remove connected pipes
         for port in node.ports:
             for connected_port in list(port.connected_ports):

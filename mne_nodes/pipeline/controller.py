@@ -12,13 +12,15 @@ import subprocess
 import sys
 from collections.abc import Callable
 from copy import deepcopy
+from functools import partial
 from importlib import import_module
-from importlib.util import cache_from_source, find_spec
+from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
 from time import perf_counter
+from types import ModuleType
 from typing import Any
 
 import mne
@@ -30,12 +32,19 @@ from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
     get_user_input,
+    information_message,
+    question_yes_no,
     raise_user_attention,
 )
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
-from mne_nodes.pipeline.package_utils import install_github_package
+from mne_nodes.pipeline.package_utils import (
+    get_name_from_github,
+    import_distribution,
+    install_github_package,
+    install_pip_packages,
+)
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
@@ -94,7 +103,7 @@ class Controller:
         # handled explicitly via ensure_* methods after QApplication startup.
         self._initialize_startup_config_path(config_path)
         # Initialize plugins
-        self.load_all_plugins()
+        self.load_recent_plugins()
 
     ####################################################################################
     # Initialization and Properties
@@ -695,7 +704,7 @@ class Controller:
             self.viewer.load_nodes(config["node_config"])
         # Todo Next: Fix and declutter this
         if plugins and self.viewer:
-            self.load_all_plugins()
+            self.load_recent_plugins()
 
         return config
 
@@ -936,10 +945,9 @@ class Controller:
     def get_func_from_param(self, parameter_name: str) -> list:
         """Get the function name(s) associated with a specific parameter
         name."""
-        function_meta = self.function_meta
         associated_functions = [
             func_name
-            for func_name, func_meta in function_meta.items()
+            for func_name, func_meta in self.function_meta.items()
             if parameter_name in func_meta.get("parameters", {})
         ]
         return associated_functions
@@ -947,10 +955,10 @@ class Controller:
     def get_func_by_input(self, input_name: str) -> list:
         """Get the function name(s) associated with a specific input
         name."""
-        function_meta = self.function_meta
+        input_name = "raw" if input_name in self.raw_types else input_name
         associated_functions = [
             func_name
-            for func_name, func_meta in function_meta.items()
+            for func_name, func_meta in self.function_meta.items()
             if input_name in func_meta.get("inputs", {})
         ]
         return associated_functions
@@ -958,10 +966,10 @@ class Controller:
     def get_func_by_output(self, output_name: str) -> list:
         """Get the function name(s) associated with a specific output
         name."""
-        function_meta = self.function_meta
+        output_name = "raw" if output_name in self.raw_types else output_name
         associated_functions = [
             func_name
-            for func_name, func_meta in function_meta.items()
+            for func_name, func_meta in self.function_meta.items()
             if output_name in func_meta.get("outputs", {})
         ]
         return associated_functions
@@ -1014,21 +1022,54 @@ class Controller:
         if plugin_github is not None:
             plugin_meta["plugin_github"] = plugin_github
             plugin_meta["plugin_type"] = "github"
+        else:
+            plugin_meta["plugin_type"] = "module"
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
-    def load_plugin_github(self, plugin_name: str, plugin_meta: dict) -> None:
-        # Check if package is installed
-        if find_spec(plugin_name) is None:
-            install_github_package(
-                plugin_meta["plugin_github"], parent=self.main_window
+    def _import_with_install_prompt(
+        self, name: str, github: bool = False, plugin_url: str | None = None
+    ) -> ModuleType | None:
+        """Import a module, offering to install it first if it is missing."""
+        if github:
+            if plugin_url is None:
+                raise ValueError("plugin_url must be given when github=True.")
+            importer = partial(import_distribution, name)
+            installer = partial(install_github_package, plugin_url)
+            prompt_suffix = f" from '{plugin_url}'"
+        else:
+            importer = partial(import_module, name)
+            installer = partial(install_pip_packages, [name])
+            prompt_suffix = ""
+        try:
+            return importer()
+        except ModuleNotFoundError:
+            ans = question_yes_no(
+                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?",
+                parent=self,
             )
-        plugin = import_module(plugin_name)
-        self.load_plugin(plugin, plugin_name, plugin_meta)
+            if not ans:
+                return None
+            installer()
+            try:
+                return importer()
+            except ModuleNotFoundError:
+                information_message(
+                    f"Failed to import module '{name}' after installation.", parent=self
+                )
+                return None
 
-    def load_plugin_script(self, plugin_name: str, plugin_meta: dict) -> None:
-        sys.path.append(str(Path(plugin_meta["script_path"]).parent))
-        plugin = import_module(plugin_name)
-        self.load_plugin(plugin, plugin_name, plugin_meta)
+    def load_plugin_module_name(self, plugin_name: str) -> None:
+        plugin = self._import_with_install_prompt(plugin_name)
+        if plugin is not None:
+            self.load_plugin_module(plugin)
+
+    def load_plugin_github(self, plugin_url: str) -> None:
+        distribution_name = get_name_from_github(plugin_url)
+        plugin = self._import_with_install_prompt(
+            distribution_name, github=True, plugin_url=plugin_url
+        )
+        if plugin is not None:
+            self.load_plugin_module(plugin)
 
     def load_plugin_path(self, config_path: str | Path):
         pattern = r"([\w_]+)_config\.json$"
@@ -1039,6 +1080,7 @@ class Controller:
             raise RuntimeError(
                 "Plugin config file name must be in the format '<plugin_name>_config.json'"
             )
+        folder_path = Path(config_path).parent
         script_path = Path(config_path).parent / f"{plugin_name}.py"
         if not isfile(script_path):
             raise RuntimeError(
@@ -1047,24 +1089,29 @@ class Controller:
         plugin_meta = {
             "config_path": config_path,
             "script_path": script_path,
-            "plugin_type": "script",
+            "plugin_type": "path",
         }
-        self.load_plugin_script(plugin_name, plugin_meta)
+        if str(folder_path) not in sys.path:
+            sys.path.append(str(folder_path))
+        plugin = import_module(plugin_name)
+        self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def load_plugin_code(self, code: str):
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
         pass
 
-    def load_all_plugins(self) -> None:
+    def load_recent_plugins(self) -> None:
         for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
-                case "script":
-                    self.load_plugin_script(plugin_name, plugin_meta)
+                case "path":
+                    self.load_plugin_path(plugin_meta["config_path"])
                 case "github":
-                    self.load_plugin_github(plugin_name, plugin_meta)
+                    self.load_plugin_github(plugin_meta["plugin_github"])
+                case "module":
+                    self.load_plugin_module_name(plugin_name)
 
-    def get_function_plugin_name(self, function_name: str) -> str:
+    def get_plugin_from_function(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""
         function_meta = self.get_function_meta(function_name)
         plugin_name = function_meta.get("plugin")
@@ -1126,7 +1173,7 @@ class Controller:
         """Get the metadata for a specific function."""
         function_meta = self.function_meta.get(function_name, None)
         if function_meta is None:
-            match = re.match(r"([\w]+)-\d+", function_name)
+            match = re.match(r"([\w\.]+)-\d+", function_name)
             if match:
                 function_meta = self.function_meta[match.group(1)]
             else:
@@ -1207,7 +1254,7 @@ class Controller:
 
     def get_function_code(self, function_name: str):
         """Get the code for a specific function from the plugins."""
-        plugin_name = self.get_function_plugin_name(function_name)
+        plugin_name = self.get_plugin_from_function(function_name)
         plugin = self.plugins[plugin_name]
         function = getattr(plugin, function_name)
         if function is None:

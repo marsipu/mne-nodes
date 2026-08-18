@@ -193,6 +193,41 @@ def test_load_missing_plugins(ct, tmp_path, monkeypatch):
     assert ct.get("node_config") == imported_nodes
 
 
+def test_import_plugin_from_config_file(ct, tmp_path):
+    plugin_name = "config_file_plugin"
+    plugin_dir = tmp_path / "plugin"
+    plugin_dir.mkdir()
+    script_path = plugin_dir / f"{plugin_name}.py"
+    config_path = plugin_dir / f"{plugin_name}_config.json"
+    script_path.write_text(
+        "def imported_function(value):\n    return value * 2\n", encoding="utf-8"
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "imported_function": {
+                    "inputs": {},
+                    "outputs": {},
+                    "parameters": {},
+                    "target": "file",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ct.load_plugin_path(config_path)
+
+    assert plugin_name in ct.plugins
+    assert ct.plugins[plugin_name].imported_function(3) == 6
+    assert ct.get_plugin_from_function("imported_function") == plugin_name
+    assert ct.get("plugin_meta")[plugin_name] == {
+        "config_path": config_path,
+        "script_path": script_path,
+        "plugin_type": "script",
+    }
+
+
 def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     roundtrip_nodes = {
         "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
