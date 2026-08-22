@@ -15,6 +15,7 @@ from typing import Any
 
 import ijson
 import numpy as np
+import pandas as pd
 from qtpy.QtWidgets import QApplication
 from tqdm import tqdm
 
@@ -47,12 +48,24 @@ class TypedJSONEncoder(json.JSONEncoder):
                 return float(o)
             case o if isinstance(o, np.ndarray):
                 return {"numpy_array_type": o.tolist()}
+            case o if isinstance(o, pd.DataFrame):
+                return {
+                    "dataframe_type": {
+                        "columns": o.columns.tolist(),
+                        "data": o.values.tolist(),
+                        "index": o.index.tolist(),
+                    }
+                }
             case datetime():
                 return {"datetime_type": o.strftime(datetime_format)}
             case set():
                 return {"set_type": list(o)}
             case Path():
                 return {"path_type": str(o)}
+            case slice():
+                return {
+                    "slice_type": {"start": o.start, "stop": o.stop, "step": o.step}
+                }
             case _:
                 return super().default(o)
 
@@ -116,6 +129,12 @@ def type_json_hook(obj: dict[str, Any]) -> Any:
             return set(value)
         case {"path_type": value}:
             return Path(value)
+        case {"slice_type": value}:
+            return slice(value["start"], value["stop"], value["step"])
+        case {"dataframe_type": value}:
+            return pd.DataFrame(
+                data=value["data"], columns=value["columns"], index=value["index"]
+            )
         case _:
             return new_obj
 

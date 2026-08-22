@@ -402,7 +402,7 @@ class NodeViewer(QGraphicsView):
 
         return node
 
-    def remove_node(self, node=None, **kwargs):
+    def remove_node(self, node=None, force=False, **kwargs):
         """Remove a node from the node graph.
 
         Parameters
@@ -416,7 +416,7 @@ class NodeViewer(QGraphicsView):
             node = self.node(**kwargs)
         if node is None:
             return
-        if node.deletable is False:
+        if node.deletable is False and not force:
             logger.warning(f"Node '{node.name}' is not deletable.")
             return
         # Remove connected pipes
@@ -656,7 +656,7 @@ class NodeViewer(QGraphicsView):
         """
         # list conversion necessary because self.nodes is mutated
         for node in list(self.nodes.values()):
-            self.remove_node(node)
+            self.remove_node(node, force=True)
 
     def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
         if visited is None:

@@ -12,6 +12,7 @@ from pathlib import Path
 from queue import Empty
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from mne_nodes.pipeline.io import (
@@ -40,6 +41,10 @@ def test_json_serialization(parameter_values):
         assert key in deserialized, f"Key {key} not found in deserialized JSON"
         if isinstance(value, np.ndarray):
             np.testing.assert_allclose(deserialized[key], value)
+        elif isinstance(value, pd.DataFrame):
+            assert deserialized[key].equals(value), (
+                f"Value mismatch for key {key}: {deserialized[key]} != {value}"
+            )
         else:
             assert deserialized[key] == value, (
                 f"Value mismatch for key {key}: {deserialized[key]} != {value}"
