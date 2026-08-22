@@ -20,6 +20,7 @@ annotated arguments.
    CheckListGui
    ComboGui
    DataFrameGui
+   DateTimeGui
    DictGui
    FloatGui
    IntGui

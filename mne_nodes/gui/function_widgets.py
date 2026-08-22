@@ -49,6 +49,7 @@ from mne_nodes.gui.parameter import (
     ColorGui,
     ComboGui,
     DataFrameGui,
+    DateTimeGui,
     DictGui,
     DualTupleGui,
     FloatGui,
@@ -84,6 +85,7 @@ parameter_guis = [
     SliceGui,
     DataFrameGui,
     CallableGui,
+    DateTimeGui,
 ]
 
 default_type_guis = {
@@ -99,6 +101,7 @@ default_type_guis = {
     "slice": SliceGui,
     "DataFrame": DataFrameGui,
     "function": CallableGui,
+    "datetime": DateTimeGui,
 }
 
 

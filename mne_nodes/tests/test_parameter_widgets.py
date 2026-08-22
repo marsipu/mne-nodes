@@ -34,6 +34,7 @@ gui_mapping = {
     "SliceGui": "slice",
     "DataFrameGui": "dataframe",
     "CallableGui": "callable",
+    "DateTimeGui": "datetime",
 }
 
 gui_kwargs = {
@@ -314,6 +315,29 @@ def test_evaluate_function_code():
     )
     assert func is None
     assert "Only one function/class definition is allowed" in error
+
+
+def test_datetime_gui_date_and_time_modes(qtbot):
+    from datetime import date, time
+
+    from mne_nodes.gui.parameter import DateTimeGui
+
+    date_gui = DateTimeGui(
+        data={"d": date(2020, 5, 17)}, name="d", datetime_type="date"
+    )
+    qtbot.addWidget(date_gui)
+    assert date_gui.value == date(2020, 5, 17)
+    date_gui.value = date(2021, 6, 18)
+    assert date_gui.value == date(2021, 6, 18)
+
+    time_gui = DateTimeGui(data={"t": time(8, 15, 30)}, name="t", datetime_type="time")
+    qtbot.addWidget(time_gui)
+    assert time_gui.value == time(8, 15, 30)
+    time_gui.value = time(9, 20, 45)
+    assert time_gui.value == time(9, 20, 45)
+
+    with pytest.raises(ValueError, match="datetime_type"):
+        DateTimeGui(data={"x": None}, name="x", datetime_type="invalid")
 
 
 def test_callable_gui_load_and_edit(qtbot):

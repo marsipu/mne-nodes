@@ -7,6 +7,7 @@ from .checklist_gui import CheckListGui
 from .color_gui import ColorGui
 from .combo_gui import ComboGui
 from .dataframe_gui import DataFrameGui
+from .datetime_gui import DateTimeGui
 from .dict_gui import DictGui
 from .dual_tuple_gui import DualTupleGui
 from .float_gui import FloatGui
@@ -30,6 +31,7 @@ __all__ = [
     "ColorGui",
     "ComboGui",
     "DataFrameGui",
+    "DateTimeGui",
     "DictGui",
     "DualTupleGui",
     "FloatGui",
