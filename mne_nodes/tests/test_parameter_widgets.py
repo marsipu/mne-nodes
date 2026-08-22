@@ -186,6 +186,31 @@ def test_array_gui_large_array(qtbot):
     assert gui._table_model.columnCount() == 50
 
 
+def test_array_gui_ten_dimensions(qtbot):
+    """ArrayGui provides a selector for every dimension beyond the table."""
+    data = {"arr": np.zeros((2,) * 10)}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    assert gui._display_arr is not None
+    assert gui._display_arr.ndim == 10
+    assert len(gui._spinboxes) == 8
+
+    for spinbox in gui._spinboxes:
+        spinbox.setValue(1)
+
+    assert gui._table_model.rowCount() == 2
+    assert gui._table_model.columnCount() == 2
+
+
+def test_array_gui_rejects_more_than_ten_dimensions(qtbot):
+    """ArrayGui raises an error instead of reshaping unsupported arrays."""
+    data = {"arr": np.zeros((1,) * 11)}
+
+    with pytest.raises(ValueError, match="at most 10 dimensions"):
+        parameter.ArrayGui(data=data, name="arr")
+
+
 def test_array_gui_expr_mode(qtbot):
     """Switching to expr mode evaluates numpy expressions correctly."""
     data = {"arr": np.zeros((2, 3))}

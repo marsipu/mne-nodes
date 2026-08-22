@@ -93,7 +93,7 @@ class _ArraySliceModel(QAbstractTableModel):
 
 
 class ArrayGui(Param):
-    """Parameter GUI for numpy arrays of up to 5 dimensions.
+    """Parameter GUI for numpy arrays of up to 10 dimensions.
 
     Provides two input modes, switchable via a combo-box:
 
@@ -117,8 +117,11 @@ class ArrayGui(Param):
     """
 
     data_type = np.ndarray
+    max_dimensions = 10
 
     def __init__(self, **kwargs: Any):
+        # Param.__init__ loads persisted data, including the expression cache.
+        self._param_exp: str | None = None
         super().__init__(**kwargs)
 
         # ── mode selector ──────────────────────────────────────────────────
@@ -143,6 +146,7 @@ class ArrayGui(Param):
 
         # Table view (lazy – only renders visible cells)
         self._table_model = _ArraySliceModel()
+        self._table_model.dataChanged.connect(self._on_table_data_changed)
         self._table_view = QTableView()
         self._table_view.setModel(self._table_model)
         table_outer.addWidget(self._table_view)
@@ -167,7 +171,7 @@ class ArrayGui(Param):
         self._stack.addWidget(self._expr_widget)
 
         # ── parameter expression cache (mirrors FuncGui pattern) ───────────
-        self._param_exp: str | None = None
+        self._display_arr: np.ndarray | None = None
 
         # ── overall layout ─────────────────────────────────────────────────
         outer = QVBoxLayout()
@@ -181,10 +185,20 @@ class ArrayGui(Param):
 
     # ── mode switching ─────────────────────────────────────────────────────
 
+    @staticmethod
+    def _validate_dimensions(value: np.ndarray) -> np.ndarray:
+        arr = value
+        if arr.ndim > ArrayGui.max_dimensions:
+            raise ValueError(
+                f"ArrayGui supports at most {ArrayGui.max_dimensions} dimensions; "
+                f"got {arr.ndim}."
+            )
+        return arr
+
     def _on_mode_changed(self, index: int):
         self._stack.setCurrentIndex(index)
-        if index == 0 and self._value is not None:
-            self._refresh_table(self._value)
+        if index == 0 and self._display_arr is not None:
+            self._refresh_table(self._display_arr)
         elif index == 1:
             exp = self._param_exp if self._param_exp is not None else ""
             self._expr_edit.setText(exp)
@@ -218,7 +232,7 @@ class ArrayGui(Param):
         """Create one QSpinBox per extra dimension (ndim > 2)."""
         self._clear_spinboxes()
         n_extra = max(0, arr.ndim - 2)
-        if n_extra == 0:
+        if n_extra == 0 or any(size == 0 for size in arr.shape[:n_extra]):
             self._spinbox_row.setVisible(False)
             return
         self._spinbox_row.setVisible(True)
@@ -236,6 +250,9 @@ class ArrayGui(Param):
 
     def _current_slice(self, arr: np.ndarray) -> np.ndarray:
         """Return the 2-D slice selected by the current spinbox values."""
+        n_extra = max(0, arr.ndim - 2)
+        if any(size == 0 for size in arr.shape[:n_extra]):
+            return np.empty((0, 0), dtype=arr.dtype)
         idx = tuple(sb.value() for sb in self._spinboxes)
         if idx:
             sliced = arr[idx]
@@ -246,10 +263,15 @@ class ArrayGui(Param):
         return sliced
 
     def _on_spinbox_changed(self):
-        if self._value is not None:
-            arr = np.asarray(self._value)
-            slc = self._current_slice(arr)
+        if self._display_arr is not None:
+            slc = self._current_slice(self._display_arr)
             self._table_model.replace_data(slc)
+
+    def _on_table_data_changed(self, *_):
+        """Persist table edits and invalidate any expression cache."""
+        if self._value is not None:
+            self._param_exp = None
+            self.value = np.array(self._value, copy=True)
 
     def _refresh_table(self, arr: np.ndarray):
         """Rebuild spinboxes and refresh the table for *arr*."""
@@ -260,9 +282,8 @@ class ArrayGui(Param):
     # ── Param interface ─────────────────────────────────────────────────────
 
     def _set_widget_value(self, value):
-        arr = np.asarray(value)
-        if arr.ndim > 5:
-            arr = arr.reshape(arr.shape[:4] + (-1,))
+        arr = self._validate_dimensions(value)
+        self._display_arr = arr
         # Update table
         self._refresh_table(arr)
         # Update expr display
@@ -296,7 +317,15 @@ class ArrayGui(Param):
         real_value = super()._load_from_data(name)
         exp_name = name + "_exp"
         if self.is_key(exp_name):
-            self._param_exp = super()._load_from_data(exp_name)
+            # Expression metadata is a string, not an array parameter value.
+            # Temporarily use its actual type so Param does not substitute the
+            # ndarray default during validation.
+            data_type = self.data_type
+            try:
+                self.data_type = str
+                self._param_exp = super()._load_from_data(exp_name)
+            finally:
+                self.data_type = data_type
         return real_value
 
     def _save_to_data(self, name, value):
