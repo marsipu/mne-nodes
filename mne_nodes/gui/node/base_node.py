@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 from collections import OrderedDict
 
 import qtawesome as qta
@@ -21,6 +20,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.logger import logger
 
 
 class NodeTextItem(QGraphicsTextItem):
@@ -69,10 +69,19 @@ class BaseNode(QGraphicsItem):
         If a string is provided add a checkbox with that name. Default is None (no checkbox).
     startable : bool, optional
         If True, the node has a start button. Default is False.
+    deletable: bool, optional
+        If True, the node can be deleted. Default is True.
     """
 
     def __init__(
-        self, ct, name=None, ports=None, old_id=None, checkbox=None, startable=False
+        self,
+        ct,
+        name=None,
+        ports=None,
+        old_id=None,
+        checkbox=None,
+        startable=False,
+        deletable=True,
     ):
         self.ct = ct
         # Initialize QGraphicsItem
@@ -80,7 +89,7 @@ class BaseNode(QGraphicsItem):
         self.setFlags(
             self.GraphicsItemFlag.ItemIsSelectable | self.GraphicsItemFlag.ItemIsMovable
         )
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setZValue(1)
 
         # Initialize hidden attributes for properties (with node_defaults)
@@ -89,6 +98,7 @@ class BaseNode(QGraphicsItem):
         self.id = id(self)
         self.checkbox = checkbox
         self.startable = startable
+        self.deletable = deletable
 
         self._width = defaults["nodes"]["width"]
         self._height = defaults["nodes"]["height"]
@@ -300,7 +310,7 @@ class BaseNode(QGraphicsItem):
         existing = self.inputs if port_type == "in" else self.outputs
         if name in [p.name for p in existing]:
             if warn_existing:
-                logging.debug(
+                logger.debug(
                     f"Port '{name}' already exists for '{port_type}'. Returning existing port."
                 )
             return self.port(port_name=name)
@@ -428,18 +438,18 @@ class BaseNode(QGraphicsItem):
                 return port_list[port_idx]
             else:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_idx} not found.")
+                    logger.warning(f"{port_type} port {port_idx} not found.")
         elif port_name is not None:
             if not isinstance(port_name, str):
                 raise ValueError(f"Invalid port name: {port_name}")
             port_names = [p for p in port_list if p.name == port_name]
             if len(port_names) > 2:
-                logging.warning(
+                logger.warning(
                     "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_name} not found.")
+                    logger.warning(f"{port_type} port {port_name} not found.")
             else:
                 return port_names[0]
         elif port_id is not None:
@@ -449,22 +459,22 @@ class BaseNode(QGraphicsItem):
                 return ports[port_id]
             else:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port {port_id} not found.")
+                    logger.warning(f"{port_type} port {port_id} not found.")
         elif old_id is not None:
             if not isinstance(old_id, int):
                 raise ValueError(f"Invalid old port id: {old_id}")
             old_id_ports = [p for p in port_list if p.old_id == old_id]
             if len(old_id_ports) > 1:
-                logging.warning(
+                logger.warning(
                     "More than one port with the same old id. This should not be allowed."
                 )
             elif len(old_id_ports) == 0:
                 if not ignore_warnings:
-                    logging.warning(f"{port_type} port with old id {old_id} not found.")
+                    logger.warning(f"{port_type} port with old id {old_id} not found.")
             else:
                 return old_id_ports[0]
         else:
-            logging.warning("No port identifier provided.")
+            logger.warning("No port identifier provided.")
         return None
 
     def input(self, **port_kwargs):
@@ -538,10 +548,10 @@ class BaseNode(QGraphicsItem):
             connected_nodes = self.connected_output_nodes()
         else:
             connected_nodes = self.connected_nodes(port_id=port_id)
-        for port_id, nodes in connected_nodes.items():
-            down_dict[port_id] = {}
+        for connected_port_id, nodes in connected_nodes.items():
+            down_dict[connected_port_id] = {}
             for node in nodes:
-                down_dict[port_id][node.id] = node.downstream_node_dict()
+                down_dict[connected_port_id][node.id] = node.downstream_node_dict()
 
         return down_dict
 
@@ -552,10 +562,10 @@ class BaseNode(QGraphicsItem):
             connected_nodes = self.connected_input_nodes()
         else:
             connected_nodes = self.connected_nodes(port_id=port_id)
-        for port_id, nodes in connected_nodes.items():
-            up_dict[port_id] = {}
+        for connected_port_id, nodes in connected_nodes.items():
+            up_dict[connected_port_id] = {}
             for node in nodes:
-                up_dict[port_id][node.id] = node.upstream_node_dict()
+                up_dict[connected_port_id][node.id] = node.upstream_node_dict()
 
         return up_dict
 
@@ -986,4 +996,4 @@ class BaseNode(QGraphicsItem):
             # Update the widget
             self.update()
         else:
-            logging.warning("Node not in scene.")
+            logger.warning("Node not in scene.")

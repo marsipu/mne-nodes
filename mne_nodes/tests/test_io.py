@@ -7,11 +7,12 @@ GitHub: https://github.com/marsipu/mne-nodes
 import json
 import multiprocessing
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from queue import Empty
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from mne_nodes.pipeline.io import (
@@ -30,7 +31,7 @@ def test_json_serialization(parameter_values):
     parameter_values.update(
         {
             "array": np.array([[1, 2, 3], [4, 5, 6]]),
-            "datetime": datetime(2000, 1, 1, 12, 0, 0),
+            "datetime": datetime(2000, 1, 1, 12, 0, 0, tzinfo=UTC),
         }
     )
     serialized = json.dumps(parameter_values, indent=4, cls=TypedJSONEncoder)
@@ -40,6 +41,10 @@ def test_json_serialization(parameter_values):
         assert key in deserialized, f"Key {key} not found in deserialized JSON"
         if isinstance(value, np.ndarray):
             np.testing.assert_allclose(deserialized[key], value)
+        elif isinstance(value, pd.DataFrame):
+            assert deserialized[key].equals(value), (
+                f"Value mismatch for key {key}: {deserialized[key]} != {value}"
+            )
         else:
             assert deserialized[key] == value, (
                 f"Value mismatch for key {key}: {deserialized[key]} != {value}"
@@ -208,7 +213,9 @@ def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path)
         "set": {"set_type": [1, 2, 3]},
         "path": {"path_type": str(Path("some") / "relative" / "path.txt")},
         "datetime": {
-            "datetime_type": datetime(2024, 1, 2, 3, 4, 5).strftime(datetime_format)
+            "datetime_type": datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC).strftime(
+                datetime_format
+            )
         },
         "array": {"numpy_array_type": [[1, 2], [3, 4]]},
     }
@@ -223,7 +230,7 @@ def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path)
     assert isinstance(loaded["set"], set)
     assert loaded["path"] == Path("some") / "relative" / "path.txt"
     assert isinstance(loaded["path"], Path)
-    assert loaded["datetime"] == datetime(2024, 1, 2, 3, 4, 5)
+    assert loaded["datetime"] == datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
     assert isinstance(loaded["datetime"], datetime)
     np.testing.assert_array_equal(loaded["array"], np.array([[1, 2], [3, 4]]))
     assert isinstance(loaded["array"], np.ndarray)

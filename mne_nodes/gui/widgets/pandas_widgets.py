@@ -5,9 +5,10 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import itertools
-import logging
 
 import numpy as np
+import pandas as pd
+from qtpy import compat
 from qtpy.QtCore import QItemSelectionModel, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
@@ -20,10 +21,39 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
+from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
 from mne_nodes.gui.widgets.base import Base
+from mne_nodes.logger import logger
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.settings import Settings
+
+DATAFRAME_FILE_FILTERS = (
+    "Data Files (*.csv *.xlsx *.xls);;"
+    "CSV Files (*.csv);;"
+    "Excel Files (*.xlsx *.xls);;"
+    "All Files (*)"
+)
+
+# Tried in order until one decodes the file without a UnicodeDecodeError.
+_CSV_ENCODINGS = ("utf-8", "utf-8-sig", "cp1252", "latin1")
+
+
+def read_dataframe_file(path):
+    """Read a DataFrame from a csv or excel file, raising on failure."""
+    if path.lower().endswith((".xlsx", ".xls")):
+        return pd.read_excel(path)
+
+    last_error = None
+    for encoding in _CSV_ENCODINGS:
+        try:
+            return pd.read_csv(path, sep=None, engine="python", encoding=encoding)
+        except UnicodeDecodeError as exc:
+            last_error = exc
+    raise ValueError(
+        f"Could not decode {path} with any of {_CSV_ENCODINGS}. Last error: {last_error}"
+    )
 
 
 class BasePandasTable(Base):
@@ -101,7 +131,7 @@ class BasePandasTable(Base):
 
         self.currentChanged.emit(current_list, previous_list)
 
-        logging.debug(f"Current changed from {previous_list} to {current_list}")
+        logger.debug(f"Current changed from {previous_list} to {current_list}")
 
     def get_selected(self):
         # Somehow, the indexes got from selectionChanged
@@ -116,7 +146,7 @@ class BasePandasTable(Base):
         selection_list = self.get_selected()
         self.selectionChanged.emit(selection_list)
 
-        logging.debug(f"Selection changed to {selection_list}")
+        logger.debug(f"Selection changed to {selection_list}")
 
     def select(self, values=None, rows=None, columns=None, clear_selection=True):
         """Select items in Pandas DataFrame by value or select complete
@@ -139,8 +169,7 @@ class BasePandasTable(Base):
         if values:
             for value in values:
                 row, column = np.nonzero((self.model._data == value).values)
-                for idx in zip(row, column):
-                    indexes.append(idx)
+                indexes.extend(zip(row, column))
 
         # Select complete rows
         if rows:
@@ -148,8 +177,7 @@ class BasePandasTable(Base):
             row_idxs = [list(self.model._data.index).index(row) for row in rows]
             n_cols = len(self.model._data.columns)
             for row in row_idxs:
-                for idx in zip(itertools.repeat(row, n_cols), range(n_cols)):
-                    indexes.append(idx)
+                indexes.extend(zip(itertools.repeat(row, n_cols), range(n_cols)))
 
         # Select complete columns
         if columns:
@@ -157,8 +185,7 @@ class BasePandasTable(Base):
             column_idxs = [list(self.model._data.columns).index(col) for col in columns]
             n_rows = len(self.model._data.index)
             for column in column_idxs:
-                for idx in zip(range(n_rows), itertools.repeat(column, n_rows)):
-                    indexes.append(idx)
+                indexes.extend(zip(range(n_rows), itertools.repeat(column, n_rows)))
 
         if clear_selection:
             self.view.selectionModel().clearSelection()
@@ -309,6 +336,13 @@ class EditPandasTable(BasePandasTable):
             edit_bt.clicked.connect(self.edit_item)
             bt_layout.addWidget(edit_bt)
 
+            load_bt = QPushButton("Load")
+            load_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            load_bt.clicked.connect(self.load_file)
+            bt_layout.addWidget(load_bt)
+
             editrh_bt = QPushButton("Edit Row-Header")
             editrh_bt.setSizePolicy(
                 QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
@@ -394,6 +428,20 @@ class EditPandasTable(BasePandasTable):
 
     def edit_item(self):
         self.view.edit(self.view.selectionModel().currentIndex())
+
+    def load_file(self):
+        """Load a DataFrame from a csv/xlsx file, replacing the current data."""
+        path, _ = compat.getopenfilename(
+            self, "Load DataFrame", filters=DATAFRAME_FILE_FILTERS
+        )
+        if not path:
+            return
+        try:
+            data = read_dataframe_file(path)
+        except Exception:  # noqa: BLE001
+            ErrorDialog(get_exception_tuple(), self, f"Could not load {path}").open()
+            return
+        self.replace_data(data)
 
     def edit_row_header(self):
         row = self.view.selectionModel().currentIndex().row()

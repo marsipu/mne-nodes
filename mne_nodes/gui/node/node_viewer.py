@@ -4,7 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
 import math
 import re
 from collections import OrderedDict
@@ -31,6 +30,7 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.logger import logger
 
 
 class NodeViewer(QGraphicsView):
@@ -211,7 +211,7 @@ class NodeViewer(QGraphicsView):
             The input node to set in the node graph.
         """
         if self._input_node is not None:
-            logging.info("Replacing existing input node.")
+            logger.info("Replacing existing input node.")
             self.remove_node(self._input_node)
         self._input_node = input_node
 
@@ -248,7 +248,7 @@ class NodeViewer(QGraphicsView):
             Pipe layout mode (either 'straight', 'curved', or 'angle').
         """
         if layout not in ["straight", "curved", "angle"]:
-            logging.warning(
+            logger.warning(
                 f"{layout} is not a valid pipe layout, defaulting to 'curved'."
             )
             layout = "curved"
@@ -389,7 +389,7 @@ class NodeViewer(QGraphicsView):
                 func_idx = len(self.get_node_by_function(function_name))
                 # Add function node index to name
                 function_name = f"{function_name}-{func_idx}"
-                logging.info(
+                logger.info(
                     f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
                 )
             node = FunctionNode(self.ct, name=function_name, **kwargs or {})
@@ -402,7 +402,7 @@ class NodeViewer(QGraphicsView):
 
         return node
 
-    def remove_node(self, node=None, **kwargs):
+    def remove_node(self, node=None, force=False, **kwargs):
         """Remove a node from the node graph.
 
         Parameters
@@ -415,6 +415,9 @@ class NodeViewer(QGraphicsView):
         if node is None:
             node = self.node(**kwargs)
         if node is None:
+            return
+        if node.deletable is False and not force:
+            logger.warning(f"Node '{node.name}' is not deletable.")
             return
         # Remove connected pipes
         for port in node.ports:
@@ -465,10 +468,10 @@ class NodeViewer(QGraphicsView):
         elif node_name is not None:
             node_list = [n for n in self.nodes.values() if n.name == node_name]
             if len(node_list) == 0:
-                logging.warning(f"No node found with name '{node_name}'.")
+                logger.warning(f"No node found with name '{node_name}'.")
             else:
                 if len(node_list) > 1:
-                    logging.warning(
+                    logger.warning(
                         f"Multiple nodes found with name '{node_name}'. Returning the first one."
                     )
                 return node_list[0]
@@ -478,7 +481,7 @@ class NodeViewer(QGraphicsView):
             for node in self.nodes.values():
                 if node.old_id == old_id:
                     return node
-        logging.warning("No node found with the provided parameters.")
+        logger.warning("No node found with the provided parameters.")
         return None
 
     def get_node_by_function(self, name):
@@ -536,12 +539,12 @@ class NodeViewer(QGraphicsView):
             if node.port(ignore_warnings=True, **kwargs) is not None
         ]
         if len(ports) == 0:
-            logging.warning("No port found with the provided parameters.")
+            logger.warning("No port found with the provided parameters.")
             return None
         elif len(ports) == 1:
             return ports[0]
         else:
-            logging.warning(f"Found {len(ports)} ports with the provided parameters.")
+            logger.warning(f"Found {len(ports)} ports with the provided parameters.")
             return ports
 
     def to_dict(self):
@@ -559,7 +562,7 @@ class NodeViewer(QGraphicsView):
 
         # Save connections
         viewer_dict["connections"] = {}
-        for node_id, node in self.nodes.items():
+        for node in self.nodes.values():
             viewer_dict["connections"][node.id] = {}
             for port in node.ports:
                 viewer_dict["connections"][node.id][port.id] = {}
@@ -585,7 +588,7 @@ class NodeViewer(QGraphicsView):
             try:
                 node = node_class.from_dict(self.ct, node_info)
             except KeyError:
-                logging.warning(
+                logger.warning(
                     f"Node class '{node_info['class']}' not found in nodes module. Skipping node."
                 )
                 continue
@@ -621,21 +624,21 @@ class NodeViewer(QGraphicsView):
         func_names = [
             n.name
             for n in self.nodes.values()
-            if not re.match(r".*-\d+$", n.name or "")
+            if isinstance(n, FunctionNode) and not re.match(r".*-\d+$", n.name or "")
         ]
 
         return func_names
 
-    def load_config(self, config: dict):
+    def load_nodes(self, config: dict):
         if not isinstance(config, dict) or not all(
             k in config for k in ("nodes", "connections")
         ):
-            logging.warning("Invalid configuration dictionary provided.")
+            logger.warning("Invalid configuration dictionary provided.")
             return
         if not isinstance(config["nodes"], dict) or not isinstance(
             config["connections"], dict
         ):
-            logging.warning(
+            logger.warning(
                 "Invalid configuration structure: nodes and connections must be dicts."
             )
             return
@@ -653,7 +656,7 @@ class NodeViewer(QGraphicsView):
         """
         # list conversion necessary because self.nodes is mutated
         for node in list(self.nodes.values()):
-            self.remove_node(node)
+            self.remove_node(node, force=True)
 
     def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
         if visited is None:
@@ -735,12 +738,10 @@ class NodeViewer(QGraphicsView):
 
         scale = (0.9 + sensitivity) if value < 0.0 else (1.1 - sensitivity)
         zoom = self.get_zoom()
-        if defaults["viewer"]["zoom_min"] >= zoom:
-            if scale == 0.9:
-                return
-        if defaults["viewer"]["zoom_max"] <= zoom:
-            if scale == 1.1:
-                return
+        if defaults["viewer"]["zoom_min"] >= zoom and scale == 0.9:
+            return
+        if defaults["viewer"]["zoom_max"] <= zoom and scale == 1.1:
+            return
         self.scale(scale, scale, pos)
 
     def _set_viewer_pan(self, pos_x, pos_y):
@@ -814,10 +815,10 @@ class NodeViewer(QGraphicsView):
         for node in nodes:
             rect = rect | node.sceneBoundingRect()
         # Add padding
-        rect.setX(rect.x() - self.ct.get("padding"))
-        rect.setY(rect.y() - self.ct.get("padding"))
-        rect.setWidth(rect.width() + self.ct.get("padding"))
-        rect.setHeight(rect.height() + self.ct.get("padding"))
+        rect.setX(rect.x() - 20)
+        rect.setY(rect.y() - 20)
+        rect.setWidth(rect.width() + 20)
+        rect.setHeight(rect.height() + 20)
 
         return rect
 
@@ -920,12 +921,13 @@ class NodeViewer(QGraphicsView):
         menu.addSeparator()
 
         # Get corresponding functions for inputs/outputs
+        port_name = port.name if port.name not in self.ct.raw_types else "raw"
         if port.port_type == "in":
-            funcs = self.ct.get_func_by_output(port.name)
-            connected = {port.name: {"type": "out", "port_to": port}}
+            funcs = self.ct.get_func_by_output(port_name)
+            connected = {port_name: {"type": "out", "port_to": port}}
         else:
-            funcs = self.ct.get_func_by_input(port.name)
-            connected = {port.name: {"type": "in", "port_to": port}}
+            funcs = self.ct.get_func_by_input(port_name)
+            connected = {port_name: {"type": "in", "port_to": port}}
         scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
         # Sort funcs alphabetically
         funcs.sort()
@@ -970,11 +972,10 @@ class NodeViewer(QGraphicsView):
         map_pos = self.mapToScene(event.pos())
 
         # debug path
-        if debug_mode():
-            if self.LMB_state:
-                path = self._debug_path.path()
-                path.moveTo(map_pos)
-                self._debug_path.setPath(path)
+        if debug_mode() and self.LMB_state:
+            path = self._debug_path.path()
+            path.moveTo(map_pos)
+            self._debug_path.setPath(path)
 
         # pipe slicer enabled.
         if self.LMB_state and event.modifiers() == (
@@ -1074,13 +1075,12 @@ class NodeViewer(QGraphicsView):
 
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
         origin_pos = self._origin_pos or event.pos()
-        if debug_mode():
+        if debug_mode() and self.LMB_state:
             # Debug mouse
-            if self.LMB_state:
-                to_pos = self.mapToScene(event.pos())
-                path = self._debug_path.path()
-                path.lineTo(to_pos)
-                self._debug_path.setPath(path)
+            to_pos = self.mapToScene(event.pos())
+            path = self._debug_path.path()
+            path.lineTo(to_pos)
+            self._debug_path.setPath(path)
 
         # Draw slicer
         if self.LMB_state and event.modifiers() == (
@@ -1186,7 +1186,7 @@ class NodeViewer(QGraphicsView):
         # Handle drop from NodePicker
         text = mime.text() if hasattr(mime, "text") else ""
         if text is None:
-            logging.debug("No text payload in drop event, ignoring.")
+            logger.debug("No text payload in drop event, ignoring.")
             return
         if text.startswith("mne-nodes/function:"):
             fname = text[len("mne-nodes/function:") :]
@@ -1474,7 +1474,7 @@ class NodeViewer(QGraphicsView):
         if output_port.multi_connection and output_port.connected(input_port):
             self._detached_port = None
             self.end_live_connection()
-            logging.debug("Target Port is already connected.")
+            logger.debug("Target Port is already connected.")
             return
 
         # disconnect target port from its connections if not multi connection.
@@ -1548,9 +1548,7 @@ class NodeViewer(QGraphicsView):
             True if the item is a node.
         """
         # For some reason, issubclass(item.__class__, BaseNode) does not work
-        if item in self.nodes.values():
-            return True
-        return False
+        return item in self.nodes.values()
 
     def isport(self, item) -> TypeGuard[Port]:
         """Check if the item is a port.
@@ -1893,7 +1891,7 @@ class NodeViewer(QGraphicsView):
             raise ValueError("No node found with the provided parameters.")
         port = node.port(port_type, port_idx, port_name, port_id)
         if not isinstance(port, Port):
-            raise ValueError("No port found with the provided parameters.")
+            raise TypeError("No port found with the provided parameters.")
         scene_pos = port.scenePos() + port.boundingRect().center()
         # Convert to float point
         scene_pos = QPointF(scene_pos)
@@ -2068,10 +2066,8 @@ class NodeViewer(QGraphicsView):
         # Clear old labels
         if self._coord_tick_labels:
             for t in self._coord_tick_labels:
-                try:
+                if t.scene() is self.scene():
                     self.scene().removeItem(t)
-                except Exception:
-                    pass
             self._coord_tick_labels = []
 
         # Color and font for ticks
@@ -2129,8 +2125,6 @@ class NodeViewer(QGraphicsView):
             self._set_grid_visible(False)
             # also clear labels to avoid stale items
             for t in getattr(self, "_coord_tick_labels", []) or []:
-                try:
+                if t.scene() is self.scene():
                     self.scene().removeItem(t)
-                except Exception:
-                    pass
             self._coord_tick_labels = []

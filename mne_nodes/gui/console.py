@@ -7,7 +7,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 from __future__ import annotations
 
 import codecs
-import logging
 import queue
 import re
 import sys
@@ -37,6 +36,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.streams import init_streams
 
@@ -99,7 +99,7 @@ class StreamWorker(QRunnable):
             self._dropped_count += 1
             # Log warning periodically (every 10th drop)
             if self._dropped_count % 10 == 1:
-                logging.warning(
+                logger.warning(
                     f"Console queue full, dropped {self._dropped_count} items total"
                 )
             self.queue.put_nowait((data, kind))
@@ -113,9 +113,7 @@ class StreamWorker(QRunnable):
         if m and m.group(1) == m.group(2) and m.group(1) != "0":
             return True
         m2 = self._RE_PERCENT.search(line)
-        if m2 and m2.group(1) == "100":
-            return True
-        return False
+        return bool(m2 and m2.group(1) == "100")
 
     def _emit_chunk(self, force: bool = False):
         # Emit chunk if too large or flush interval passed
@@ -279,7 +277,7 @@ class MainConsoleWidget(ConsoleWidget):
     def __init__(self):
         super().__init__()
         if not hasattr(sys.stdout, "signal") or not hasattr(sys.stderr, "signal"):
-            logging.warning(
+            logger.warning(
                 "Streams have not been initialized as Qt-objects yet, initializing them now."
             )
             init_streams()

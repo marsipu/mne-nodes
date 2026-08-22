@@ -114,9 +114,14 @@ class Pipe(QGraphicsPathItem):
 
     def hoverLeaveEvent(self, event):
         self.reset()
-        if self.input_port and self.output_port:
-            if self.input_port.node.isSelected() or self.output_port.node.isSelected():
-                self.highlight()
+        if (
+            self.input_port
+            and self.output_port
+            and (
+                self.input_port.node.isSelected() or self.output_port.node.isSelected()
+            )
+        ):
+            self.highlight()
         if self.isSelected():
             self.highlight()
 

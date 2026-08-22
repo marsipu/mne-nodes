@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import MutableMapping
 from types import NoneType
 from typing import Any
@@ -10,6 +9,7 @@ from typing import Any
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.settings import Settings
 
@@ -30,12 +30,13 @@ class Param(QWidget):
         unit: str | None = None,
         groupbox_layout: bool = True,
         none_select: bool = False,
+        show_title: bool = True,
         description: str | None = None,
         parent_widget: QWidget | None = None,
         *args: Any,
         **kwargs: Any,
     ):
-        super().__init__(parent=parent_widget, *args, **kwargs)
+        super().__init__(*args, parent=parent_widget, **kwargs)
         if isinstance(data, Controller) and function_name is None:
             raise RuntimeError(
                 "Function name must be provided when using Controller as data source."
@@ -50,6 +51,7 @@ class Param(QWidget):
         self.unit = unit
         self.groupbox_layout = groupbox_layout
         self.none_select = none_select
+        self.show_title = show_title
         self.description = description
         if description is not None:
             self.setToolTip(description)
@@ -139,10 +141,10 @@ class Param(QWidget):
             value = self.data.parameter(name, function_name=self.function_name)
         elif isinstance(self.data, dict):
             value = self.data.get(name, self.default)
-        elif isinstance(self.data, Settings) and name in self.data.keys():
+        elif isinstance(self.data, Settings) and name in self.data:
             value = self.data.get(name)
         else:
-            logging.warning(
+            logger.warning(
                 f"Parameter {name} not found in data source, using default value."
             )
             value = self.default
@@ -151,7 +153,7 @@ class Param(QWidget):
         if self.none_select:
             dt = dt | NoneType
         if not isinstance(value, dt):
-            logging.warning(
+            logger.warning(
                 f"Data for {name} has to be of type {dt}, "
                 f"but is of type {type(value)} instead!\n"
                 f"Using default value {self.default} instead."
@@ -173,7 +175,7 @@ class Param(QWidget):
         if isinstance(self.data, dict):
             return key in self.data
         if isinstance(self.data, Settings):
-            return key in self.data.keys()
+            return key in self.data
         return False
 
     def _get_widget_value(self) -> Any:
@@ -197,10 +199,10 @@ class Param(QWidget):
             main_layout.addWidget(self.group_box)
         else:
             if self.none_select:
-                self.none_chkbx = QCheckBox(self.alias)
+                self.none_chkbx = QCheckBox(self.alias if self.show_title else "")
                 self.none_chkbx.checkStateChanged.connect(self._on_none_changed)
                 main_layout.addWidget(self.none_chkbx)
-            else:
+            elif self.show_title:
                 name_label = QLabel(self.alias)
                 main_layout.addWidget(name_label)
             main_layout.addLayout(layout)

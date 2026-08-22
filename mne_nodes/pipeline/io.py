@@ -9,12 +9,13 @@ import math
 import os
 from ast import literal_eval
 from collections.abc import Callable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import ijson
 import numpy as np
+import pandas as pd
 from qtpy.QtWidgets import QApplication
 from tqdm import tqdm
 
@@ -47,12 +48,24 @@ class TypedJSONEncoder(json.JSONEncoder):
                 return float(o)
             case o if isinstance(o, np.ndarray):
                 return {"numpy_array_type": o.tolist()}
+            case o if isinstance(o, pd.DataFrame):
+                return {
+                    "dataframe_type": {
+                        "columns": o.columns.tolist(),
+                        "data": o.values.tolist(),
+                        "index": o.index.tolist(),
+                    }
+                }
             case datetime():
                 return {"datetime_type": o.strftime(datetime_format)}
             case set():
                 return {"set_type": list(o)}
             case Path():
                 return {"path_type": str(o)}
+            case slice():
+                return {
+                    "slice_type": {"start": o.start, "stop": o.stop, "step": o.step}
+                }
             case _:
                 return super().default(o)
 
@@ -109,20 +122,26 @@ def type_json_hook(obj: dict[str, Any]) -> Any:
         case {"numpy_array_type": value}:
             return np.asarray(value)
         case {"datetime_type": value}:
-            return datetime.strptime(value, datetime_format)
+            return datetime.strptime(value, datetime_format).replace(tzinfo=UTC)
         case {"tuple_type": value}:
             return tuple(value)
         case {"set_type": value}:
             return set(value)
         case {"path_type": value}:
             return Path(value)
+        case {"slice_type": value}:
+            return slice(value["start"], value["stop"], value["step"])
+        case {"dataframe_type": value}:
+            return pd.DataFrame(
+                data=value["data"], columns=value["columns"], index=value["index"]
+            )
         case _:
             return new_obj
 
 
 def load_json_progress(
     file_path: os.PathLike | str, progress_callback: Callable[[int], None]
-) -> dict | list | None:
+) -> dict:
     """
     Load nested JSON using ijson, calling object_hook for each completed dict.
 
@@ -147,7 +166,7 @@ def load_json_progress(
 
         stack = []
         current_key = None
-        root = None
+        root = {}
 
         def _attach_to_parent(value: Any, key: Any) -> None:
             nonlocal root
@@ -203,7 +222,7 @@ def load_json_progress(
         return root
 
 
-def json_load_dialog(file_path, parent=None) -> dict | list | None:
+def json_load_dialog(file_path, parent=None) -> dict:
     """Load a JSON file with a progress dialog.
 
     Parameters
@@ -230,7 +249,7 @@ def json_load_dialog(file_path, parent=None) -> dict | list | None:
     return data
 
 
-def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
+def load_json_tqdm(file_path: os.PathLike) -> dict:
     """
     Load a JSON file and print its contents to the console.
 
@@ -249,10 +268,10 @@ def load_json_tqdm(file_path: os.PathLike) -> dict | list | None:
     return data
 
 
-def load_json(file_path: os.PathLike) -> dict | list | None:
+def load_json(file_path: os.PathLike | str, no_gui: bool = False) -> dict:
     from mne_nodes import gui_mode
 
-    if gui_mode:
+    if gui_mode and not no_gui:
         return json_load_dialog(file_path)
     else:
         return load_json_tqdm(file_path)

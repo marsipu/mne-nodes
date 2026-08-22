@@ -111,7 +111,7 @@ class InputWidget(QWidget):
 
 class InputNode(BaseNode):
     def __init__(self, **kwargs):
-        super().__init__(startable=True, **kwargs)
+        super().__init__(startable=True, deletable=False, **kwargs)
         self.input_widget = None
         self.update_widgets()
 
@@ -143,12 +143,8 @@ class InputNode(BaseNode):
         self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
-        raw_port_added = False
         for dt in data_types:
             port_names = [dt]
-            if dt in self.ct.raw_types and not raw_port_added:
-                port_names.append("raw")
-                raw_port_added = True
 
             for name in port_names:
                 if name in self.outputs:
@@ -182,12 +178,20 @@ class FunctionNode(BaseNode):
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
+            if input_name == "raw":
+                accepted_ports = ["raw", *ct.raw_types]
+            else:
+                accepted_ports = [input_name]
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=[input_name]
+                input_name, multi_connection=True, accepted_ports=accepted_ports
             )
         for output_name in func_meta["outputs"]:
+            if output_name == "raw":
+                accepted_ports = ["raw", *ct.raw_types]
+            else:
+                accepted_ports = [output_name]
             self.add_output(
-                output_name, multi_connection=True, accepted_ports=[output_name]
+                output_name, multi_connection=True, accepted_ports=accepted_ports
             )
         # Initialize the parameters
         self.parameter_guis = {}
@@ -217,12 +221,12 @@ class FunctionNode(BaseNode):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
-        func_code, start, end = self.ct.get_function_code(self.name)
+        _func_code, start, end = self.ct.get_function_code(self.name)
         # ToDo: fix code editing
-        module_config = self.ct.settings.get("module_config", {})
-        module_name = self.ct.get_function_module_name(self.name)
-        if module_name in module_config:
-            file_path = module_config[module_name]["path"]
+        plugin_config = self.ct.settings.get("plugin_config", {})
+        plugin_name = self.ct.get_plugin_from_function(self.name)
+        if plugin_name in plugin_config:
+            file_path = plugin_config[plugin_name]["path"]
             editor_widget = CodeEditorWidget(
                 file_section=(start, end), file_path=file_path
             )

@@ -12,7 +12,10 @@ from os.path import isdir
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
+
+from mne_nodes.logger import init_logging
 
 # Force debug mode for all tests
 os.environ["MNENODES_DEBUG"] = "true"
@@ -33,6 +36,8 @@ test_parameters = {
     "color": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
     "array": np.arange(6).reshape(2, 3),
+    "slice": slice(1, 10, 2),
+    "dataframe": pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}),
 }
 
 alternative_test_parameters = {
@@ -52,9 +57,13 @@ alternative_test_parameters = {
     "color": {"A": "#12345678", "B": "#13243546"},
     "path": Path().home() / "test_path",
     "array": np.arange(24).reshape(2, 3, 4),
+    "slice": slice(2, 20, 3),
+    "dataframe": pd.DataFrame({"X": [10, 20], "Y": [30, 40]}),
 }
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"
+
+init_logging(debug_mode=True)  # Initialize logging for tests
 
 
 @pytest.fixture
@@ -76,18 +85,18 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     """
     from mne_nodes.pipeline.controller import Controller
 
-    # Simulate user input
+    # Simulate user input for tests that still prompt interactively.
     def dummy_user_input(*args, **kwargs):
-        # Set the controller name
-        if kwargs["input_type"] == "string":
+        input_type = kwargs.get("input_type")
+        if input_type is None and len(args) > 1:
+            input_type = args[1]
+        if input_type == "string":
             return "test"
-        # set the directory where to save the config-file
-        elif kwargs["input_type"] == "folder":
+        if input_type == "folder":
             return tmp_path
-        else:
-            raise RuntimeError(
-                f"Unknown input type: '{kwargs['input_type']}' for dummy function"
-            )
+        if input_type == "file":
+            return tmp_path / "test_config.json"
+        raise RuntimeError(f"Unknown input type: '{input_type}' for dummy function")
 
     # Monkeypatch needs to be set on controller-module, since its already imported
     monkeypatch.setattr(
@@ -106,11 +115,13 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     # Create Controller
     faulthandler.enable()
     controller = Controller(settings=settings)
-    controller.ensure_ready(required=("config_path",))
+    controller.config_path = tmp_path / "test_config.json"
+    controller.set("name", "test")
+    controller.ensure_ready(required=("config_path",), interactive=False)
     validation_functions_config = (
         Path(__file__).parent / "tests" / "validation_functions_config.json"
     )
-    controller.add_module(validation_functions_config)
+    controller.load_plugin_path(validation_functions_config)
 
     return controller
 
@@ -225,51 +236,69 @@ def test_script(tmp_path, test_code):
 
 
 @pytest.fixture
-def test_module_config(tmp_path, test_script):
+def test_plugin_config(tmp_path, test_script):
     """Fixture to create a temporary JSON configuration file for the test
     module."""
     from mne_nodes.pipeline.io import TypedJSONEncoder
 
     # Generate test configuration file
     test_config = {
-        "module_name": "test_module",
-        "module_alias": "test_module",
-        "functions": {
-            "test_func1": {
-                "group": "Test",
-                "module": "test_module",
-                "thread-safe": True,
-                "plot": False,
-                "inputs": ["a"],
-                "outputs": ["a_squared"],
-            },
-            "test_func2": {
-                "group": "Test",
-                "module": "test_module",
-                "thread-safe": True,
-                "plot": False,
-                "inputs": ["b"],
-                "outputs": ["b_plus_one"],
+        "test_func1": {
+            "group": "Test",
+            "plugin": "test_module",
+            "thread-safe": True,
+            "plot": False,
+            "inputs": {"a": {"accepted": ["int"], "optional": False}},
+            "outputs": {"a_squared": {"accepted": ["int"], "optional": False}},
+            "target": "file",
+            "parameters": {
+                "a": {
+                    "alias": "A",
+                    "Group": "Test",
+                    "default": 2,
+                    "unit": "s",
+                    "description": "This is a test parameter",
+                    "gui": "IntGui",
+                    "min_val": 0,
+                },
+                "b": {
+                    "alias": "B",
+                    "Group": "Test",
+                    "default": 3,
+                    "unit": "s",
+                    "description": "This is another test parameter",
+                    "gui": "FloatGui",
+                    "min_val": 0.0,
+                },
             },
         },
-        "parameters": {
-            "a": {
-                "alias": "A",
-                "Group": "Test",
-                "default": 2,
-                "unit": "s",
-                "description": "This is a test parameter",
-                "gui": "IntGui",
-                "min_val": 0,
-            },
-            "b": {
-                "alias": "B",
-                "Group": "Test",
-                "default": 3,
-                "unit": "s",
-                "description": "This is another test parameter",
-                "gui": "FloatGui",
-                "min_val": 0.0,
+        "test_func2": {
+            "group": "Test",
+            "plugin": "test_module",
+            "thread-safe": True,
+            "plot": False,
+            "inputs": {"b": {"accepted": ["int"], "optional": False}},
+            "outputs": {"b_plus_one": {"accepted": ["int"], "optional": False}},
+            "target": "file",
+            "parameters": {
+                "c": {
+                    "alias": "C",
+                    "Group": "Test",
+                    "default": 4,
+                    "unit": "s",
+                    "description": "This is a test parameter",
+                    "gui": "IntGui",
+                    "min_val": 0,
+                },
+                "d": {
+                    "alias": "D",
+                    "Group": "Test",
+                    "default": 5,
+                    "unit": "s",
+                    "description": "This is another test parameter",
+                    "gui": "FloatGui",
+                    "min_val": 0.0,
+                },
             },
         },
     }

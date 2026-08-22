@@ -5,13 +5,13 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import json
-import logging
 import os
 import sys
 from functools import partial
 from importlib import resources
 from os.path import join
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import darkdetect
 from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
@@ -33,6 +33,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import extra, gui_mode
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -149,10 +150,10 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
         ans = ans.strip().lower() in ["yes", "y"]
     if cancel and cancel_allowed:
         if close_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.info("User cancelled the operation.")
+            logger.info("User cancelled the operation.")
             return None
     if not ok or ans is None:
         message = "You need to provide an appropriate input to proceed (yes/n or no/n)!"
@@ -162,7 +163,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
         if gui_mode:
             warning_message(message, parent=parent)
         else:
-            logging.warning(message)
+            logger.warning(message)
         return ask_user(prompt)
 
     return ans
@@ -259,10 +260,10 @@ def ask_user_custom(
         ans = alias_map.get(ans_text)
     if cancel and cancel_allowed:
         if close_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.info("User cancelled the operation.")
+            logger.info("User cancelled the operation.")
             return None
     if not ok or ans is None:
         if len(button_labels) == 2:
@@ -281,7 +282,7 @@ def ask_user_custom(
         if gui_mode:
             warning_message(message, parent=parent)
         else:
-            logging.warning(message)
+            logger.warning(message)
         return ask_user_custom(
             prompt,
             buttons=button_labels,
@@ -363,7 +364,8 @@ def get_user_input(
     prompt : str
         The prompt message to display to the user.
     input_type : str, optional
-        The type of input to request: "string", "folder", "file" or "file_new".
+        The type of input to request: "string", "url", "folder", "file" or
+        "file_new".
     file_filter : str, optional
         Set a filter for the file dialog, e.g. "JSON files (*.json)".
     cancel_allowed : bool, optional
@@ -383,13 +385,11 @@ def get_user_input(
     RuntimeError
         If input is not available in the current environment.
     ValueError
-        If `input_type` is not "string" or "path".
+        If `input_type` is not a supported input type.
     """
-    type_error_message = (
-        f"input_type must be 'string', 'folder', 'file', 'file_new', not '{input_type}'"
-    )
+    type_error_message = f"input_type must be 'string', 'url', 'folder', 'file', 'file_new', not '{input_type}'"
     if gui_mode:
-        if input_type == "string":
+        if input_type in ("string", "url"):
             user_input, ok = _get_text_input(prompt, parent=parent)
         elif input_type == "folder":
             user_input, ok = _get_existing_directory(prompt, parent=parent)
@@ -404,7 +404,7 @@ def get_user_input(
         else:
             raise ValueError(type_error_message)
     else:
-        if input_type == "string":
+        if input_type in ("string", "url"):
             user_input = input(f"{prompt}: ")
         elif input_type == "folder":
             ans = input("Do you want to use the current directory? (y/n/c/cancel): ")
@@ -427,10 +427,10 @@ def get_user_input(
         ok = user_input is not None and user_input.lower() not in ["cancel", "c"]
     if cancel_allowed and not ok:
         if exit_on_cancel:
-            logging.info("User canceled, closing app.")
+            logger.info("User canceled, closing app.")
             sys.exit(0)
         else:
-            logging.debug("User cancelled the input operation.")
+            logger.debug("User cancelled the input operation.")
             return None
     # Check user input
     if not ok or user_input is None:
@@ -439,13 +439,27 @@ def get_user_input(
         warning_message = "The provided path is not a valid directory!"
     elif input_type == "file" and not os.path.isfile(user_input):
         warning_message = "The provided path does not exist!"
-    elif input_type == "string" and not isinstance(user_input, str):
+    elif input_type in ("string", "url") and not isinstance(user_input, str):
         warning_message = "The provided input is not a valid string!"
+    elif input_type == "url":
+        user_input = user_input.strip().replace("\\", "/")
+        url_parts = urlsplit(user_input)
+        if url_parts.scheme not in {"http", "https"} or not url_parts.netloc:
+            warning_message = "The provided input is not a valid URL!"
+        else:
+            warning_message = None
     else:
         warning_message = None
     if warning_message is not None:
         raise_user_attention(warning_message, message_type="warning")
-        return get_user_input(prompt, input_type)
+        return get_user_input(
+            prompt,
+            input_type=input_type,
+            file_filter=file_filter,
+            cancel_allowed=cancel_allowed,
+            exit_on_cancel=exit_on_cancel,
+            parent=parent,
+        )
 
     # Convert path-strings to Path-objects
     if input_type in ["folder", "file", "file_new"] and user_input is not None:
@@ -466,11 +480,11 @@ def raise_user_attention(message, message_type="warning", parent=None):
         else:
             raise ValueError(f"Unknown message type: {message_type}")
     if message_type == "warning":
-        logging.warning(message)
+        logger.warning(message)
     elif message_type == "error":
-        logging.error(message)
+        logger.error(message)
     elif message_type == "info":
-        logging.info(message)
+        logger.info(message)
     else:
         raise ValueError(f"Unknown message type: {message_type}")
 
@@ -727,7 +741,7 @@ def get_palette(theme):
 def _get_auto_theme():
     system_theme = darkdetect.theme().lower()
     if system_theme is None:
-        logging.info("System theme detection failed. Using light theme.")
+        logger.info("System theme detection failed. Using light theme.")
         system_theme = "light"
     return system_theme
 
@@ -780,7 +794,7 @@ class ColorTester(QDialog):
         self.theme_cmbx.setCurrentText(self.theme)
         self.theme_cmbx.currentTextChanged.connect(self.change_theme)
         layout.addRow("Theme", self.theme_cmbx)
-        for field_name in theme_colors[self.theme].keys():
+        for field_name in theme_colors[self.theme]:
             button_widget = QWidget()
             button_layout = QHBoxLayout(button_widget)
             button_display = QLabel()
@@ -804,7 +818,6 @@ class ColorTester(QDialog):
         color_dlg.open()
 
     def change_color(self, field_name, color):
-        global theme_colors
         theme_colors[self.theme][field_name] = color.name()
         self.setPalette(get_palette(self.theme))
         self.color_display[field_name].setStyleSheet(

@@ -78,7 +78,7 @@ class SimpleDialog(QDialog):
 
 
 class AssignWidget(QWidget):
-    """"""
+    """Widget for assigning items to editable properties."""
 
     def __init__(
         self,

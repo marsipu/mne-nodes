@@ -1,4 +1,6 @@
-import logging
+from collections import defaultdict
+
+from mne_nodes.logger import logger
 
 
 class CodeGenerator:
@@ -42,21 +44,26 @@ class CodeGenerator:
             "mne_nodes.gui_mode = False\n\n"
             "# Load controller\n"
             f"ct = Controller(config_path='{self.ct.ensure_config_path(interactive=False).as_posix()}')\n\n"
-            "# Inject modules into global namespace\n"
+            "# Inject plugins into global namespace\n"
             "globals().update(ct.plugins)\n"
-            "# Import modules\n"
+            "# Import plugins\n"
         )
-        # Add module imports
-        functions = {
-            function_name: self.ct.get_function_module_name(function_name)
-            for function_name in function_names
-        }
-        modules = set(functions.values())
-        for module in modules:
-            if module == "mne_functions":
-                code += "import mne\n"
+        # Add plugin imports
+        plugins_functions = defaultdict(list)
+        for function_name in function_names:
+            plugin_name = self.ct.get_plugin_from_function(function_name)
+            plugins_functions[plugin_name].append(function_name)
+        for plugin, functions in plugins_functions.items():
+            if plugin == "mne_functions":
+                mne_plugin_functions = defaultdict(list)
+                for func in functions:
+                    module_name = self.ct.get_function_meta(func).get("module_name")
+                    if module_name is not None:
+                        mne_plugin_functions[module_name].append(func)
+                for module_name, funcs in mne_plugin_functions.items():
+                    code += f"from {module_name} import {', '.join(funcs)}\n"
             else:
-                code += f"from {module} import {', '.join([f for f, m in functions.items() if m == module])}\n"
+                code += f"from {plugin} import {', '.join(functions)}\n"
 
         return code
 
@@ -76,7 +83,7 @@ class CodeGenerator:
                     import_function_names.append(n["name"])
                 target = func_meta["target"]
                 if target not in targets:
-                    logging.warning(
+                    logger.warning(
                         f"Target '{target}' not recognized. Step {n['name']} will be ignored in code generation."
                     )
                     continue
@@ -212,9 +219,9 @@ class CodeGenerator:
                         func_line += f"{func_meta['class_name'].lower()}."
                         func_name = name.split(".")[-1]
                     else:
-                        module_name = self.ct.get_function_module_name(name)
-                        if "mne" in module_name:
-                            func_name = f"{module_name}.{name}"
+                        plugin_name = self.ct.get_plugin_from_function(name)
+                        if "mne" in plugin_name:
+                            func_name = f"{plugin_name}.{name}"
                         else:
                             func_name = name
                     func_line += f"{func_name}("

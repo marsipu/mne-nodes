@@ -23,17 +23,11 @@ def test_init(ct):
     # Test renaming the controller
     ct.name = "test2"
     assert ct.name == "test2", "Controller name should be updated to 'test2'"
-    # Test setting values in container attributes
-    bad_channels = ct.get("bad_channels")
-    bad_channels["test_subject"] = ["EEG 001", "EEG 002"]
-    ct.set("bad_channels", bad_channels)
-    assert "test_subject" in ct.get("bad_channels")
     # Test persistence for reloading
     config_path = ct.config_path
     ct.flush()
     controller2 = Controller(config_path=config_path)
     assert controller2.name == "test2"
-    assert "test_subject" in ct.get("bad_channels")
     # Test parameter set
     ct.set_parameter("param1", 42, "test_func1")
     assert ct.parameter("param1", "test_func1") == 42, (
@@ -41,31 +35,30 @@ def test_init(ct):
     )
 
 
-@pytest.mark.skip(reason="temporarily disabled")
-def test_module_import(tmp_path, ct, test_module_config, test_script):
+def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     # ToDo Next: Fix get_function_code
-    # Assert basic modules are imported
-    assert "mne_nodes.tests.validation_functions" in ct.plugins
+    # Assert basic plugins are imported
+    assert "validation_functions" in ct.plugins
 
-    # Add a custom module
-    ct.add_module(test_module_config)
-    assert "test_module" in ct.modules, "Custom module should be imported"
+    # Add a custom plugin
+    ct.load_plugin_path(test_plugin_config)
+    assert "test_module" in ct.plugins, "Custom plugin should be imported"
 
-    # Test custom module reloadw
-    original_func = ct.modules["test_module"].test_func1
+    # Test custom plugin reload
+    original_func = ct.plugins["test_module"].test_func1
     assert original_func(2) == 4, "Custom function should return correct value"
 
     # Modify the module source code
-    func1_code, start, end = ct.get_function_code("test_func1")
+    _func1_code, start, end = ct.get_function_code("test_func1")
 
     new_test_code = "def test_func1(a):\n    return a ** 3\n"
     change_file_section(test_script, (start, end), new_test_code)
 
-    # Reload the modules
-    ct.reload_modules()
+    # Reload the plugins
+    ct.reload_plugins()
 
     # Get a new reference to the function
-    new_func = ct.modules["test_module"].test_func1
+    new_func = ct.plugins["test_module"].test_func1
     print(f"New function: {new_func} at {id(new_func)}")
     assert new_func(2) == 8, "New function reference should return updated value"
 
@@ -115,7 +108,7 @@ def test_config_change(tmp_path, ct, monkeypatch):
     )
 
 
-def test_getters_are_non_interactive(settings):
+def test_getters_noninteractive(settings):
     controller = Controller(settings=settings)
 
     assert controller.config_path is None
@@ -128,7 +121,7 @@ def test_getters_are_non_interactive(settings):
         controller.ensure_ready(required=("config_path",), interactive=False)
 
 
-def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch):
+def test_path_prompts(settings, tmp_path, monkeypatch):
     controller = Controller(settings=settings)
     prompts = {
         "Please select/create a folder for the bids-root.": tmp_path / "bids",
@@ -169,57 +162,75 @@ def test_setting_path_setters_with_none_prompts(settings, tmp_path, monkeypatch)
     )
 
 
-def test_import_pipeline_adds_missing_modules(ct, tmp_path, monkeypatch):
+def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):
     class DummyViewer:
-        def __init__(self):
-            self.received = None
-
-        def from_dict(self, pipeline_dict):
-            self.received = pipeline_dict
+        def load_nodes(self, *_args, **_kwargs):
+            return None
 
     imported_nodes = {"nodes": {"input": {"name": "Input-0"}}, "connections": {}}
     import_payload = {
-        "nodes": imported_nodes,
-        "modules": ["test_module"],
+        "node_config": imported_nodes,
+        "plugin_meta": {
+            "test_module": {
+                "plugin_github": "https://github.com/org/test_module",
+                "plugin_type": "github",
+            }
+        },
         "parameters": {"test_func1": {"a": 12}},
     }
     import_path = tmp_path / "pipeline_import_missing_module.json"
-    module_config_path = tmp_path / "test_module_config.json"
-    module_config_path.write_text("{}", encoding="utf-8")
     with open(import_path, "w") as file:
         json.dump(import_payload, file, indent=4, cls=TypedJSONEncoder)
 
-    prompts = iter([import_path, module_config_path])
+    loaded_plugins = []
     monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.get_user_input",
-        lambda *a, **k: Path(next(prompts)),
+        ct, "load_plugin_github", lambda plugin_url: loaded_plugins.append(plugin_url)
     )
-    added_modules = []
-    monkeypatch.setattr(ct, "add_module", lambda path: added_modules.append(Path(path)))
-    dummy_viewer = DummyViewer()
-    monkeypatch.setitem(_widgets, "viewer", dummy_viewer)
+    monkeypatch.setitem(_widgets, "viewer", DummyViewer())
+    monkeypatch.setitem(_widgets, "main_window", object())
 
-    ct.import_pipeline()
+    ct.config_path = import_path
 
-    assert added_modules == [module_config_path]
-    assert dummy_viewer.received == imported_nodes
+    assert loaded_plugins == ["https://github.com/org/test_module"]
+    assert ct.get("node_config") == imported_nodes
 
 
-def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
-    class ExportViewer:
-        def __init__(self, pipeline_dict):
-            self._pipeline_dict = pipeline_dict
+def test_import_plugin_from_config_file(ct, tmp_path):
+    plugin_name = "config_file_plugin"
+    plugin_dir = tmp_path / "plugin"
+    plugin_dir.mkdir()
+    script_path = plugin_dir / f"{plugin_name}.py"
+    config_path = plugin_dir / f"{plugin_name}_config.json"
+    script_path.write_text(
+        "def imported_function(value):\n    return value * 2\n", encoding="utf-8"
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "imported_function": {
+                    "inputs": {},
+                    "outputs": {},
+                    "parameters": {},
+                    "target": "file",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
 
-        def to_dict(self):
-            return self._pipeline_dict
+    ct.load_plugin_path(config_path)
 
-    class ImportViewer:
-        def __init__(self):
-            self.received = None
+    assert plugin_name in ct.plugins
+    assert ct.plugins[plugin_name].imported_function(3) == 6
+    assert ct.get_plugin_from_function("imported_function") == plugin_name
+    assert ct.get("plugin_meta")[plugin_name] == {
+        "config_path": config_path,
+        "script_path": script_path,
+        "plugin_type": "path",
+    }
 
-        def from_dict(self, pipeline_dict):
-            self.received = pipeline_dict
 
+def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     roundtrip_nodes = {
         "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
         "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
@@ -229,38 +240,35 @@ def test_pipeline_export_import_roundtrip(ct, tmp_path, monkeypatch):
         "test_epochs": {"tmin": -0.2, "tmax": 0.5},
     }
     ct.set("parameters", roundtrip_parameters)
+    ct.set("node_config", roundtrip_nodes)
 
     export_path = tmp_path / "pipeline_roundtrip.json"
-    monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.get_user_input", lambda *a, **k: export_path
-    )
-    monkeypatch.setitem(_widgets, "viewer", ExportViewer(roundtrip_nodes))
-    ct.export_pipeline()
+    ct.export_pipeline(export_path)
 
     ct.set("parameters", {})
-    import_viewer = ImportViewer()
-    monkeypatch.setitem(_widgets, "viewer", import_viewer)
-    ct.import_pipeline()
+    ct.set("node_config", {})
+    ct.config_path = export_path
+    ct.load(plugins=True)
 
     assert export_path.exists(), "Roundtrip export should create a JSON file"
     assert ct.get("parameters") == roundtrip_parameters
-    assert import_viewer.received == roundtrip_nodes
+    assert ct.get("node_config") == roundtrip_nodes
 
 
 @pytest.mark.timeout(180)
-def test_code_generation_script_executes_complex_pipeline(
-    qtbot, tmp_path, monkeypatch, settings
-):
+def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     from mne_nodes.conftest import _add_complex_nodes, create_test_controller
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from mne_nodes.pipeline.code_generation import CodeGenerator
 
-    monkeypatch.setattr(Controller, "load_plugins", lambda self: self.plugins)
+    monkeypatch.setattr(Controller, "load_recent_plugins", lambda self: self.plugins)
     ct = create_test_controller(
         settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
     )
+    default_plugin = next(iter(ct.plugins))
     for function_meta in ct.function_meta.values():
         function_meta.setdefault("class_name", None)
+        function_meta.setdefault("plugin_name", default_plugin)
 
     viewer = NodeViewer(ct)
     qtbot.addWidget(viewer)
@@ -288,14 +296,14 @@ def test_code_generation_script_executes_complex_pipeline(
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
     generated_code = generated_code.replace(
         "# Load controller\n",
-        "# Load controller\nController.load_plugins = lambda self: self.plugins\n",
+        "# Load controller\nController.load_recent_plugins = lambda self: self.plugins\n",
         1,
     )
     generated_code = generated_code.replace(
-        "\n\n# Inject modules into global namespace\n",
+        "\n\n# Inject plugins into global namespace\n",
         (
-            f"\nct.add_module('{validation_config_path.as_posix()}')\n\n"
-            "# Inject modules into global namespace\n"
+            f"\nct.load_plugin_path('{validation_config_path.as_posix()}')\n\n"
+            "# Inject plugins into global namespace\n"
         ),
         1,
     )

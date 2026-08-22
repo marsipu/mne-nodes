@@ -1,144 +1,141 @@
 {
-    "module_name": "mne_nodes.tests.validation_functions",
-    "functions": {
-        "test_filter": {
-            "inputs": {
-                "raw": {
-                    "accepted": [
-                        "raw"
-                    ],
-                    "optional": false
-                }
-            },
-            "parameters": {
-                "l_freq": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "FloatGui"
-                },
-                "h_freq": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "FloatGui"
-                },
-                "n_jobs": {
-                    "none_select": true,
-                    "types": [
-                        "int",
-                        "str"
-                    ],
-                    "default": -1,
-                    "gui": "MultiTypeGui"
-                }
-            },
-            "outputs": {
-                "raw": {
-                    "accepted": [
-                        "raw"
-                    ],
-                    "optional": false
-                }
-            },
-            "target": "file"
+    "test_filter": {
+        "inputs": {
+            "raw": {
+                "accepted": [
+                    "raw"
+                ],
+                "optional": false
+            }
         },
-        "test_epochs": {
-            "inputs": {
-                "raw": {
-                    "accepted": [
-                        "raw"
-                    ],
-                    "optional": false
-                }
+        "parameters": {
+            "l_freq": {
+                "none_select": true,
+                "default": null,
+                "gui": "FloatGui"
             },
-            "parameters": {
-                "events": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "MultiTypeGui"
-                },
-                "event_id": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "DictGui"
-                },
-                "t_epoch": {
-                    "default": {
-                        "tuple_type": [
-                            0,
-                            1
-                        ]
-                    },
-                    "gui": "DualTupleGui"
-                },
-                "baseline": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "DualTupleGui"
-                }
+            "h_freq": {
+                "none_select": true,
+                "default": null,
+                "gui": "FloatGui"
             },
-            "outputs": {
-                "epochs": {
-                    "accepted": [
-                        "epochs"
-                    ],
-                    "optional": false,
-                    "save": ".save",
-                    "suffix": "epo",
-                    "save_kwargs": {
-                        "overwrite": true
-                    }
-                }
-            },
-            "target": "file"
+            "n_jobs": {
+                "none_select": true,
+                "types": [
+                    "int",
+                    "str"
+                ],
+                "default": -1,
+                "gui": "MultiTypeGui"
+            }
         },
-        "test_evokeds": {
-            "inputs": {
-                "epochs": {
-                    "accepted": [
-                        "epochs"
-                    ],
-                    "optional": false,
-                    "load": "mne.read_epochs",
-                    "save": ".save",
-                    "suffix": "epo"
-                }
-            },
-            "parameters": {
-                "conditions": {
-                    "none_select": true,
-                    "default": null,
-                    "gui": "ListGui"
-                }
-            },
-            "outputs": {
-                "evokeds": {
-                    "accepted": [
-                        "evokeds"
-                    ],
-                    "optional": true,
-                    "suffix": "ave",
-                    "save": "mne.write_evokeds",
-                    "save_kwargs": {
-                        "overwrite": true
-                    }
-                }
-            },
-            "target": "file"
+        "outputs": {
+            "raw": {
+                "accepted": [
+                    "raw"
+                ],
+                "optional": false
+            }
         },
-        "test_plot_evokeds": {
-            "inputs": {
-                "evokeds": {
-                    "accepted": [
-                        "evokeds"
-                    ],
-                    "optional": false,
-                    "suffix": "ave",
-                    "load": "mne.read_evokeds"
-                }
+        "target": "file"
+    },
+    "test_epochs": {
+        "inputs": {
+            "raw": {
+                "accepted": [
+                    "raw"
+                ],
+                "optional": false
+            }
+        },
+        "parameters": {
+            "events": {
+                "none_select": true,
+                "default": null,
+                "gui": "MultiTypeGui"
             },
-            "parameters": {},
-            "outputs": {},
-            "target": "file"
-        }
+            "event_id": {
+                "none_select": true,
+                "default": null,
+                "gui": "DictGui"
+            },
+            "t_epoch": {
+                "default": {
+                    "tuple_type": [
+                        0,
+                        1
+                    ]
+                },
+                "gui": "DualTupleGui"
+            },
+            "baseline": {
+                "none_select": true,
+                "default": null,
+                "gui": "DualTupleGui"
+            }
+        },
+        "outputs": {
+            "epochs": {
+                "accepted": [
+                    "epochs"
+                ],
+                "optional": false,
+                "save": ".save",
+                "suffix": "epo",
+                "save_kwargs": {
+                    "overwrite": true
+                }
+            }
+        },
+        "target": "file"
+    },
+    "test_evokeds": {
+        "inputs": {
+            "epochs": {
+                "accepted": [
+                    "epochs"
+                ],
+                "optional": false,
+                "load": "mne.read_epochs",
+                "save": ".save",
+                "suffix": "epo"
+            }
+        },
+        "parameters": {
+            "conditions": {
+                "none_select": true,
+                "default": null,
+                "gui": "ListGui"
+            }
+        },
+        "outputs": {
+            "evokeds": {
+                "accepted": [
+                    "evokeds"
+                ],
+                "optional": true,
+                "suffix": "ave",
+                "save": "mne.write_evokeds",
+                "save_kwargs": {
+                    "overwrite": true
+                }
+            }
+        },
+        "target": "file"
+    },
+    "test_plot_evokeds": {
+        "inputs": {
+            "evokeds": {
+                "accepted": [
+                    "evokeds"
+                ],
+                "optional": false,
+                "suffix": "ave",
+                "load": "mne.read_evokeds"
+            }
+        },
+        "parameters": {},
+        "outputs": {},
+        "target": "file"
     }
 }

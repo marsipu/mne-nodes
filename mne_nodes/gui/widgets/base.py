@@ -4,12 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import logging
-
 from qtpy.QtCore import QItemSelectionModel, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import QAbstractItemView, QLabel, QVBoxLayout, QWidget
 
+from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
 
@@ -69,7 +68,7 @@ class Base(QWidget):
 
         self.currentChanged.emit(current, previous)
 
-        logging.debug(f"Current changed from {previous} to {current}")
+        logger.debug(f"Current changed from {previous} to {current}")
 
     def get_selected(self):
         try:
@@ -87,13 +86,13 @@ class Base(QWidget):
 
         self.selectionChanged.emit(selected)
 
-        logging.debug(f"Selection changed to {selected}")
+        logger.debug(f"Selection changed to {selected}")
 
     def _data_changed(self, index, _):
         data = self.model.getData(index)
 
         self.dataChanged.emit(data, index)
-        logging.debug(f"{data} changed at {index}")
+        logger.debug(f"{data} changed at {index}")
 
     def content_changed(self):
         """Informs ModelView about external change made in data."""

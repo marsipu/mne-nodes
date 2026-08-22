@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import argparse
-import logging
 import sys
 
 import qtpy
@@ -14,9 +13,10 @@ from qtpy.QtWidgets import QApplication
 
 import mne_nodes
 from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
+from mne_nodes.logger import init_logging, logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook
-from mne_nodes.pipeline.streams import init_logging, init_streams
+from mne_nodes.pipeline.streams import init_streams
 
 app_name = "mne-nodes"
 organization_name = "marsipu"
@@ -26,7 +26,7 @@ domain_name = "https://github.com/marsipu/mne-nodes"
 def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
     init_logging(mne_nodes.debug_mode())
-    logging.info("Starting MNE-Nodes...")
+    logger.info("Starting MNE-Nodes...")
     # Set gui_mode to true since starting as module always means gui-mode
     mne_nodes.gui_mode = True
     # Create QApplication
@@ -47,11 +47,11 @@ def main() -> None:
     init_streams()
 
     # Show Qt-binding
-    logging.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
+    logger.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
 
     # Initialize Exception-Hook
     if mne_nodes.debug_mode():
-        logging.info("Debug-Mode is activated")
+        logger.info("Debug-Mode is activated")
     else:
         qt_exception_hook = UncaughtHook()
         sys.excepthook = qt_exception_hook.exception_hook

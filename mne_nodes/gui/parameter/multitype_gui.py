@@ -127,6 +127,7 @@ class MultiTypeGui(Param):
                 "default": self.type_defaults[type_name],
                 "groupbox_layout": False,
                 "none_select": False,
+                "show_title": False,
                 "description": self.description,
                 "unit": self.unit,
                 "parent_widget": self,

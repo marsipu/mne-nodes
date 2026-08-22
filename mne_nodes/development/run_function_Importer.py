@@ -4,13 +4,15 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+# ruff: noqa: N999
+
 import faulthandler
 import sys
 from pathlib import Path
 
 from qtpy.QtWidgets import QApplication
 
-from mne_nodes.pipeline.streams import init_logging
+from mne_nodes.logger import init_logging
 
 
 def main() -> None:

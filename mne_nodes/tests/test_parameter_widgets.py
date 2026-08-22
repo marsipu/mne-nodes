@@ -31,6 +31,8 @@ gui_mapping = {
     "ColorGui": "color",
     "PathGui": "path",
     "ArrayGui": "array",
+    "SliceGui": "slice",
+    "DataFrameGui": "dataframe",
 }
 
 gui_kwargs = {
@@ -49,6 +51,8 @@ gui_kwargs = {
 def _check_param(gui, gui_name, value):
     if gui_name in ("FuncGui", "ArrayGui"):
         assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}"
+    elif gui_name == "DataFrameGui":
+        assert gui.value.equals(value), f"Expected {value}, got {gui.value}"
     else:
         assert gui.value == value, f"Expected {value}, got {gui.value}"
 
@@ -77,6 +81,10 @@ def test_basic_param_guis(
             (
                 assert_allclose(value, parameters[gui_name]),
                 (f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"),
+            )
+        elif gui_name == "DataFrameGui" and value is not None:
+            assert value.equals(parameters[gui_name]), (
+                f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"
             )
         else:
             assert value == parameters[gui_name], (

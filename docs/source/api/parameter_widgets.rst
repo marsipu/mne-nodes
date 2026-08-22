@@ -18,6 +18,7 @@ annotated arguments.
    BoolGui
    CheckListGui
    ComboGui
+   DataFrameGui
    DictGui
    FloatGui
    FuncGui
@@ -25,6 +26,7 @@ annotated arguments.
    LabelGui
    ListGui
    MultiTypeGui
+   SliceGui
    SliderGui
    StringGui
    DualTupleGui
