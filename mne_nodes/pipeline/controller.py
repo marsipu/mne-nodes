@@ -53,6 +53,7 @@ default_config = {
     "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
+    "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
     # Parameters
     "parameters": {},
     # Pipelined Configuration
@@ -811,14 +812,22 @@ class Controller:
     # BIDS
     ####################################################################################
     def get_dataset_name(self) -> str | None:
-        bids_root = self.ensure_bids_root(interactive=False)
-        dataset_file = bids_root / "dataset_description.json"
-        if not dataset_file.is_file():
-            logger.warning(f"Dataset description file not found at {dataset_file}.")
-            return None
-        else:
-            dataset_description = load_json(dataset_file, no_gui=True)
-            return dataset_description["Name"]
+        try:
+            bids_root = self.ensure_bids_root(interactive=False)
+        except RuntimeError:
+            bids_root = None
+        if bids_root is not None:
+            dataset_file = bids_root / "dataset_description.json"
+            if dataset_file.is_file():
+                dataset_description = load_json(dataset_file, no_gui=True)
+                name = dataset_description.get("Name")
+                if name is not None:
+                    self.set("bids_dataset_name", name)
+                    return name
+            else:
+                logger.warning(f"Dataset description file not found at {dataset_file}.")
+        # Fall back to cached value from config
+        return self.get("bids_dataset_name", None)
 
     def get_group_by(self, group_by):
         if group_by == "custom":
@@ -1073,7 +1082,9 @@ class Controller:
 
     def load_plugin_path(self, config_path: str | Path):
         config_path = Path(config_path)
+        path_was_missing = False
         if not config_path.is_file():
+            path_was_missing = True
             information_message(
                 f"Plugin config file '{config_path}' not found. Please select "
                 "the new location.",
@@ -1087,6 +1098,7 @@ class Controller:
             )  # type: ignore
             if config_path is None:
                 return
+            config_path = Path(config_path)
         pattern = r"([\w_]+)_config\.json$"
         match = re.search(pattern, str(config_path))
         if match:
@@ -1106,6 +1118,15 @@ class Controller:
             "script_path": script_path,
             "plugin_type": "path",
         }
+        if path_was_missing:
+            # Save the new device-specific path to settings so it is used
+            # automatically on the next session without prompting again.
+            plugin_config = self.settings.get("plugin_config", {})
+            plugin_config[plugin_name] = {
+                "config_path": config_path,
+                "script_path": script_path,
+            }
+            self.settings.set("plugin_config", plugin_config)
         if str(folder_path) not in sys.path:
             sys.path.append(str(folder_path))
         plugin = import_module(plugin_name)
@@ -1116,11 +1137,18 @@ class Controller:
         pass
 
     def load_recent_plugins(self) -> None:
+        device_plugin_config = self.settings.get("plugin_config", {})
         for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
                 case "path":
-                    self.load_plugin_path(plugin_meta["config_path"])
+                    # Prefer device-specific path stored in settings over the
+                    # shared config path (which may not be valid on this device).
+                    device_override = device_plugin_config.get(plugin_name, {})
+                    config_path = device_override.get(
+                        "config_path", plugin_meta["config_path"]
+                    )
+                    self.load_plugin_path(config_path)
                 case "github":
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":

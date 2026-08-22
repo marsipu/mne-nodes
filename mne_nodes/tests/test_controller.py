@@ -330,3 +330,120 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference
 
 # ToDo: add a test about accessing and modifying config from multiple processes without data loss or race conditions
+
+
+def _make_plugin(plugin_dir, plugin_name):
+    """Helper to create a minimal plugin in plugin_dir."""
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    script_path = plugin_dir / f"{plugin_name}.py"
+    config_path = plugin_dir / f"{plugin_name}_config.json"
+    script_path.write_text(
+        "def plugin_func(value):\n    return value + 1\n", encoding="utf-8"
+    )
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugin_func": {
+                    "inputs": {},
+                    "outputs": {},
+                    "parameters": {},
+                    "target": "file",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return config_path, script_path
+
+
+def test_load_plugin_path_saves_to_settings_on_missing(ct, tmp_path, monkeypatch):
+    """When the stored plugin path is missing, the re-selected path is saved to settings."""
+    plugin_name = "relocate_plugin"
+    new_plugin_dir = tmp_path / "new_location"
+    new_config_path, new_script_path = _make_plugin(new_plugin_dir, plugin_name)
+
+    # Simulate missing config path – point to a non-existent file
+    missing_path = tmp_path / "old_location" / f"{plugin_name}_config.json"
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.information_message", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda *a, **k: new_config_path,
+    )
+
+    ct.load_plugin_path(missing_path)
+
+    assert plugin_name in ct.plugins
+    # New path must be stored in settings.plugin_config
+    plugin_config = ct.settings.get("plugin_config", {})
+    assert plugin_name in plugin_config
+    assert Path(plugin_config[plugin_name]["config_path"]) == new_config_path
+    assert Path(plugin_config[plugin_name]["script_path"]) == new_script_path
+
+
+def test_load_recent_plugins_uses_settings_override(ct, tmp_path, monkeypatch):
+    """load_recent_plugins uses the device-specific path from settings, not the config path."""
+    plugin_name = "device_plugin"
+    new_plugin_dir = tmp_path / "device_location"
+    new_config_path, new_script_path = _make_plugin(new_plugin_dir, plugin_name)
+
+    # Pre-populate settings with the device-specific path
+    ct.settings.set(
+        "plugin_config",
+        {
+            plugin_name: {
+                "config_path": new_config_path,
+                "script_path": new_script_path,
+            }
+        },
+    )
+    # Store a stale (non-existent) path in plugin_meta in the config
+    stale_path = tmp_path / "stale_location" / f"{plugin_name}_config.json"
+    ct.set_dict_value(
+        "plugin_meta",
+        plugin_name,
+        {"config_path": stale_path, "script_path": stale_path.parent / f"{plugin_name}.py", "plugin_type": "path"},
+    )
+
+    # load_recent_plugins should pick up the settings override, not the stale config path
+    loaded_paths = []
+    original = ct.load_plugin_path
+
+    def capture_load(config_path):
+        loaded_paths.append(Path(config_path))
+        return original(config_path)
+
+    monkeypatch.setattr(ct, "load_plugin_path", capture_load)
+    ct.load_recent_plugins()
+
+    assert new_config_path in loaded_paths, (
+        "load_recent_plugins should use the settings override path"
+    )
+    assert stale_path not in loaded_paths, (
+        "load_recent_plugins should not use the stale config path"
+    )
+
+
+def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
+    """get_dataset_name stores the name in config and returns it even without bids_root."""
+    bids_root = tmp_path / "bids"
+    bids_root.mkdir()
+    desc = bids_root / "dataset_description.json"
+    desc.write_text(json.dumps({"Name": "TestDataset"}), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True
+    )
+    ct.settings.set("bids_root", bids_root)
+
+    name = ct.get_dataset_name()
+    assert name == "TestDataset"
+    # Must be persisted in config
+    assert ct.get("bids_dataset_name") == "TestDataset"
+
+    # Now remove bids_root from settings – should fall back to cached config value
+    ct.settings.remove("bids_root")
+    cached_name = ct.get_dataset_name()
+    assert cached_name == "TestDataset"
