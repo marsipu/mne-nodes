@@ -452,7 +452,14 @@ def get_user_input(
         warning_message = None
     if warning_message is not None:
         raise_user_attention(warning_message, message_type="warning")
-        return get_user_input(prompt, input_type, parent=parent)
+        return get_user_input(
+            prompt,
+            input_type=input_type,
+            file_filter=file_filter,
+            cancel_allowed=cancel_allowed,
+            exit_on_cancel=exit_on_cancel,
+            parent=parent,
+        )
 
     # Convert path-strings to Path-objects
     if input_type in ["folder", "file", "file_new"] and user_input is not None:

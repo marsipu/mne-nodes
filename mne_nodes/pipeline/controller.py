@@ -990,9 +990,13 @@ class Controller:
                 f"Invalid config_path for plugin '{plugin_name}': {config_path}. Must be a dict or a valid path to a JSON config file."
             )
         # add plugin-name to function metadata for later retrival
-        for func in functions:
+        for func, func_meta in functions.items():
+            if not isinstance(func_meta, dict):
+                raise TypeError(
+                    f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
+                )
             self.set_dict_value("functions", func, plugin_name)
-            functions[func]["plugin"] = plugin_name
+            func_meta["plugin"] = plugin_name
         # Populate plugin-meta
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         # Warn for duplicates, but let the newly loaded plugin's functions win
@@ -1041,11 +1045,11 @@ class Controller:
         try:
             return importer()
         except ModuleNotFoundError:
-            ans = question_yes_no(
+            ans, cancel = question_yes_no(
                 f"Module '{name}' not found. Do you want to install it{prompt_suffix}?",
                 parent=self,
             )
-            if not ans:
+            if cancel or not ans:
                 return None
             installer()
             try:
@@ -1123,6 +1127,10 @@ class Controller:
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":
                     self.load_plugin_module_name(plugin_name)
+                case _:
+                    logger.warning(
+                        f"Unknown plugin type '{plugin_type}' for plugin '{plugin_name}'. Skipping."
+                    )
 
     def get_plugin_from_function(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""

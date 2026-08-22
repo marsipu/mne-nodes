@@ -241,44 +241,60 @@ def test_plugin_config(tmp_path, test_script):
 
     # Generate test configuration file
     test_config = {
-        "plugin_name": "test_module",
-        "plugin_alias": "test_module",
-        "functions": {
-            "test_func1": {
-                "group": "Test",
-                "plugin": "test_module",
-                "thread-safe": True,
-                "plot": False,
-                "inputs": ["a"],
-                "outputs": ["a_squared"],
-            },
-            "test_func2": {
-                "group": "Test",
-                "plugin": "test_module",
-                "thread-safe": True,
-                "plot": False,
-                "inputs": ["b"],
-                "outputs": ["b_plus_one"],
+        "test_func1": {
+            "group": "Test",
+            "plugin": "test_module",
+            "thread-safe": True,
+            "plot": False,
+            "inputs": ["a"],
+            "outputs": ["a_squared"],
+            "parameters": {
+                "a": {
+                    "alias": "A",
+                    "Group": "Test",
+                    "default": 2,
+                    "unit": "s",
+                    "description": "This is a test parameter",
+                    "gui": "IntGui",
+                    "min_val": 0,
+                },
+                "b": {
+                    "alias": "B",
+                    "Group": "Test",
+                    "default": 3,
+                    "unit": "s",
+                    "description": "This is another test parameter",
+                    "gui": "FloatGui",
+                    "min_val": 0.0,
+                },
             },
         },
-        "parameters": {
-            "a": {
-                "alias": "A",
-                "Group": "Test",
-                "default": 2,
-                "unit": "s",
-                "description": "This is a test parameter",
-                "gui": "IntGui",
-                "min_val": 0,
-            },
-            "b": {
-                "alias": "B",
-                "Group": "Test",
-                "default": 3,
-                "unit": "s",
-                "description": "This is another test parameter",
-                "gui": "FloatGui",
-                "min_val": 0.0,
+        "test_func2": {
+            "group": "Test",
+            "plugin": "test_module",
+            "thread-safe": True,
+            "plot": False,
+            "inputs": ["b"],
+            "outputs": ["b_plus_one"],
+            "parameters": {
+                "c": {
+                    "alias": "C",
+                    "Group": "Test",
+                    "default": 4,
+                    "unit": "s",
+                    "description": "This is a test parameter",
+                    "gui": "IntGui",
+                    "min_val": 0,
+                },
+                "d": {
+                    "alias": "D",
+                    "Group": "Test",
+                    "default": 5,
+                    "unit": "s",
+                    "description": "This is another test parameter",
+                    "gui": "FloatGui",
+                    "min_val": 0.0,
+                },
             },
         },
     }

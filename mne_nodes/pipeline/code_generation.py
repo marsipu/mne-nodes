@@ -53,8 +53,7 @@ class CodeGenerator:
         for function_name in function_names:
             plugin_name = self.ct.get_plugin_from_function(function_name)
             plugins_functions[plugin_name].append(function_name)
-        plugin_functions = self.ct.get_plugins_functions_sorted(function_names)
-        for plugin, functions in plugin_functions.items():
+        for plugin, functions in plugins_functions.items():
             if plugin == "mne_functions":
                 mne_plugin_functions = defaultdict(list)
                 for func in functions:

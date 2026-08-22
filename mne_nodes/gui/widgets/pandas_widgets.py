@@ -22,7 +22,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.gui_utils import get_user_input, warning_message
+from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
 from mne_nodes.gui.widgets.base import Base
 from mne_nodes.logger import logger
@@ -51,7 +51,7 @@ def read_dataframe_file(path):
             return pd.read_csv(path, sep=None, engine="python", encoding=encoding)
         except UnicodeDecodeError as exc:
             last_error = exc
-    warning_message(
+    raise ValueError(
         f"Could not decode {path} with any of {_CSV_ENCODINGS}. Last error: {last_error}"
     )
 

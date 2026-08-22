@@ -234,18 +234,16 @@ class MainWindow(QMainWindow):
     def update_app(self, version):
         if version == "stable":
             command = [
-                (sys.executable, ["-m", "pip", "install", "--upgrade", "mne_nodes"])
+                (sys.executable, "-m", "pip", "install", "--upgrade", "mne_nodes")
             ]
         else:
             command = [
                 (
                     sys.executable,
-                    [
-                        "-m",
-                        "pip",
-                        "install",
-                        "https://github.com/marsipu/mne-nodes/zipball/main",
-                    ],
+                    "-m",
+                    "pip",
+                    "install",
+                    "https://github.com/marsipu/mne-nodes/zipball/main",
                 )
             ]
         if iswin and not _run_from_script():
@@ -274,7 +272,7 @@ class MainWindow(QMainWindow):
                 self.restart()
 
     def update_mne(self):
-        command = "pip install --upgrade mne"
+        command = [(sys.executable, "-m", "pip", "install", "--upgrade", "mne")]
         ProcessDialog(
             command,
             parent=self,
@@ -309,7 +307,7 @@ class MainWindow(QMainWindow):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
         _widgets["main_window"] = None
-        _widgets["node_viewer"] = None
+        _widgets["viewer"] = None
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
         event.accept()
