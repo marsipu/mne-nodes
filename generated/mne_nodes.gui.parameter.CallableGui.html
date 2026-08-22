@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>mne_nodes.gui.parameter.FuncGui &#8212; mne-nodes 0.1.0.dev1+g3704674b6 documentation</title>
+    <title>mne_nodes.gui.parameter.CallableGui &#8212; mne-nodes 0.1.0.dev1+gbd856e21f documentation</title>
   
   
   
@@ -38,15 +38,15 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=825ac690"></script>
+    <script src="../_static/documentation_options.js?v=de33718c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'generated/mne_nodes.gui.parameter.FuncGui';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'generated/mne_nodes.gui.parameter.CallableGui';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="mne_nodes.gui.parameter.IntGui" href="mne_nodes.gui.parameter.IntGui.html" />
-    <link rel="prev" title="mne_nodes.gui.parameter.FloatGui" href="mne_nodes.gui.parameter.FloatGui.html" />
+    <link rel="next" title="mne_nodes.gui.parameter.CheckListGui" href="mne_nodes.gui.parameter.CheckListGui.html" />
+    <link rel="prev" title="mne_nodes.gui.parameter.BoolGui" href="mne_nodes.gui.parameter.BoolGui.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.1" />
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+g3704674b6 documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+gbd856e21f documentation</p>
   
 </a></div>
     
@@ -377,12 +377,13 @@
 <li class="toctree-l1 current active has-children"><a class="reference internal" href="../api/parameter_widgets.html">Parameter Widgets</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.Param.html">mne_nodes.gui.parameter.Param</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.BoolGui.html">mne_nodes.gui.parameter.BoolGui</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">mne_nodes.gui.parameter.CallableGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.CheckListGui.html">mne_nodes.gui.parameter.CheckListGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.ComboGui.html">mne_nodes.gui.parameter.ComboGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DataFrameGui.html">mne_nodes.gui.parameter.DataFrameGui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DateTimeGui.html">mne_nodes.gui.parameter.DateTimeGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DictGui.html">mne_nodes.gui.parameter.DictGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.FloatGui.html">mne_nodes.gui.parameter.FloatGui</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">mne_nodes.gui.parameter.FuncGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.IntGui.html">mne_nodes.gui.parameter.IntGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.LabelGui.html">mne_nodes.gui.parameter.LabelGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.ListGui.html">mne_nodes.gui.parameter.ListGui</a></li>
@@ -439,7 +440,7 @@
     
     <li class="breadcrumb-item"><a href="../api/parameter_widgets.html" class="nav-link">Parameter Widgets</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">mne_nodes.gui.parameter.FuncGui</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">mne_nodes.gui.parameter.CallableGui</span></li>
   </ul>
 </nav>
 </div>
@@ -456,21 +457,30 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="mne-nodes-gui-parameter-funcgui">
-<h1>mne_nodes.gui.parameter.FuncGui<a class="headerlink" href="#mne-nodes-gui-parameter-funcgui" title="Link to this heading">#</a></h1>
+  <section id="mne-nodes-gui-parameter-callablegui">
+<h1>mne_nodes.gui.parameter.CallableGui<a class="headerlink" href="#mne-nodes-gui-parameter-callablegui" title="Link to this heading">#</a></h1>
 <dl class="py class">
-<dt class="sig sig-object py" id="mne_nodes.gui.parameter.FuncGui">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mne_nodes.gui.parameter.</span></span><span class="sig-name descname"><span class="pre">FuncGui</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.FuncGui" title="Link to this definition">#</a></dt>
-<dd><dl class="py method">
-<dt class="sig sig-object py" id="mne_nodes.gui.parameter.FuncGui.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.FuncGui.__init__" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="mne_nodes.gui.parameter.CallableGui">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mne_nodes.gui.parameter.</span></span><span class="sig-name descname"><span class="pre">CallableGui</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.CallableGui" title="Link to this definition">#</a></dt>
+<dd><p>Parameter GUI for defining a callable via a code editor.</p>
+<p>The user types Python code that defines exactly one top-level function (or
+class), which becomes the parameter’s <code class="xref py py-attr docutils literal notranslate"><span class="pre">value</span></code>. The source code (not
+the callable) is what gets persisted, and is re-evaluated when loaded.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Everything entered here is executed with the full Python interpreter
+when the value is committed. Never paste or run code you do not trust.</p>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="mne_nodes.gui.parameter.CallableGui.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.CallableGui.__init__" title="Link to this definition">#</a></dt>
 <dd><p>Initialize the parameter GUI and load its value from <em>data</em>.</p>
 </dd></dl>
 
 <p class="rubric">Methods</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mne_nodes.gui.parameter.FuncGui.__init__" title="mne_nodes.gui.parameter.FuncGui.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(**kwargs)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mne_nodes.gui.parameter.CallableGui.__init__" title="mne_nodes.gui.parameter.CallableGui.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>(**kwargs)</p></td>
 <td><p>Initialize the parameter GUI and load its value from <em>data</em>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">acceptDrops</span></code>(self, /)</p></td>
@@ -1492,20 +1502,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="mne_nodes.gui.parameter.FloatGui.html"
+       href="mne_nodes.gui.parameter.BoolGui.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">mne_nodes.gui.parameter.FloatGui</p>
+        <p class="prev-next-title">mne_nodes.gui.parameter.BoolGui</p>
       </div>
     </a>
     <a class="right-next"
-       href="mne_nodes.gui.parameter.IntGui.html"
+       href="mne_nodes.gui.parameter.CheckListGui.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">mne_nodes.gui.parameter.IntGui</p>
+        <p class="prev-next-title">mne_nodes.gui.parameter.CheckListGui</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1528,8 +1538,8 @@
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.FuncGui"><code class="docutils literal notranslate"><span class="pre">FuncGui</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.FuncGui.__init__"><code class="docutils literal notranslate"><span class="pre">FuncGui.__init__()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.CallableGui"><code class="docutils literal notranslate"><span class="pre">CallableGui</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.CallableGui.__init__"><code class="docutils literal notranslate"><span class="pre">CallableGui.__init__()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -1560,7 +1570,7 @@
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-08-22 11:49 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-08-22 14:06 UTC.
       <br/>
     
   </p>

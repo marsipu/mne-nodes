@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Parameter Widgets &#8212; mne-nodes 0.1.0.dev1+g3704674b6 documentation</title>
+    <title>Parameter Widgets &#8212; mne-nodes 0.1.0.dev1+gbd856e21f documentation</title>
   
   
   
@@ -38,7 +38,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
 
-    <script src="../_static/documentation_options.js?v=825ac690"></script>
+    <script src="../_static/documentation_options.js?v=de33718c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'api/parameter_widgets';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+g3704674b6 documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+gbd856e21f documentation</p>
   
 </a></div>
     
@@ -373,12 +373,13 @@
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Parameter Widgets</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.Param.html">mne_nodes.gui.parameter.Param</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.BoolGui.html">mne_nodes.gui.parameter.BoolGui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.CallableGui.html">mne_nodes.gui.parameter.CallableGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.CheckListGui.html">mne_nodes.gui.parameter.CheckListGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ComboGui.html">mne_nodes.gui.parameter.ComboGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DataFrameGui.html">mne_nodes.gui.parameter.DataFrameGui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DateTimeGui.html">mne_nodes.gui.parameter.DateTimeGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DictGui.html">mne_nodes.gui.parameter.DictGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.FloatGui.html">mne_nodes.gui.parameter.FloatGui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.FuncGui.html">mne_nodes.gui.parameter.FuncGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.IntGui.html">mne_nodes.gui.parameter.IntGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.LabelGui.html">mne_nodes.gui.parameter.LabelGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ListGui.html">mne_nodes.gui.parameter.ListGui</a></li>
@@ -463,14 +464,20 @@ annotated arguments.</p>
 <tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.BoolGui.html#mne_nodes.gui.parameter.BoolGui" title="mne_nodes.gui.parameter.BoolGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BoolGui</span></code></a>([return_integer])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.CheckListGui.html#mne_nodes.gui.parameter.CheckListGui" title="mne_nodes.gui.parameter.CheckListGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CheckListGui</span></code></a>(options[, value_string_length, ...])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.CallableGui.html#mne_nodes.gui.parameter.CallableGui" title="mne_nodes.gui.parameter.CallableGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CallableGui</span></code></a>(**kwargs)</p></td>
+<td><p>Parameter GUI for defining a callable via a code editor.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.CheckListGui.html#mne_nodes.gui.parameter.CheckListGui" title="mne_nodes.gui.parameter.CheckListGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CheckListGui</span></code></a>(options[, value_string_length, ...])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ComboGui.html#mne_nodes.gui.parameter.ComboGui" title="mne_nodes.gui.parameter.ComboGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ComboGui</span></code></a>(options[, editable])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ComboGui.html#mne_nodes.gui.parameter.ComboGui" title="mne_nodes.gui.parameter.ComboGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ComboGui</span></code></a>(options[, editable])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DataFrameGui.html#mne_nodes.gui.parameter.DataFrameGui" title="mne_nodes.gui.parameter.DataFrameGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFrameGui</span></code></a>(**kwargs)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DataFrameGui.html#mne_nodes.gui.parameter.DataFrameGui" title="mne_nodes.gui.parameter.DataFrameGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DataFrameGui</span></code></a>(**kwargs)</p></td>
 <td><p>Parameter GUI to edit a pandas DataFrame or load one from a csv/xlsx file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DateTimeGui.html#mne_nodes.gui.parameter.DateTimeGui" title="mne_nodes.gui.parameter.DateTimeGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DateTimeGui</span></code></a>([datetime_type, min_value, ...])</p></td>
+<td><p>Parameter GUI for selecting a <code class="docutils literal notranslate"><span class="pre">datetime</span></code>, <code class="docutils literal notranslate"><span class="pre">date</span></code> or <code class="docutils literal notranslate"><span class="pre">time</span></code> value.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DictGui.html#mne_nodes.gui.parameter.DictGui" title="mne_nodes.gui.parameter.DictGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DictGui</span></code></a>([value_string_length])</p></td>
 <td><p></p></td>
@@ -478,31 +485,28 @@ annotated arguments.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.FloatGui.html#mne_nodes.gui.parameter.FloatGui" title="mne_nodes.gui.parameter.FloatGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FloatGui</span></code></a>([min_val, max_val, step, decimals])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.FuncGui.html#mne_nodes.gui.parameter.FuncGui" title="mne_nodes.gui.parameter.FuncGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">FuncGui</span></code></a>(**kwargs)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.IntGui.html#mne_nodes.gui.parameter.IntGui" title="mne_nodes.gui.parameter.IntGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">IntGui</span></code></a>([min_val, max_val, special_value_text])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.IntGui.html#mne_nodes.gui.parameter.IntGui" title="mne_nodes.gui.parameter.IntGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">IntGui</span></code></a>([min_val, max_val, special_value_text])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.LabelGui.html#mne_nodes.gui.parameter.LabelGui" title="mne_nodes.gui.parameter.LabelGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LabelGui</span></code></a>([value_string_length])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.LabelGui.html#mne_nodes.gui.parameter.LabelGui" title="mne_nodes.gui.parameter.LabelGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">LabelGui</span></code></a>([value_string_length])</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ListGui.html#mne_nodes.gui.parameter.ListGui" title="mne_nodes.gui.parameter.ListGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ListGui</span></code></a>([show_edit_bt, value_string_length])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.ListGui.html#mne_nodes.gui.parameter.ListGui" title="mne_nodes.gui.parameter.ListGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ListGui</span></code></a>([show_edit_bt, value_string_length])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.MultiTypeGui.html#mne_nodes.gui.parameter.MultiTypeGui" title="mne_nodes.gui.parameter.MultiTypeGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiTypeGui</span></code></a>([types, type_kwargs])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.MultiTypeGui.html#mne_nodes.gui.parameter.MultiTypeGui" title="mne_nodes.gui.parameter.MultiTypeGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MultiTypeGui</span></code></a>([types, type_kwargs])</p></td>
-<td><p></p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.SliceGui.html#mne_nodes.gui.parameter.SliceGui" title="mne_nodes.gui.parameter.SliceGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SliceGui</span></code></a>(**kwargs)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.SliceGui.html#mne_nodes.gui.parameter.SliceGui" title="mne_nodes.gui.parameter.SliceGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SliceGui</span></code></a>(**kwargs)</p></td>
 <td><p>Parameter GUI to enter a slice as text, e.g. <code class="docutils literal notranslate"><span class="pre">1:10:2</span></code> or <code class="docutils literal notranslate"><span class="pre">:5</span></code>.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.SliderGui.html#mne_nodes.gui.parameter.SliderGui" title="mne_nodes.gui.parameter.SliderGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SliderGui</span></code></a>([min_val, max_val, step, tracking])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.SliderGui.html#mne_nodes.gui.parameter.SliderGui" title="mne_nodes.gui.parameter.SliderGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SliderGui</span></code></a>([min_val, max_val, step, tracking])</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.StringGui.html#mne_nodes.gui.parameter.StringGui" title="mne_nodes.gui.parameter.StringGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">StringGui</span></code></a>(**kwargs)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.StringGui.html#mne_nodes.gui.parameter.StringGui" title="mne_nodes.gui.parameter.StringGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">StringGui</span></code></a>(**kwargs)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DualTupleGui.html#mne_nodes.gui.parameter.DualTupleGui" title="mne_nodes.gui.parameter.DualTupleGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DualTupleGui</span></code></a>([min_val, max_val, step])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="../generated/mne_nodes.gui.parameter.DualTupleGui.html#mne_nodes.gui.parameter.DualTupleGui" title="mne_nodes.gui.parameter.DualTupleGui"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DualTupleGui</span></code></a>([min_val, max_val, step])</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -568,7 +572,7 @@ annotated arguments.</p>
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-08-22 11:49 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-08-22 14:06 UTC.
       <br/>
     
   </p>

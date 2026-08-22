@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>mne_nodes.gui.parameter.IntGui &#8212; mne-nodes 0.1.0.dev1+gbd856e21f documentation</title>
+    <title>mne_nodes.gui.parameter.DateTimeGui &#8212; mne-nodes 0.1.0.dev1+gbd856e21f documentation</title>
   
   
   
@@ -41,12 +41,12 @@
     <script src="../_static/documentation_options.js?v=de33718c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'generated/mne_nodes.gui.parameter.IntGui';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'generated/mne_nodes.gui.parameter.DateTimeGui';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="mne_nodes.gui.parameter.LabelGui" href="mne_nodes.gui.parameter.LabelGui.html" />
-    <link rel="prev" title="mne_nodes.gui.parameter.FloatGui" href="mne_nodes.gui.parameter.FloatGui.html" />
+    <link rel="next" title="mne_nodes.gui.parameter.DictGui" href="mne_nodes.gui.parameter.DictGui.html" />
+    <link rel="prev" title="mne_nodes.gui.parameter.DataFrameGui" href="mne_nodes.gui.parameter.DataFrameGui.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.1" />
@@ -381,10 +381,10 @@
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.CheckListGui.html">mne_nodes.gui.parameter.CheckListGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.ComboGui.html">mne_nodes.gui.parameter.ComboGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DataFrameGui.html">mne_nodes.gui.parameter.DataFrameGui</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DateTimeGui.html">mne_nodes.gui.parameter.DateTimeGui</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">mne_nodes.gui.parameter.DateTimeGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.DictGui.html">mne_nodes.gui.parameter.DictGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.FloatGui.html">mne_nodes.gui.parameter.FloatGui</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">mne_nodes.gui.parameter.IntGui</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.IntGui.html">mne_nodes.gui.parameter.IntGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.LabelGui.html">mne_nodes.gui.parameter.LabelGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.ListGui.html">mne_nodes.gui.parameter.ListGui</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mne_nodes.gui.parameter.MultiTypeGui.html">mne_nodes.gui.parameter.MultiTypeGui</a></li>
@@ -440,7 +440,7 @@
     
     <li class="breadcrumb-item"><a href="../api/parameter_widgets.html" class="nav-link">Parameter Widgets</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">mne_nodes.gui.parameter.IntGui</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">mne_nodes.gui.parameter.DateTimeGui</span></li>
   </ul>
 </nav>
 </div>
@@ -457,21 +457,34 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="mne-nodes-gui-parameter-intgui">
-<h1>mne_nodes.gui.parameter.IntGui<a class="headerlink" href="#mne-nodes-gui-parameter-intgui" title="Link to this heading">#</a></h1>
+  <section id="mne-nodes-gui-parameter-datetimegui">
+<h1>mne_nodes.gui.parameter.DateTimeGui<a class="headerlink" href="#mne-nodes-gui-parameter-datetimegui" title="Link to this heading">#</a></h1>
 <dl class="py class">
-<dt class="sig sig-object py" id="mne_nodes.gui.parameter.IntGui">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mne_nodes.gui.parameter.</span></span><span class="sig-name descname"><span class="pre">IntGui</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_val</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_val</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">special_value_text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.IntGui" title="Link to this definition">#</a></dt>
-<dd><dl class="py method">
-<dt class="sig sig-object py" id="mne_nodes.gui.parameter.IntGui.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_val</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_val</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">special_value_text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.IntGui.__init__" title="Link to this definition">#</a></dt>
+<dt class="sig sig-object py" id="mne_nodes.gui.parameter.DateTimeGui">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mne_nodes.gui.parameter.</span></span><span class="sig-name descname"><span class="pre">DateTimeGui</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'datetime'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'date'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'time'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'datetime'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">date</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">time</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">date</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">time</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_format</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.DateTimeGui" title="Link to this definition">#</a></dt>
+<dd><p>Parameter GUI for selecting a <code class="docutils literal notranslate"><span class="pre">datetime</span></code>, <code class="docutils literal notranslate"><span class="pre">date</span></code> or <code class="docutils literal notranslate"><span class="pre">time</span></code> value.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>datetime_type</strong> (<em>&quot;datetime&quot;</em><em> | </em><em>&quot;date&quot;</em><em> | </em><em>&quot;time&quot;</em>) – Which kind of value to edit; selects the underlying Qt widget
+(<code class="docutils literal notranslate"><span class="pre">QDateTimeEdit</span></code>, <code class="docutils literal notranslate"><span class="pre">QDateEdit</span></code> or <code class="docutils literal notranslate"><span class="pre">QTimeEdit</span></code> respectively).</p></li>
+<li><p><strong>min_value</strong> (<em>datetime</em><em> | </em><em>date</em><em> | </em><em>time</em><em> | </em><em>None</em>) – Optional bounds, must match <em>datetime_type</em>.</p></li>
+<li><p><strong>max_value</strong> (<em>datetime</em><em> | </em><em>date</em><em> | </em><em>time</em><em> | </em><em>None</em>) – Optional bounds, must match <em>datetime_type</em>.</p></li>
+<li><p><strong>display_format</strong> (<em>str</em><em> | </em><em>None</em>) – Qt display format string. Defaults to a sensible format per
+<em>datetime_type</em>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mne_nodes.gui.parameter.DateTimeGui.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">datetime_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'datetime'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'date'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'time'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'datetime'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">date</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">time</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">datetime</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">date</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">time</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">display_format</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mne_nodes.gui.parameter.DateTimeGui.__init__" title="Link to this definition">#</a></dt>
 <dd><p>Initialize the parameter GUI and load its value from <em>data</em>.</p>
 </dd></dl>
 
 <p class="rubric">Methods</p>
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#mne_nodes.gui.parameter.IntGui.__init__" title="mne_nodes.gui.parameter.IntGui.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([min_val, max_val, special_value_text])</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#mne_nodes.gui.parameter.DateTimeGui.__init__" title="mne_nodes.gui.parameter.DateTimeGui.__init__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__init__</span></code></a>([datetime_type, min_value, ...])</p></td>
 <td><p>Initialize the parameter GUI and load its value from <em>data</em>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">acceptDrops</span></code>(self, /)</p></td>
@@ -1493,20 +1506,20 @@
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="mne_nodes.gui.parameter.FloatGui.html"
+       href="mne_nodes.gui.parameter.DataFrameGui.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">mne_nodes.gui.parameter.FloatGui</p>
+        <p class="prev-next-title">mne_nodes.gui.parameter.DataFrameGui</p>
       </div>
     </a>
     <a class="right-next"
-       href="mne_nodes.gui.parameter.LabelGui.html"
+       href="mne_nodes.gui.parameter.DictGui.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">mne_nodes.gui.parameter.LabelGui</p>
+        <p class="prev-next-title">mne_nodes.gui.parameter.DictGui</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -1529,8 +1542,8 @@
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.IntGui"><code class="docutils literal notranslate"><span class="pre">IntGui</span></code></a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.IntGui.__init__"><code class="docutils literal notranslate"><span class="pre">IntGui.__init__()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.DateTimeGui"><code class="docutils literal notranslate"><span class="pre">DateTimeGui</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mne_nodes.gui.parameter.DateTimeGui.__init__"><code class="docutils literal notranslate"><span class="pre">DateTimeGui.__init__()</span></code></a></li>
 </ul>
 </li>
 </ul>
