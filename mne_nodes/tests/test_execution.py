@@ -78,11 +78,11 @@ def test_process_dialog(qtbot):
     controller stores process.
     """
     py_snippet = "import sys; print('DIALOG_OUT'); print('DIALOG_ERR', file=sys.stderr)"
-    commands = [(sys.executable, ["-u", "-c", py_snippet])]
+    commands = [(sys.executable, "-u", "-c", py_snippet)]
 
     dialog = ProcessDialog(
-        parent=None,
         commands=commands,
+        parent=None,
         show_buttons=False,
         show_console=True,
         close_directly=False,

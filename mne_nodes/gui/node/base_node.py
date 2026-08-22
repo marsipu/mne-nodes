@@ -69,10 +69,19 @@ class BaseNode(QGraphicsItem):
         If a string is provided add a checkbox with that name. Default is None (no checkbox).
     startable : bool, optional
         If True, the node has a start button. Default is False.
+    deletable: bool, optional
+        If True, the node can be deleted. Default is True.
     """
 
     def __init__(
-        self, ct, name=None, ports=None, old_id=None, checkbox=None, startable=False
+        self,
+        ct,
+        name=None,
+        ports=None,
+        old_id=None,
+        checkbox=None,
+        startable=False,
+        deletable=True,
     ):
         self.ct = ct
         # Initialize QGraphicsItem
@@ -80,7 +89,7 @@ class BaseNode(QGraphicsItem):
         self.setFlags(
             self.GraphicsItemFlag.ItemIsSelectable | self.GraphicsItemFlag.ItemIsMovable
         )
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setZValue(1)
 
         # Initialize hidden attributes for properties (with node_defaults)
@@ -89,6 +98,7 @@ class BaseNode(QGraphicsItem):
         self.id = id(self)
         self.checkbox = checkbox
         self.startable = startable
+        self.deletable = deletable
 
         self._width = defaults["nodes"]["width"]
         self._height = defaults["nodes"]["height"]

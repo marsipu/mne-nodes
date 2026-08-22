@@ -31,6 +31,7 @@ dependencies = [
     "autoreject",
     "h5io",
     "h5netcdf",
+    "pandas",
     # Qt
     "qtpy",
     "darkdetect",
@@ -106,3 +107,10 @@ recursive = true
 [tool.doc8]
 ignore = ["D001", "D004"]
 file-encoding = "utf-8"
+
+[tool.pytest.ini_options]
+addopts = "-v --tb=long -p no:cacheprovider"
+qt_api = "pyside6"
+qt_no_opengl = true
+log_cli = true
+log_cli_level = "INFO"

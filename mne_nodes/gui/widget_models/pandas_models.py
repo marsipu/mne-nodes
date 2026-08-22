@@ -6,16 +6,10 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from ast import literal_eval
 
-from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, Qt
+import pandas as pd
+from qtpy.QtCore import QAbstractItemModel, QAbstractTableModel, QModelIndex, Qt
 
 from mne_nodes.logger import logger
-
-
-def _get_pandas():
-    """Import pandas only when a pandas-backed model is used."""
-    import pandas as pd
-
-    return pd
 
 
 class BasePandasModel(QAbstractTableModel):
@@ -30,7 +24,6 @@ class BasePandasModel(QAbstractTableModel):
 
     def __init__(self, data=None, **kwargs):
         super().__init__(**kwargs)
-        pd = _get_pandas()
         if data is None:
             self._data = pd.DataFrame([])
         elif not isinstance(data, pd.DataFrame):
@@ -123,8 +116,7 @@ class EditPandasModel(BasePandasModel):
         return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsEditable
 
     def insertRows(self, row, count, parent=None, *args, **kwargs):
-        self.beginInsertRows(parent, row, row + count - 1)
-        pd = _get_pandas()
+        self.beginInsertRows(parent or QModelIndex(), row, row + count - 1)
         add_data = pd.DataFrame(
             columns=self._data.columns, index=[r for r in range(count)]
         )
@@ -141,8 +133,7 @@ class EditPandasModel(BasePandasModel):
         return True
 
     def insertColumns(self, column, count, parent=None, *args, **kwargs):
-        self.beginInsertColumns(parent, column, column + count - 1)
-        pd = _get_pandas()
+        self.beginInsertColumns(parent or QModelIndex(), column, column + count - 1)
         add_data = pd.DataFrame(
             index=self._data.index, columns=[c for c in range(count)]
         )
@@ -160,8 +151,7 @@ class EditPandasModel(BasePandasModel):
         return True
 
     def removeRows(self, row, count, parent=None, *args, **kwargs):
-        self.beginRemoveRows(parent, row, row + count - 1)
-        pd = _get_pandas()
+        self.beginRemoveRows(parent or QModelIndex(), row, row + count - 1)
         # Can't use DataFrame.drop() here,
         # because there could be rows with similar index-labels
         if row == 0:
@@ -177,8 +167,7 @@ class EditPandasModel(BasePandasModel):
         return True
 
     def removeColumns(self, column, count, parent=None, *args, **kwargs):
-        self.beginRemoveColumns(parent, column, column + count - 1)
-        pd = _get_pandas()
+        self.beginRemoveColumns(parent or QModelIndex(), column, column + count - 1)
         # Can't use DataFrame.drop() here,
         # because there could be columns with similar column-labels
         if column == 0:

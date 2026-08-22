@@ -14,7 +14,6 @@ from typing import Any
 
 from filelock import FileLock, Timeout
 
-from mne_nodes.logger import logger
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 
 # Default device specific settings (formerly partly stored in QSettings)
@@ -22,7 +21,7 @@ from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 # Keep values JSON-serializable (TypedJSONEncoder handles Path objects).
 default_device_settings = {
     "config_path": None,  # Last used project config file
-    "module_config": {},  # Modules and their config-paths
+    "plugin_config": {},  # Plugins and their config-paths
     "log_file_path": None,  # Optional custom log file path
     "data_path": None,  # Project data directory (device specific)
     "plot_path": None,  # Plot export directory (device specific)
@@ -88,7 +87,7 @@ class Settings:
             with self.lock:
                 return self._load_locked()
         except Timeout:
-            logger.warning(
+            print(
                 f"Could not acquire lock for settings after {self.lock_timeout} seconds. Using defaults."
             )
             return deepcopy(self._defaults)
@@ -103,7 +102,7 @@ class Settings:
             UnicodeDecodeError,
             FileNotFoundError,
         ) as err:
-            logger.warning(
+            print(
                 f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
             )
             return deepcopy(self._defaults)
@@ -133,7 +132,7 @@ class Settings:
                 settings[key] = value
                 self._save_locked(settings)
         except Timeout:
-            logger.error(
+            print(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 
@@ -145,7 +144,7 @@ class Settings:
                     settings.pop(key)
                     self._save_locked(settings)
         except Timeout:
-            logger.error(
+            print(
                 f"Could not acquire lock for settings file after {self.lock_timeout} seconds. Changes not saved."
             )
 

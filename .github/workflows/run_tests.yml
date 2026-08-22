@@ -28,7 +28,7 @@ jobs:
         uses: pyvista/setup-headless-display-action@main
         with:
           qt: true
-          pyvista: false
+          pyvista: true
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -56,4 +56,4 @@ jobs:
       - name: Show system information
         run: mne sys_info
       - run: pytest
-        name: Run Tests
+        name: Run Tests -v

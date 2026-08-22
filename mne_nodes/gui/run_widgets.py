@@ -13,6 +13,7 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
@@ -175,13 +176,13 @@ class WorkerDialog(QDialog):
 class ProcessDialog(QDialog):
     def __init__(
         self,
-        parent,
-        commands,
-        show_buttons=True,
-        show_console=True,
-        close_directly=False,
-        title=None,
-        blocking=True,
+        commands: list[tuple[str, ...]],
+        parent: QWidget | None = None,
+        show_buttons: bool = True,
+        show_console: bool = True,
+        close_directly: bool = False,
+        title: str | None = None,
+        blocking: bool = True,
     ):
         super().__init__(parent)
         self.commands = commands
@@ -191,20 +192,6 @@ class ProcessDialog(QDialog):
         self.title = title
         self.console = None
 
-        self.init_ui()
-        self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.is_finished = False
-        self.process.finished.connect(self.process_finished)
-        self.process.start()
-
-        set_ratio_geometry(0.5, self)
-
-        if blocking:
-            self.exec()
-        else:
-            self.open()
-
-    def init_ui(self):
         layout = QVBoxLayout()
 
         if self.title:
@@ -215,6 +202,11 @@ class ProcessDialog(QDialog):
         if self.show_console:
             self.console = ConsoleWidget()
             layout.addWidget(self.console)
+
+        self.process = Process(self.commands, console=self.console, self_destruct=True)
+        self.is_finished = False
+        self.process.finished.connect(self.process_finished)
+        self.process.start()
 
         if self.show_buttons:
             bt_layout = QHBoxLayout()
@@ -231,6 +223,13 @@ class ProcessDialog(QDialog):
             layout.addLayout(bt_layout)
 
         self.setLayout(layout)
+
+        set_ratio_geometry(0.5, self)
+
+        if blocking:
+            self.exec()
+        else:
+            self.open()
 
     def process_finished(self):
         self.is_finished = True

@@ -111,7 +111,7 @@ class InputWidget(QWidget):
 
 class InputNode(BaseNode):
     def __init__(self, **kwargs):
-        super().__init__(startable=True, **kwargs)
+        super().__init__(startable=True, deletable=False, **kwargs)
         self.input_widget = None
         self.update_widgets()
 
@@ -223,10 +223,10 @@ class FunctionNode(BaseNode):
         super().mouseDoubleClickEvent(event)
         _func_code, start, end = self.ct.get_function_code(self.name)
         # ToDo: fix code editing
-        module_config = self.ct.settings.get("module_config", {})
-        module_name = self.ct.get_function_module_name(self.name)
-        if module_name in module_config:
-            file_path = module_config[module_name]["path"]
+        plugin_config = self.ct.settings.get("plugin_config", {})
+        plugin_name = self.ct.get_plugin_from_function(self.name)
+        if plugin_name in plugin_config:
+            file_path = plugin_config[plugin_name]["path"]
             editor_widget = CodeEditorWidget(
                 file_section=(start, end), file_path=file_path
             )
