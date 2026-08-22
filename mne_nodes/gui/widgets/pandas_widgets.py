@@ -7,6 +7,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 import itertools
 
 import numpy as np
+import pandas as pd
+from qtpy import compat
 from qtpy.QtCore import QItemSelectionModel, Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
@@ -19,11 +21,39 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
+from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import get_user_input
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
 from mne_nodes.gui.widgets.base import Base
 from mne_nodes.logger import logger
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.settings import Settings
+
+DATAFRAME_FILE_FILTERS = (
+    "Data Files (*.csv *.xlsx *.xls);;"
+    "CSV Files (*.csv);;"
+    "Excel Files (*.xlsx *.xls);;"
+    "All Files (*)"
+)
+
+# Tried in order until one decodes the file without a UnicodeDecodeError.
+_CSV_ENCODINGS = ("utf-8", "utf-8-sig", "cp1252", "latin1")
+
+
+def read_dataframe_file(path):
+    """Read a DataFrame from a csv or excel file, raising on failure."""
+    if path.lower().endswith((".xlsx", ".xls")):
+        return pd.read_excel(path)
+
+    last_error = None
+    for encoding in _CSV_ENCODINGS:
+        try:
+            return pd.read_csv(path, sep=None, engine="python", encoding=encoding)
+        except UnicodeDecodeError as exc:
+            last_error = exc
+    raise ValueError(
+        f"Could not decode {path} with any of {_CSV_ENCODINGS}. Last error: {last_error}"
+    )
 
 
 class BasePandasTable(Base):
@@ -306,6 +336,13 @@ class EditPandasTable(BasePandasTable):
             edit_bt.clicked.connect(self.edit_item)
             bt_layout.addWidget(edit_bt)
 
+            load_bt = QPushButton("Load")
+            load_bt.setSizePolicy(
+                QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
+            )
+            load_bt.clicked.connect(self.load_file)
+            bt_layout.addWidget(load_bt)
+
             editrh_bt = QPushButton("Edit Row-Header")
             editrh_bt.setSizePolicy(
                 QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum
@@ -391,6 +428,20 @@ class EditPandasTable(BasePandasTable):
 
     def edit_item(self):
         self.view.edit(self.view.selectionModel().currentIndex())
+
+    def load_file(self):
+        """Load a DataFrame from a csv/xlsx file, replacing the current data."""
+        path, _ = compat.getopenfilename(
+            self, "Load DataFrame", filters=DATAFRAME_FILE_FILTERS
+        )
+        if not path:
+            return
+        try:
+            data = read_dataframe_file(path)
+        except Exception:  # noqa: BLE001
+            ErrorDialog(get_exception_tuple(), self, f"Could not load {path}").open()
+            return
+        self.replace_data(data)
 
     def edit_row_header(self):
         row = self.view.selectionModel().currentIndex().row()

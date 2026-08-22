@@ -181,7 +181,7 @@ class Process(QProcess):
         if len(self.commands) > 0:
             cmds = self.commands.pop(0)
             # Start
-            program, args = cmds
+            program, *args = cmds
             self.setProgram(program)
             self.setArguments(args)
             super().start()

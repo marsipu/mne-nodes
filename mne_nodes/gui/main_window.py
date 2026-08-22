@@ -4,6 +4,8 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import sys
+
 import mne
 from qtpy.QtCore import QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
@@ -56,7 +58,7 @@ class MainWindow(QMainWindow):
         # Init Node-Viewer
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.load_config(controller.get("node_config"))
+        self.viewer.load_nodes(controller.get("node_config"))
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -64,28 +66,55 @@ class MainWindow(QMainWindow):
         self.console_dock.hide()
 
         # Pipeline Actions
-        import_pipeline_action = QAction(
-            "&Import Pipeline",
+        load_pipeline_action = QAction(
+            "&Load Pipeline",
             parent=self,
-            statusTip="Import a Pipeline from a JSON file",
+            statusTip="Load another pipeline from a configuration file.",
+            shortcut=QKeySequence("Ctrl+O"),
         )
-        import_pipeline_action.triggered.connect(self.controller.import_pipeline)
-        export_pipeline_action = QAction(
-            "&Export Pipeline", parent=self, statusTip="Export Pipeline to a JSON file"
+        load_pipeline_action.triggered.connect(self.load_pipeline)
+        save_pipeline_action = QAction(
+            "&Save Pipeline",
+            parent=self,
+            statusTip="Save the current pipeline to the configuration file.",
+            shortcut=QKeySequence("Ctrl+S"),
         )
-        export_pipeline_action.triggered.connect(self.controller.export_pipeline)
-        # BIDS Actions
+        save_pipeline_action.triggered.connect(self.save_pipeline)
+        pipeline_menu = self.menuBar().addMenu("&Pipeline")
+        pipeline_menu.addAction(load_pipeline_action)
+        pipeline_menu.addAction(save_pipeline_action)
+        # BIDS Menu
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
         )
         sample_action.triggered.connect(self.add_sample_bids)
-        load_action = QAction(
-            "&Load Configuration",
+        bids_menu = self.menuBar().addMenu("&BIDS")
+        bids_menu.addAction(sample_action)
+        bids_menu.addSeparator()
+
+        # Plugin Menu
+        load_plugin_path_action = QAction(
+            "&Load Plugin from Path",
             parent=self,
-            statusTip="Load another project with a new configuration file.",
-            shortcut=QKeySequence("Ctrl+O"),
+            statusTip="Load a plugin from a configuration file.",
         )
-        load_action.triggered.connect(self.load_config)
+        load_plugin_path_action.triggered.connect(self.load_plugin_path)
+        load_plugin_module_action = QAction(
+            "&Load Plugin from Module",
+            parent=self,
+            statusTip="Load a plugin from a Python module.",
+        )
+        load_plugin_module_action.triggered.connect(self.load_plugin_module)
+        load_plugin_github_action = QAction(
+            "&Load Plugin from GitHub",
+            parent=self,
+            statusTip="Load a plugin from a GitHub repository.",
+        )
+        load_plugin_github_action.triggered.connect(self.load_plugin_github)
+        plugin_menu = self.menuBar().addMenu("&Plugins")
+        plugin_menu.addAction(load_plugin_path_action)
+        plugin_menu.addAction(load_plugin_module_action)
+        plugin_menu.addAction(load_plugin_github_action)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
@@ -97,19 +126,8 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
-        # Menu
-        pipeline_menu = self.menuBar().addMenu("&Pipeline")
-        pipeline_menu.addAction(import_pipeline_action)
-        pipeline_menu.addAction(export_pipeline_action)
-        bids_menu = self.menuBar().addMenu("&BIDS")
-        bids_menu.addAction(sample_action)
-        bids_menu.addSeparator()
-        bids_menu.addAction(exit_action)
-        config_menu = self.menuBar().addMenu("&Config")
-        config_menu.addAction(load_action)
-        # Toolbar
-        self.toolbar = self.addToolBar("Main Toolbar")
-        self.toolbar.addAction(autolayout_action)
+        # Pipeline Menu
+        self.menuBar().addAction(exit_action)
 
         # Show the main window
         self.show()
@@ -140,9 +158,56 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
-    def load_config(self):
-        # Initialize new config-path by setting it to None
+    def load_pipeline(self):
         self.controller.config_path = None
+        self.controller.load(plugins=True)
+        self.viewer.load_nodes(self.controller.get("node_config"))
+        self.statusBar().showMessage(f"{self.controller.name} is ready.")
+
+    def save_pipeline(self, show_status: bool = True):
+        export_path = get_user_input(
+            "Select a location to save the pipeline configuration.",
+            input_type="file_new",
+            file_filter="JSON files (*.json)",
+            parent=self,
+        )
+        if export_path is None:
+            return
+        self.controller.export_pipeline(export_path)
+        if show_status:
+            self.statusBar().showMessage(f"{self.controller.name} saved.")
+
+    def load_plugin_path(self):
+        plugin_path = get_user_input(
+            "Select a plugin configuration file to load.",
+            input_type="file",
+            file_filter="JSON files (*.json)",
+            parent=self,
+        )
+        if plugin_path is None:
+            return
+        self.controller.load_plugin_path(plugin_path)
+        self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
+
+    def load_plugin_module(self):
+        plugin_name = get_user_input(
+            "Enter the name of the plugin module to load.",
+            input_type="text",
+            parent=self,
+        )
+        if plugin_name is None:
+            return
+        self.controller.load_plugin_module_name(plugin_name)
+        self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
+
+    def load_plugin_github(self):
+        plugin_url = get_user_input(
+            "Enter the GitHub URL of the plugin to load.", input_type="url", parent=self
+        )
+        if plugin_url is None:
+            return
+        self.controller.load_plugin_github(plugin_url)
+        self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def add_sample_bids(self):
         sample_root = get_user_input(
@@ -168,9 +233,19 @@ class MainWindow(QMainWindow):
 
     def update_app(self, version):
         if version == "stable":
-            command = "pip install --upgrade mne_nodes"
+            command = [
+                (sys.executable, "-m", "pip", "install", "--upgrade", "mne_nodes")
+            ]
         else:
-            command = "pip install https://github.com/marsipu/mne-nodes/zipball/main"
+            command = [
+                (
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "https://github.com/marsipu/mne-nodes/zipball/main",
+                )
+            ]
         if iswin and not _run_from_script():
             information_message(
                 f"Manual install required! To update you need to exit the program and type '{command}' into the terminal!",
@@ -180,8 +255,8 @@ class MainWindow(QMainWindow):
         else:
             # Register with controller for central tracking
             ProcessDialog(
-                self,
                 command,
+                parent=self,
                 show_buttons=True,
                 show_console=True,
                 close_directly=True,
@@ -197,10 +272,10 @@ class MainWindow(QMainWindow):
                 self.restart()
 
     def update_mne(self):
-        command = "pip install --upgrade mne"
+        command = [(sys.executable, "-m", "pip", "install", "--upgrade", "mne")]
         ProcessDialog(
-            self,
             command,
+            parent=self,
             show_buttons=True,
             show_console=True,
             close_directly=True,
@@ -232,6 +307,7 @@ class MainWindow(QMainWindow):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
         _widgets["main_window"] = None
+        _widgets["viewer"] = None
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
         event.accept()
