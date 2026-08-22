@@ -112,6 +112,9 @@ class ArrayGui(Param):
 
     Parameters
     ----------
+    dtype : numpy dtype or type or None
+        NumPy dtype to use for array values. If ``None``, preserve the input
+        dtype.
     **kwargs
         Additional keyword arguments passed to :class:`Param`.
     """
@@ -119,9 +122,10 @@ class ArrayGui(Param):
     data_type = np.ndarray
     max_dimensions = 10
 
-    def __init__(self, **kwargs: Any):
+    def __init__(self, dtype: Any = None, **kwargs: Any):
         # Param.__init__ loads persisted data, including the expression cache.
         self._param_exp: str | None = None
+        self.dtype = np.dtype(dtype) if dtype is not None else None
         super().__init__(**kwargs)
 
         # ── mode selector ──────────────────────────────────────────────────
@@ -195,6 +199,10 @@ class ArrayGui(Param):
             )
         return arr
 
+    def _convert_array(self, value) -> np.ndarray:
+        """Convert *value* to the configured NumPy dtype."""
+        return self._validate_dimensions(np.asarray(value, dtype=self.dtype))
+
     def _on_mode_changed(self, index: int):
         self._stack.setCurrentIndex(index)
         if index == 0 and self._display_arr is not None:
@@ -209,8 +217,12 @@ class ArrayGui(Param):
         text = self._expr_edit.text()
         result = eval_param(text)
         if isinstance(result, np.ndarray):
-            self._param_exp = text
-            self.value = result
+            try:
+                self.value = self._convert_array(result)
+            except (TypeError, ValueError):
+                self._expr_display.setText("Invalid expression")
+            else:
+                self._param_exp = text
         else:
             self._expr_display.setText("Invalid expression")
 
@@ -282,7 +294,7 @@ class ArrayGui(Param):
     # ── Param interface ─────────────────────────────────────────────────────
 
     def _set_widget_value(self, value):
-        arr = self._validate_dimensions(value)
+        arr = self._convert_array(value)
         self._display_arr = arr
         # Update table
         self._refresh_table(arr)
@@ -307,6 +319,8 @@ class ArrayGui(Param):
             new_value = eval_param(new_value)
             if not isinstance(new_value, np.ndarray):
                 new_value = None
+        if new_value is not None:
+            new_value = self._convert_array(new_value)
         if new_value is None and not self.none_select:
             new_value = np.empty((0, 0))
         Param.value.fset(self, new_value)
@@ -315,6 +329,8 @@ class ArrayGui(Param):
 
     def _load_from_data(self, name):
         real_value = super()._load_from_data(name)
+        if isinstance(real_value, np.ndarray):
+            real_value = self._convert_array(real_value)
         exp_name = name + "_exp"
         if self.is_key(exp_name):
             # Expression metadata is a string, not an array parameter value.

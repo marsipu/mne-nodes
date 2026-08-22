@@ -211,6 +211,25 @@ def test_array_gui_rejects_more_than_ten_dimensions(qtbot):
         parameter.ArrayGui(data=data, name="arr")
 
 
+def test_array_gui_dtype(qtbot):
+    """ArrayGui converts table and expression input to the configured dtype."""
+    data = {"arr": np.zeros((2, 2), dtype=float)}
+    gui = parameter.ArrayGui(data=data, name="arr", dtype=int)
+    qtbot.addWidget(gui)
+
+    assert gui.value.dtype == np.dtype(int)
+
+    index = gui._table_model.index(0, 0)
+    assert gui._table_model.setData(index, "3.7")
+    assert gui.value[0, 0] == 3
+    assert gui.value.dtype == np.dtype(int)
+
+    gui._expr_edit.setText("np.array([[1.8, 2.2]])")
+    gui._on_expr_changed()
+    assert_allclose(gui.value, np.array([[1, 2]]))
+    assert gui.value.dtype == np.dtype(int)
+
+
 def test_array_gui_expr_mode(qtbot):
     """Switching to expr mode evaluates numpy expressions correctly."""
     data = {"arr": np.zeros((2, 3))}
