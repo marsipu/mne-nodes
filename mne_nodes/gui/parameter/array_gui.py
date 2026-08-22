@@ -174,7 +174,7 @@ class ArrayGui(Param):
         self._expr_widget.setLayout(expr_grid)
         self._stack.addWidget(self._expr_widget)
 
-        # ── parameter expression cache (mirrors FuncGui pattern) ───────────
+        # ── parameter expression cache ───────────────────────────────────
         self._display_arr: np.ndarray | None = None
 
         # ── overall layout ─────────────────────────────────────────────────
@@ -325,7 +325,7 @@ class ArrayGui(Param):
             new_value = np.empty((0, 0))
         Param.value.fset(self, new_value)
 
-    # ── FuncGui-style expression persistence ───────────────────────────────
+    # ── expression persistence ──────────────────────────────────────────
 
     def _load_from_data(self, name):
         real_value = super()._load_from_data(name)
