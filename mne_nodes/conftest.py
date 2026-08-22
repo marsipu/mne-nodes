@@ -35,7 +35,7 @@ test_parameters = {
     "slider": 5,
     "color": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
-    "array": np.arange(6).reshape(2, 3),
+    "array": np.arange(180).reshape(2, 3, 3, 10),
     "slice": slice(1, 10, 2),
     "dataframe": pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}),
 }

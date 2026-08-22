@@ -273,6 +273,23 @@ class ArrayGui(Param):
     def _get_widget_value(self):
         return self._value
 
+    @property
+    def value(self):
+        """Return the current array value."""
+        return super().value
+
+    @value.setter
+    def value(self, new_value):
+        """Set the array value, evaluating string expressions via ``eval_param``."""
+        if isinstance(new_value, str):
+            self._param_exp = new_value
+            new_value = eval_param(new_value)
+            if not isinstance(new_value, np.ndarray):
+                new_value = None
+        if new_value is None and not self.none_select:
+            new_value = np.empty((0, 0))
+        Param.value.fset(self, new_value)
+
     # ── FuncGui-style expression persistence ───────────────────────────────
 
     def _load_from_data(self, name):

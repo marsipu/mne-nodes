@@ -204,6 +204,39 @@ def test_array_gui_expr_mode(qtbot):
     assert_allclose(gui.value, np.ones((4, 5)))
 
 
+@pytest.mark.parametrize("setter", ["set_param", "value"])
+def test_array_gui_string_expression(qtbot, setter):
+    """Setting a string expression via set_param/value evaluates it via eval_param.
+
+    An invalid expression must fall back to None if none_select is True, or to an
+    empty array otherwise.
+    """
+    data = {"arr": np.zeros((2, 3))}
+    gui = parameter.ArrayGui(data=data, name="arr", none_select=True)
+    qtbot.addWidget(gui)
+
+    def set_value(value):
+        if setter == "set_param":
+            gui.set_param(value)
+        else:
+            gui.value = value
+
+    # Valid expression should be evaluated
+    set_value("np.ones((4, 5))")
+    assert gui.value is not None
+    assert_allclose(gui.value, np.ones((4, 5)))
+
+    # Invalid expression should fall back to None when none_select is True
+    set_value("not_a_valid_expression(")
+    assert gui.value is None
+
+    # Invalid expression should fall back to an empty array when none_select is False
+    gui_no_none = parameter.ArrayGui(data=data, name="arr", none_select=False)
+    qtbot.addWidget(gui_no_none)
+    gui_no_none.value = "not_a_valid_expression("
+    assert_allclose(gui_no_none.value, np.empty((0, 0)))
+
+
 @pytest.mark.skip(reason="temporarily disabled")
 def test_label_gui(qtbot, ct):
     """Test opening label-gui without error."""
