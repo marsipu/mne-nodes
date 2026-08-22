@@ -9,7 +9,7 @@ import math
 import os
 from ast import literal_eval
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,8 @@ def encode_tuples(input_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 datetime_format = "%d.%m.%Y %H:%M:%S"
+date_format = "%d.%m.%Y"
+time_format = "%H:%M:%S"
 
 
 class TypedJSONEncoder(json.JSONEncoder):
@@ -58,6 +60,10 @@ class TypedJSONEncoder(json.JSONEncoder):
                 }
             case datetime():
                 return {"datetime_type": o.strftime(datetime_format)}
+            case time():
+                return {"time_type": o.strftime(time_format)}
+            case date():
+                return {"date_type": o.strftime(date_format)}
             case set():
                 return {"set_type": list(o)}
             case Path():
@@ -123,6 +129,10 @@ def type_json_hook(obj: dict[str, Any]) -> Any:
             return np.asarray(value)
         case {"datetime_type": value}:
             return datetime.strptime(value, datetime_format).replace(tzinfo=UTC)
+        case {"date_type": value}:
+            return datetime.strptime(value, date_format).replace(tzinfo=UTC).date()
+        case {"time_type": value}:
+            return datetime.strptime(value, time_format).replace(tzinfo=UTC).time()
         case {"tuple_type": value}:
             return tuple(value)
         case {"set_type": value}:

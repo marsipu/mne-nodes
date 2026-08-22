@@ -7,7 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 import json
 import multiprocessing
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from queue import Empty
 
@@ -17,8 +17,10 @@ import pytest
 
 from mne_nodes.pipeline.io import (
     TypedJSONEncoder,
+    date_format,
     datetime_format,
     load_json_progress,
+    time_format,
     type_json_hook,
 )
 from mne_nodes.pipeline.settings import Settings
@@ -27,11 +29,12 @@ from mne_nodes.pipeline.settings import Settings
 def test_json_serialization(parameter_values):
     """Test if JSON serialization works as expected."""
     # Add nested dict with possible extra types
-    # ToDo: Add ParameterGuis for array (nested TableView) and datetime
+    # ToDo: Add ParameterGui for array (nested TableView)
     parameter_values.update(
         {
             "array": np.array([[1, 2, 3], [4, 5, 6]]),
-            "datetime": datetime(2000, 1, 1, 12, 0, 0, tzinfo=UTC),
+            "date": date(2000, 1, 1),
+            "time": time(12, 30, 15),
         }
     )
     serialized = json.dumps(parameter_values, indent=4, cls=TypedJSONEncoder)
@@ -217,6 +220,8 @@ def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path)
                 datetime_format
             )
         },
+        "date": {"date_type": date(2024, 1, 2).strftime(date_format)},
+        "time": {"time_type": time(3, 4, 5).strftime(time_format)},
         "array": {"numpy_array_type": [[1, 2], [3, 4]]},
     }
     file_path = tmp_path / "special_types.json"
@@ -232,5 +237,9 @@ def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path)
     assert isinstance(loaded["path"], Path)
     assert loaded["datetime"] == datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
     assert isinstance(loaded["datetime"], datetime)
+    assert loaded["date"] == date(2024, 1, 2)
+    assert isinstance(loaded["date"], date)
+    assert loaded["time"] == time(3, 4, 5)
+    assert isinstance(loaded["time"], time)
     np.testing.assert_array_equal(loaded["array"], np.array([[1, 2], [3, 4]]))
     assert isinstance(loaded["array"], np.ndarray)

@@ -13,6 +13,7 @@ from qtpy.QtCore import Qt
 
 from mne_nodes.gui import parameter
 from mne_nodes.gui.parameter import LabelGui, Param
+from mne_nodes.gui.parameter.callable_gui import CallableGui, evaluate_function_code
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 gui_mapping = {
@@ -20,7 +21,6 @@ gui_mapping = {
     "FloatGui": "float",
     "StringGui": "string",
     "MultiTypeGui": "multi_type",
-    "FuncGui": "func",
     "BoolGui": "bool",
     "DualTupleGui": "tuple",
     "ComboGui": "combo",
@@ -33,6 +33,8 @@ gui_mapping = {
     "ArrayGui": "array",
     "SliceGui": "slice",
     "DataFrameGui": "dataframe",
+    "CallableGui": "callable",
+    "DateTimeGui": "datetime",
 }
 
 gui_kwargs = {
@@ -49,10 +51,15 @@ gui_kwargs = {
 
 
 def _check_param(gui, gui_name, value):
-    if gui_name in ("FuncGui", "ArrayGui"):
+    if gui_name == "ArrayGui":
         assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}"
     elif gui_name == "DataFrameGui":
         assert gui.value.equals(value), f"Expected {value}, got {gui.value}"
+    elif gui_name == "CallableGui":
+        expected_func, _ = evaluate_function_code(value)
+        assert gui.value() == expected_func(), (
+            f"Expected {expected_func()}, got {gui.value()}"
+        )
     else:
         assert gui.value == value, f"Expected {value}, got {gui.value}"
 
@@ -77,7 +84,7 @@ def test_basic_param_guis(
 
     # Check if paramChanged signal is emitted and value send correctly
     def test_slot(value):
-        if gui_name in ("FuncGui", "ArrayGui") and value is not None:
+        if gui_name == "ArrayGui" and value is not None:
             (
                 assert_allclose(value, parameters[gui_name]),
                 (f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"),
@@ -85,6 +92,11 @@ def test_basic_param_guis(
         elif gui_name == "DataFrameGui" and value is not None:
             assert value.equals(parameters[gui_name]), (
                 f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"
+            )
+        elif gui_name == "CallableGui" and value is not None:
+            expected_func, _ = evaluate_function_code(parameters[gui_name])
+            assert value() == expected_func(), (
+                f"Expected {expected_func()} from PyQtSignal, got {value()}"
             )
         else:
             assert value == parameters[gui_name], (
@@ -211,6 +223,25 @@ def test_array_gui_rejects_more_than_ten_dimensions(qtbot):
         parameter.ArrayGui(data=data, name="arr")
 
 
+def test_array_gui_dtype(qtbot):
+    """ArrayGui converts table and expression input to the configured dtype."""
+    data = {"arr": np.zeros((2, 2), dtype=float)}
+    gui = parameter.ArrayGui(data=data, name="arr", dtype=int)
+    qtbot.addWidget(gui)
+
+    assert gui.value.dtype == np.dtype(int)
+
+    index = gui._table_model.index(0, 0)
+    assert gui._table_model.setData(index, "3.7")
+    assert gui.value[0, 0] == 3
+    assert gui.value.dtype == np.dtype(int)
+
+    gui._expr_edit.setText("np.array([[1.8, 2.2]])")
+    gui._on_expr_changed()
+    assert_allclose(gui.value, np.array([[1, 2]]))
+    assert gui.value.dtype == np.dtype(int)
+
+
 def test_array_gui_expr_mode(qtbot):
     """Switching to expr mode evaluates numpy expressions correctly."""
     data = {"arr": np.zeros((2, 3))}
@@ -260,6 +291,120 @@ def test_array_gui_string_expression(qtbot, setter):
     qtbot.addWidget(gui_no_none)
     gui_no_none.value = "not_a_valid_expression("
     assert_allclose(gui_no_none.value, np.empty((0, 0)))
+
+
+def test_evaluate_function_code():
+    func, error = evaluate_function_code("def foo(x):\n    return x + 1\n")
+    assert error is None
+    assert func(2) == 3
+
+    func, error = evaluate_function_code("def broken(:\n")
+    assert func is None
+    assert "Syntax error" in error
+
+    func, error = evaluate_function_code("x = 1\n")
+    assert func is None
+    assert "No top-level function" in error
+
+    func, error = evaluate_function_code("")
+    assert func is None
+    assert "No code entered" in error
+
+    func, error = evaluate_function_code(
+        "def foo(x):\n    return x + 1\n\n\ndef bar(x):\n    return x * 2\n"
+    )
+    assert func is None
+    assert "Only one function/class definition is allowed" in error
+
+
+def test_datetime_gui_date_and_time_modes(qtbot):
+    from datetime import date, time
+
+    from mne_nodes.gui.parameter import DateTimeGui
+
+    date_gui = DateTimeGui(
+        data={"d": date(2020, 5, 17)}, name="d", datetime_type="date"
+    )
+    qtbot.addWidget(date_gui)
+    assert date_gui.value == date(2020, 5, 17)
+    date_gui.value = date(2021, 6, 18)
+    assert date_gui.value == date(2021, 6, 18)
+
+    time_gui = DateTimeGui(data={"t": time(8, 15, 30)}, name="t", datetime_type="time")
+    qtbot.addWidget(time_gui)
+    assert time_gui.value == time(8, 15, 30)
+    time_gui.value = time(9, 20, 45)
+    assert time_gui.value == time(9, 20, 45)
+
+    with pytest.raises(ValueError, match="datetime_type"):
+        DateTimeGui(data={"x": None}, name="x", datetime_type="invalid")
+
+
+def test_callable_gui_load_and_edit(qtbot):
+    data = {"func": "def foo(x):\n    return x + 1\n"}
+    gui = CallableGui(data=data, name="func", none_select=True)
+    qtbot.addWidget(gui)
+
+    assert gui.value(1) == 2
+    assert gui.editor.toPlainText() == data["func"]
+    assert gui.problem_label.isHidden()
+
+    # Editing to valid code updates the value and persisted code.
+    gui.editor.setPlainText("def bar(x):\n    return x * 2\n")
+    gui._on_widget_changed()
+    assert gui.value(3) == 6
+    assert data["func"] == "def bar(x):\n    return x * 2\n"
+    assert gui.problem_label.isHidden()
+
+    # Editing to broken code clears the value but keeps the code visible.
+    gui.editor.setPlainText("def broken(:\n")
+    gui._on_widget_changed()
+    assert gui.value is None
+    assert not gui.problem_label.isHidden()
+    assert gui.editor.toPlainText() == "def broken(:\n"
+    assert data["func"] is None
+
+
+def test_callable_gui_none_select(qtbot):
+    data = {"func": "def foo(x):\n    return x + 1\n"}
+    gui = CallableGui(data=data, name="func", none_select=True, groupbox_layout=False)
+    qtbot.addWidget(gui)
+
+    gui.none_chkbx.setChecked(False)
+    assert gui.value is None
+
+    gui.none_chkbx.setChecked(True)
+    assert gui.value(1) == 2
+
+
+@pytest.mark.parametrize("groupbox_layout", [True, False])
+def test_callable_gui_stays_editable_after_failed_evaluation(qtbot, groupbox_layout):
+    """A failed evaluation must not lock out the editor like an explicit disable."""
+    data = {"func": "def foo(x):\n    return x + 1\n"}
+    gui = CallableGui(
+        data=data, name="func", none_select=True, groupbox_layout=groupbox_layout
+    )
+    qtbot.addWidget(gui)
+
+    gui.editor.setPlainText("def broken(:\n")
+    gui._on_widget_changed()
+    assert gui.value is None
+    assert gui.editor.isEnabled()
+    assert not gui._is_enabled()
+
+    # Fixing the code re-evaluates it and re-enables the none-selector.
+    gui.editor.setPlainText("def fixed(x):\n    return x * 3\n")
+    gui._on_widget_changed()
+    assert gui.value(2) == 6
+    assert gui._is_enabled()
+
+    # Explicitly disabling still disables the whole widget, including the editor.
+    if groupbox_layout:
+        gui.group_box.setChecked(False)
+    else:
+        gui.none_chkbx.setChecked(False)
+    assert gui.value is None
+    assert not gui.editor.isEnabled()
 
 
 @pytest.mark.skip(reason="temporarily disabled")

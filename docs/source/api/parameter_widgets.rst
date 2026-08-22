@@ -16,12 +16,13 @@ annotated arguments.
 
    Param
    BoolGui
+   CallableGui
    CheckListGui
    ComboGui
    DataFrameGui
+   DateTimeGui
    DictGui
    FloatGui
-   FuncGui
    IntGui
    LabelGui
    ListGui

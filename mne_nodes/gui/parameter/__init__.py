@@ -2,14 +2,15 @@
 
 from .array_gui import ArrayGui
 from .bool_gui import BoolGui
+from .callable_gui import CallableGui
 from .checklist_gui import CheckListGui
 from .color_gui import ColorGui
 from .combo_gui import ComboGui
 from .dataframe_gui import DataFrameGui
+from .datetime_gui import DateTimeGui
 from .dict_gui import DictGui
 from .dual_tuple_gui import DualTupleGui
 from .float_gui import FloatGui
-from .func_gui import FuncGui
 from .int_gui import IntGui
 from .label_gui import LabelDialog, LabelGui, LabelPicker
 from .list_gui import ListGui
@@ -25,14 +26,15 @@ from .utils import convert_dict_to_string, convert_list_to_string, eval_param
 __all__ = [
     "ArrayGui",
     "BoolGui",
+    "CallableGui",
     "CheckListGui",
     "ColorGui",
     "ComboGui",
     "DataFrameGui",
+    "DateTimeGui",
     "DictGui",
     "DualTupleGui",
     "FloatGui",
-    "FuncGui",
     "IntGui",
     "LabelDialog",
     "LabelGui",

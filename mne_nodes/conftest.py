@@ -7,6 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 import faulthandler
 import json
 import os  # added
+from datetime import UTC, datetime
 from os import mkdir
 from os.path import isdir
 from pathlib import Path
@@ -24,8 +25,6 @@ test_parameters = {
     "float": 5.3,
     "string": "postcentral-lh",
     "multi_type": 42,
-    "func": np.arange(10) * np.pi,
-    "func_exp": "np.arange(10) * np.pi",
     "bool": True,
     "tuple": (3.4, 5),
     "combo": "b",
@@ -38,6 +37,8 @@ test_parameters = {
     "array": np.arange(180).reshape(2, 3, 3, 10),
     "slice": slice(1, 10, 2),
     "dataframe": pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}),
+    "callable": "def foo():\n    return 42\n",
+    "datetime": datetime(2000, 1, 1, 12, 0, 0, tzinfo=UTC),
 }
 
 alternative_test_parameters = {
@@ -45,8 +46,6 @@ alternative_test_parameters = {
     "float": 8.45,
     "string": "precentral-lh",
     "multi_type": 32,
-    "func": np.ones((2, 3)),
-    "func_exp": "np.ones((2,3))",
     "bool": False,
     "tuple": (2, 55.1),
     "combo": "c",
@@ -59,6 +58,8 @@ alternative_test_parameters = {
     "array": np.arange(24).reshape(2, 3, 4),
     "slice": slice(2, 20, 3),
     "dataframe": pd.DataFrame({"X": [10, 20], "Y": [30, 40]}),
+    "callable": "def bar():\n    return 99\n",
+    "datetime": datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC),
 }
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"

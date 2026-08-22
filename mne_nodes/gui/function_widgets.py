@@ -44,14 +44,15 @@ from mne_nodes.gui.gui_utils import (
 )
 from mne_nodes.gui.parameter import (
     BoolGui,
+    CallableGui,
     CheckListGui,
     ColorGui,
     ComboGui,
     DataFrameGui,
+    DateTimeGui,
     DictGui,
     DualTupleGui,
     FloatGui,
-    FuncGui,
     IntGui,
     LabelGui,
     ListGui,
@@ -70,7 +71,6 @@ parameter_guis = [
     IntGui,
     FloatGui,
     StringGui,
-    FuncGui,
     BoolGui,
     DualTupleGui,
     ComboGui,
@@ -84,6 +84,8 @@ parameter_guis = [
     PathGui,
     SliceGui,
     DataFrameGui,
+    CallableGui,
+    DateTimeGui,
 ]
 
 default_type_guis = {
@@ -98,6 +100,8 @@ default_type_guis = {
     "tuple": DualTupleGui,
     "slice": SliceGui,
     "DataFrame": DataFrameGui,
+    "function": CallableGui,
+    "datetime": DateTimeGui,
 }
 
 
