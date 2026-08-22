@@ -1,5 +1,6 @@
 """Parameter GUI widgets split into dedicated modules."""
 
+from .array_gui import ArrayGui
 from .bool_gui import BoolGui
 from .checklist_gui import CheckListGui
 from .color_gui import ColorGui
@@ -22,6 +23,7 @@ from .string_gui import StringGui
 from .utils import convert_dict_to_string, convert_list_to_string, eval_param
 
 __all__ = [
+    "ArrayGui",
     "BoolGui",
     "CheckListGui",
     "ColorGui",

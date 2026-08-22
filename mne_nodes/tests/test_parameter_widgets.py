@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import inspect
 
+import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 from qtpy.QtCore import Qt
@@ -29,6 +30,7 @@ gui_mapping = {
     "SliderGui": "slider",
     "ColorGui": "color",
     "PathGui": "path",
+    "ArrayGui": "array",
     "SliceGui": "slice",
     "DataFrameGui": "dataframe",
 }
@@ -47,7 +49,7 @@ gui_kwargs = {
 
 
 def _check_param(gui, gui_name, value):
-    if gui_name == "FuncGui":
+    if gui_name in ("FuncGui", "ArrayGui"):
         assert_allclose(gui.value, value), f"Expected {value}, got {gui.value}"
     elif gui_name == "DataFrameGui":
         assert gui.value.equals(value), f"Expected {value}, got {gui.value}"
@@ -75,7 +77,7 @@ def test_basic_param_guis(
 
     # Check if paramChanged signal is emitted and value send correctly
     def test_slot(value):
-        if gui_name == "FuncGui" and value is not None:
+        if gui_name in ("FuncGui", "ArrayGui") and value is not None:
             (
                 assert_allclose(value, parameters[gui_name]),
                 (f"Expected {parameters[gui_name]} from PyQtSignal, got {value}"),
@@ -161,6 +163,103 @@ def test_basic_param_guis(
             gui.change_type(type_idx)
             gui.value = parameters[type_gui_name]
             assert gui.value == parameters[type_gui_name]
+
+
+def test_array_gui_large_array(qtbot):
+    """ArrayGui must construct without error for a large 3-D array.
+
+    Only the model is exercised here — no actual table cells are rendered,
+    so this validates the spinbox navigation path stays O(1) in array size.
+    """
+    big = np.zeros((300, 200, 50))
+    data = {"arr": big}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    # Three dimensions: one QSpinBox for axis 0
+    assert len(gui._spinboxes) == 1
+    assert gui._spinboxes[0].maximum() == 299
+
+    # Navigate to last slice — model must report correct shape
+    gui._spinboxes[0].setValue(299)
+    assert gui._table_model.rowCount() == 200
+    assert gui._table_model.columnCount() == 50
+
+
+def test_array_gui_ten_dimensions(qtbot):
+    """ArrayGui provides a selector for every dimension beyond the table."""
+    data = {"arr": np.zeros((2,) * 10)}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    assert gui._display_arr is not None
+    assert gui._display_arr.ndim == 10
+    assert len(gui._spinboxes) == 8
+
+    for spinbox in gui._spinboxes:
+        spinbox.setValue(1)
+
+    assert gui._table_model.rowCount() == 2
+    assert gui._table_model.columnCount() == 2
+
+
+def test_array_gui_rejects_more_than_ten_dimensions(qtbot):
+    """ArrayGui raises an error instead of reshaping unsupported arrays."""
+    data = {"arr": np.zeros((1,) * 11)}
+
+    with pytest.raises(ValueError, match="at most 10 dimensions"):
+        parameter.ArrayGui(data=data, name="arr")
+
+
+def test_array_gui_expr_mode(qtbot):
+    """Switching to expr mode evaluates numpy expressions correctly."""
+    data = {"arr": np.zeros((2, 3))}
+    gui = parameter.ArrayGui(data=data, name="arr")
+    qtbot.addWidget(gui)
+
+    # Switch to expr mode
+    gui._mode_cmbx.setCurrentIndex(1)
+    gui._on_mode_changed(1)
+
+    # Type a numpy expression and trigger evaluation
+    gui._expr_edit.setText("np.ones((4, 5))")
+    gui._on_expr_changed()
+
+    assert gui.value is not None
+    assert_allclose(gui.value, np.ones((4, 5)))
+
+
+@pytest.mark.parametrize("setter", ["set_param", "value"])
+def test_array_gui_string_expression(qtbot, setter):
+    """Setting a string expression via set_param/value evaluates it via eval_param.
+
+    An invalid expression must fall back to None if none_select is True, or to an
+    empty array otherwise.
+    """
+    data = {"arr": np.zeros((2, 3))}
+    gui = parameter.ArrayGui(data=data, name="arr", none_select=True)
+    qtbot.addWidget(gui)
+
+    def set_value(value):
+        if setter == "set_param":
+            gui.set_param(value)
+        else:
+            gui.value = value
+
+    # Valid expression should be evaluated
+    set_value("np.ones((4, 5))")
+    assert gui.value is not None
+    assert_allclose(gui.value, np.ones((4, 5)))
+
+    # Invalid expression should fall back to None when none_select is True
+    set_value("not_a_valid_expression(")
+    assert gui.value is None
+
+    # Invalid expression should fall back to an empty array when none_select is False
+    gui_no_none = parameter.ArrayGui(data=data, name="arr", none_select=False)
+    qtbot.addWidget(gui_no_none)
+    gui_no_none.value = "not_a_valid_expression("
+    assert_allclose(gui_no_none.value, np.empty((0, 0)))
 
 
 @pytest.mark.skip(reason="temporarily disabled")
