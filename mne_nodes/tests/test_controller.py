@@ -35,14 +35,13 @@ def test_init(ct):
     )
 
 
-@pytest.mark.skip(reason="temporarily disabled")
 def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic plugins are imported
-    assert "mne_nodes.tests.validation_functions" in ct.plugins
+    assert "validation_functions" in ct.plugins
 
     # Add a custom plugin
-    ct.add_plugin(test_plugin_config)
+    ct.load_plugin_path(test_plugin_config)
     assert "test_module" in ct.plugins, "Custom plugin should be imported"
 
     # Test custom plugin reload
@@ -163,7 +162,7 @@ def test_path_prompts(settings, tmp_path, monkeypatch):
     )
 
 
-def test_load_missing_plugins(ct, tmp_path, monkeypatch):
+def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):
     class DummyViewer:
         def load_nodes(self, *_args, **_kwargs):
             return None
@@ -171,25 +170,28 @@ def test_load_missing_plugins(ct, tmp_path, monkeypatch):
     imported_nodes = {"nodes": {"input": {"name": "Input-0"}}, "connections": {}}
     import_payload = {
         "node_config": imported_nodes,
-        "plugin_meta": {"test_module": {"plugin_github": "org/test_module"}},
+        "plugin_meta": {
+            "test_module": {
+                "plugin_github": "https://github.com/org/test_module",
+                "plugin_type": "github",
+            }
+        },
         "parameters": {"test_func1": {"a": 12}},
     }
     import_path = tmp_path / "pipeline_import_missing_module.json"
     with open(import_path, "w") as file:
         json.dump(import_payload, file, indent=4, cls=TypedJSONEncoder)
 
-    installed_plugins = []
+    loaded_plugins = []
     monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.install_pip_packages",
-        lambda plugins, *args, **kwargs: installed_plugins.extend(plugins),
+        ct, "load_plugin_github", lambda plugin_url: loaded_plugins.append(plugin_url)
     )
-    monkeypatch.setattr(ct, "load_all_plugins", lambda: None)
     monkeypatch.setitem(_widgets, "viewer", DummyViewer())
     monkeypatch.setitem(_widgets, "main_window", object())
 
     ct.config_path = import_path
 
-    assert installed_plugins == ["org/test_module"]
+    assert loaded_plugins == ["https://github.com/org/test_module"]
     assert ct.get("node_config") == imported_nodes
 
 
@@ -224,7 +226,7 @@ def test_import_plugin_from_config_file(ct, tmp_path):
     assert ct.get("plugin_meta")[plugin_name] == {
         "config_path": config_path,
         "script_path": script_path,
-        "plugin_type": "script",
+        "plugin_type": "path",
     }
 
 
@@ -259,7 +261,7 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from mne_nodes.pipeline.code_generation import CodeGenerator
 
-    monkeypatch.setattr(Controller, "load_all_plugins", lambda self: self.plugins)
+    monkeypatch.setattr(Controller, "load_recent_plugins", lambda self: self.plugins)
     ct = create_test_controller(
         settings=settings, tmp_path=tmp_path, monkeypatch=monkeypatch
     )
@@ -294,7 +296,7 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
     generated_code = generated_code.replace(
         "# Load controller\n",
-        "# Load controller\nController.load_all_plugins = lambda self: self.plugins\n",
+        "# Load controller\nController.load_recent_plugins = lambda self: self.plugins\n",
         1,
     )
     generated_code = generated_code.replace(

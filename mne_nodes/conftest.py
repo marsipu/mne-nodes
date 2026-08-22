@@ -246,8 +246,9 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": ["a"],
-            "outputs": ["a_squared"],
+            "inputs": {"a": {"accepted": ["int"], "optional": False}},
+            "outputs": {"a_squared": {"accepted": ["int"], "optional": False}},
+            "target": "file",
             "parameters": {
                 "a": {
                     "alias": "A",
@@ -274,8 +275,9 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": ["b"],
-            "outputs": ["b_plus_one"],
+            "inputs": {"b": {"accepted": ["int"], "optional": False}},
+            "outputs": {"b_plus_one": {"accepted": ["int"], "optional": False}},
+            "target": "file",
             "parameters": {
                 "c": {
                     "alias": "C",
@@ -298,7 +300,7 @@ def test_plugin_config(tmp_path, test_script):
             },
         },
     }
-    test_config_path = test_script.parent / "test_plugin_config.json"
+    test_config_path = test_script.parent / "test_module_config.json"
     with open(test_config_path, "w") as f:
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 

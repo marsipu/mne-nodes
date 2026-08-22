@@ -702,10 +702,6 @@ class Controller:
 
         if nodes and self.viewer is not None:
             self.viewer.load_nodes(config["node_config"])
-        # Todo Next: Fix and declutter this
-        if plugins and self.viewer:
-            self.load_recent_plugins()
-
         return config
 
     def load(self, *, nodes: bool = False, plugins: bool = False):
@@ -725,6 +721,8 @@ class Controller:
         try:
             with self.config_lock:
                 self._config = self._load_config(nodes=nodes, plugins=plugins)
+                if plugins and self.viewer:
+                    self.load_recent_plugins()
             self._last_load = perf_counter()
             self._local_set = False
 
