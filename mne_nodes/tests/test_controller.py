@@ -347,8 +347,7 @@ def test_load_plugin_path_saves_to_settings_on_missing(
         "mne_nodes.pipeline.controller.information_message", lambda *a, **k: None
     )
     monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.get_user_input",
-        lambda *a, **k: new_config_path,
+        "mne_nodes.pipeline.controller.get_user_input", lambda *a, **k: new_config_path
     )
 
     ct.load_plugin_path(missing_path)
@@ -372,12 +371,7 @@ def test_load_recent_plugins_uses_settings_override(
     # Pre-populate settings with the device-specific path
     ct.settings.set(
         "plugin_config",
-        {
-            plugin_name: {
-                "config_path": new_config_path,
-                "script_path": new_script_path,
-            }
-        },
+        {plugin_name: {"config_path": new_config_path, "script_path": new_script_path}},
     )
     # Store a stale (non-existent) path in plugin_meta in the config
     stale_path = tmp_path / "stale_location" / f"{plugin_name}_config.json"
@@ -417,9 +411,7 @@ def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
     desc = bids_root / "dataset_description.json"
     desc.write_text(json.dumps({"Name": "TestDataset"}), encoding="utf-8")
 
-    monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True
-    )
+    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
     ct.settings.set("bids_root", bids_root)
 
     name = ct.get_dataset_name()
@@ -431,4 +423,3 @@ def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
     ct.settings.remove("bids_root")
     cached_name = ct.get_dataset_name()
     assert cached_name == "TestDataset"
-
