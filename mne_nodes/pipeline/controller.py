@@ -1172,19 +1172,57 @@ class Controller:
             )
         return plugin_name
 
+    def _unload_plugin_session(self, plugin_name: str) -> list[str]:
+        """Remove a plugin and its functions from the current in-memory session.
+
+        Removes the plugin from ``self.plugins``, clears the associated entries
+        from ``self.function_meta``, and removes every matching
+        :class:`~mne_nodes.gui.node.nodes.FunctionNode` from the node-viewer.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to unload.
+
+        Returns
+        -------
+        list[str]
+            Function names that were removed from ``function_meta``.
+        """
+        self.plugins.pop(plugin_name, None)
+        functions_to_remove = [
+            fn
+            for fn, pm in self.function_meta.items()
+            if pm.get("plugin") == plugin_name
+        ]
+        for fn in functions_to_remove:
+            self.function_meta.pop(fn, None)
+
+        # Remove matching nodes from the viewer if it is available
+        if self.viewer is not None:
+            nodes_to_remove = [
+                node
+                for node in list(self.viewer.nodes.values())
+                if getattr(node, "name", None) in functions_to_remove
+            ]
+            for node in nodes_to_remove:
+                self.viewer.remove_node(node, force=True)
+
+        return functions_to_remove
+
     def disable_plugin(self, plugin_name: str) -> None:
-        """Mark a plugin as disabled in device settings so it is skipped on next load.
+        """Unload a plugin from the current session and mark it as disabled.
 
         The plugin remains registered in the project config (``plugin_meta``) so
-        that other devices or future re-enablement can still find it.  Only the
-        in-memory state of this session is unchanged – the plugin will not be
-        loaded in future sessions on this device.
+        that it can be re-enabled later.  The in-session unload removes its
+        functions from ``function_meta`` and removes its nodes from the viewer.
 
         Parameters
         ----------
         plugin_name : str
             Name of the plugin to disable.
         """
+        self._unload_plugin_session(plugin_name)
         disabled = set(self.settings.get("disabled_plugins", []))
         disabled.add(plugin_name)
         self.settings.set("disabled_plugins", list(disabled))
@@ -1218,15 +1256,8 @@ class Controller:
         plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
         plugin_type = plugin_meta.get("plugin_type")
 
-        # Unload from current session
-        self.plugins.pop(plugin_name, None)
-        functions_to_remove = [
-            fn
-            for fn, pm in self.function_meta.items()
-            if pm.get("plugin") == plugin_name
-        ]
-        for fn in functions_to_remove:
-            self.function_meta.pop(fn, None)
+        # Unload from current session (also removes viewer nodes)
+        functions_to_remove = self._unload_plugin_session(plugin_name)
 
         # Remove from config
         plugin_meta_config = self.get("plugin_meta", {})
