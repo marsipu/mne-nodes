@@ -311,6 +311,47 @@ def test_plugin_config(tmp_path, test_script):
 
 
 @pytest.fixture
+def make_plugin(tmp_path):
+    """Fixture that returns a factory for creating minimal file-based plugins.
+
+    The factory creates a ``<plugin_name>.py`` script and a matching
+    ``<plugin_name>_config.json`` inside *plugin_dir* and returns
+    ``(config_path, script_path)``.  Both files are written only once per
+    unique *plugin_dir* / *plugin_name* combination.
+
+    Example
+    -------
+    >>> def test_something(make_plugin, tmp_path):
+    ...     config_path, script_path = make_plugin(tmp_path / "myplugin", "myplugin")
+    """
+
+    def _factory(plugin_dir: Path, plugin_name: str):
+        plugin_dir = Path(plugin_dir)
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        script_path = plugin_dir / f"{plugin_name}.py"
+        config_path = plugin_dir / f"{plugin_name}_config.json"
+        script_path.write_text(
+            "def plugin_func(value):\n    return value + 1\n", encoding="utf-8"
+        )
+        config_path.write_text(
+            json.dumps(
+                {
+                    "plugin_func": {
+                        "inputs": {},
+                        "outputs": {},
+                        "parameters": {},
+                        "target": "file",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        return config_path, script_path
+
+    return _factory
+
+
+@pytest.fixture
 def basic_functions():
     return (
         "def test_function(a, b=1, c='test', d=[1,2,3]):\n"

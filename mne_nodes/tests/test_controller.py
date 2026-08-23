@@ -332,35 +332,13 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
 # ToDo: add a test about accessing and modifying config from multiple processes without data loss or race conditions
 
 
-def _make_plugin(plugin_dir, plugin_name):
-    """Helper to create a minimal plugin in plugin_dir."""
-    plugin_dir.mkdir(parents=True, exist_ok=True)
-    script_path = plugin_dir / f"{plugin_name}.py"
-    config_path = plugin_dir / f"{plugin_name}_config.json"
-    script_path.write_text(
-        "def plugin_func(value):\n    return value + 1\n", encoding="utf-8"
-    )
-    config_path.write_text(
-        json.dumps(
-            {
-                "plugin_func": {
-                    "inputs": {},
-                    "outputs": {},
-                    "parameters": {},
-                    "target": "file",
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-    return config_path, script_path
-
-
-def test_load_plugin_path_saves_to_settings_on_missing(ct, tmp_path, monkeypatch):
+def test_load_plugin_path_saves_to_settings_on_missing(
+    ct, tmp_path, make_plugin, monkeypatch
+):
     """When the stored plugin path is missing, the re-selected path is saved to settings."""
     plugin_name = "relocate_plugin"
     new_plugin_dir = tmp_path / "new_location"
-    new_config_path, new_script_path = _make_plugin(new_plugin_dir, plugin_name)
+    new_config_path, new_script_path = make_plugin(new_plugin_dir, plugin_name)
 
     # Simulate missing config path – point to a non-existent file
     missing_path = tmp_path / "old_location" / f"{plugin_name}_config.json"
@@ -383,11 +361,13 @@ def test_load_plugin_path_saves_to_settings_on_missing(ct, tmp_path, monkeypatch
     assert Path(plugin_config[plugin_name]["script_path"]) == new_script_path
 
 
-def test_load_recent_plugins_uses_settings_override(ct, tmp_path, monkeypatch):
+def test_load_recent_plugins_uses_settings_override(
+    ct, tmp_path, make_plugin, monkeypatch
+):
     """load_recent_plugins uses the device-specific path from settings, not the config path."""
     plugin_name = "device_plugin"
     new_plugin_dir = tmp_path / "device_location"
-    new_config_path, new_script_path = _make_plugin(new_plugin_dir, plugin_name)
+    new_config_path, new_script_path = make_plugin(new_plugin_dir, plugin_name)
 
     # Pre-populate settings with the device-specific path
     ct.settings.set(
@@ -404,7 +384,11 @@ def test_load_recent_plugins_uses_settings_override(ct, tmp_path, monkeypatch):
     ct.set_dict_value(
         "plugin_meta",
         plugin_name,
-        {"config_path": stale_path, "script_path": stale_path.parent / f"{plugin_name}.py", "plugin_type": "path"},
+        {
+            "config_path": stale_path,
+            "script_path": stale_path.parent / f"{plugin_name}.py",
+            "plugin_type": "path",
+        },
     )
 
     # load_recent_plugins should pick up the settings override, not the stale config path
@@ -447,3 +431,4 @@ def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
     ct.settings.remove("bids_root")
     cached_name = ct.get_dataset_name()
     assert cached_name == "TestDataset"
+
