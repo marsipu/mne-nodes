@@ -1136,19 +1136,33 @@ class Controller:
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
         pass
 
-    def load_recent_plugins(self) -> None:
+    def load_recent_plugins(self, plugin_name: str | None = None) -> None:
+        """Load plugins registered in the project config.
+
+        Parameters
+        ----------
+        plugin_name : str | None
+            If given, only this specific plugin is loaded.  If ``None`` (the
+            default), all non-disabled plugins in ``plugin_meta`` are loaded.
+        """
         device_plugin_config = self.settings.get("plugin_config", {})
         disabled_plugins = set(self.settings.get("disabled_plugins", []))
-        for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
-            if plugin_name in disabled_plugins:
-                logger.debug(f"Skipping disabled plugin '{plugin_name}'.")
+        plugin_meta_all = self.get("plugin_meta", {})
+        items = (
+            {plugin_name: plugin_meta_all[plugin_name]}.items()
+            if plugin_name is not None and plugin_name in plugin_meta_all
+            else plugin_meta_all.items()
+        )
+        for pname, plugin_meta in items:
+            if pname in disabled_plugins:
+                logger.debug(f"Skipping disabled plugin '{pname}'.")
                 continue
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
                 case "path":
                     # Prefer device-specific path stored in settings over the
                     # shared config path (which may not be valid on this device).
-                    device_override = device_plugin_config.get(plugin_name, {})
+                    device_override = device_plugin_config.get(pname, {})
                     config_path = device_override.get(
                         "config_path", plugin_meta["config_path"]
                     )
@@ -1156,10 +1170,10 @@ class Controller:
                 case "github":
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":
-                    self.load_plugin_module_name(plugin_name)
+                    self.load_plugin_module_name(pname)
                 case _:
                     logger.warning(
-                        f"Unknown plugin type '{plugin_type}' for plugin '{plugin_name}'. Skipping."
+                        f"Unknown plugin type '{plugin_type}' for plugin '{pname}'. Skipping."
                     )
 
     def get_plugin_from_function(self, function_name: str) -> str:
@@ -1172,25 +1186,69 @@ class Controller:
             )
         return plugin_name
 
+    def _unload_plugin_session(self, plugin_name: str) -> list[str]:
+        """Remove a plugin and its functions from the current in-memory session.
+
+        Removes the plugin from ``self.plugins``, clears the associated entries
+        from ``self.function_meta``, and removes every matching
+        :class:`~mne_nodes.gui.node.nodes.FunctionNode` from the node-viewer.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to unload.
+
+        Returns
+        -------
+        list[str]
+            Function names that were removed from ``function_meta``.
+        """
+        self.plugins.pop(plugin_name, None)
+        functions_to_remove = [
+            fn
+            for fn, pm in self.function_meta.items()
+            if pm.get("plugin") == plugin_name
+        ]
+        for fn in functions_to_remove:
+            self.function_meta.pop(fn, None)
+
+        # Remove matching nodes from the viewer if it is available
+        if self.viewer is not None:
+            nodes_to_remove = [
+                node
+                for node in list(self.viewer.nodes.values())
+                if getattr(node, "name", None) in functions_to_remove
+            ]
+            for node in nodes_to_remove:
+                self.viewer.remove_node(node, force=True)
+            self.viewer.refresh_node_picker()
+
+        return functions_to_remove
+
     def disable_plugin(self, plugin_name: str) -> None:
-        """Mark a plugin as disabled in device settings so it is skipped on next load.
+        """Unload a plugin from the current session and mark it as disabled.
 
         The plugin remains registered in the project config (``plugin_meta``) so
-        that other devices or future re-enablement can still find it.  Only the
-        in-memory state of this session is unchanged – the plugin will not be
-        loaded in future sessions on this device.
+        that it can be re-enabled later.  The in-session unload removes its
+        functions from ``function_meta`` and removes its nodes from the viewer.
 
         Parameters
         ----------
         plugin_name : str
             Name of the plugin to disable.
         """
+        self._unload_plugin_session(plugin_name)
         disabled = set(self.settings.get("disabled_plugins", []))
         disabled.add(plugin_name)
         self.settings.set("disabled_plugins", list(disabled))
 
     def enable_plugin(self, plugin_name: str) -> None:
-        """Re-enable a previously disabled plugin in device settings.
+        """Re-enable a previously disabled plugin in device settings and reload it.
+
+        Removes the plugin from the disabled list, loads it immediately in the
+        current session via :meth:`load_recent_plugins`, and then tells the
+        node-viewer to refresh the node picker so the newly available functions
+        show up right away.
 
         Parameters
         ----------
@@ -1200,6 +1258,11 @@ class Controller:
         disabled = set(self.settings.get("disabled_plugins", []))
         disabled.discard(plugin_name)
         self.settings.set("disabled_plugins", list(disabled))
+        # Reload the plugin immediately in the current session
+        self.load_recent_plugins(plugin_name)
+        # Refresh the node picker in the viewer if available
+        if self.viewer is not None:
+            self.viewer.refresh_node_picker()
 
     def remove_plugin(self, plugin_name: str) -> None:
         """Unload a plugin from the current session and remove it from the config.
@@ -1218,15 +1281,8 @@ class Controller:
         plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
         plugin_type = plugin_meta.get("plugin_type")
 
-        # Unload from current session
-        self.plugins.pop(plugin_name, None)
-        functions_to_remove = [
-            fn
-            for fn, pm in self.function_meta.items()
-            if pm.get("plugin") == plugin_name
-        ]
-        for fn in functions_to_remove:
-            self.function_meta.pop(fn, None)
+        # Unload from current session (also removes viewer nodes)
+        functions_to_remove = self._unload_plugin_session(plugin_name)
 
         # Remove from config
         plugin_meta_config = self.get("plugin_meta", {})
