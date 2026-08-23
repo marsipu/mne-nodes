@@ -111,10 +111,18 @@ class MainWindow(QMainWindow):
             statusTip="Load a plugin from a GitHub repository.",
         )
         load_plugin_github_action.triggered.connect(self.load_plugin_github)
+        manage_plugins_action = QAction(
+            "&Manage Plugins",
+            parent=self,
+            statusTip="View, disable or remove loaded plugins.",
+        )
+        manage_plugins_action.triggered.connect(self.manage_plugins)
         plugin_menu = self.menuBar().addMenu("&Plugins")
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
         plugin_menu.addAction(load_plugin_github_action)
+        plugin_menu.addSeparator()
+        plugin_menu.addAction(manage_plugins_action)
         exit_action = QAction("&Exit", parent=self)
         exit_action.triggered.connect(self.close)
         # Viewer actions
@@ -208,6 +216,12 @@ class MainWindow(QMainWindow):
             return
         self.controller.load_plugin_github(plugin_url)
         self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
+
+    def manage_plugins(self):
+        from mne_nodes.gui.parameter.settings_dlg import PluginManagerDlg
+
+        dlg = PluginManagerDlg(self, self.controller)
+        dlg.open()
 
     def add_sample_bids(self):
         sample_root = get_user_input(

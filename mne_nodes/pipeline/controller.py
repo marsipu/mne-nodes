@@ -1138,7 +1138,11 @@ class Controller:
 
     def load_recent_plugins(self) -> None:
         device_plugin_config = self.settings.get("plugin_config", {})
+        disabled_plugins = set(self.settings.get("disabled_plugins", []))
         for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
+            if plugin_name in disabled_plugins:
+                logger.debug(f"Skipping disabled plugin '{plugin_name}'.")
+                continue
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
                 case "path":
@@ -1167,6 +1171,92 @@ class Controller:
                 f"Function '{function_name}' has no valid plugin configured."
             )
         return plugin_name
+
+    def disable_plugin(self, plugin_name: str) -> None:
+        """Mark a plugin as disabled in device settings so it is skipped on next load.
+
+        The plugin remains registered in the project config (``plugin_meta``) so
+        that other devices or future re-enablement can still find it.  Only the
+        in-memory state of this session is unchanged – the plugin will not be
+        loaded in future sessions on this device.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to disable.
+        """
+        disabled = set(self.settings.get("disabled_plugins", []))
+        disabled.add(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled))
+
+    def enable_plugin(self, plugin_name: str) -> None:
+        """Re-enable a previously disabled plugin in device settings.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to re-enable.
+        """
+        disabled = set(self.settings.get("disabled_plugins", []))
+        disabled.discard(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled))
+
+    def remove_plugin(self, plugin_name: str) -> None:
+        """Unload a plugin from the current session and remove it from the config.
+
+        For ``path``-type plugins the script and config files are deleted from
+        disk together with any cached bytecode.  For ``github`` and ``module``
+        plugins the distribution is uninstalled via pip.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to remove.
+        """
+        from pathlib import Path
+
+        plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
+        plugin_type = plugin_meta.get("plugin_type")
+
+        # Unload from current session
+        self.plugins.pop(plugin_name, None)
+        functions_to_remove = [
+            fn
+            for fn, pm in self.function_meta.items()
+            if pm.get("plugin") == plugin_name
+        ]
+        for fn in functions_to_remove:
+            self.function_meta.pop(fn, None)
+
+        # Remove from config
+        plugin_meta_config = self.get("plugin_meta", {})
+        plugin_meta_config.pop(plugin_name, None)
+        self.set("plugin_meta", plugin_meta_config)
+        functions_config = self.get("functions", {})
+        for fn in functions_to_remove:
+            functions_config.pop(fn, None)
+        self.set("functions", functions_config)
+
+        # Remove device-specific settings entry
+        plugin_config = self.settings.get("plugin_config", {})
+        plugin_config.pop(plugin_name, None)
+        self.settings.set("plugin_config", plugin_config)
+
+        if plugin_type == "path":
+            config_path = plugin_meta.get("config_path")
+            script_path = plugin_meta.get("script_path")
+            for p in [config_path, script_path]:
+                if p is not None:
+                    try:
+                        Path(p).unlink(missing_ok=True)
+                        bytecode = Path(p).with_suffix(".pyc")
+                        bytecode.unlink(missing_ok=True)
+                    except OSError as exc:
+                        logger.warning(f"Could not delete plugin file {p}: {exc}")
+        elif plugin_type in ("github", "module"):
+            from mne_nodes.pipeline.package_utils import uninstall_pip_packages
+
+            uninstall_pip_packages([plugin_name], parent=self)
 
     def reload_plugins(self, plugin_name: str | None = None) -> None:
         """Reload all plugins in the controller.
