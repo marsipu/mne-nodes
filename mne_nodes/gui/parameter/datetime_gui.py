@@ -37,6 +37,9 @@ class DateTimeGui(Param):
         *datetime_type*.
     """
 
+    # Overridden per-instance in __init__ based on datetime_type.
+    data_type = datetime
+
     def __init__(
         self,
         datetime_type: Literal["datetime", "date", "time"] = "datetime",

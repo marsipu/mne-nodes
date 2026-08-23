@@ -1256,7 +1256,7 @@ class Controller:
         elif plugin_type in ("github", "module"):
             from mne_nodes.pipeline.package_utils import uninstall_pip_packages
 
-            uninstall_pip_packages([plugin_name], parent=self)
+            uninstall_pip_packages([plugin_name])
 
     def reload_plugins(self, plugin_name: str | None = None) -> None:
         """Reload all plugins in the controller.

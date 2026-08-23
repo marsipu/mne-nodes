@@ -29,6 +29,7 @@ gui_mapping = {
     "DictGui": "dict",
     "SliderGui": "slider",
     "ColorGui": "color",
+    "ColorDictGui": "color_dict",
     "PathGui": "path",
     "ArrayGui": "array",
     "SliceGui": "slice",
