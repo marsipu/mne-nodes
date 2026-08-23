@@ -268,6 +268,15 @@ class CodeGenerator:
                                         1,
                                     )
 
-        code += "# Keep matplotlib plots open\nplt.ioff()\nplt.show(block=True)\n"
+        code += (
+            "# Keep plots open until all windows are closed\n"
+            "plt.ioff()\n"
+            "plt.show(block=False)\n"
+            "# Start Qt event loop to keep Qt-based plots (and matplotlib Qt backend) open\n"
+            "from qtpy.QtWidgets import QApplication\n"
+            "app = QApplication.instance() or QApplication([])\n"
+            "if app.topLevelWidgets():\n"
+            "    app.exec()\n"
+        )
 
         return code
