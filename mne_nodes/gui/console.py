@@ -366,6 +366,7 @@ class ConsoleDock(QDockWidget):
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.setMinimumWidth(600)
         self.tab_widget = QTabWidget(self)
         self.tab_widget.setMovable(False)
         self.tab_widget.setDocumentMode(False)
@@ -396,13 +397,16 @@ class ConsoleDock(QDockWidget):
 
     def _close_process(self, process_idx):
         process = self.processes[process_idx]
-        if process.state() != QProcess.ProcessState.NotRunning:
-            ans = ask_user(f"Do you really want to stop process {process_idx}?")
-            if ans:
-                # Kill process
-                process.kill()
-            else:
-                return
+        try:
+            if process.state() != QProcess.ProcessState.NotRunning:
+                ans = ask_user(f"Do you really want to stop process {process_idx}?")
+                if ans:
+                    # Kill process
+                    process.kill()
+                else:
+                    return
+        except RuntimeError:
+            logger.debug(f"Process {process_idx} already deleted.")
         # Remove process
         self.processes.pop(process_idx)
         # Remove tab

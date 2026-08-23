@@ -162,6 +162,14 @@ class InputNode(BaseNode):
                     old_id=port_kwargs.get("old_id"),
                     warn_existing=False,
                 )
+        # Add event-id as output
+        if "event_id" not in self.outputs:
+            self.add_output(
+                "event_id",
+                multi_connection=True,
+                accepted_ports=["event_id"],
+                warn_existing=False,
+            )
 
 
 class FunctionNode(BaseNode):

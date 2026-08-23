@@ -940,6 +940,18 @@ class Controller:
         parameters[function_name][parameter_name] = value
         self.set("parameters", parameters)
 
+    def func_inputs(self, function_name: str, loaded_data: list) -> list:
+        func_meta = self.get_function_meta(function_name)
+        func_inputs = []
+        for i, v in func_meta.get("inputs", {}).items():
+            if not v["optional"] and i not in loaded_data:
+                raise ValueError(
+                    f"Required input '{i}' for function '{function_name}' is missing from loaded data."
+                )
+            if i in loaded_data:
+                func_inputs.append(i)
+        return func_inputs
+
     def func_parameters(self, function_name):
         """Get the parameters for a specific function from the project."""
         func_meta = self.get_function_meta(function_name)
