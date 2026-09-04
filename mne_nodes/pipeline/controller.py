@@ -53,6 +53,7 @@ default_config = {
     "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
+    "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
     # Parameters
     "parameters": {},
     # Pipelined Configuration
@@ -811,14 +812,22 @@ class Controller:
     # BIDS
     ####################################################################################
     def get_dataset_name(self) -> str | None:
-        bids_root = self.ensure_bids_root(interactive=False)
-        dataset_file = bids_root / "dataset_description.json"
-        if not dataset_file.is_file():
-            logger.warning(f"Dataset description file not found at {dataset_file}.")
-            return None
-        else:
-            dataset_description = load_json(dataset_file, no_gui=True)
-            return dataset_description["Name"]
+        try:
+            bids_root = self.ensure_bids_root(interactive=False)
+        except RuntimeError:
+            bids_root = None
+        if bids_root is not None:
+            dataset_file = bids_root / "dataset_description.json"
+            if dataset_file.is_file():
+                dataset_description = load_json(dataset_file, no_gui=True)
+                name = dataset_description.get("Name")
+                if name is not None:
+                    self.set("bids_dataset_name", name)
+                    return name
+            else:
+                logger.warning(f"Dataset description file not found at {dataset_file}.")
+        # Fall back to cached value from config
+        return self.get("bids_dataset_name", None)
 
     def get_group_by(self, group_by):
         if group_by == "custom":
@@ -930,6 +939,18 @@ class Controller:
             parameters[function_name] = {}
         parameters[function_name][parameter_name] = value
         self.set("parameters", parameters)
+
+    def func_inputs(self, function_name: str, loaded_data: list) -> list:
+        func_meta = self.get_function_meta(function_name)
+        func_inputs = []
+        for i, v in func_meta.get("inputs", {}).items():
+            if not v["optional"] and i not in loaded_data:
+                raise ValueError(
+                    f"Required input '{i}' for function '{function_name}' is missing from loaded data."
+                )
+            if i in loaded_data:
+                func_inputs.append(i)
+        return func_inputs
 
     def func_parameters(self, function_name):
         """Get the parameters for a specific function from the project."""
@@ -1073,7 +1094,9 @@ class Controller:
 
     def load_plugin_path(self, config_path: str | Path):
         config_path = Path(config_path)
+        path_was_missing = False
         if not config_path.is_file():
+            path_was_missing = True
             information_message(
                 f"Plugin config file '{config_path}' not found. Please select "
                 "the new location.",
@@ -1087,6 +1110,7 @@ class Controller:
             )  # type: ignore
             if config_path is None:
                 return
+            config_path = Path(config_path)
         pattern = r"([\w_]+)_config\.json$"
         match = re.search(pattern, str(config_path))
         if match:
@@ -1106,6 +1130,15 @@ class Controller:
             "script_path": script_path,
             "plugin_type": "path",
         }
+        if path_was_missing:
+            # Save the new device-specific path to settings so it is used
+            # automatically on the next session without prompting again.
+            plugin_config = self.settings.get("plugin_config", {})
+            plugin_config[plugin_name] = {
+                "config_path": config_path,
+                "script_path": script_path,
+            }
+            self.settings.set("plugin_config", plugin_config)
         if str(folder_path) not in sys.path:
             sys.path.append(str(folder_path))
         plugin = import_module(plugin_name)
@@ -1115,19 +1148,44 @@ class Controller:
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
         pass
 
-    def load_recent_plugins(self) -> None:
-        for plugin_name, plugin_meta in self.get("plugin_meta", {}).items():
+    def load_recent_plugins(self, plugin_name: str | None = None) -> None:
+        """Load plugins registered in the project config.
+
+        Parameters
+        ----------
+        plugin_name : str | None
+            If given, only this specific plugin is loaded.  If ``None`` (the
+            default), all non-disabled plugins in ``plugin_meta`` are loaded.
+        """
+        device_plugin_config = self.settings.get("plugin_config", {})
+        disabled_plugins = set(self.settings.get("disabled_plugins", []))
+        plugin_meta_all = self.get("plugin_meta", {})
+        items = (
+            {plugin_name: plugin_meta_all[plugin_name]}.items()
+            if plugin_name is not None and plugin_name in plugin_meta_all
+            else plugin_meta_all.items()
+        )
+        for pname, plugin_meta in items:
+            if pname in disabled_plugins:
+                logger.debug(f"Skipping disabled plugin '{pname}'.")
+                continue
             plugin_type = plugin_meta.get("plugin_type")
             match plugin_type:
                 case "path":
-                    self.load_plugin_path(plugin_meta["config_path"])
+                    # Prefer device-specific path stored in settings over the
+                    # shared config path (which may not be valid on this device).
+                    device_override = device_plugin_config.get(pname, {})
+                    config_path = device_override.get(
+                        "config_path", plugin_meta["config_path"]
+                    )
+                    self.load_plugin_path(config_path)
                 case "github":
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":
-                    self.load_plugin_module_name(plugin_name)
+                    self.load_plugin_module_name(pname)
                 case _:
                     logger.warning(
-                        f"Unknown plugin type '{plugin_type}' for plugin '{plugin_name}'. Skipping."
+                        f"Unknown plugin type '{plugin_type}' for plugin '{pname}'. Skipping."
                     )
 
     def get_plugin_from_function(self, function_name: str) -> str:
@@ -1139,6 +1197,134 @@ class Controller:
                 f"Function '{function_name}' has no valid plugin configured."
             )
         return plugin_name
+
+    def _unload_plugin_session(self, plugin_name: str) -> list[str]:
+        """Remove a plugin and its functions from the current in-memory session.
+
+        Removes the plugin from ``self.plugins``, clears the associated entries
+        from ``self.function_meta``, and removes every matching
+        :class:`~mne_nodes.gui.node.nodes.FunctionNode` from the node-viewer.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to unload.
+
+        Returns
+        -------
+        list[str]
+            Function names that were removed from ``function_meta``.
+        """
+        self.plugins.pop(plugin_name, None)
+        functions_to_remove = [
+            fn
+            for fn, pm in self.function_meta.items()
+            if pm.get("plugin") == plugin_name
+        ]
+        for fn in functions_to_remove:
+            self.function_meta.pop(fn, None)
+
+        # Remove matching nodes from the viewer if it is available
+        if self.viewer is not None:
+            nodes_to_remove = [
+                node
+                for node in list(self.viewer.nodes.values())
+                if getattr(node, "name", None) in functions_to_remove
+            ]
+            for node in nodes_to_remove:
+                self.viewer.remove_node(node, force=True)
+            self.viewer.refresh_node_picker()
+
+        return functions_to_remove
+
+    def disable_plugin(self, plugin_name: str) -> None:
+        """Unload a plugin from the current session and mark it as disabled.
+
+        The plugin remains registered in the project config (``plugin_meta``) so
+        that it can be re-enabled later.  The in-session unload removes its
+        functions from ``function_meta`` and removes its nodes from the viewer.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to disable.
+        """
+        self._unload_plugin_session(plugin_name)
+        disabled = set(self.settings.get("disabled_plugins", []))
+        disabled.add(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled))
+
+    def enable_plugin(self, plugin_name: str) -> None:
+        """Re-enable a previously disabled plugin in device settings and reload it.
+
+        Removes the plugin from the disabled list, loads it immediately in the
+        current session via :meth:`load_recent_plugins`, and then tells the
+        node-viewer to refresh the node picker so the newly available functions
+        show up right away.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to re-enable.
+        """
+        disabled = set(self.settings.get("disabled_plugins", []))
+        disabled.discard(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled))
+        # Reload the plugin immediately in the current session
+        self.load_recent_plugins(plugin_name)
+        # Refresh the node picker in the viewer if available
+        if self.viewer is not None:
+            self.viewer.refresh_node_picker()
+
+    def remove_plugin(self, plugin_name: str) -> None:
+        """Unload a plugin from the current session and remove it from the config.
+
+        For ``path``-type plugins the script and config files are deleted from
+        disk together with any cached bytecode.  For ``github`` and ``module``
+        plugins the distribution is uninstalled via pip.
+
+        Parameters
+        ----------
+        plugin_name : str
+            Name of the plugin to remove.
+        """
+        from pathlib import Path
+
+        plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
+        plugin_type = plugin_meta.get("plugin_type")
+
+        # Unload from current session (also removes viewer nodes)
+        functions_to_remove = self._unload_plugin_session(plugin_name)
+
+        # Remove from config
+        plugin_meta_config = self.get("plugin_meta", {})
+        plugin_meta_config.pop(plugin_name, None)
+        self.set("plugin_meta", plugin_meta_config)
+        functions_config = self.get("functions", {})
+        for fn in functions_to_remove:
+            functions_config.pop(fn, None)
+        self.set("functions", functions_config)
+
+        # Remove device-specific settings entry
+        plugin_config = self.settings.get("plugin_config", {})
+        plugin_config.pop(plugin_name, None)
+        self.settings.set("plugin_config", plugin_config)
+
+        if plugin_type == "path":
+            config_path = plugin_meta.get("config_path")
+            script_path = plugin_meta.get("script_path")
+            for p in [config_path, script_path]:
+                if p is not None:
+                    try:
+                        Path(p).unlink(missing_ok=True)
+                        bytecode = Path(p).with_suffix(".pyc")
+                        bytecode.unlink(missing_ok=True)
+                    except OSError as exc:
+                        logger.warning(f"Could not delete plugin file {p}: {exc}")
+        elif plugin_type in ("github", "module"):
+            from mne_nodes.pipeline.package_utils import uninstall_pip_packages
+
+            uninstall_pip_packages([plugin_name])
 
     def reload_plugins(self, plugin_name: str | None = None) -> None:
         """Reload all plugins in the controller.

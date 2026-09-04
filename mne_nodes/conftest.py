@@ -32,7 +32,8 @@ test_parameters = {
     "check_list": ["postcentral-lh", "insula-lh"],
     "dict": {"A": "B", "C": 58.144, "D": [1, 2, 3, 4], "E": {"A": 1, "B": 2}, 1: 123},
     "slider": 5,
-    "color": {"C": "#98765432", 3: "#97867564"},
+    "color": "#98765432",
+    "color_dict": {"C": "#98765432", 3: "#97867564"},
     "path": Path().home(),
     "array": np.arange(180).reshape(2, 3, 3, 10),
     "slice": slice(1, 10, 2),
@@ -53,7 +54,8 @@ alternative_test_parameters = {
     "check_list": ["precentral-lh", "insula-rh"],
     "dict": {"B": "V", "e": 11.333, 5: [65, 3, 11], "F": {"C": 1, "D": 2}, 2: 456},
     "slider": 2,
-    "color": {"A": "#12345678", "B": "#13243546"},
+    "color": "#12345678",
+    "color_dict": {"A": "#12345678", "B": "#13243546"},
     "path": Path().home() / "test_path",
     "array": np.arange(24).reshape(2, 3, 4),
     "slice": slice(2, 20, 3),
@@ -308,6 +310,47 @@ def test_plugin_config(tmp_path, test_script):
         json.dump(test_config, f, indent=4, cls=TypedJSONEncoder)
 
     return test_config_path
+
+
+@pytest.fixture
+def make_plugin(tmp_path):
+    """Fixture that returns a factory for creating minimal file-based plugins.
+
+    The factory creates a ``<plugin_name>.py`` script and a matching
+    ``<plugin_name>_config.json`` inside *plugin_dir* and returns
+    ``(config_path, script_path)``.  Both files are written only once per
+    unique *plugin_dir* / *plugin_name* combination.
+
+    Example
+    -------
+    >>> def test_something(make_plugin, tmp_path):
+    ...     config_path, script_path = make_plugin(tmp_path / "myplugin", "myplugin")
+    """
+
+    def _factory(plugin_dir: Path, plugin_name: str):
+        plugin_dir = Path(plugin_dir)
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        script_path = plugin_dir / f"{plugin_name}.py"
+        config_path = plugin_dir / f"{plugin_name}_config.json"
+        script_path.write_text(
+            "def plugin_func(value):\n    return value + 1\n", encoding="utf-8"
+        )
+        config_path.write_text(
+            json.dumps(
+                {
+                    "plugin_func": {
+                        "inputs": {},
+                        "outputs": {},
+                        "parameters": {},
+                        "target": "file",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        return config_path, script_path
+
+    return _factory
 
 
 @pytest.fixture
