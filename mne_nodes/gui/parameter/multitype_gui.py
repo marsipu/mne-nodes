@@ -1,20 +1,30 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from functools import reduce
+from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pandas as pd
 from qtpy.QtWidgets import QComboBox, QHBoxLayout, QSizePolicy, QStackedLayout
 
+from .array_gui import ArrayGui
 from .bool_gui import BoolGui
 from .checklist_gui import CheckListGui
+from .color_gui import ColorGui
 from .combo_gui import ComboGui
+from .dataframe_gui import DataFrameGui
+from .datetime_gui import DateTimeGui
 from .dict_gui import DictGui
 from .dual_tuple_gui import DualTupleGui
 from .float_gui import FloatGui
 from .int_gui import IntGui
 from .list_gui import ListGui
 from .param import Param
+from .path_gui import PathGui
+from .slice_gui import SliceGui
 from .slider_gui import SliderGui
 from .string_gui import StringGui
 
@@ -41,6 +51,12 @@ class MultiTypeGui(Param):
                 "combo",
                 "checklist",
                 "slider",
+                "array",
+                "path",
+                "slice",
+                "dataframe",
+                "datetime",
+                "color",
             ]
         )
         self.type_defaults = {
@@ -54,6 +70,12 @@ class MultiTypeGui(Param):
             "combo": "",
             "checklist": [],
             "slider": 0.0,
+            "array": np.empty(0),
+            "path": Path(),
+            "slice": slice(None),
+            "dataframe": pd.DataFrame(),
+            "datetime": datetime.now(tz=UTC),
+            "color": "#000000",
         }
         self.type_kwargs = type_kwargs or {
             "combo": {"options": [""], "editable": True},
@@ -71,6 +93,12 @@ class MultiTypeGui(Param):
             "combo": "ComboGui",
             "checklist": "CheckListGui",
             "slider": "SliderGui",
+            "array": "ArrayGui",
+            "path": "PathGui",
+            "slice": "SliceGui",
+            "dataframe": "DataFrameGui",
+            "datetime": "DateTimeGui",
+            "color": "ColorGui",
         }
         self.gui_class_map = {
             "IntGui": IntGui,
@@ -83,6 +111,12 @@ class MultiTypeGui(Param):
             "ComboGui": ComboGui,
             "CheckListGui": CheckListGui,
             "SliderGui": SliderGui,
+            "ArrayGui": ArrayGui,
+            "PathGui": PathGui,
+            "SliceGui": SliceGui,
+            "DataFrameGui": DataFrameGui,
+            "DateTimeGui": DateTimeGui,
+            "ColorGui": ColorGui,
         }
         self.gui_widgets = {}
         self.type_layout = QHBoxLayout()

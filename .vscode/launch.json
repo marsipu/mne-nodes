@@ -3,7 +3,21 @@
     "configurations": [
 
         {
-            "name": "mne-nodes",
+            "name": "Debug mne-nodes",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mne_nodes",
+            "autoReload": {
+                "enable": true
+            },
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "MNENODES_DEBUG": "true"
+            }
+        },
+        {
+            "name": "Run mne-nodes",
             "type": "debugpy",
             "request": "launch",
             "module": "mne_nodes",

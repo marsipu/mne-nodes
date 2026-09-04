@@ -70,6 +70,7 @@ class NodeViewer(QGraphicsView):
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
         self._input_node: InputNode | None = None
         self._function_nodes: dict[str, FunctionNode] = {}
+        self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._last_size = self.size()
         self._detached_port: Port | None = None
@@ -657,6 +658,22 @@ class NodeViewer(QGraphicsView):
         # list conversion necessary because self.nodes is mutated
         for node in list(self.nodes.values()):
             self.remove_node(node, force=True)
+
+    def refresh_node_picker(self):
+        """Rebuild the function list in the node picker.
+
+        Called after plugins are loaded or unloaded so that the picker
+        reflects the current state of :attr:`~Controller.function_meta`.
+        Does nothing if no node picker has been registered on this viewer.
+        """
+        if self.node_picker is None:
+            return
+        from mne_nodes.gui.widget_models.function_picker_model import (
+            FunctionPickerModel,
+        )
+
+        new_model = FunctionPickerModel(self.ct.function_meta)
+        self.node_picker.functions_view.setModel(new_model)
 
     def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
         if visited is None:

@@ -4,7 +4,7 @@ from .array_gui import ArrayGui
 from .bool_gui import BoolGui
 from .callable_gui import CallableGui
 from .checklist_gui import CheckListGui
-from .color_gui import ColorGui
+from .color_gui import ColorDictGui, ColorGui
 from .combo_gui import ComboGui
 from .dataframe_gui import DataFrameGui
 from .datetime_gui import DateTimeGui
@@ -28,6 +28,7 @@ __all__ = [
     "BoolGui",
     "CallableGui",
     "CheckListGui",
+    "ColorDictGui",
     "ColorGui",
     "ComboGui",
     "DataFrameGui",

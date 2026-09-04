@@ -29,6 +29,7 @@ gui_mapping = {
     "DictGui": "dict",
     "SliderGui": "slider",
     "ColorGui": "color",
+    "ColorDictGui": "color_dict",
     "PathGui": "path",
     "ArrayGui": "array",
     "SliceGui": "slice",
@@ -174,7 +175,7 @@ def test_basic_param_guis(
         for type_idx, (gui_type, type_gui_name) in enumerate(gui.gui_types.items()):
             gui.change_type(type_idx)
             gui.value = parameters[type_gui_name]
-            assert gui.value == parameters[type_gui_name]
+            _check_param(gui, type_gui_name, parameters[type_gui_name])
 
 
 def test_array_gui_large_array(qtbot):

@@ -22,6 +22,7 @@ from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 default_device_settings = {
     "config_path": None,  # Last used project config file
     "plugin_config": {},  # Plugins and their config-paths
+    "disabled_plugins": [],  # Plugin names disabled on this device
     "log_file_path": None,  # Optional custom log file path
     "data_path": None,  # Project data directory (device specific)
     "plot_path": None,  # Plot export directory (device specific)
