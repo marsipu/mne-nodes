@@ -122,7 +122,7 @@ class ColorDictGui(ColorGui):
         self.init_ui(layout)
 
     def _change_display_color(self):
-        key = self.select_widget.currentText()
+        key = self._get_selected_key()
         if key in self._cached_value:
             color = _get_color(self._cached_value[key])
             pixmap = QPixmap(20, 20)
@@ -139,8 +139,12 @@ class ColorDictGui(ColorGui):
     def _get_widget_value(self):
         return self._cached_value
 
+    def _get_selected_key(self):
+        text = self.select_widget.currentText()
+        return next((key for key in self._cached_value if str(key) == text), text)
+
     def _pick_color(self):
-        key = self.select_widget.currentText()
+        key = self._get_selected_key()
         previous_value = self._cached_value.get(key)
         color = self._open_color_dialog(previous_value)
         if color.isValid():
