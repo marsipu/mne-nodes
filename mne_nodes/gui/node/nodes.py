@@ -184,6 +184,8 @@ class FunctionNode(BaseNode):
         else:
             checkbox = None
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
+        # Set Tooltip
+        self.setToolTip(func_meta.get("description", ""))
         # Initialize inputs and outputs
         for input_name in func_meta["inputs"]:
             if input_name == "raw":
