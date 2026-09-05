@@ -32,7 +32,6 @@ from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
     get_user_input,
-    information_message,
     question_yes_no,
     raise_user_attention,
 )
@@ -1065,8 +1064,7 @@ class Controller:
             return importer()
         except ModuleNotFoundError:
             ans, cancel = question_yes_no(
-                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?",
-                parent=self,
+                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?"
             )
             if cancel or not ans:
                 return None
@@ -1074,8 +1072,9 @@ class Controller:
             try:
                 return importer()
             except ModuleNotFoundError:
-                information_message(
-                    f"Failed to import module '{name}' after installation.", parent=self
+                raise_user_attention(
+                    f"Failed to import module '{name}' after installation.",
+                    message_type="info",
                 )
                 return None
 
@@ -1097,16 +1096,15 @@ class Controller:
         path_was_missing = False
         if not config_path.is_file():
             path_was_missing = True
-            information_message(
+            raise_user_attention(
                 f"Plugin config file '{config_path}' not found. Please select "
                 "the new location.",
-                parent=self,
+                message_type="info",
             )
             config_path = get_user_input(
                 "Select a plugin configuration file to load.",
                 input_type="file",
                 file_filter="JSON files (*.json)",
-                parent=self,
             )  # type: ignore
             if config_path is None:
                 return

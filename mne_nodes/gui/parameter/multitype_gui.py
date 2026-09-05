@@ -12,6 +12,7 @@ from qtpy.QtWidgets import QComboBox, QHBoxLayout, QSizePolicy, QStackedLayout
 
 from .array_gui import ArrayGui
 from .bool_gui import BoolGui
+from .callable_gui import CallableGui
 from .checklist_gui import CheckListGui
 from .color_gui import ColorGui
 from .combo_gui import ComboGui
@@ -57,6 +58,7 @@ class MultiTypeGui(Param):
                 "dataframe",
                 "datetime",
                 "color",
+                "callable",
             ]
         )
         self.type_defaults = {
@@ -76,6 +78,7 @@ class MultiTypeGui(Param):
             "dataframe": pd.DataFrame(),
             "datetime": datetime.now(tz=UTC),
             "color": "#000000",
+            "callable": lambda: None,
         }
         self.type_kwargs = type_kwargs or {
             "combo": {"options": [""], "editable": True},
@@ -99,6 +102,7 @@ class MultiTypeGui(Param):
             "dataframe": "DataFrameGui",
             "datetime": "DateTimeGui",
             "color": "ColorGui",
+            "callable": "CallableGui",
         }
         self.gui_class_map = {
             "IntGui": IntGui,
@@ -117,6 +121,7 @@ class MultiTypeGui(Param):
             "DataFrameGui": DataFrameGui,
             "DateTimeGui": DateTimeGui,
             "ColorGui": ColorGui,
+            "CallableGui": CallableGui,
         }
         self.gui_widgets = {}
         self.type_layout = QHBoxLayout()
