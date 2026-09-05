@@ -21,7 +21,7 @@ from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
-from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
+from mne_nodes.gui.widgets.tree_widgets import CustomGroupTreeWidget, ShallowTreeWidget
 
 
 class InputWidget(QWidget):
@@ -93,18 +93,34 @@ class InputWidget(QWidget):
             data = self.ct.get("custom_groups")
         else:
             data = self.ct.get_group_by_strings(group_by)
-        if group_by not in self.ct.get("selected_inputs"):
-            self.ct.get("selected_inputs")[group_by] = []
-        self.group_tree = ShallowTreeWidget(
-            data,
-            checked=self.ct.get("selected_inputs")[group_by],
-            headers=["Group Name", "Subjects"],
-            ui_buttons=group_by == "custom",
-            ui_button_pos="right",
-        )
+        selected_inputs = self.ct.get("selected_inputs")
+        if group_by not in selected_inputs:
+            selected_inputs[group_by] = []
+            self.ct.set("selected_inputs", selected_inputs)
+        if group_by == "custom":
+            self.group_tree = CustomGroupTreeWidget(
+                self.ct.get_datatype_items(),
+                data=data,
+                checked=selected_inputs[group_by],
+                headers=["Group Name", "Subjects"],
+                ui_buttons=True,
+                ui_button_pos="right",
+            )
+        else:
+            self.group_tree = ShallowTreeWidget(
+                data,
+                checked=selected_inputs[group_by],
+                headers=["Group Name", "Subjects"],
+                ui_buttons=False,
+                ui_button_pos="right",
+            )
         # Always save to the config the latest input selection
         self.group_tree.dataChanged.connect(self.ct.flush)
-        self.group_tree.checkedChanged.connect(self.ct.flush)
+        self.group_tree.checkedChanged.connect(
+            lambda checked, group_by=group_by: self.ct.input_selection_changed(
+                checked, data_type=group_by
+            )
+        )
         self.group_layout.addWidget(self.group_tree)
         self.group_widget.update()
 
