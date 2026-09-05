@@ -16,6 +16,7 @@ from functools import partial
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
+from itertools import tee
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
@@ -25,7 +26,13 @@ from typing import Any
 
 import mne
 from filelock import FileLock, Timeout
-from mne_bids import BIDSPath, get_bids_path_from_fname, get_datatypes, get_entity_vals
+from mne_bids import (
+    BIDSPath,
+    get_bids_path_from_fname,
+    get_datatypes,
+    get_entity_vals,
+    read_raw_bids,
+)
 
 from mne_nodes import _widgets, ismac, iswin
 from mne_nodes.gui.gui_utils import (
@@ -864,15 +871,6 @@ class Controller:
         )
         return fsmri_subjects
 
-    def check_subject(self, subject):
-        result = subject in self.get_fsmri_subjects()
-        if not result:
-            logger.warning(
-                f"Subject {subject} not found in FreeSurfer subjects directory!"
-            )
-            return False
-        return subject
-
     def get_datatypes(self):
         # ToDo: Implement data-types other than raw
         bids_root = self.ensure_bids_root(interactive=False)
@@ -904,6 +902,76 @@ class Controller:
         any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
         if self.viewer is not None:
             self.viewer.enable_start_buttons(any_selected)
+
+    def load_raw(self, items):
+        """Load raw data and event-id for one or multiple bids-paths.
+
+        Parameters
+        ----------
+        items : BIDSPath | list[BIDSPath]
+            A single bids-path (file-target) or a list of bids-paths
+            (group-target).
+
+        Returns
+        -------
+        raw, event_id
+            If `items` is a single bids-path, a ``(raw, event_id)`` tuple.
+            If `items` is a list, a tuple of two independent generators
+            ``(raw_gen, event_id_gen)`` yielding one raw/event_id per member.
+        """
+
+        def _load(bp):
+            bp = bp.copy().update(root=self.bids_root)
+            return read_raw_bids(
+                bp, extra_params={"preload": True}, return_event_dict=True
+            )
+
+        if isinstance(items, list):
+            # tee since a single generator can't be consumed by raw and event_id separately
+            raw_src, event_id_src = tee((_load(bp) for bp in items), 2)
+            return (r for r, _ in raw_src), (e for _, e in event_id_src)
+        return _load(items)
+
+    def load_info(self, items, raw=None):
+        """Load measurement info for one or multiple bids-paths.
+
+        Parameters
+        ----------
+        items : BIDSPath | list[BIDSPath]
+            A single bids-path (file-target) or a list of bids-paths
+            (group-target).
+        raw : mne.io.Raw | Iterable[mne.io.Raw] | None
+            Already loaded raw data(s) to take the info from, matching the
+            shape of `items`. If None, info is read from disk directly.
+
+        Returns
+        -------
+        info
+            If `items` is a single bids-path, an `mne.Info` instance.
+            If `items` is a list, a generator yielding one `mne.Info` per
+            member.
+        """
+
+        def _load(bp):
+            bp = bp.copy().update(root=self.bids_root)
+            return mne.io.read_info(bp.fpath)
+
+        if isinstance(items, list):
+            if raw is not None:
+                return (r.info for r in raw)
+            return (_load(bp) for bp in items)
+        if raw is not None:
+            return raw.info
+        return _load(items)
+
+    def load_subject(self, subject):
+        result = subject in self.get_fsmri_subjects()
+        if not result:
+            logger.warning(
+                f"Subject {subject} not found in FreeSurfer subjects directory!"
+            )
+            return False
+        return subject
 
     ####################################################################################
     # Parameters
