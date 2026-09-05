@@ -203,6 +203,9 @@ class MultiTypeGui(Param):
                 f"but got {type(value)}"
             )
         self.param_widget.value = value
+        # Some type widgets (e.g. CallableGui) transform the assigned value
+        # (code string -> callable); keep self._value in sync with that.
+        self._value = self.param_widget.value
 
     def _get_widget_value(self):
         return self.param_widget.value
