@@ -78,7 +78,7 @@ class MultiTypeGui(Param):
             "dataframe": pd.DataFrame(),
             "datetime": datetime.now(tz=UTC),
             "color": "#000000",
-            "callable": lambda: None,
+            "callable": "lambda: None",
         }
         self.type_kwargs = type_kwargs or {
             "combo": {"options": [""], "editable": True},
