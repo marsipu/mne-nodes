@@ -158,12 +158,16 @@ class MultiTypeGui(Param):
         for type_name in self.types:
             gui_class_name = self.gui_types[type_name]
             gui_class = self.gui_class_map[gui_class_name]
+            if isinstance(self.default, gui_class.data_type):
+                default = self.default
+            else:
+                default = self.type_defaults[type_name]
             kwargs = {
                 "data": {},
                 "name": self.name,
                 "function_name": self.function_name,
                 "alias": self.alias,
-                "default": self.type_defaults[type_name],
+                "default": default,
                 "groupbox_layout": False,
                 "none_select": False,
                 "show_title": False,

@@ -195,7 +195,7 @@ class FunctionNode(BaseNode):
         from mne_nodes.gui import parameter
 
         func_meta = ct.get_function_meta(kwargs["name"])
-        if any(v.get("save") is not None for v in func_meta["outputs"].values()):
+        if any(v.get("write") is not None for v in func_meta["outputs"].values()):
             checkbox = "Save"
         else:
             checkbox = None
@@ -203,21 +203,30 @@ class FunctionNode(BaseNode):
         # Set Tooltip
         self.setToolTip(func_meta.get("description", ""))
         # Initialize inputs and outputs
-        for input_name in func_meta["inputs"]:
+        for input_name, input_kwargs in func_meta["inputs"].items():
+            accepted_ports = [input_name, *input_kwargs.get("accepted_ports", [])]
             if input_name == "raw":
-                accepted_ports = ["raw", *ct.raw_types]
-            else:
-                accepted_ports = [input_name]
+                accepted_ports += [*ct.raw_types]
+            optional = input_kwargs.get("optional", False)
+            # Don't warn for existing ports since ports might be supplied via **kwargs
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=accepted_ports
+                input_name,
+                multi_connection=True,
+                accepted_ports=accepted_ports,
+                optional=optional,
+                warn_existing=False,
             )
-        for output_name in func_meta["outputs"]:
+        for output_name, output_kwargs in func_meta["outputs"].items():
+            accepted_ports = [output_name, *output_kwargs.get("accepted_ports", [])]
             if output_name == "raw":
-                accepted_ports = ["raw", *ct.raw_types]
-            else:
-                accepted_ports = [output_name]
+                accepted_ports += [*ct.raw_types]
+            optional = output_kwargs.get("optional", False)
             self.add_output(
-                output_name, multi_connection=True, accepted_ports=accepted_ports
+                output_name,
+                multi_connection=True,
+                accepted_ports=accepted_ports,
+                optional=optional,
+                warn_existing=False,
             )
         # Initialize the parameters
         self.parameter_guis = {}

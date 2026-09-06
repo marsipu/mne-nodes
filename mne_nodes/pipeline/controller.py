@@ -1007,17 +1007,60 @@ class Controller:
         parameters[function_name][parameter_name] = value
         self.set("parameters", parameters)
 
-    def func_inputs(self, function_name: str, loaded_data: list) -> list:
+    def func_inputs(
+        self, function_name: str, loaded_data: list
+    ) -> tuple[dict[str, str], list[str]]:
+        """Get the inputs to pass to a function from the loaded data.
+
+        Returns
+        -------
+        tuple[dict[str, str], list[str]]
+            - Mapping of function parameter name to the loaded variable name
+              to pass for it. Parameter and variable name differ when the
+              loaded data matches via ``accepted_ports`` instead of the
+              parameter name itself (e.g. parameter ``all_inst`` accepting a
+              loaded ``evoked``).
+            - Parameter names not yet satisfied by ``loaded_data``, which
+              still need to be loaded (e.g. from disk) under their own name.
+        """
         func_meta = self.get_function_meta(function_name)
-        func_inputs = []
+        input_map = {}
+        loading_needed = []
         for i, v in func_meta.get("inputs", {}).items():
-            if not v["optional"] and i not in loaded_data:
-                raise ValueError(
-                    f"Required input '{i}' for function '{function_name}' is missing from loaded data."
-                )
             if i in loaded_data:
-                func_inputs.append(i)
-        return func_inputs
+                input_map[i] = i
+                continue
+            matched = next(
+                (a for a in v.get("accepted_ports") or [] if a in loaded_data), None
+            )
+            if matched is not None:
+                input_map[i] = matched
+            else:
+                loading_needed.append(i)
+        return input_map, loading_needed
+
+    def get_load_meta_for_port(self, port_name: str) -> dict[str, Any] | None:
+        """Find load metadata for a data/port name across all known functions.
+
+        A function's own input may accept a port name (e.g. ``evoked``) without
+        declaring how to load it from disk itself. This searches every
+        function's inputs for one that both is loadable (has a ``load`` key)
+        and matches ``port_name`` (its own key or via ``accepted_ports``).
+
+        Returns
+        -------
+        dict | None
+            The matching input metadata, or ``None`` if no loadable input is
+            found for ``port_name``.
+        """
+        for func_meta in self.function_meta.values():
+            for input_name, input_meta in func_meta.get("inputs", {}).items():
+                if input_meta.get("read") is None:
+                    continue
+                candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
+                if port_name in candidates:
+                    return input_meta
+        return None
 
     def func_parameters(self, function_name):
         """Get the parameters for a specific function from the project."""
@@ -1046,6 +1089,10 @@ class Controller:
             func_name
             for func_name, func_meta in self.function_meta.items()
             if input_name in func_meta.get("inputs", {})
+            or any(
+                input_name in ip["accepted_ports"]
+                for ip in func_meta.get("inputs", {}).values()
+            )
         ]
         return associated_functions
 
@@ -1057,6 +1104,10 @@ class Controller:
             func_name
             for func_name, func_meta in self.function_meta.items()
             if output_name in func_meta.get("outputs", {})
+            or any(
+                output_name in op["accepted_ports"]
+                for op in func_meta.get("outputs", {}).values()
+            )
         ]
         return associated_functions
 

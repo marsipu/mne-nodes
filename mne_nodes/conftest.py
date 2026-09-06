@@ -253,8 +253,8 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": {"a": {"accepted": ["int"], "optional": False}},
-            "outputs": {"a_squared": {"accepted": ["int"], "optional": False}},
+            "inputs": {"a": {"accepted_ports": ["int"], "optional": False}},
+            "outputs": {"a_squared": {"accepted_ports": ["int"], "optional": False}},
             "target": "file",
             "parameters": {
                 "a": {
@@ -282,8 +282,8 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": {"b": {"accepted": ["int"], "optional": False}},
-            "outputs": {"b_plus_one": {"accepted": ["int"], "optional": False}},
+            "inputs": {"b": {"accepted_ports": ["int"], "optional": False}},
+            "outputs": {"b_plus_one": {"accepted_ports": ["int"], "optional": False}},
             "target": "file",
             "parameters": {
                 "c": {

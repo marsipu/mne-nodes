@@ -41,9 +41,11 @@ class Port(QGraphicsItem):
         The type of the port, can be either 'in' or 'out'.
     multi_connection : bool
         Whether the port supports multiple connections or not, defaults to False.
-    accepted_ports : list, None
+    accepted_ports : list
         List of port names that this port can connect to.
-        If None, it can connect to any port.
+        If e, it can connect to any port.
+    optional : bool, optional
+        Whether the port is optional. Default is False.
     old_id : int, None, optional
         old id for reestablishing connections.
     """
@@ -55,13 +57,14 @@ class Port(QGraphicsItem):
         port_type,
         multi_connection=False,
         accepted_ports=None,
+        optional=False,
         old_id=None,
     ):
         super().__init__(node)
 
         # init Qt graphics item
         self.setAcceptHoverEvents(True)
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setFlag(self.GraphicsItemFlag.ItemIsSelectable, False)
         self.setFlag(self.GraphicsItemFlag.ItemSendsScenePositionChanges, True)
         self.setZValue(2)
@@ -78,7 +81,8 @@ class Port(QGraphicsItem):
         self.multi_connection = multi_connection
         self.connected_ports = []
         self.connected_pipes = OrderedDict()
-        self.accepted_ports = accepted_ports
+        self.accepted_ports = accepted_ports if accepted_ports is not None else []
+        self.optional = optional
 
         self._width = defaults["ports"]["size"]
         self._height = defaults["ports"]["size"]
@@ -388,8 +392,11 @@ class Port(QGraphicsItem):
         elif self.connected(port):
             if verbose:
                 logger.debug("Ports are already connected.")
-        # check if the ports are compatible.
-        elif self.accepted_ports is not None and port.name not in self.accepted_ports:
+        # check if the ports are compatible (either side accepting the other's name).
+        elif not (
+            (self.accepted_ports is None or port.name in self.accepted_ports)
+            or (port.accepted_ports is None or self.name in port.accepted_ports)
+        ):
             if verbose:
                 logger.debug("Ports are not compatible.")
         else:

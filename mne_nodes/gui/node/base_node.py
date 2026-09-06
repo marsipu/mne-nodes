@@ -278,6 +278,7 @@ class BaseNode(QGraphicsItem):
         port_type,
         multi_connection=False,
         accepted_ports=None,
+        optional=False,
         old_id=None,
         warn_existing=True,
     ):
@@ -291,11 +292,14 @@ class BaseNode(QGraphicsItem):
             "in" or "out".
         multi_connection : bool
             allow multiple connections.
-        accepted_ports : list, None
-            list of accepted port names, if None all ports are accepted.
+        accepted_ports : list
+            list of accepted port names, if empty all ports are accepted.
+        optional : bool, optional
+            whether the port is optional. Default is False.
         old_id : int, None, optional
             old port id for reestablishing connections.
         warn_existing : bool
+            whether to warn if the port already exists. Default is True.
 
 
         Returns
@@ -316,7 +320,13 @@ class BaseNode(QGraphicsItem):
             return self.port(port_name=name)
         # Create port
         port = Port(
-            self, name, port_type, multi_connection, accepted_ports, old_id=old_id
+            self,
+            name,
+            port_type,
+            multi_connection,
+            accepted_ports,
+            optional,
+            old_id=old_id,
         )
         # Add port to port-container
         ports = self._inputs if port_type == "in" else self._outputs
@@ -396,6 +406,8 @@ class BaseNode(QGraphicsItem):
         port_id=None,
         old_id=None,
         ignore_warnings=False,
+        include_accepted=False,
+        accepted_ports=None,
     ):
         """Get port by the name or index.
 
@@ -413,6 +425,16 @@ class BaseNode(QGraphicsItem):
             Old id of the port for reestablishing connections.
         ignore_warnings : bool
             If True, warnings will be ignored when port is not found. Default is False.
+        include_accepted : bool
+            If True and no port with a matching name is found, fall back to a
+            port compatible via ``accepted_ports``: either a candidate whose
+            own ``accepted_ports`` contains ``port_name``, or (if
+            ``accepted_ports`` is given) a candidate whose name is in it.
+            Default is False.
+        accepted_ports : list, optional
+            The ``accepted_ports`` of the port being matched against, used
+            together with ``include_accepted`` to also match candidates by
+            name (mirrors :meth:`Port.compatible`'s bidirectional check).
 
         Returns
         -------
@@ -448,6 +470,15 @@ class BaseNode(QGraphicsItem):
                     "More than two ports with the same name. This should not be allowed."
                 )
             elif len(port_names) == 0:
+                if include_accepted:
+                    accepted_matches = [
+                        p
+                        for p in port_list
+                        if (p.accepted_ports and port_name in p.accepted_ports)
+                        or (accepted_ports and p.name in accepted_ports)
+                    ]
+                    if accepted_matches:
+                        return accepted_matches[0]
                 if not ignore_warnings:
                     logger.warning(f"{port_type} port {port_name} not found.")
             else:
