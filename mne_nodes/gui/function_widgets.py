@@ -175,7 +175,7 @@ class DataConfiguration(QDialog):
         layout.addWidget(
             ListGui(
                 data=configuration,
-                name="accepted",
+                name="accepted_ports",
                 alias="Accepted connections",
                 none_select=False,
                 groupbox_layout=False,
@@ -195,17 +195,8 @@ class DataConfiguration(QDialog):
             layout.addWidget(
                 StringGui(
                     data=configuration,
-                    name="load",
+                    name="read",
                     alias="Load Function",
-                    none_select=True,
-                    groupbox_layout=False,
-                )
-            )
-            layout.addWidget(
-                DictGui(
-                    data=configuration,
-                    name="load_kwargs",
-                    alias="Load kwargs",
                     none_select=True,
                     groupbox_layout=False,
                 )
@@ -214,17 +205,8 @@ class DataConfiguration(QDialog):
             layout.addWidget(
                 StringGui(
                     data=configuration,
-                    name="save",
+                    name="write",
                     alias="Save Function",
-                    none_select=True,
-                    groupbox_layout=False,
-                )
-            )
-            layout.addWidget(
-                DictGui(
-                    data=configuration,
-                    name="save_kwargs",
-                    alias="Save kwargs",
                     none_select=True,
                     groupbox_layout=False,
                 )
@@ -524,7 +506,10 @@ class FunctionImporter(QDialog):
             inputs += fixed["inputs"]
             # Add missing input-configurations
             for new_input in [ip for ip in inputs if ip not in input_config]:
-                input_config[new_input] = {"accepted": [new_input], "optional": False}
+                input_config[new_input] = {
+                    "accepted_ports": [new_input],
+                    "optional": False,
+                }
             # Remove old input-configurations
             for old_input in [ipc for ipc in input_config if ipc not in inputs]:
                 logger.info(
@@ -616,7 +601,7 @@ class FunctionImporter(QDialog):
                             continue
                         if op.id not in self.func_config[func.name]["outputs"]:
                             self.func_config[func.name]["outputs"][op.id] = {
-                                "accepted": [op.id],
+                                "accepted_ports": [op.id],
                                 "optional": False,
                             }
                         new_outputs.append(op.id)
@@ -624,7 +609,7 @@ class FunctionImporter(QDialog):
                 elif isinstance(ret.value, ast.Name):
                     if ret.value.id not in self.func_config[func.name]["outputs"]:
                         self.func_config[func.name]["outputs"][ret.value.id] = {
-                            "accepted": [ret.value.id],
+                            "accepted_ports": [ret.value.id],
                             "optional": False,
                         }
                     new_outputs.append(ret.value.id)
@@ -738,7 +723,7 @@ class FunctionImporter(QDialog):
             self.func_config[self.current_func]["parameters"].pop(item)
             # Add to input configuration
             self.func_config[self.current_func]["inputs"][item] = {
-                "accepted": [item],
+                "accepted_ports": [item],
                 "optional": False,
             }
             if item in self.fixed_categories[self.current_func]["parameters"]:

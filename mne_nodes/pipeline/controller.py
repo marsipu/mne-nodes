@@ -16,6 +16,7 @@ from functools import partial
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
+from itertools import tee
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
@@ -25,14 +26,19 @@ from typing import Any
 
 import mne
 from filelock import FileLock, Timeout
-from mne_bids import BIDSPath, get_bids_path_from_fname, get_datatypes, get_entity_vals
+from mne_bids import (
+    BIDSPath,
+    get_bids_path_from_fname,
+    get_datatypes,
+    get_entity_vals,
+    read_raw_bids,
+)
 
 from mne_nodes import _widgets, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
     get_user_input,
-    information_message,
     question_yes_no,
     raise_user_attention,
 )
@@ -865,15 +871,6 @@ class Controller:
         )
         return fsmri_subjects
 
-    def check_subject(self, subject):
-        result = subject in self.get_fsmri_subjects()
-        if not result:
-            logger.warning(
-                f"Subject {subject} not found in FreeSurfer subjects directory!"
-            )
-            return False
-        return subject
-
     def get_datatypes(self):
         # ToDo: Implement data-types other than raw
         bids_root = self.ensure_bids_root(interactive=False)
@@ -905,6 +902,76 @@ class Controller:
         any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
         if self.viewer is not None:
             self.viewer.enable_start_buttons(any_selected)
+
+    def load_raw(self, items):
+        """Load raw data and event-id for one or multiple bids-paths.
+
+        Parameters
+        ----------
+        items : BIDSPath | list[BIDSPath]
+            A single bids-path (file-target) or a list of bids-paths
+            (group-target).
+
+        Returns
+        -------
+        raw, event_id
+            If `items` is a single bids-path, a ``(raw, event_id)`` tuple.
+            If `items` is a list, a tuple of two independent generators
+            ``(raw_gen, event_id_gen)`` yielding one raw/event_id per member.
+        """
+
+        def _load(bp):
+            bp = bp.copy().update(root=self.bids_root)
+            return read_raw_bids(
+                bp, extra_params={"preload": True}, return_event_dict=True
+            )
+
+        if isinstance(items, list):
+            # tee since a single generator can't be consumed by raw and event_id separately
+            raw_src, event_id_src = tee((_load(bp) for bp in items), 2)
+            return (r for r, _ in raw_src), (e for _, e in event_id_src)
+        return _load(items)
+
+    def load_info(self, items, raw=None):
+        """Load measurement info for one or multiple bids-paths.
+
+        Parameters
+        ----------
+        items : BIDSPath | list[BIDSPath]
+            A single bids-path (file-target) or a list of bids-paths
+            (group-target).
+        raw : mne.io.Raw | Iterable[mne.io.Raw] | None
+            Already loaded raw data(s) to take the info from, matching the
+            shape of `items`. If None, info is read from disk directly.
+
+        Returns
+        -------
+        info
+            If `items` is a single bids-path, an `mne.Info` instance.
+            If `items` is a list, a generator yielding one `mne.Info` per
+            member.
+        """
+
+        def _load(bp):
+            bp = bp.copy().update(root=self.bids_root)
+            return mne.io.read_info(bp.fpath)
+
+        if isinstance(items, list):
+            if raw is not None:
+                return (r.info for r in raw)
+            return (_load(bp) for bp in items)
+        if raw is not None:
+            return raw.info
+        return _load(items)
+
+    def load_subject(self, subject):
+        result = subject in self.get_fsmri_subjects()
+        if not result:
+            logger.warning(
+                f"Subject {subject} not found in FreeSurfer subjects directory!"
+            )
+            return False
+        return subject
 
     ####################################################################################
     # Parameters
@@ -940,17 +1007,60 @@ class Controller:
         parameters[function_name][parameter_name] = value
         self.set("parameters", parameters)
 
-    def func_inputs(self, function_name: str, loaded_data: list) -> list:
+    def func_inputs(
+        self, function_name: str, loaded_data: list
+    ) -> tuple[dict[str, str], list[str]]:
+        """Get the inputs to pass to a function from the loaded data.
+
+        Returns
+        -------
+        tuple[dict[str, str], list[str]]
+            - Mapping of function parameter name to the loaded variable name
+              to pass for it. Parameter and variable name differ when the
+              loaded data matches via ``accepted_ports`` instead of the
+              parameter name itself (e.g. parameter ``all_inst`` accepting a
+              loaded ``evoked``).
+            - Parameter names not yet satisfied by ``loaded_data``, which
+              still need to be loaded (e.g. from disk) under their own name.
+        """
         func_meta = self.get_function_meta(function_name)
-        func_inputs = []
+        input_map = {}
+        loading_needed = []
         for i, v in func_meta.get("inputs", {}).items():
-            if not v["optional"] and i not in loaded_data:
-                raise ValueError(
-                    f"Required input '{i}' for function '{function_name}' is missing from loaded data."
-                )
             if i in loaded_data:
-                func_inputs.append(i)
-        return func_inputs
+                input_map[i] = i
+                continue
+            matched = next(
+                (a for a in v.get("accepted_ports") or [] if a in loaded_data), None
+            )
+            if matched is not None:
+                input_map[i] = matched
+            else:
+                loading_needed.append(i)
+        return input_map, loading_needed
+
+    def get_load_meta_for_port(self, port_name: str) -> dict[str, Any] | None:
+        """Find load metadata for a data/port name across all known functions.
+
+        A function's own input may accept a port name (e.g. ``evoked``) without
+        declaring how to load it from disk itself. This searches every
+        function's inputs for one that both is loadable (has a ``load`` key)
+        and matches ``port_name`` (its own key or via ``accepted_ports``).
+
+        Returns
+        -------
+        dict | None
+            The matching input metadata, or ``None`` if no loadable input is
+            found for ``port_name``.
+        """
+        for func_meta in self.function_meta.values():
+            for input_name, input_meta in func_meta.get("inputs", {}).items():
+                if input_meta.get("read") is None:
+                    continue
+                candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
+                if port_name in candidates:
+                    return input_meta
+        return None
 
     def func_parameters(self, function_name):
         """Get the parameters for a specific function from the project."""
@@ -979,6 +1089,10 @@ class Controller:
             func_name
             for func_name, func_meta in self.function_meta.items()
             if input_name in func_meta.get("inputs", {})
+            or any(
+                input_name in ip["accepted_ports"]
+                for ip in func_meta.get("inputs", {}).values()
+            )
         ]
         return associated_functions
 
@@ -990,6 +1104,10 @@ class Controller:
             func_name
             for func_name, func_meta in self.function_meta.items()
             if output_name in func_meta.get("outputs", {})
+            or any(
+                output_name in op["accepted_ports"]
+                for op in func_meta.get("outputs", {}).values()
+            )
         ]
         return associated_functions
 
@@ -1065,8 +1183,7 @@ class Controller:
             return importer()
         except ModuleNotFoundError:
             ans, cancel = question_yes_no(
-                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?",
-                parent=self,
+                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?"
             )
             if cancel or not ans:
                 return None
@@ -1074,8 +1191,9 @@ class Controller:
             try:
                 return importer()
             except ModuleNotFoundError:
-                information_message(
-                    f"Failed to import module '{name}' after installation.", parent=self
+                raise_user_attention(
+                    f"Failed to import module '{name}' after installation.",
+                    message_type="info",
                 )
                 return None
 
@@ -1097,16 +1215,15 @@ class Controller:
         path_was_missing = False
         if not config_path.is_file():
             path_was_missing = True
-            information_message(
+            raise_user_attention(
                 f"Plugin config file '{config_path}' not found. Please select "
                 "the new location.",
-                parent=self,
+                message_type="info",
             )
             config_path = get_user_input(
                 "Select a plugin configuration file to load.",
                 input_type="file",
                 file_filter="JSON files (*.json)",
-                parent=self,
             )  # type: ignore
             if config_path is None:
                 return

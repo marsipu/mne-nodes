@@ -21,7 +21,7 @@ from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
-from mne_nodes.gui.widgets.tree_widgets import ShallowTreeWidget
+from mne_nodes.gui.widgets.tree_widgets import CustomGroupTreeWidget, ShallowTreeWidget
 
 
 class InputWidget(QWidget):
@@ -93,18 +93,34 @@ class InputWidget(QWidget):
             data = self.ct.get("custom_groups")
         else:
             data = self.ct.get_group_by_strings(group_by)
-        if group_by not in self.ct.get("selected_inputs"):
-            self.ct.get("selected_inputs")[group_by] = []
-        self.group_tree = ShallowTreeWidget(
-            data,
-            checked=self.ct.get("selected_inputs")[group_by],
-            headers=["Group Name", "Subjects"],
-            ui_buttons=group_by == "custom",
-            ui_button_pos="right",
-        )
+        selected_inputs = self.ct.get("selected_inputs")
+        if group_by not in selected_inputs:
+            selected_inputs[group_by] = []
+            self.ct.set("selected_inputs", selected_inputs)
+        if group_by == "custom":
+            self.group_tree = CustomGroupTreeWidget(
+                self.ct.get_datatype_items(),
+                data=data,
+                checked=selected_inputs[group_by],
+                headers=["Group Name", "Subjects"],
+                ui_buttons=True,
+                ui_button_pos="right",
+            )
+        else:
+            self.group_tree = ShallowTreeWidget(
+                data,
+                checked=selected_inputs[group_by],
+                headers=["Group Name", "Subjects"],
+                ui_buttons=False,
+                ui_button_pos="right",
+            )
         # Always save to the config the latest input selection
         self.group_tree.dataChanged.connect(self.ct.flush)
-        self.group_tree.checkedChanged.connect(self.ct.flush)
+        self.group_tree.checkedChanged.connect(
+            lambda checked, group_by=group_by: self.ct.input_selection_changed(
+                checked, data_type=group_by
+            )
+        )
         self.group_layout.addWidget(self.group_tree)
         self.group_widget.update()
 
@@ -179,27 +195,38 @@ class FunctionNode(BaseNode):
         from mne_nodes.gui import parameter
 
         func_meta = ct.get_function_meta(kwargs["name"])
-        if any(v.get("save") is not None for v in func_meta["outputs"].values()):
+        if any(v.get("write") is not None for v in func_meta["outputs"].values()):
             checkbox = "Save"
         else:
             checkbox = None
         super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
+        # Set Tooltip
+        self.setToolTip(func_meta.get("description", ""))
         # Initialize inputs and outputs
-        for input_name in func_meta["inputs"]:
+        for input_name, input_kwargs in func_meta["inputs"].items():
+            accepted_ports = [input_name, *input_kwargs.get("accepted_ports", [])]
             if input_name == "raw":
-                accepted_ports = ["raw", *ct.raw_types]
-            else:
-                accepted_ports = [input_name]
+                accepted_ports += [*ct.raw_types]
+            optional = input_kwargs.get("optional", False)
+            # Don't warn for existing ports since ports might be supplied via **kwargs
             self.add_input(
-                input_name, multi_connection=True, accepted_ports=accepted_ports
+                input_name,
+                multi_connection=True,
+                accepted_ports=accepted_ports,
+                optional=optional,
+                warn_existing=False,
             )
-        for output_name in func_meta["outputs"]:
+        for output_name, output_kwargs in func_meta["outputs"].items():
+            accepted_ports = [output_name, *output_kwargs.get("accepted_ports", [])]
             if output_name == "raw":
-                accepted_ports = ["raw", *ct.raw_types]
-            else:
-                accepted_ports = [output_name]
+                accepted_ports += [*ct.raw_types]
+            optional = output_kwargs.get("optional", False)
             self.add_output(
-                output_name, multi_connection=True, accepted_ports=accepted_ports
+                output_name,
+                multi_connection=True,
+                accepted_ports=accepted_ports,
+                optional=optional,
+                warn_existing=False,
             )
         # Initialize the parameters
         self.parameter_guis = {}
