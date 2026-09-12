@@ -21,7 +21,6 @@ from mne_nodes.gui.gui_utils import (
     information_message,
     set_ratio_geometry,
 )
-from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.pipeline.data_import import load_sample_bids
@@ -60,9 +59,6 @@ class MainWindow(QMainWindow):
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
         self.viewer.load_nodes(controller.get("node_config"))
-        self.node_picker = NodePicker(controller, self)
-        self.viewer.node_picker = self.node_picker
-        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.node_picker)
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)

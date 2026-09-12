@@ -7,6 +7,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
+    QComboBox,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -16,9 +18,10 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
 )
 
-from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.gui.gui_utils import get_user_input, raise_user_attention
 from mne_nodes.gui.widget_models.tree_models import ShallowTreeModel, TreeModel
 from mne_nodes.gui.widgets.base import Base
+from mne_nodes.gui.widgets.list_widgets import CheckList
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
@@ -255,3 +258,112 @@ class ShallowTreeWidget(Base):
     def content_changed(self):
         """Informs ModelView about external change made in data."""
         self.model.rebuild_tree()
+
+
+class _SelectFilesDialog(QDialog):
+    """Dialog to pick a data-type and one or more of its not yet used files."""
+
+    def __init__(
+        self, datatype_items, locked_datatype=None, used_items=None, parent=None
+    ):
+        super().__init__(parent)
+        self.setWindowTitle("Add Items")
+        self.datatype_items = datatype_items
+        self.used_items = used_items or []
+        self._checked = []
+        self.file_list = None
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("Data-Type:"))
+        self.datatype_cmbx = QComboBox()
+        self.datatype_cmbx.addItems(list(datatype_items))
+        self.datatype_cmbx.currentTextChanged.connect(self._update_file_list)
+        layout.addWidget(self.datatype_cmbx)
+
+        layout.addWidget(QLabel("Files:"))
+        self.list_layout = QVBoxLayout()
+        layout.addLayout(self.list_layout)
+
+        bt_layout = QHBoxLayout()
+        ok_bt = QPushButton("OK")
+        ok_bt.clicked.connect(self.accept)
+        bt_layout.addWidget(ok_bt)
+        cancel_bt = QPushButton("Cancel")
+        cancel_bt.clicked.connect(self.reject)
+        bt_layout.addWidget(cancel_bt)
+        layout.addLayout(bt_layout)
+
+        if locked_datatype is not None:
+            self.datatype_cmbx.setCurrentText(locked_datatype)
+            self.datatype_cmbx.setEnabled(False)
+        self._update_file_list(self.datatype_cmbx.currentText())
+
+    def _update_file_list(self, datatype):
+        # Recreate the checklist, since its data (available files) changes.
+        if self.file_list is not None:
+            self.list_layout.removeWidget(self.file_list)
+            self.file_list.deleteLater()
+        available = [
+            item
+            for item in self.datatype_items.get(datatype, [])
+            if item not in self.used_items
+        ]
+        self._checked = []
+        self.file_list = CheckList(
+            available, checked=self._checked, ui_button_pos="bottom"
+        )
+        self.list_layout.addWidget(self.file_list)
+
+    def selected_files(self):
+        return list(self._checked)
+
+
+class CustomGroupTreeWidget(ShallowTreeWidget):
+    """A :class:`ShallowTreeWidget` for custom groups of BIDS files.
+
+    Items are picked from the available files via a data-type combo-box and
+    a checklist instead of free text, and a group may only ever hold files
+    of a single data-type (no mixing).
+    """
+
+    def __init__(self, datatype_items, data=None, **kwargs):
+        self.datatype_items = datatype_items
+        super().__init__(data=data, **kwargs)
+
+    def _group_datatype(self, group_key):
+        """Return the data-type already used in a group, or None if empty."""
+        existing_items = self.model._data.get(group_key, [])
+        if not existing_items:
+            return None
+        for datatype, items in self.datatype_items.items():
+            if existing_items[0] in items:
+                return datatype
+        return None
+
+    def add_item(self):
+        group_key = self._get_current_group_key()
+        if group_key is None:
+            return
+        if not any(self.datatype_items.values()):
+            raise_user_attention(
+                "No files available to add.", message_type="info", parent=self
+            )
+            return
+
+        locked_datatype = self._group_datatype(group_key)
+        used_items = self.model._data.get(group_key, [])
+        dialog = _SelectFilesDialog(
+            self.datatype_items,
+            locked_datatype=locked_datatype,
+            used_items=used_items,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        items = dialog.selected_files()
+        if not items:
+            return
+        for item in items:
+            self.model.add_item(group_key, item)
+        self.view.expandToDepth(0)

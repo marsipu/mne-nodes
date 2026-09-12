@@ -21,6 +21,7 @@ from .settings_dlg import SettingsDlg
 from .slice_gui import SliceGui
 from .slider_gui import SliderGui
 from .string_gui import StringGui
+from .tuple_gui import TupleGui
 from .utils import convert_dict_to_string, convert_list_to_string, eval_param
 
 __all__ = [
@@ -48,6 +49,7 @@ __all__ = [
     "SliceGui",
     "SliderGui",
     "StringGui",
+    "TupleGui",
     "convert_dict_to_string",
     "convert_list_to_string",
     "eval_param",

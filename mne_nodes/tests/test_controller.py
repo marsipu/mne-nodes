@@ -344,7 +344,7 @@ def test_load_plugin_path_saves_to_settings_on_missing(
     missing_path = tmp_path / "old_location" / f"{plugin_name}_config.json"
 
     monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.information_message", lambda *a, **k: None
+        "mne_nodes.pipeline.controller.raise_user_attention", lambda *a, **k: None
     )
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.get_user_input", lambda *a, **k: new_config_path
@@ -354,7 +354,7 @@ def test_load_plugin_path_saves_to_settings_on_missing(
 
     assert plugin_name in ct.plugins
     # New path must be stored in settings.plugin_config
-    plugin_config = ct.settings.get("plugin_config", {})
+    plugin_config = ct.settings.get("plugin_config") or {}
     assert plugin_name in plugin_config
     assert Path(plugin_config[plugin_name]["config_path"]) == new_config_path
     assert Path(plugin_config[plugin_name]["script_path"]) == new_script_path

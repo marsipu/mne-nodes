@@ -21,7 +21,7 @@ class PortText(QGraphicsTextItem):
         super().__init__(text, parent)
         self.font().setPointSize(8)
         self.setFont(self.font())
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
 
 
 class Port(QGraphicsItem):
@@ -41,9 +41,11 @@ class Port(QGraphicsItem):
         The type of the port, can be either 'in' or 'out'.
     multi_connection : bool
         Whether the port supports multiple connections or not, defaults to False.
-    accepted_ports : list, None
+    accepted_ports : list
         List of port names that this port can connect to.
-        If None, it can connect to any port.
+        If empty list, it can connect to any port.
+    optional : bool, optional
+        Whether the port is optional. Default is False.
     old_id : int, None, optional
         old id for reestablishing connections.
     """
@@ -55,13 +57,14 @@ class Port(QGraphicsItem):
         port_type,
         multi_connection=False,
         accepted_ports=None,
+        optional=False,
         old_id=None,
     ):
         super().__init__(node)
 
         # init Qt graphics item
         self.setAcceptHoverEvents(True)
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setFlag(self.GraphicsItemFlag.ItemIsSelectable, False)
         self.setFlag(self.GraphicsItemFlag.ItemSendsScenePositionChanges, True)
         self.setZValue(2)
@@ -78,7 +81,8 @@ class Port(QGraphicsItem):
         self.multi_connection = multi_connection
         self.connected_ports = []
         self.connected_pipes = OrderedDict()
-        self.accepted_ports = accepted_ports
+        self.accepted_ports = accepted_ports or []
+        self.optional = optional
 
         self._width = defaults["ports"]["size"]
         self._height = defaults["ports"]["size"]
@@ -324,7 +328,7 @@ class Port(QGraphicsItem):
         if isinstance(ports, list):
             self.accepted_ports.extend(ports)
         elif isinstance(ports, str):
-            self._accepted_ports.append(ports)
+            self.accepted_ports.append(ports)
         else:
             raise TypeError("Invalid port type")
 
@@ -357,6 +361,27 @@ class Port(QGraphicsItem):
             )
         return False
 
+    def _accepts(self, port):
+        """Check whether this port accepts a connection to the given port.
+
+        A port with no ``accepted_ports`` restriction accepts any port.
+        Otherwise, the other port's name must be listed in
+        ``accepted_ports``.
+
+        Parameters
+        ----------
+        port : Port
+            Port to test.
+
+        Returns
+        -------
+        bool
+            ``True`` if this port accepts ``port``, otherwise ``False``.
+        """
+        if len(self.accepted_ports) == 0:
+            return True
+        return port.name in self.accepted_ports
+
     def compatible(self, port, verbose=True):
         """Check whether the specified port is compatible with this port.
 
@@ -388,8 +413,8 @@ class Port(QGraphicsItem):
         elif self.connected(port):
             if verbose:
                 logger.debug("Ports are already connected.")
-        # check if the ports are compatible.
-        elif self.accepted_ports is not None and port.name not in self.accepted_ports:
+        # check if the ports are compatible (either side accepting the other's name).
+        elif not self._accepts(port) and not port._accepts(self):
             if verbose:
                 logger.debug("Ports are not compatible.")
         else:

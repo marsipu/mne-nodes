@@ -318,12 +318,16 @@ class NodeViewer(QGraphicsView):
         # Adjust position to avoid overlapping with other nodes
         self._adjust_node(node, direction="y")
         if connected is not None:
-            for port_name, port_config in connected.items():
+            for port_config in connected.values():
+                target_port = port_config["port_to"]
                 port_from = node.port(
-                    port_type=port_config["type"], port_name=port_name
+                    port_type=port_config["type"],
+                    port_name=target_port.name,
+                    include_accepted=True,
+                    accepted_ports=target_port.accepted_ports,
                 )
                 if port_from is not None:
-                    port_from.connect_to(port_config["port_to"])
+                    port_from.connect_to(target_port)
 
         return node
 
@@ -938,16 +942,21 @@ class NodeViewer(QGraphicsView):
         menu.addSeparator()
 
         # Get corresponding functions for inputs/outputs
-        port_name = port.name if port.name not in self.ct.raw_types else "raw"
-        if port.port_type == "in":
-            funcs = self.ct.get_func_by_output(port_name)
-            connected = {port_name: {"type": "out", "port_to": port}}
-        else:
-            funcs = self.ct.get_func_by_input(port_name)
-            connected = {port_name: {"type": "in", "port_to": port}}
+        funcs = set()
+        possible_names = [port.name, *port.accepted_ports]
+        for p_name in possible_names:
+            if port.port_type == "in":
+                funcs.update(self.ct.get_func_by_output(p_name))
+            else:
+                funcs.update(self.ct.get_func_by_input(p_name))
+        connected = (
+            {port.name: {"type": "in", "port_to": port}}
+            if port.port_type == "out"
+            else {port.name: {"type": "out", "port_to": port}}
+        )
         scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
         # Sort funcs alphabetically
-        funcs.sort()
+        funcs = sorted(funcs)
         for func_name in funcs:
             func_meta = self.ct.get_function_meta(func_name)
             cls_name = func_meta.get("class_name")

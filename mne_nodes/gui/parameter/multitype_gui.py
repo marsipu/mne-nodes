@@ -12,6 +12,7 @@ from qtpy.QtWidgets import QComboBox, QHBoxLayout, QSizePolicy, QStackedLayout
 
 from .array_gui import ArrayGui
 from .bool_gui import BoolGui
+from .callable_gui import CallableGui
 from .checklist_gui import CheckListGui
 from .color_gui import ColorGui
 from .combo_gui import ComboGui
@@ -57,6 +58,7 @@ class MultiTypeGui(Param):
                 "dataframe",
                 "datetime",
                 "color",
+                "callable",
             ]
         )
         self.type_defaults = {
@@ -76,6 +78,7 @@ class MultiTypeGui(Param):
             "dataframe": pd.DataFrame(),
             "datetime": datetime.now(tz=UTC),
             "color": "#000000",
+            "callable": "lambda: None",
         }
         self.type_kwargs = type_kwargs or {
             "combo": {"options": [""], "editable": True},
@@ -99,6 +102,7 @@ class MultiTypeGui(Param):
             "dataframe": "DataFrameGui",
             "datetime": "DateTimeGui",
             "color": "ColorGui",
+            "callable": "CallableGui",
         }
         self.gui_class_map = {
             "IntGui": IntGui,
@@ -117,6 +121,7 @@ class MultiTypeGui(Param):
             "DataFrameGui": DataFrameGui,
             "DateTimeGui": DateTimeGui,
             "ColorGui": ColorGui,
+            "CallableGui": CallableGui,
         }
         self.gui_widgets = {}
         self.type_layout = QHBoxLayout()
@@ -153,12 +158,24 @@ class MultiTypeGui(Param):
         for type_name in self.types:
             gui_class_name = self.gui_types[type_name]
             gui_class = self.gui_class_map[gui_class_name]
+            is_callable_default = callable(self.default) or (
+                type_name == "callable"
+                and isinstance(self.default, str)
+                and self.default.strip().startswith("lambda")
+            )
+            if (type_name == "callable" and is_callable_default) or (
+                type_name != "callable"
+                and isinstance(self.default, gui_class.data_type)
+            ):
+                default = self.default
+            else:
+                default = self.type_defaults[type_name]
             kwargs = {
                 "data": {},
                 "name": self.name,
                 "function_name": self.function_name,
                 "alias": self.alias,
-                "default": self.type_defaults[type_name],
+                "default": default,
                 "groupbox_layout": False,
                 "none_select": False,
                 "show_title": False,
@@ -198,6 +215,9 @@ class MultiTypeGui(Param):
                 f"but got {type(value)}"
             )
         self.param_widget.value = value
+        # Some type widgets (e.g. CallableGui) transform the assigned value
+        # (code string -> callable); keep self._value in sync with that.
+        self._value = self.param_widget.value
 
     def _get_widget_value(self):
         return self.param_widget.value

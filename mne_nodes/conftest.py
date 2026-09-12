@@ -26,7 +26,8 @@ test_parameters = {
     "string": "postcentral-lh",
     "multi_type": 42,
     "bool": True,
-    "tuple": (3.4, 5),
+    "dual_tuple": (3.4, 5),
+    "tuple": (1, 454.33, "postcentral-lh", True),
     "combo": "b",
     "list": [1, 454.33, "postcentral-lh", True],
     "check_list": ["postcentral-lh", "insula-lh"],
@@ -48,7 +49,8 @@ alternative_test_parameters = {
     "string": "precentral-lh",
     "multi_type": 32,
     "bool": False,
-    "tuple": (2, 55.1),
+    "dual_tuple": (2, 55.1),
+    "tuple": (33, 2234.33, "precentral-lh", False),
     "combo": "c",
     "list": [33, 2234.33, "precentral-lh", False],
     "check_list": ["precentral-lh", "insula-rh"],
@@ -251,8 +253,8 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": {"a": {"accepted": ["int"], "optional": False}},
-            "outputs": {"a_squared": {"accepted": ["int"], "optional": False}},
+            "inputs": {"a": {"accepted_ports": ["int"], "optional": False}},
+            "outputs": {"a_squared": {"accepted_ports": ["int"], "optional": False}},
             "target": "file",
             "parameters": {
                 "a": {
@@ -280,8 +282,8 @@ def test_plugin_config(tmp_path, test_script):
             "plugin": "test_module",
             "thread-safe": True,
             "plot": False,
-            "inputs": {"b": {"accepted": ["int"], "optional": False}},
-            "outputs": {"b_plus_one": {"accepted": ["int"], "optional": False}},
+            "inputs": {"b": {"accepted_ports": ["int"], "optional": False}},
+            "outputs": {"b_plus_one": {"accepted_ports": ["int"], "optional": False}},
             "target": "file",
             "parameters": {
                 "c": {

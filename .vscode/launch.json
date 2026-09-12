@@ -1,7 +1,6 @@
 {
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "Debug mne-nodes",
             "type": "debugpy",
@@ -25,10 +24,7 @@
                 "enable": true
             },
             "justMyCode": false,
-            "console": "integratedTerminal",
-            "env": {
-                "MNENODES_DEBUG": "true"
-            }
+            "console": "integratedTerminal"
         }
     ]
 }

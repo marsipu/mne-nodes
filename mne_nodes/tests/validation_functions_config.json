@@ -2,7 +2,7 @@
     "test_filter": {
         "inputs": {
             "raw": {
-                "accepted": [
+                "accepted_ports": [
                     "raw"
                 ],
                 "optional": false
@@ -31,7 +31,7 @@
         },
         "outputs": {
             "raw": {
-                "accepted": [
+                "accepted_ports": [
                     "raw"
                 ],
                 "optional": false
@@ -42,7 +42,7 @@
     "test_epochs": {
         "inputs": {
             "raw": {
-                "accepted": [
+                "accepted_ports": [
                     "raw"
                 ],
                 "optional": false
@@ -76,15 +76,12 @@
         },
         "outputs": {
             "epochs": {
-                "accepted": [
+                "accepted_ports": [
                     "epochs"
                 ],
                 "optional": false,
-                "save": ".save",
-                "suffix": "epo",
-                "save_kwargs": {
-                    "overwrite": true
-                }
+                "write": "Epochs.save",
+                "suffix": "epo"
             }
         },
         "target": "file"
@@ -92,12 +89,12 @@
     "test_evokeds": {
         "inputs": {
             "epochs": {
-                "accepted": [
+                "accepted_ports": [
                     "epochs"
                 ],
                 "optional": false,
-                "load": "mne.read_epochs",
-                "save": ".save",
+                "read": "read_epochs",
+                "write": "Epochs.save",
                 "suffix": "epo"
             }
         },
@@ -110,15 +107,12 @@
         },
         "outputs": {
             "evokeds": {
-                "accepted": [
+                "accepted_ports": [
                     "evokeds"
                 ],
                 "optional": true,
                 "suffix": "ave",
-                "save": "mne.write_evokeds",
-                "save_kwargs": {
-                    "overwrite": true
-                }
+                "write": "write_evokeds"
             }
         },
         "target": "file"
@@ -126,16 +120,100 @@
     "test_plot_evokeds": {
         "inputs": {
             "evokeds": {
-                "accepted": [
+                "accepted_ports": [
                     "evokeds"
                 ],
                 "optional": false,
                 "suffix": "ave",
-                "load": "mne.read_evokeds"
+                "read": "read_evokeds"
             }
         },
         "parameters": {},
         "outputs": {},
         "target": "file"
+    },
+    "read_epochs": {
+        "inputs": {},
+        "parameters": {
+            "fname": {
+                "none_select": false,
+                "default": "",
+                "gui": "PathGui"
+            }
+        },
+        "outputs": {},
+        "target": "file",
+        "module_name": "mne",
+        "class_name": null
+    },
+    "Epochs.save": {
+        "inputs": {
+            "epochs": {
+                "accepted_ports": [
+                    "epochs"
+                ],
+                "optional": false,
+                "read": "read_epochs",
+                "suffix": "epo"
+            }
+        },
+        "parameters": {
+            "fname": {
+                "none_select": false,
+                "default": "",
+                "gui": "PathGui"
+            },
+            "overwrite": {
+                "none_select": false,
+                "default": true,
+                "gui": "BoolGui"
+            }
+        },
+        "outputs": {},
+        "target": "file",
+        "module_name": "mne",
+        "class_name": "Epochs"
+    },
+    "read_evokeds": {
+        "inputs": {},
+        "parameters": {
+            "fname": {
+                "none_select": false,
+                "default": "",
+                "gui": "PathGui"
+            }
+        },
+        "outputs": {},
+        "target": "file",
+        "module_name": "mne",
+        "class_name": null
+    },
+    "write_evokeds": {
+        "inputs": {
+            "evokeds": {
+                "accepted_ports": [
+                    "evokeds"
+                ],
+                "optional": false,
+                "read": "read_evokeds",
+                "suffix": "ave"
+            }
+        },
+        "parameters": {
+            "fname": {
+                "none_select": false,
+                "default": "",
+                "gui": "PathGui"
+            },
+            "overwrite": {
+                "none_select": false,
+                "default": true,
+                "gui": "BoolGui"
+            }
+        },
+        "outputs": {},
+        "target": "file",
+        "module_name": "mne",
+        "class_name": null
     }
 }
