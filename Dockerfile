@@ -1,93 +1,51 @@
-# modified from https://github.com/mne-tools/mne-docker
 FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DISPLAY=:99
 
-ARG MNE_USER="mne_user"
-ARG HOME_DIR="/home/${MNE_USER}"
-ENV MNE_USER=${MNE_USER}
-ENV HOME_DIR=${HOME_DIR}
+WORKDIR /app
 
-ARG MAMBA_ROOT_PREFIX="/opt/conda"
-ENV MAMBA_ROOT_PREFIX=${MAMBA_ROOT_PREFIX}
-
-# install xvfb
 RUN apt-get update && \
-    apt-get install -y wget && \
-    apt-get install -y --no-install-recommends git && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        python3 \
+        python3-pip \
+        python3-venv \
+        procps \
+        xvfb \
+        libgl1 \
+        libglib2.0-0 \
+        libxkbcommon-x11-0 \
+        libxcb-cursor0 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-randr0 \
+        libxcb-render-util0 \
+        libxcb-shape0 \
+        libxcb-xfixes0 \
+        libxcb-xinerama0 \
+        libxcb-xinput0 \
+        libxrender1 \
+        libxext6 && \
     rm -rf /var/lib/apt/lists/*
 
-# setup entry point
-COPY docker_prepare.sh /usr/bin/docker_prepare.sh
-RUN chmod a+x /usr/bin/docker_prepare.sh
+COPY . /app
 
-RUN chmod 777 /opt
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /opt/venv/bin/pip install PySide6 && \
+    /opt/venv/bin/pip install -e /app[test]
 
-# setup mne user
-RUN useradd -ms /bin/bash -d ${HOME_DIR} ${MNE_USER}
-USER $MNE_USER
-WORKDIR $HOME_DIR
+ENV PATH="/opt/venv/bin:${PATH}"
 
-# setup conda via micromamba
-# https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html#automatic-install
-ENV PATH="${MAMBA_ROOT_PREFIX}/bin:${PATH}"
-ARG PATH="${MAMBA_ROOT_PREFIX}/bin:${PATH}"
-ENV SHELL="/bin/bash"
-RUN wget https://micro.mamba.pm/install.sh && \
-    sh ./install.sh && \
-    rm -f ./install.sh
-SHELL ["/bin/bash", "--login", "-c"]
-RUN micromamba shell init -s bash -r ${MAMBA_ROOT_PREFIX}
-RUN echo "micromamba activate" | tee -a ~/.bashrc
-RUN cat ~/.bashrc
-RUN echo "PATH=$PATH"
-RUN which micromamba && \
-    micromamba config append channels conda-forge && \
-    micromamba config set channel_priority strict && \
-    micromamba config list --sources
-RUN micromamba install -y \
-    python=3.13 \
-    python-blosc \
-    cytoolz \
-    dask \
-    lz4 \
-    nomkl \
-    numpy \
-    pandas \
-    tini \
-    pooch \
-    bokeh \
-    joblib \
-    nibabel \
-    h5py \
-    s3fs \
-    matplotlib-base \
-    scikit-learn \
-    numba \
-    nilearn \
-    dipy \
-    h5io \
-    conda \
-    mamba \
-    conda-libmamba-solver \
-    mne-bids-pipeline \
-    statsmodels \
-    fooof
+COPY docker_prepare.sh /usr/local/bin/docker_prepare.sh
+RUN chmod +x /usr/local/bin/docker_prepare.sh
 
-RUN which conda && \
-    conda --version && \
-    which mamba && \
-    mamba --version
-
-RUN conda clean -tipy
-RUN find /opt/conda/ -type f,l -name '*.a' -delete
-RUN find /opt/conda/ -type f,l -name '*.pyc' -delete
-RUN find /opt/conda/ -type f,l -name '*.js.map' -delete
-RUN rm -rf /opt/conda/pkgs
-
-RUN conda list
-
-RUN pip install git+https://github.com/mne-tools/mne-python.git@main
-
-ENTRYPOINT ["tini", "-g", "--", "/usr/bin/docker_prepare.sh"]
+ENTRYPOINT ["/usr/local/bin/docker_prepare.sh"]
+CMD ["mne_nodes"]
