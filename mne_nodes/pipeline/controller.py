@@ -431,7 +431,8 @@ class Controller:
             return
 
         ans = ask_user(
-            "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
+            "When you change the BIDS-root, all selections, custom groups, "
+            "derivatives-root and plot-root will be lost. Do you want to proceed?"
         )
         if not ans:
             if previous_root is not None:
@@ -441,6 +442,9 @@ class Controller:
         # Clear selected inputs and custom groups
         self.get("selected_inputs").clear()
         self.get("custom_groups").clear()
+        # deriv_root/plot_root belonged to the previous dataset, force re-selection
+        self.settings.set("deriv_root", None)
+        self.settings.set("plot_root", None)
         # Update input widget when viewer is available.
         if self.viewer is not None:
             self.viewer.input_node.update_widgets()
@@ -687,6 +691,34 @@ class Controller:
         """Get the default value for a specific key."""
         return deepcopy(default_config.get(key, None))
 
+    def _check_bids_root_mismatch(self, config: dict) -> None:
+        """Warn and reset device paths if bids_root doesn't match the loaded project.
+
+        ``bids_root``, ``deriv_root`` and ``plot_root`` are device-wide settings,
+        shared across all config-files/projects on this device. If the currently
+        configured ``bids_root`` points to a different dataset than the one this
+        project was last used with (recorded as ``bids_dataset_name``), the
+        selection/derivatives/plot paths are stale and must be re-selected.
+        """
+        cached_name = config.get("bids_dataset_name")
+        if not cached_name:
+            return
+        bids_root = self._setting_folder("bids_root")
+        if bids_root is None:
+            return
+        actual_name = self._read_bids_dataset_name(bids_root)
+        if actual_name is None or actual_name == cached_name:
+            return
+        raise_user_attention(
+            f"The configured BIDS-root '{bids_root}' belongs to dataset "
+            f"'{actual_name}', but this project was last used with dataset "
+            f"'{cached_name}'. Please select the correct bids-root, "
+            "derivatives-root and plot-root for this project.",
+            "warning",
+        )
+        for key in ("bids_root", "deriv_root", "plot_root"):
+            self.settings.set(key, None)
+
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
         """Load config from disk and optionally resolve nodes and pipeline dependencies."""
         config_path = self.ensure_config_path(interactive=False)
@@ -706,6 +738,8 @@ class Controller:
         if not isinstance(config, dict):
             logger.warning("Loaded configuration has invalid type. Using defaults.")
             config = deepcopy(default_config)
+
+        self._check_bids_root_mismatch(config)
 
         if nodes and self.viewer is not None:
             self.viewer.load_nodes(config["node_config"])
@@ -817,21 +851,25 @@ class Controller:
     ####################################################################################
     # BIDS
     ####################################################################################
+    @staticmethod
+    def _read_bids_dataset_name(bids_root: Path) -> str | None:
+        """Read the dataset name from a bids-root's dataset_description.json."""
+        dataset_file = bids_root / "dataset_description.json"
+        if not dataset_file.is_file():
+            logger.warning(f"Dataset description file not found at {dataset_file}.")
+            return None
+        return load_json(dataset_file, no_gui=True).get("Name")
+
     def get_dataset_name(self) -> str | None:
         try:
             bids_root = self.ensure_bids_root(interactive=False)
         except RuntimeError:
             bids_root = None
         if bids_root is not None:
-            dataset_file = bids_root / "dataset_description.json"
-            if dataset_file.is_file():
-                dataset_description = load_json(dataset_file, no_gui=True)
-                name = dataset_description.get("Name")
-                if name is not None:
-                    self.set("bids_dataset_name", name)
-                    return name
-            else:
-                logger.warning(f"Dataset description file not found at {dataset_file}.")
+            name = self._read_bids_dataset_name(bids_root)
+            if name is not None:
+                self.set("bids_dataset_name", name)
+                return name
         # Fall back to cached value from config
         return self.get("bids_dataset_name", None)
 

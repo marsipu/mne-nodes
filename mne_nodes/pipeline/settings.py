@@ -24,8 +24,9 @@ default_device_settings = {
     "plugin_config": {},  # Plugins and their config-paths
     "disabled_plugins": [],  # Plugin names disabled on this device
     "log_file_path": None,  # Optional custom log file path
-    "data_path": None,  # Project data directory (device specific)
-    "plot_path": None,  # Plot export directory (device specific)
+    "bids_root": None,  # BIDS root directory
+    "deriv_root": None,  # BIDS derivatives root directory
+    "plot_root": None,  # Plot export root directory
     "fs_path": None,  # FREESURFER_HOME (legacy / optional)
     "wls_mne_path": None,  # Legacy WSL MNE path
     "use_qthread": 1,  # Kept for backwards compatibility
