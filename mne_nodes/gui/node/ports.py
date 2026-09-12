@@ -43,7 +43,7 @@ class Port(QGraphicsItem):
         Whether the port supports multiple connections or not, defaults to False.
     accepted_ports : list
         List of port names that this port can connect to.
-        If e, it can connect to any port.
+        If empty list, it can connect to any port.
     optional : bool, optional
         Whether the port is optional. Default is False.
     old_id : int, None, optional
@@ -81,7 +81,7 @@ class Port(QGraphicsItem):
         self.multi_connection = multi_connection
         self.connected_ports = []
         self.connected_pipes = OrderedDict()
-        self.accepted_ports = accepted_ports if accepted_ports is not None else []
+        self.accepted_ports = accepted_ports or []
         self.optional = optional
 
         self._width = defaults["ports"]["size"]
@@ -361,6 +361,27 @@ class Port(QGraphicsItem):
             )
         return False
 
+    def _accepts(self, port):
+        """Check whether this port accepts a connection to the given port.
+
+        A port with no ``accepted_ports`` restriction accepts any port.
+        Otherwise, the other port's name must be listed in
+        ``accepted_ports``.
+
+        Parameters
+        ----------
+        port : Port
+            Port to test.
+
+        Returns
+        -------
+        bool
+            ``True`` if this port accepts ``port``, otherwise ``False``.
+        """
+        if len(self.accepted_ports) == 0:
+            return True
+        return port.name in self.accepted_ports
+
     def compatible(self, port, verbose=True):
         """Check whether the specified port is compatible with this port.
 
@@ -393,10 +414,7 @@ class Port(QGraphicsItem):
             if verbose:
                 logger.debug("Ports are already connected.")
         # check if the ports are compatible (either side accepting the other's name).
-        elif not (
-            (self.accepted_ports is None or port.name in self.accepted_ports)
-            or (port.accepted_ports is None or self.name in port.accepted_ports)
-        ):
+        elif not self._accepts(port) and not port._accepts(self):
             if verbose:
                 logger.debug("Ports are not compatible.")
         else:

@@ -158,7 +158,15 @@ class MultiTypeGui(Param):
         for type_name in self.types:
             gui_class_name = self.gui_types[type_name]
             gui_class = self.gui_class_map[gui_class_name]
-            if isinstance(self.default, gui_class.data_type):
+            is_callable_default = callable(self.default) or (
+                type_name == "callable"
+                and isinstance(self.default, str)
+                and self.default.strip().startswith("lambda")
+            )
+            if (type_name == "callable" and is_callable_default) or (
+                type_name != "callable"
+                and isinstance(self.default, gui_class.data_type)
+            ):
                 default = self.default
             else:
                 default = self.type_defaults[type_name]

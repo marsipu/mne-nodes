@@ -292,8 +292,8 @@ class BaseNode(QGraphicsItem):
             "in" or "out".
         multi_connection : bool
             allow multiple connections.
-        accepted_ports : list
-            list of accepted port names, if empty all ports are accepted.
+        accepted_ports : list, None
+            list of accepted port names, if empty all ports are accepted. Defaults to None.
         optional : bool, optional
             whether the port is optional. Default is False.
         old_id : int, None, optional

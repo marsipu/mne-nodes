@@ -63,6 +63,7 @@ from mne_nodes.gui.parameter import (
     SliceGui,
     SliderGui,
     StringGui,
+    TupleGui,
 )
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
@@ -88,6 +89,7 @@ parameter_guis = [
     DataFrameGui,
     CallableGui,
     DateTimeGui,
+    TupleGui,
 ]
 
 default_type_guis = {
@@ -99,7 +101,8 @@ default_type_guis = {
     "dict": DictGui,
     "object": MultiTypeGui,
     "NoneType": MultiTypeGui,
-    "tuple": DualTupleGui,
+    "tuple": TupleGui,
+    "dual_tuple": DualTupleGui,
     "slice": SliceGui,
     "DataFrame": DataFrameGui,
     "function": CallableGui,

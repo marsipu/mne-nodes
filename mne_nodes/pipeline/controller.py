@@ -920,17 +920,17 @@ class Controller:
             ``(raw_gen, event_id_gen)`` yielding one raw/event_id per member.
         """
 
-        def _load(bp):
+        def _load(bp, preload=True):
             bp = bp.copy().update(root=self.bids_root)
             return read_raw_bids(
-                bp, extra_params={"preload": True}, return_event_dict=True
+                bp, extra_params={"preload": preload}, return_event_dict=True
             )
 
         if isinstance(items, list):
             # tee since a single generator can't be consumed by raw and event_id separately
-            raw_src, event_id_src = tee((_load(bp) for bp in items), 2)
+            raw_src, event_id_src = tee((_load(bp, preload=False) for bp in items), 2)
             return (r for r, _ in raw_src), (e for _, e in event_id_src)
-        return _load(items)
+        return _load(items, preload=True)
 
     def load_info(self, items, raw=None):
         """Load measurement info for one or multiple bids-paths.
