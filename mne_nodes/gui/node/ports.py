@@ -21,7 +21,7 @@ class PortText(QGraphicsTextItem):
         super().__init__(text, parent)
         self.font().setPointSize(8)
         self.setFont(self.font())
-        self.setCacheMode(QGraphicsItem.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
 
 
 class Port(QGraphicsItem):
@@ -328,7 +328,7 @@ class Port(QGraphicsItem):
         if isinstance(ports, list):
             self.accepted_ports.extend(ports)
         elif isinstance(ports, str):
-            self._accepted_ports.append(ports)
+            self.accepted_ports.append(ports)
         else:
             raise TypeError("Invalid port type")
 
