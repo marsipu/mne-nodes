@@ -105,8 +105,9 @@ class Settings:
             FileNotFoundError,
         ) as err:
             print(
-                f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
+                f"Loading settings from {self.settings_path} failed with: {err}\nSaving defaults."
             )
+            self._save_locked(deepcopy(self._defaults))
             return deepcopy(self._defaults)
 
     def _save_locked(self, settings) -> None:

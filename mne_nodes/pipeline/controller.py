@@ -56,7 +56,10 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     # BIDS
-    "selected_inputs": {},  # BIDS entity values as keys for lists
+    "selected_inputs": {
+        "file": [],
+        "subject": [],
+    },  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
     "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
@@ -427,21 +430,18 @@ class Controller:
             ),
             reprompt_on_none=True,
         )
-        if previous_root == new_root:
-            return
-
-        ans = ask_user(
-            "When you change the BIDS-root, all selections, custom groups, "
-            "derivatives-root and plot-root will be lost. Do you want to proceed?"
-        )
-        if not ans:
-            if previous_root is not None:
+        if previous_root != new_root:
+            ans = ask_user(
+                "When you change the BIDS-root, all selections, custom groups, "
+                "derivatives-root and plot-root will be lost. Do you want to proceed?"
+            )
+            if not ans:
                 self.settings.set("bids_root", previous_root)
-            return
+                return
 
         # Clear selected inputs and custom groups
-        self.get("selected_inputs").clear()
-        self.get("custom_groups").clear()
+        self.set("selected_inputs", default_config["selected_inputs"])
+        self.set("custom_groups", default_config["custom_groups"])
         # deriv_root/plot_root belonged to the previous dataset, force re-selection
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)

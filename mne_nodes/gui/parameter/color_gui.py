@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from mne_qt_browser._pg_figure import _get_color
-from qtpy.QtGui import QPixmap
+from matplotlib.colors import to_rgba
+from qtpy.QtGui import QColor, QPixmap
 from qtpy.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -17,6 +18,25 @@ from qtpy.QtWidgets import (
 from .param import Param
 
 _OUTPUT_FORMATS = ("hex", "rgb", "rgba")
+_RGB_PATTERN = re.compile(r"rgb\((\d+), (\d+), (\d+)\)")
+_RGBA_PATTERN = re.compile(r"rgba\((\d+), (\d+), (\d+), ([\d.]+)\)")
+
+
+def _get_color(color_spec: Any) -> QColor:
+    """Convert a stored or Matplotlib color specification to a ``QColor``."""
+    match = _RGBA_PATTERN.fullmatch(color_spec) if isinstance(color_spec, str) else None
+    if match:
+        red, green, blue, alpha = match.groups()
+        return QColor.fromRgbF(
+            int(red) / 255, int(green) / 255, int(blue) / 255, float(alpha)
+        )
+
+    match = _RGB_PATTERN.fullmatch(color_spec) if isinstance(color_spec, str) else None
+    if match:
+        red, green, blue = match.groups()
+        return QColor(int(red), int(green), int(blue))
+
+    return QColor.fromRgbF(*to_rgba(color_spec))
 
 
 class ColorGui(Param):

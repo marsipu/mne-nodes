@@ -81,6 +81,16 @@ def test_settings(parameter_values):
         assert settings.get("none_type") is None, "Expected None for 'none_type' key"
 
 
+def test_settings_missing_file_uses_defaults_silently(tmp_path, monkeypatch, capsys):
+    settings_dir = tmp_path / "settings"
+    monkeypatch.setenv("MNENODES_SETTINGS_DIR", str(settings_dir))
+
+    settings = Settings()
+
+    assert settings.get("app_theme") == "auto"
+    assert capsys.readouterr().out == ""
+
+
 def _settings_worker(
     settings_dir: str, key: str, values: list[int], result_queue: multiprocessing.Queue
 ) -> None:

@@ -19,6 +19,11 @@ All analysis logic should be implemented in separate, importable Python modules/
 
 **Alternative:** You can also use [mne-dev-setup](https://github.com/marsipu/mne-dev-setup) for the setup of a development environment.
 
+## Docker
+
+See the [Docker GUI development guide](docs/source/development/docker_gui.rst)
+for the cross-platform container launcher and X server requirements.
+
 ## Workflow for contributing
 1. Create a branch for changes: `git checkout -b <branch-name>`
 2. Commit changes: `git commit -am "<your commit message>"`
