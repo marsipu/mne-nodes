@@ -624,8 +624,17 @@ class BaseNode(QGraphicsItem):
             "inputs": self.connected_inputs(),
             "outputs": self.connected_outputs(),
             "checked": self.isChecked(),
+            "function_meta": None,
         }
-        return description
+        try:
+            func_meta = self.ct.get_function_meta(self.name)
+        except KeyError:
+            target = None
+        else:
+            description["function_meta"] = func_meta
+            target = func_meta.get("target", None)
+
+        return description, target
 
     def enable_start(self, enable=True):
         if self.start_button is not None:

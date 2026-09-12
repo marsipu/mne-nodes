@@ -289,8 +289,9 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
 
     node_sequence = viewer.get_node_sequence(viewer.input_node)
     # Keep all outputs in-memory to avoid filesystem format assumptions.
-    for node in node_sequence:
-        node["checked"] = False
+    for sequence in node_sequence.values():
+        for node in sequence:
+            node["checked"] = False
 
     generated_code = CodeGenerator(ct, node_sequence).code
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"

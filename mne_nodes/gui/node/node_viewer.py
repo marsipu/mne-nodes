@@ -703,14 +703,17 @@ class NodeViewer(QGraphicsView):
                         p for p in node.inputs if p not in port.connected_ports
                     ]
                     for oport in other_ports:
-                        reverse_exec_order = []
+                        reverse_exec_order = {"file": [], "group": []}
                         up_nodes = node.upstream_node_dict(port_id=oport.id)
                         self._iterate_node_sequence(
                             reverse_exec_order, up_nodes, visited
                         )
-                        reverse_exec_order.reverse()
-                        node_sequence.extend(reverse_exec_order)
-                node_sequence.append(node.get_description())
+                        for key, sequence in reverse_exec_order.items():
+                            sequence.reverse()
+                            node_sequence[key].extend(sequence)
+                description, target = node.get_description()
+                if target:
+                    node_sequence[target].append(description)
                 self._iterate_node_sequence(node_sequence, node_info, visited)
 
     def get_node_sequence(self, node):
@@ -723,10 +726,12 @@ class NodeViewer(QGraphicsView):
         be done in Controller.
         """
         # ToDoNext: NodeSequence has to tell me each step what are the inputs and to which preceding node are they connected
-        node_sequence = []
+        node_sequence = {"file": [], "group": []}
         visited = set()
         # Add the starting node
-        node_sequence.append(node.get_description())
+        description, target = node.get_description()
+        if target:
+            node_sequence[target].append(description)
         visited.add(node.id)
         self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
 
