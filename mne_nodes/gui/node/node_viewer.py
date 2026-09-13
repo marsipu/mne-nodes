@@ -1335,17 +1335,9 @@ class NodeViewer(QGraphicsView):
             pos.setY(pos.y() + y)
             if item == self._start_port:
                 break
-            pointer_color = defaults["pipes"]["highlight_color"]
-            # ToDo: Accept implementation
-            accept = True
-            if not accept:
-                pointer_color = [150, 60, 255]
-                break
-
-            if (
-                item.node == self._start_port.node
-                or item.port_type == self._start_port.port_type
-            ):
+            if self._ports_can_connect(self._start_port, item):
+                pointer_color = defaults["pipes"]["highlight_color"]
+            else:
                 pointer_color = defaults["pipes"]["disabled_color"]
             break
 
@@ -1494,7 +1486,7 @@ class NodeViewer(QGraphicsView):
             input_port = start_port
 
         # constrain check
-        compatible = output_port.compatible(input_port, verbose=True)
+        compatible = self._ports_can_connect(start_port, end_port, verbose=True)
 
         # restore connection if ports are not compatible
         if not compatible:
@@ -1545,6 +1537,7 @@ class NodeViewer(QGraphicsView):
         elif start_port.port_type == "out":
             self._LIVE_PIPE.output_port = start_port
         self._LIVE_PIPE.setVisible(True)
+        self._set_live_connection_port_highlights(start_port)
         origin_pos = self._origin_pos or self._previous_pos
         self._LIVE_PIPE.draw_index_pointer(selected_port, self.mapToScene(origin_pos))
 
@@ -1564,10 +1557,41 @@ class NodeViewer(QGraphicsView):
         -----
         This hides the pipe item used for drawing the live connection.
         """
+        self._clear_live_connection_port_highlights()
         self._LIVE_PIPE.reset_path()
         self._LIVE_PIPE.setVisible(False)
         self._LIVE_PIPE.shift_selected = False
         self._start_port = None
+
+    def _ports_can_connect(
+        self, start_port: Port, end_port: Port, verbose=False
+    ) -> bool:
+        if start_port is end_port:
+            return False
+        if start_port.node is end_port.node:
+            return False
+        if start_port.port_type == end_port.port_type:
+            return False
+        if start_port.port_type == "out":
+            output_port = start_port
+            input_port = end_port
+        else:
+            output_port = end_port
+            input_port = start_port
+        return output_port.compatible(input_port, verbose=verbose)
+
+    def _set_live_connection_port_highlights(self, start_port: Port) -> None:
+        for node in self.nodes.values():
+            for port in node.ports:
+                if port is start_port:
+                    port.set_connection_highlight()
+                    continue
+                port.set_connection_highlight(self._ports_can_connect(start_port, port))
+
+    def _clear_live_connection_port_highlights(self) -> None:
+        for node in self.nodes.values():
+            for port in node.ports:
+                port.set_connection_highlight()
 
     def isnode(self, item) -> TypeGuard[BaseNode]:
         """Check if the item is a node.

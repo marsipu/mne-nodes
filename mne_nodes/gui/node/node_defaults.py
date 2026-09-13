@@ -24,6 +24,11 @@ defaults = {
         "active_border_color": (107, 166, 193, 255),
         "hover_color": (17, 43, 82, 255),
         "hover_border_color": (136, 255, 35, 255),
+        "highlight_scale": 1.2,
+        "accept_color": (31, 76, 44, 255),
+        "accept_border_color": (95, 235, 135, 255),
+        "reject_color": (82, 30, 30, 255),
+        "reject_border_color": (232, 99, 99, 255),
         "click_falloff": 15,
     },
     "pipes": {
