@@ -429,6 +429,8 @@ class Controller:
             ),
             reprompt_on_none=True,
         )
+        if previous_root == new_root:
+            return
         if previous_root != new_root:
             ans = ask_user(
                 "When you change the BIDS-root, all selections, custom groups, "
@@ -439,8 +441,14 @@ class Controller:
                 return
 
         # Clear selected inputs and custom groups
-        self.set("selected_inputs", default_config["selected_inputs"])
-        self.set("custom_groups", default_config["custom_groups"])
+        selected_inputs = self.get("selected_inputs")
+        custom_groups = self.get("custom_groups")
+        selected_inputs.clear()
+        custom_groups.clear()
+        selected_inputs.update(deepcopy(default_config["selected_inputs"]))
+        custom_groups.update(deepcopy(default_config["custom_groups"]))
+        self.set("selected_inputs", selected_inputs)
+        self.set("custom_groups", custom_groups)
         # deriv_root/plot_root belonged to the previous dataset, force re-selection
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)

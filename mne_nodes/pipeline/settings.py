@@ -98,15 +98,7 @@ class Settings:
         try:
             with open(self.settings_path, encoding="utf-8") as f:
                 return json.load(f, object_hook=type_json_hook)
-        except (
-            OSError,
-            json.JSONDecodeError,
-            UnicodeDecodeError,
-            FileNotFoundError,
-        ) as err:
-            print(
-                f"Loading settings from {self.settings_path} failed with: {err}\nSaving defaults."
-            )
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError, FileNotFoundError):
             self._save_locked(deepcopy(self._defaults))
             return deepcopy(self._defaults)
 
