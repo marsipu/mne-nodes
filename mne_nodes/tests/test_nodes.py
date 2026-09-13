@@ -93,21 +93,21 @@ def test_nodes_click_to_click_connection(nodeviewer, qtbot):
 def test_live_connection_highlights_ports_and_resets(nodeviewer):
     start_port = nodeviewer.input_node.output(port_name="eeg")
     compatible_port = nodeviewer.node(node_name="test_filter").input(port_name="raw")
-    incompatible_ports = [
-        nodeviewer.input_node.output(port_name="event_id"),
-        nodeviewer.node(node_name="test_filter").output(port_name="raw"),
-    ]
+    all_ports = [port for node in nodeviewer.nodes.values() for port in node.ports]
+    incompatible_ports = [port for port in all_ports if port not in (start_port, compatible_port)]
 
     nodeviewer.start_live_connection(start_port)
 
     assert start_port.connection_highlight is None
     assert compatible_port.connection_highlight is True
     assert all(port.connection_highlight is False for port in incompatible_ports)
+    assert all(
+        port.connection_highlight is not None for port in all_ports if port is not start_port
+    )
 
     nodeviewer.end_live_connection()
 
-    assert compatible_port.connection_highlight is None
-    assert all(port.connection_highlight is None for port in incompatible_ports)
+    assert all(port.connection_highlight is None for port in all_ports)
 
 
 def test_port_highlight_api(nodeviewer):
