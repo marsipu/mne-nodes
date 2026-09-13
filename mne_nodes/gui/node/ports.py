@@ -94,6 +94,7 @@ class Port(QGraphicsItem):
         self._hover_border_color = defaults["ports"]["hover_border_color"]
         self._text_color = defaults["nodes"]["text_color"]
         self._hovered = False
+        self._connection_highlight: bool | None = None
 
     # --------------------------------------------------------------------------------------
     # Properties
@@ -207,6 +208,10 @@ class Port(QGraphicsItem):
         self._hovered = hovered
         self.update()
 
+    @property
+    def connection_highlight(self):
+        return self._connection_highlight
+
     # --------------------------------------------------------------------------------------
     # Qt methods
     # --------------------------------------------------------------------------------------
@@ -240,13 +245,22 @@ class Port(QGraphicsItem):
         """
         painter.save()
 
-        rect_w = self._width / 1.8
-        rect_h = self._height / 1.8
+        scale = 1.0
+        if self._connection_highlight is not None:
+            scale = defaults["ports"]["highlight_scale"]
+        rect_w = (self._width / 1.8) * scale
+        rect_h = (self._height / 1.8) * scale
         rect_x = self.boundingRect().center().x() - (rect_w / 2)
         rect_y = self.boundingRect().center().y() - (rect_h / 2)
         port_rect = QRectF(rect_x, rect_y, rect_w, rect_h)
 
-        if self._hovered:
+        if self._connection_highlight is True:
+            color = QColor(*defaults["ports"]["accept_color"])
+            border_color = QColor(*defaults["ports"]["accept_border_color"])
+        elif self._connection_highlight is False:
+            color = QColor(*defaults["ports"]["reject_color"])
+            border_color = QColor(*defaults["ports"]["reject_border_color"])
+        elif self._hovered:
             color = QColor(*self.hover_color)
             border_color = QColor(*self.hover_border_color)
         elif len(self.connected_pipes) > 0:
@@ -331,6 +345,11 @@ class Port(QGraphicsItem):
             self.accepted_ports.append(ports)
         else:
             raise TypeError("Invalid port type")
+
+    def set_connection_highlight(self, accepted: bool | None = None):
+        """Set the temporary live-connection highlight state for this port."""
+        self._connection_highlight = accepted
+        self.update()
 
     def connected(self, target_port):
         """Check whether the specified port is connected to this port.

@@ -11,6 +11,7 @@ from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
 from mne_nodes.gui.gui_utils import mouseDrag
+from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
 
 
@@ -87,6 +88,40 @@ def test_nodes_click_to_click_connection(nodeviewer, qtbot):
     )
 
     assert out_port.connected(in_port)
+
+
+def test_live_connection_highlights_ports_and_resets(nodeviewer):
+    start_port = nodeviewer.input_node.output(port_name="eeg")
+    compatible_port = nodeviewer.node(node_name="test_filter").input(port_name="raw")
+    incompatible_ports = [
+        nodeviewer.input_node.output(port_name="event_id"),
+        nodeviewer.node(node_name="test_filter").output(port_name="raw"),
+    ]
+
+    nodeviewer.start_live_connection(start_port)
+
+    assert start_port.connection_highlight is None
+    assert compatible_port.connection_highlight is True
+    assert all(port.connection_highlight is False for port in incompatible_ports)
+
+    nodeviewer.end_live_connection()
+
+    assert compatible_port.connection_highlight is None
+    assert all(port.connection_highlight is None for port in incompatible_ports)
+
+
+def test_port_highlight_api(nodeviewer):
+    port = nodeviewer.input_node.output(port_name="eeg")
+
+    port.set_connection_highlight(True)
+    assert port.connection_highlight is True
+    assert defaults["ports"]["highlight_scale"] > 1.0
+
+    port.set_connection_highlight(False)
+    assert port.connection_highlight is False
+
+    port.set_connection_highlight()
+    assert port.connection_highlight is None
 
 
 def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
