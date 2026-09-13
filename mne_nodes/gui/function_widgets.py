@@ -413,7 +413,7 @@ class FunctionImporter(QDialog):
 
     @file_path.setter
     def file_path(self, value):
-        if isfile(value):
+        if value is not None and isfile(value):
             self._file_path = value
             self._pkg_dir = Path(value).parent
 
@@ -428,33 +428,34 @@ class FunctionImporter(QDialog):
         return self._pkg_dir
 
     def load_file(self, file_path: PathLike | str | None = None):
-        self.file_path = file_path
-        if self.file_path is None:
-            self.file_path = get_user_input(
+        if file_path is None:
+            input_file_path = get_user_input(
                 "Select File to load",
                 "file",
                 file_filter="Python Files (*.py)",
                 parent=self,
             )
-        if self.file_path is not None:
-            with open(self.file_path) as f:
-                code = f.read()
-            config_path = self._get_config_path()
-            if isfile(config_path):
-                with open(config_path) as f:
-                    config = json.load(f, object_hook=type_json_hook)
-                    plugin_config = {
-                        key: value
-                        for key, value in config.items()
-                        if key != "functions"
-                    }
-                    if "plugin_name" not in plugin_config:
-                        plugin_config["plugin_name"] = self.plugin_name
-                    self.plugin_config = plugin_config
-                    self.func_config = config.get("functions", {})
-                    logger.info(f"Successfully loaded config from {config_path}")
-            self.clear_editor_tabs()
-            self.analyze_code(code)
+            if input_file_path:
+                file_path = input_file_path
+            else:
+                return
+        self.file_path = file_path
+        with open(self.file_path) as f:
+            code = f.read()
+        config_path = self._get_config_path()
+        if isfile(config_path):
+            with open(config_path) as f:
+                config = json.load(f, object_hook=type_json_hook)
+                plugin_config = {
+                    key: value for key, value in config.items() if key != "functions"
+                }
+                if "plugin_name" not in plugin_config:
+                    plugin_config["plugin_name"] = self.plugin_name
+                self.plugin_config = plugin_config
+                self.func_config = config.get("functions", {})
+                logger.info(f"Successfully loaded config from {config_path}")
+        self.clear_editor_tabs()
+        self.analyze_code(code)
 
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
@@ -482,6 +483,10 @@ class FunctionImporter(QDialog):
                     "outputs": {},
                     "target": "file",
                     "category": self.plugin_name,
+                    "sub_category": None,
+                    "description": "",
+                    "module_name": None,
+                    "class_name": None,
                 }
             start_line = func.lineno - 1
             end_line = func.end_lineno
@@ -544,7 +549,7 @@ class FunctionImporter(QDialog):
             # Update parameter configuration
             for i, p in enumerate(parameters):
                 if p not in param_config:
-                    param_config[p] = {}
+                    param_config[p] = {"description": ""}
                 gui_name = None
                 # Type-hints from the function if exec allowed
                 if p in type_hints:
@@ -604,16 +609,14 @@ class FunctionImporter(QDialog):
                             continue
                         if op.id not in self.func_config[func.name]["outputs"]:
                             self.func_config[func.name]["outputs"][op.id] = {
-                                "accepted_ports": [op.id],
-                                "optional": False,
+                                "accepted_ports": [op.id]
                             }
                         new_outputs.append(op.id)
 
                 elif isinstance(ret.value, ast.Name):
                     if ret.value.id not in self.func_config[func.name]["outputs"]:
                         self.func_config[func.name]["outputs"][ret.value.id] = {
-                            "accepted_ports": [ret.value.id],
-                            "optional": False,
+                            "accepted_ports": [ret.value.id]
                         }
                     new_outputs.append(ret.value.id)
                 else:
