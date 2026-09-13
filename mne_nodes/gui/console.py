@@ -366,7 +366,7 @@ class ConsoleDock(QDockWidget):
             | Qt.DockWidgetArea.BottomDockWidgetArea
         )
         self.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetFloatable)
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(self.screen().availableGeometry().width() // 4)
         self.tab_widget = QTabWidget(self)
         self.tab_widget.setMovable(False)
         self.tab_widget.setDocumentMode(False)

@@ -146,7 +146,7 @@ class BaseNode(QGraphicsItem):
             self.start_button_proxy = None
 
     def __repr__(self):
-        des = self.get_description()
+        des, _ = self.get_description()
         return (
             f"{des['name']} ({des['class']}), "
             f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
@@ -608,6 +608,10 @@ class BaseNode(QGraphicsItem):
 
         return inputs
 
+    def connected_input_ports(self):
+        """Returns connected input ports mapping input port name to list of connected upstream port names."""
+        return {p.name: [cp.name for cp in p.connected_ports] for p in self.inputs}
+
     def connected_outputs(self):
         """Returns connected outputs by name."""
         outputs = {
@@ -616,16 +620,31 @@ class BaseNode(QGraphicsItem):
 
         return outputs
 
+    def connected_output_ports(self):
+        """Returns connected output ports mapping output port name to list of connected downstream port names."""
+        return {p.name: [cp.name for cp in p.connected_ports] for p in self.outputs}
+
     def get_description(self):
         """Returns node description."""
         description = {
             "name": self.name,
             "class": self.__class__.__name__,
             "inputs": self.connected_inputs(),
+            "input_ports": self.connected_input_ports(),
             "outputs": self.connected_outputs(),
+            "output_ports": self.connected_output_ports(),
             "checked": self.isChecked(),
+            "function_meta": None,
         }
-        return description
+        try:
+            func_meta = self.ct.get_function_meta(self.name)
+        except KeyError:
+            target = None
+        else:
+            description["function_meta"] = func_meta
+            target = func_meta.get("target", None)
+
+        return description, target
 
     def enable_start(self, enable=True):
         if self.start_button is not None:

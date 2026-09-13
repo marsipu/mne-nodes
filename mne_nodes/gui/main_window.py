@@ -218,10 +218,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def manage_plugins(self):
-        from mne_nodes.gui.parameter.settings_dlg import PluginManagerDlg
+        from mne_nodes.gui.parameter.plugin_manager import PluginManagerDlg
 
-        dlg = PluginManagerDlg(self, self.controller)
-        dlg.open()
+        PluginManagerDlg(self, self.controller)
 
     def add_sample_bids(self):
         sample_root = get_user_input(

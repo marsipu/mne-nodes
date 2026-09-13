@@ -4,8 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from __future__ import annotations
-
 from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 

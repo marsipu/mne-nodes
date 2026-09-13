@@ -24,8 +24,9 @@ default_device_settings = {
     "plugin_config": {},  # Plugins and their config-paths
     "disabled_plugins": [],  # Plugin names disabled on this device
     "log_file_path": None,  # Optional custom log file path
-    "data_path": None,  # Project data directory (device specific)
-    "plot_path": None,  # Plot export directory (device specific)
+    "bids_root": None,  # BIDS root directory
+    "deriv_root": None,  # BIDS derivatives root directory
+    "plot_root": None,  # Plot export root directory
     "fs_path": None,  # FREESURFER_HOME (legacy / optional)
     "wls_mne_path": None,  # Legacy WSL MNE path
     "use_qthread": 1,  # Kept for backwards compatibility
@@ -97,15 +98,8 @@ class Settings:
         try:
             with open(self.settings_path, encoding="utf-8") as f:
                 return json.load(f, object_hook=type_json_hook)
-        except (
-            OSError,
-            json.JSONDecodeError,
-            UnicodeDecodeError,
-            FileNotFoundError,
-        ) as err:
-            print(
-                f"Loading settings from {self.settings_path} failed with:\n{err}\nUsing defaults."
-            )
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError, FileNotFoundError):
+            self._save_locked(deepcopy(self._defaults))
             return deepcopy(self._defaults)
 
     def _save_locked(self, settings) -> None:

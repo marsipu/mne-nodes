@@ -4,8 +4,6 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-from __future__ import annotations
-
 import ast
 from typing import Any
 

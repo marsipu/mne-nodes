@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any
 
 from mne_nodes.gui.widgets.list_widgets import EditList
