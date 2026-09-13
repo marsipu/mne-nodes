@@ -11,9 +11,9 @@ from functools import partial
 from os import PathLike
 from os.path import isfile
 from pathlib import Path
-from types import NoneType, UnionType
-from typing import Union, get_args, get_origin, get_type_hints
+from typing import get_type_hints
 
+import docstring_parser
 import qtawesome as qta
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
@@ -67,6 +67,11 @@ from mne_nodes.gui.parameter import (
 )
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple
+from mne_nodes.pipeline.function_parser import (
+    DEFAULT_TYPE_GUIS,
+    parse_docstring_type,
+    split_type_hint,
+)
 from mne_nodes.pipeline.io import TypedJSONEncoder, type_json_hook
 
 parameter_guis = [
@@ -92,22 +97,7 @@ parameter_guis = [
     TupleGui,
 ]
 
-default_type_guis = {
-    "int": IntGui,
-    "float": FloatGui,
-    "str": StringGui,
-    "bool": BoolGui,
-    "list": ListGui,
-    "dict": DictGui,
-    "object": MultiTypeGui,
-    "NoneType": MultiTypeGui,
-    "tuple": TupleGui,
-    "dual_tuple": DualTupleGui,
-    "slice": SliceGui,
-    "DataFrame": DataFrameGui,
-    "function": CallableGui,
-    "datetime": DateTimeGui,
-}
+default_type_guis = DEFAULT_TYPE_GUIS
 
 
 class TitleLabel(QLabel):
@@ -263,15 +253,8 @@ class ParameterConfiguration(QDialog):
         if param["annotation"] is inspect.Parameter.empty:
             logger.warning(f"No type annotation for parameter '{name}'. Skipping.")
             return None
-        elif (
-            type(param["annotation"]) is UnionType
-        ):  # alias for typing.Union since Python 3.14
-            args = get_args(param["annotation"])
-            gui_type = next((arg for arg in args if arg is not NoneType), str).__name__
-            none_select = NoneType in args
-        else:
-            gui_type = param["annotation"].__name__
-            none_select = param["annotation"] == NoneType
+        types, none_select = split_type_hint(param["annotation"])
+        gui_type = types[0]
         gui = default_type_guis.get(gui_type, MultiTypeGui)(
             data=self.config,
             name=name,
@@ -552,31 +535,46 @@ class FunctionImporter(QDialog):
             if func.name in namespace:
                 type_hints.update(get_type_hints(namespace[func.name]))
 
+            # Parse the docstring (AST-only, no exec needed) to fill in
+            # descriptions and, absent a type hint, guess a parameter's type.
+            docstring = ast.get_docstring(func)
+            doc = docstring_parser.parse(docstring) if docstring else None
+            doc_params = {dp.arg_name: dp for dp in doc.params} if doc else {}
+            if doc is not None and not self.func_config[func.name]["description"]:
+                self.func_config[func.name]["description"] = (
+                    doc.long_description or doc.short_description or ""
+                )
+
             # Update parameter configuration
             for i, p in enumerate(parameters):
                 if p not in param_config:
                     param_config[p] = {"description": ""}
+                doc_param = doc_params.get(p)
+                if not param_config[p]["description"] and doc_param is not None:
+                    param_config[p]["description"] = doc_param.description or ""
+
                 gui_name = None
-                # Type-hints from the function if exec allowed
                 if p in type_hints:
-                    type_hint = type_hints[p]
-                    if (
-                        isinstance(type_hint, UnionType)
-                        or get_origin(type_hint) is Union
-                    ):
-                        types = [t.__name__ for t in get_args(type_hint)]
-                        if "NoneType" in types:
-                            param_config[p]["none_select"] = True
-                            types.remove("NoneType")
-                        if len(types) > 1:
-                            gui_name = MultiTypeGui.__name__
-                            param_config[p]["types"] = types
-                        else:
-                            if types[0] == NoneType:
-                                param_config[p]["none_select"] = True
-                            gui_name = default_type_guis[types[0]].__name__
+                    # Type-hints from the function if exec allowed
+                    types, none_select = split_type_hint(type_hints[p])
+                    if none_select:
+                        param_config[p]["none_select"] = True
+                    if len(types) > 1:
+                        gui_name = MultiTypeGui.__name__
+                        param_config[p]["types"] = types
                     else:
-                        gui_name = default_type_guis[type_hint.__name__].__name__
+                        gui_name = default_type_guis[types[0]].__name__
+                elif doc_param is not None and doc_param.type_name:
+                    # Fall back to the type documented in the docstring
+                    parsed = parse_docstring_type(doc_param.type_name)
+                    if parsed["none_select"]:
+                        param_config[p]["none_select"] = True
+                    doc_types = [t for t in parsed["types"] if t in default_type_guis]
+                    if len(doc_types) > 1:
+                        gui_name = MultiTypeGui.__name__
+                        param_config[p]["types"] = doc_types
+                    elif len(doc_types) == 1:
+                        gui_name = default_type_guis[doc_types[0]].__name__
                 try:
                     default = ast.literal_eval(default_args[i])
                 except (TypeError, ValueError):
@@ -584,7 +582,9 @@ class FunctionImporter(QDialog):
                         f"Could not evaluate default value for parameter '{p}' in function '{func.name}'. Default and the gui type need to be set manually."
                     )
                 else:
-                    if p not in type_hints:
+                    # Only fall back to the default's own type when neither a
+                    # type hint nor the docstring already resolved a gui.
+                    if gui_name is None:
                         gui_name = default_type_guis[type(default).__name__].__name__
                     if default is None:
                         param_config[p]["none_select"] = True

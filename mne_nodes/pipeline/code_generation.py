@@ -2,15 +2,7 @@ import re
 from collections import defaultdict
 
 from mne_nodes.logger import logger
-
-OBJECT_SUFFIXES = {
-    "epochs": "epo",
-    "evokeds": "ave",
-    "covariance": "cov",
-    "forward": "fwd",
-    "transform": "trans",
-    "sourcespaces": "src",
-}
+from mne_nodes.pipeline.function_parser import suffix_for_ports
 
 
 class CodeGenerator:
@@ -30,18 +22,6 @@ class CodeGenerator:
         """Strip the disambiguating '-<N>' node-name suffix, e.g. for duplicate
         function nodes, to get the actual importable/callable function name."""
         return re.sub(r"-\d+$", "", name)
-
-    @staticmethod
-    def _suffix_for_ports(port_names):
-        """Return the object suffix matching any of the given port names."""
-        for port in port_names:
-            if not port or not isinstance(port, str):
-                continue
-            stripped = port.rstrip("s")
-            for key, suffix in OBJECT_SUFFIXES.items():
-                if stripped == key.rstrip("s"):
-                    return suffix
-        return None
 
     @staticmethod
     def _match_port(meta, candidates):
@@ -104,7 +84,7 @@ class CodeGenerator:
         )
         suffix = (
             suffix
-            or self._suffix_for_ports([load_name, input_name] + connected_ports)
+            or suffix_for_ports([load_name, input_name] + connected_ports)
             or load_name
         )
         return read_func, suffix, load_name
@@ -137,9 +117,7 @@ class CodeGenerator:
 
         write_port = matched_port or output_name
         suffix, _ = self._match_port(suffix_meta, [write_port, output_name])
-        suffix = (
-            suffix or self._suffix_for_ports([write_port, output_name]) or output_name
-        )
+        suffix = suffix or suffix_for_ports([write_port, output_name]) or output_name
         return write_func, suffix
 
     def _indent(self, code, num_tabs=1):
