@@ -110,6 +110,23 @@ def test_live_connection_highlights_ports_and_resets(nodeviewer):
     assert all(port.connection_highlight is None for port in all_ports)
 
 
+def test_live_connection_highlights_from_input_port(nodeviewer):
+    start_port = nodeviewer.node(node_name="test_filter").input(port_name="raw")
+    compatible_port = nodeviewer.input_node.output(port_name="eeg")
+    all_ports = [port for node in nodeviewer.nodes.values() for port in node.ports]
+    incompatible_ports = [port for port in all_ports if port not in (start_port, compatible_port)]
+
+    nodeviewer.start_live_connection(start_port)
+
+    assert start_port.connection_highlight is None
+    assert compatible_port.connection_highlight is True
+    assert all(port.connection_highlight is False for port in incompatible_ports)
+
+    nodeviewer.end_live_connection()
+
+    assert all(port.connection_highlight is None for port in all_ports)
+
+
 def test_port_highlight_api(nodeviewer):
     port = nodeviewer.input_node.output(port_name="eeg")
 
