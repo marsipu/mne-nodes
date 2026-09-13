@@ -1555,6 +1555,12 @@ class NodeViewer(QGraphicsView):
         self._start_port = None
 
     def _ports_can_connect(self, start_port: Port, end_port: Port, verbose=False) -> bool:
+        if start_port is end_port:
+            return False
+        if start_port.node is end_port.node:
+            return False
+        if start_port.port_type == end_port.port_type:
+            return False
         if start_port.port_type == "out":
             output_port = start_port
             input_port = end_port
