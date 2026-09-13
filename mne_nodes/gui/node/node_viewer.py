@@ -1563,7 +1563,9 @@ class NodeViewer(QGraphicsView):
         self._LIVE_PIPE.shift_selected = False
         self._start_port = None
 
-    def _ports_can_connect(self, start_port: Port, end_port: Port, verbose=False) -> bool:
+    def _ports_can_connect(
+        self, start_port: Port, end_port: Port, verbose=False
+    ) -> bool:
         if start_port is end_port:
             return False
         if start_port.node is end_port.node:
