@@ -1,1 +1,7 @@
-This is the development main page.
+Development
+===========
+
+.. toctree::
+    :maxdepth: 2
+
+    Docker GUI <docker_gui>
