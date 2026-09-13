@@ -10,7 +10,7 @@ from qtpy.QtCore import QObject, QPoint, QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
 from mne_nodes.conftest import _add_complex_nodes
-from mne_nodes.gui.gui_utils import mouseDrag
+from mne_nodes.gui.gui_utils import mouseDrag, mouseMove, mousePress, mouseRelease
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
 
@@ -90,49 +90,6 @@ def test_nodes_click_to_click_connection(nodeviewer, qtbot):
     assert out_port.connected(in_port)
 
 
-def test_live_connection_highlights_ports_and_resets(nodeviewer):
-    start_port = nodeviewer.input_node.output(port_name="eeg")
-    compatible_port = nodeviewer.node(node_name="test_filter").input(port_name="raw")
-    all_ports = [port for node in nodeviewer.nodes.values() for port in node.ports]
-    incompatible_ports = [
-        port for port in all_ports if port not in (start_port, compatible_port)
-    ]
-
-    nodeviewer.start_live_connection(start_port)
-
-    assert start_port.connection_highlight is None
-    assert compatible_port.connection_highlight is True
-    assert all(port.connection_highlight is False for port in incompatible_ports)
-    assert all(
-        port.connection_highlight is not None
-        for port in all_ports
-        if port is not start_port
-    )
-
-    nodeviewer.end_live_connection()
-
-    assert all(port.connection_highlight is None for port in all_ports)
-
-
-def test_live_connection_highlights_from_input_port(nodeviewer):
-    start_port = nodeviewer.node(node_name="test_filter").input(port_name="raw")
-    compatible_port = nodeviewer.input_node.output(port_name="eeg")
-    all_ports = [port for node in nodeviewer.nodes.values() for port in node.ports]
-    incompatible_ports = [
-        port for port in all_ports if port not in (start_port, compatible_port)
-    ]
-
-    nodeviewer.start_live_connection(start_port)
-
-    assert start_port.connection_highlight is None
-    assert compatible_port.connection_highlight is True
-    assert all(port.connection_highlight is False for port in incompatible_ports)
-
-    nodeviewer.end_live_connection()
-
-    assert all(port.connection_highlight is None for port in all_ports)
-
-
 def test_port_highlight_api(nodeviewer):
     port = nodeviewer.input_node.output(port_name="eeg")
 
@@ -145,6 +102,47 @@ def test_port_highlight_api(nodeviewer):
 
     port.set_connection_highlight()
     assert port.connection_highlight is None
+
+
+def test_port_highlight_during_mouse_drag(nodeviewer):
+    input_node = nodeviewer.input_node
+    filter_node = nodeviewer.node(node_name="test_filter")
+    evokeds_node = nodeviewer.add_function_node("test_evokeds")
+
+    start_port = input_node.output(port_name="eeg")
+    compatible_port = filter_node.input(port_name="raw")
+    incompatible_port = evokeds_node.input(port_name="epochs")
+    same_type_port = filter_node.output(port_name="raw")
+
+    start_port.disconnect_from(compatible_port)
+
+    start_pos = nodeviewer.port_position_view(
+        node_id=input_node.id, port_id=start_port.id
+    )
+    drag_pos = QPointF(start_pos.x() + 40, start_pos.y() + 40)
+
+    # Press on the port and drag into empty space to start a live connection.
+    mousePress(
+        widget=nodeviewer.viewport(), pos=start_pos, button=Qt.MouseButton.LeftButton
+    )
+    mouseMove(
+        widget=nodeviewer.viewport(), pos=drag_pos, button=Qt.MouseButton.LeftButton
+    )
+
+    assert compatible_port.connection_highlight is True
+    assert incompatible_port.connection_highlight is False
+    assert same_type_port.connection_highlight is False
+    assert start_port.connection_highlight is None
+
+    # Releasing in empty space ends the live connection and clears highlights.
+    mouseRelease(
+        widget=nodeviewer.viewport(), pos=drag_pos, button=Qt.MouseButton.LeftButton
+    )
+
+    for node in (input_node, filter_node, evokeds_node):
+        for port in node.ports:
+            assert port.connection_highlight is None
+    assert not start_port.connected(compatible_port)
 
 
 def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
