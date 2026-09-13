@@ -16,7 +16,6 @@ from functools import partial
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from itertools import tee
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
@@ -954,8 +953,8 @@ class Controller:
         -------
         raw, event_id
             If `items` is a single bids-path, a ``(raw, event_id)`` tuple.
-            If `items` is a list, a tuple of two independent generators
-            ``(raw_gen, event_id_gen)`` yielding one raw/event_id per member.
+            If `items` is a list, a tuple of two lists ``(raw_list,
+            event_id_list)`` with one raw/event_id per member.
         """
 
         def _load(bp, preload=True):
@@ -965,9 +964,8 @@ class Controller:
             )
 
         if isinstance(items, list):
-            # tee since a single generator can't be consumed by raw and event_id separately
-            raw_src, event_id_src = tee((_load(bp, preload=False) for bp in items), 2)
-            return (r for r, _ in raw_src), (e for _, e in event_id_src)
+            loaded = [_load(bp, preload=True) for bp in items]
+            return [r for r, _ in loaded], [e for _, e in loaded]
         return _load(items, preload=True)
 
     def load_info(self, items, raw=None):
@@ -986,7 +984,7 @@ class Controller:
         -------
         info
             If `items` is a single bids-path, an `mne.Info` instance.
-            If `items` is a list, a generator yielding one `mne.Info` per
+            If `items` is a list, a list of `mne.Info` instances, one per
             member.
         """
 
@@ -996,8 +994,8 @@ class Controller:
 
         if isinstance(items, list):
             if raw is not None:
-                return (r.info for r in raw)
-            return (_load(bp) for bp in items)
+                return [r.info for r in raw]
+            return [_load(bp) for bp in items]
         if raw is not None:
             return raw.info
         return _load(items)
@@ -1082,7 +1080,7 @@ class Controller:
 
         A function's own input may accept a port name (e.g. ``evoked``) without
         declaring how to load it from disk itself. This searches every
-        function's inputs for one that both is loadable (has a ``load`` key)
+        function's inputs for one that both is loadable (has a ``read`` key)
         and matches ``port_name`` (its own key or via ``accepted_ports``).
 
         Returns
@@ -1093,11 +1091,31 @@ class Controller:
         """
         for func_meta in self.function_meta.values():
             for input_name, input_meta in func_meta.get("inputs", {}).items():
-                if input_meta.get("read") is None:
+                read_meta = input_meta.get("read")
+                if not read_meta:
                     continue
-                candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
-                if port_name in candidates:
-                    return input_meta
+                if isinstance(read_meta, dict):
+                    read_func = None
+                    for variant in (port_name, port_name.rstrip("s"), port_name + "s"):
+                        if variant in read_meta:
+                            read_func = read_meta[variant]
+                            break
+                    if read_func is not None:
+                        suffix_val = input_meta.get("suffix")
+                        suffix = (
+                            suffix_val.get(port_name)
+                            if isinstance(suffix_val, dict)
+                            else suffix_val
+                        )
+                        return {
+                            "read": read_func,
+                            "suffix": suffix,
+                            "accepted_ports": input_meta.get("accepted_ports", []),
+                        }
+                elif isinstance(read_meta, str):
+                    candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
+                    if port_name in candidates:
+                        return input_meta
         return None
 
     def func_parameters(self, function_name):

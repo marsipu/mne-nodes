@@ -689,6 +689,7 @@ class NodeViewer(QGraphicsView):
             # If the port has no connected ports, skip it
             if len(port.connected_ports) == 0:
                 continue
+            previous_node = port.node
             for node_id, node_info in port_info.items():
                 if node_id in visited:
                     continue
@@ -712,6 +713,9 @@ class NodeViewer(QGraphicsView):
                             sequence.reverse()
                             node_sequence[key].extend(sequence)
                 description, target = node.get_description()
+                _, previous_target = previous_node.get_description()
+                if previous_target == "group":
+                    target = "group"
                 if target:
                     node_sequence[target].append(description)
                 self._iterate_node_sequence(node_sequence, node_info, visited)

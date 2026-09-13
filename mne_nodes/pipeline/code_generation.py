@@ -1,6 +1,17 @@
 import re
 from collections import defaultdict
 
+from mne_nodes.logger import logger
+
+OBJECT_SUFFIXES = {
+    "epochs": "epo",
+    "evokeds": "ave",
+    "covariance": "cov",
+    "forward": "fwd",
+    "transform": "trans",
+    "sourcespaces": "src",
+}
+
 
 class CodeGenerator:
     def __init__(self, controller, node_sequence):
@@ -19,6 +30,117 @@ class CodeGenerator:
         """Strip the disambiguating '-<N>' node-name suffix, e.g. for duplicate
         function nodes, to get the actual importable/callable function name."""
         return re.sub(r"-\d+$", "", name)
+
+    @staticmethod
+    def _suffix_for_ports(port_names):
+        """Return the object suffix matching any of the given port names."""
+        for port in port_names:
+            if not port or not isinstance(port, str):
+                continue
+            stripped = port.rstrip("s")
+            for key, suffix in OBJECT_SUFFIXES.items():
+                if stripped == key.rstrip("s"):
+                    return suffix
+        return None
+
+    @staticmethod
+    def _match_port(meta, candidates):
+        """Find the first matching value in a string or dict metadata mapping."""
+        if isinstance(meta, str):
+            return meta, candidates[0] if candidates else None
+        if isinstance(meta, dict):
+            for name in candidates:
+                if not isinstance(name, str):
+                    continue
+                for variant in (name, name.rstrip("s"), name + "s"):
+                    if variant in meta:
+                        return meta[variant], variant
+        return None, None
+
+    def _resolve_read(self, func_name, input_name, node_info):
+        """Resolve read function, suffix, and variable name for an input port."""
+        input_meta = self.ct.get_input_meta(func_name, input_name)
+        read_meta = input_meta.get("read")
+        suffix_meta = input_meta.get("suffix")
+        accepted_ports = input_meta.get("accepted_ports") or []
+        connected_ports = node_info.get("input_ports", {}).get(input_name) or [
+            cp
+            for cp in node_info.get("inputs", {}).get(input_name, [])
+            if isinstance(cp, str) and not cp.startswith("Input-")
+        ]
+
+        # Prioritize input port name and connected upstream port(s)
+        if connected_ports:
+            candidates = [input_name] + connected_ports
+        else:
+            candidates = [input_name] + accepted_ports
+
+        read_func, matched_port = self._match_port(read_meta, candidates)
+        load_name = matched_port or (
+            connected_ports[0] if connected_ports else input_name
+        )
+
+        # Fallback to project-wide load metadata for candidates
+        if read_func is None:
+            for cand in candidates:
+                alias_meta = self.ct.get_load_meta_for_port(cand)
+                if alias_meta:
+                    read_func, _ = self._match_port(alias_meta.get("read"), [cand])
+                    if read_func:
+                        load_name = cand
+                        suffix_meta = suffix_meta or alias_meta.get("suffix")
+                        break
+
+        if read_func is None:
+            logger.warning(
+                f"No read function found for input '{input_name}' in "
+                f"function '{func_name}' (connected: {connected_ports}). "
+                "Connection is not valid."
+            )
+            return None, None, None
+
+        suffix, _ = self._match_port(
+            suffix_meta, [load_name, input_name] + connected_ports
+        )
+        suffix = (
+            suffix
+            or self._suffix_for_ports([load_name, input_name] + connected_ports)
+            or load_name
+        )
+        return read_func, suffix, load_name
+
+    def _resolve_write(self, func_name, output_name, node_info, func_inputs):
+        """Resolve write function and suffix for an output port."""
+        output_meta = self.ct.get_output_meta(func_name, output_name)
+        write_meta = output_meta.get("write")
+        if write_meta is None:
+            return None, None
+
+        suffix_meta = output_meta.get("suffix")
+        accepted_ports = output_meta.get("accepted_ports") or []
+        connected_ports = node_info.get("output_ports", {}).get(output_name) or []
+        input_types = [v for v in func_inputs.values() if isinstance(v, str)]
+
+        candidates = (
+            [output_name] + input_types + connected_ports
+            if input_types or connected_ports
+            else [output_name] + accepted_ports
+        )
+        write_func, matched_port = self._match_port(write_meta, candidates)
+
+        if write_func is None:
+            logger.warning(
+                f"No write function found for output '{output_name}' in "
+                f"function '{func_name}'. Connection is not valid."
+            )
+            return None, None
+
+        write_port = matched_port or output_name
+        suffix, _ = self._match_port(suffix_meta, [write_port, output_name])
+        suffix = (
+            suffix or self._suffix_for_ports([write_port, output_name]) or output_name
+        )
+        return write_func, suffix
 
     def _indent(self, code, num_tabs=1):
         """Indent a code string by a given number of tabs."""
@@ -123,7 +245,7 @@ class CodeGenerator:
                 if target == "file" and selection_type in data_types:
                     body += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
                 else:
-                    # For group-data, load and return generators of the group-members
+                    # For group-data, load member bids-paths as a list
                     body += self._indent("members = group[item]\n", 1)
                 for n in nodes:
                     name = n["name"]
@@ -138,13 +260,7 @@ class CodeGenerator:
                     # Unconnected (optional) inputs are simply omitted from the call.
                     # A connected-but-unloaded input means the pipeline is being
                     # started from a subsequent node, so it must be read from disk.
-                    if target == "file":
-                        inputs = [ip for ip in loading_needed if n["inputs"].get(ip)]
-                    else:
-                        # For group-data generators need to be reloaded since they exhaust on every use
-                        inputs = [
-                            ip for ip, connected in n["inputs"].items() if connected
-                        ]
+                    inputs = [ip for ip in loading_needed if n["inputs"].get(ip)]
                     # Bids-path(s) to pass to the controller loading-methods
                     source = "bp" if target == "file" else "members"
                     for ip in inputs:
@@ -171,52 +287,40 @@ class CodeGenerator:
                             body += self._indent("continue", 2)
                             loaded_data.add("subject")
                         else:
-                            # Load data from derivatives; prefer this input's own
-                            # read meta, else fall back to another function's read
-                            # meta for a name it accepts (e.g. "evoked" for an
-                            # input that merely accepts it via accepted_ports).
-                            input_meta = self.ct.get_input_meta(
-                                function_name=name, input_name=ip
+                            # Load data from derivatives
+                            read_func, suffix, load_name = self._resolve_read(
+                                name, ip, n
                             )
-                            load_name = ip
-                            own_read = input_meta.get("read") is not None
-                            if not own_read:
-                                for alias in input_meta.get("accepted_ports") or []:
-                                    alias_meta = self.ct.get_load_meta_for_port(alias)
-                                    if alias_meta is not None:
-                                        input_meta = alias_meta
-                                        load_name = alias
-                                        break
-                            read_func = input_meta.get("read", None)
-                            if read_func is not None:
-                                suffix = input_meta.get("suffix") or load_name
-                                read_call = self._qualified_call(
-                                    read_func, required_modules
-                                )
-                                # Load data from storage
-                                body += self._indent(f"# Load {load_name}", 1)
-                                # Read function's own parameters serve as its kwargs.
+                            if read_func is None:
+                                continue
+
+                            read_call = self._qualified_call(
+                                read_func, required_modules
+                            )
+                            # Load data from storage
+                            body += self._indent(f"# Load {load_name}", 1)
+                            # Read function's own parameters serve as its kwargs.
+                            body += self._indent(
+                                f"read_kwargs = {{k: v for k, v in ct.func_parameters('{read_func}').items() if k != 'fname'}}\n",
+                                1,
+                            )
+                            if target == "file":
                                 body += self._indent(
-                                    f"read_kwargs = {{k: v for k, v in ct.func_parameters('{read_func}').items() if k != 'fname'}}\n",
+                                    f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                     1,
                                 )
-                                if target == "file":
-                                    body += self._indent(
-                                        f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                        1,
-                                    )
-                                    # This assumes, that the file-path is always the first argument in a load-function
-                                    body += self._indent(
-                                        f"{load_name} = {read_call}(data_path, **read_kwargs)\n",
-                                        1,
-                                    )
-                                else:
-                                    body += self._indent(
-                                        f"{load_name} = ({read_call}(dp, **read_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members])\n",
-                                        1,
-                                    )
-                                loaded_data.add(load_name)
-                                func_inputs[ip] = load_name
+                                # This assumes, that the file-path is always the first argument in a load-function
+                                body += self._indent(
+                                    f"{load_name} = {read_call}(data_path, **read_kwargs)\n",
+                                    1,
+                                )
+                            else:
+                                body += self._indent(
+                                    f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]]\n",
+                                    1,
+                                )
+                            loaded_data.add(load_name)
+                            func_inputs[ip] = load_name
                         # A loaded port's variable is named after itself.
                         if ip in loaded_data:
                             func_inputs[ip] = ip
@@ -251,47 +355,47 @@ class CodeGenerator:
                     # Save outputs (if enabled)
                     if n["checked"]:
                         for op in n["outputs"]:
-                            output_meta = self.ct.get_output_meta(
-                                function_name=name, output_name=op
+                            write_func, suffix = self._resolve_write(
+                                name, op, n, func_inputs
                             )
-                            write_func = output_meta.get("write", None)
-                            if write_func is not None:
-                                suffix = output_meta.get("suffix") or op
-                                # Save data to storage
-                                body += self._indent(f"# Save {op}\n", 1)
-                                if target == "file":
-                                    body += self._indent(
-                                        f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
-                                        1,
-                                    )
-                                else:
-                                    body += self._indent(
-                                        f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"
-                                        "data_path.mkdir(exist_ok=True)\n",
-                                        1,
-                                    )
-                                # Write function's own parameters serve as its kwargs.
+                            if write_func is None:
+                                continue
+
+                            # Save data to storage
+                            body += self._indent(f"# Save {op}\n", 1)
+                            if target == "file":
                                 body += self._indent(
-                                    f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n",
+                                    f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                     1,
                                 )
-                                write_func_meta = self.ct.get_function_meta(write_func)
-                                if write_func_meta["class_name"] is not None:
-                                    # Called on the produced instance directly.
-                                    method_name = write_func.split(".")[-1]
-                                    body += self._indent(
-                                        f"{op}.{method_name}(data_path, **write_kwargs)\n",
-                                        1,
-                                    )
-                                else:
-                                    write_call = self._qualified_call(
-                                        write_func, required_modules
-                                    )
-                                    # This assumes, that the file-path is always the first argument in a save-function
-                                    body += self._indent(
-                                        f"{write_call}(data_path, {op}, **write_kwargs)\n",
-                                        1,
-                                    )
+                            else:
+                                body += self._indent(
+                                    f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"
+                                    "data_path.mkdir(exist_ok=True)\n",
+                                    1,
+                                )
+                            # Write function's own parameters serve as its kwargs.
+                            body += self._indent(
+                                f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n",
+                                1,
+                            )
+                            write_func_meta = self.ct.get_function_meta(write_func)
+                            if write_func_meta["class_name"] is not None:
+                                # Called on the produced instance directly.
+                                method_name = write_func.split(".")[-1]
+                                body += self._indent(
+                                    f"{op}.{method_name}(data_path, **write_kwargs)\n",
+                                    1,
+                                )
+                            else:
+                                write_call = self._qualified_call(
+                                    write_func, required_modules
+                                )
+                                # This assumes, that the file-path is always the first argument in a save-function
+                                body += self._indent(
+                                    f"{write_call}(data_path, {op}, **write_kwargs)\n",
+                                    1,
+                                )
                     loaded_data.update(n["outputs"])
 
         # Create import header, including modules for read/write functions used above.

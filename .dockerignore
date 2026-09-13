@@ -1,0 +1,43 @@
+# VCS metadata
+.git
+.gitignore
+.gitattributes
+
+# Build / test caches
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+dist/
+docs/build/
+
+# Local settings / editor
+.vscode/
+.idea/
+*.env
+.env.*
+
+# Data artifacts
+*.fif
+*.edf
+*.bdf
+*.set
+*.vhdr
+*.vmrk
+*.eeg
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.mat
+*.csv
+*.pkl
+data/
