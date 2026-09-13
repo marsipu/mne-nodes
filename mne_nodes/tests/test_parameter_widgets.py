@@ -14,6 +14,7 @@ from qtpy.QtCore import Qt
 from mne_nodes.gui import parameter
 from mne_nodes.gui.parameter import LabelGui, Param
 from mne_nodes.gui.parameter.callable_gui import CallableGui, evaluate_function_code
+from mne_nodes.gui.parameter.color_gui import _get_color
 from mne_nodes.tests._test_utils import toggle_checked_list_model
 
 gui_mapping = {
@@ -50,6 +51,21 @@ gui_kwargs = {
     "keys": "DictGui",
     "editable": True,
 }
+
+
+@pytest.mark.parametrize(
+    ("color_spec", "expected"),
+    [
+        ("#10203080", (16, 32, 48, 128)),
+        ("red", (255, 0, 0, 255)),
+        ("xkcd:sky blue", (117, 187, 253, 255)),
+        ("rgb(16, 32, 48)", (16, 32, 48, 255)),
+        ("rgba(16, 32, 48, 0.5)", (16, 32, 48, 128)),
+    ],
+)
+def test_get_color(color_spec, expected):
+    """Color specifications are converted without mne-qt-browser."""
+    assert _get_color(color_spec).getRgb() == expected
 
 
 def _check_param(gui, gui_name, value):

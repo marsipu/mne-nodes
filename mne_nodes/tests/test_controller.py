@@ -289,8 +289,9 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
 
     node_sequence = viewer.get_node_sequence(viewer.input_node)
     # Keep all outputs in-memory to avoid filesystem format assumptions.
-    for node in node_sequence:
-        node["checked"] = False
+    for sequence in node_sequence.values():
+        for node in sequence:
+            node["checked"] = False
 
     generated_code = CodeGenerator(ct, node_sequence).code
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
@@ -423,3 +424,129 @@ def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
     ct.settings.remove("bids_root")
     cached_name = ct.get_dataset_name()
     assert cached_name == "TestDataset"
+
+
+def test_codegen_multi_type_read_write(ct):
+    from mne_nodes.pipeline.code_generation import CodeGenerator
+
+    plugin_name = next(iter(ct.plugins), "mne_functions")
+
+    # Register metadata for grand_average with dict-based read and write
+    ct.function_meta["grand_average"] = {
+        "inputs": {
+            "all_inst": {
+                "accepted_ports": ["all_inst", "evoked", "evokeds", "tfr"],
+                "optional": False,
+                "read": {
+                    "evoked": "read_evokeds",
+                    "evokeds": "read_evokeds",
+                    "tfr": "read_tfrs",
+                },
+                "suffix": {"evoked": "ave", "evokeds": "ave", "tfr": "tfr"},
+            }
+        },
+        "parameters": {},
+        "outputs": {
+            "grand_average": {
+                "accepted_ports": ["grand_average", "evoked", "evokeds", "tfr"],
+                "write": {
+                    "evoked": "write_evokeds",
+                    "evokeds": "write_evokeds",
+                    "tfr": "write_tfrs",
+                },
+                "suffix": {"evoked": "ave", "evokeds": "ave", "tfr": "tfr"},
+            }
+        },
+        "target": "group",
+        "category": "sensor_space",
+        "sub_category": None,
+        "class_name": None,
+        "module_name": "mne",
+        "plugin": plugin_name,
+    }
+    ct.function_meta["read_evokeds"] = {
+        "parameters": {"fname": None},
+        "class_name": None,
+        "module_name": "mne",
+        "plugin": plugin_name,
+    }
+    ct.function_meta["write_evokeds"] = {
+        "parameters": {"fname": None},
+        "class_name": None,
+        "module_name": "mne",
+        "plugin": plugin_name,
+    }
+
+    ct.set("selected_inputs", {"subject": ["sub-01", "sub-02"]})
+
+    node_sequence = {
+        "file": [],
+        "group": [
+            {
+                "name": "grand_average",
+                "class": "FunctionNode",
+                "inputs": {"all_inst": ["test_evokeds"]},
+                "input_ports": {"all_inst": ["evoked"]},
+                "outputs": {"grand_average": ["evoked"]},
+                "output_ports": {"grand_average": ["evoked"]},
+                "checked": True,
+                "function_meta": ct.function_meta["grand_average"],
+            }
+        ],
+    }
+
+    gen = CodeGenerator(ct, node_sequence)
+    code = gen.code
+    assert "read_evokeds" in code
+    assert "suffix='ave'" in code
+    assert "write_evokeds" in code
+    assert "grand_average(" in code
+
+
+def test_codegen_multi_type_invalid_connection(ct, caplog):
+    import logging
+
+    from mne_nodes.pipeline.code_generation import CodeGenerator
+
+    plugin_name = next(iter(ct.plugins), "mne_functions")
+
+    ct.function_meta["grand_average"] = {
+        "inputs": {
+            "all_inst": {
+                "accepted_ports": ["all_inst", "evoked"],
+                "optional": False,
+                "read": {"evoked": "read_evokeds"},
+            }
+        },
+        "parameters": {},
+        "outputs": {},
+        "target": "file",
+        "class_name": None,
+        "module_name": "mne",
+        "plugin": plugin_name,
+    }
+
+    ct.set("selected_inputs", {"eeg": ["sample.vhdr"]})
+
+    node_sequence = {
+        "file": [
+            {
+                "name": "grand_average",
+                "class": "FunctionNode",
+                "inputs": {"all_inst": ["unknown_node"]},
+                "input_ports": {"all_inst": ["unknown_port"]},
+                "outputs": {},
+                "output_ports": {},
+                "checked": False,
+                "function_meta": ct.function_meta["grand_average"],
+            }
+        ],
+        "group": [],
+    }
+
+    with caplog.at_level(logging.WARNING, logger="mne_nodes"):
+        CodeGenerator(ct, node_sequence)
+        assert any(
+            "Connection is not valid" in record.message or "not valid" in record.message
+            for record in caplog.records
+        )

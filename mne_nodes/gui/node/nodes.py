@@ -195,7 +195,7 @@ class FunctionNode(BaseNode):
         from mne_nodes.gui import parameter
 
         func_meta = ct.get_function_meta(kwargs["name"])
-        if any(v.get("write") is not None for v in func_meta["outputs"].values()):
+        if any(bool(v.get("write")) for v in func_meta["outputs"].values()):
             checkbox = "Save"
         else:
             checkbox = None

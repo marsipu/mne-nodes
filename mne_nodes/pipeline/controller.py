@@ -16,7 +16,6 @@ from functools import partial
 from importlib import import_module
 from importlib.util import cache_from_source
 from inspect import getsource
-from itertools import tee
 from os.path import isdir, isfile, join
 from pathlib import Path
 from shutil import copy2
@@ -56,7 +55,10 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     # BIDS
-    "selected_inputs": {},  # BIDS entity values as keys for lists
+    "selected_inputs": {
+        "file": [],
+        "subject": [],
+    },  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
     "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
@@ -429,18 +431,27 @@ class Controller:
         )
         if previous_root == new_root:
             return
-
-        ans = ask_user(
-            "When you change the BIDS-root, all selections and custom groups will be lost. Do you want to proceed?"
-        )
-        if not ans:
-            if previous_root is not None:
+        if previous_root != new_root:
+            ans = ask_user(
+                "When you change the BIDS-root, all selections, custom groups, "
+                "derivatives-root and plot-root will be lost. Do you want to proceed?"
+            )
+            if not ans:
                 self.settings.set("bids_root", previous_root)
-            return
+                return
 
         # Clear selected inputs and custom groups
-        self.get("selected_inputs").clear()
-        self.get("custom_groups").clear()
+        selected_inputs = self.get("selected_inputs")
+        custom_groups = self.get("custom_groups")
+        selected_inputs.clear()
+        custom_groups.clear()
+        selected_inputs.update(deepcopy(default_config["selected_inputs"]))
+        custom_groups.update(deepcopy(default_config["custom_groups"]))
+        self.set("selected_inputs", selected_inputs)
+        self.set("custom_groups", custom_groups)
+        # deriv_root/plot_root belonged to the previous dataset, force re-selection
+        self.settings.set("deriv_root", None)
+        self.settings.set("plot_root", None)
         # Update input widget when viewer is available.
         if self.viewer is not None:
             self.viewer.input_node.update_widgets()
@@ -687,6 +698,34 @@ class Controller:
         """Get the default value for a specific key."""
         return deepcopy(default_config.get(key, None))
 
+    def _check_bids_root_mismatch(self, config: dict) -> None:
+        """Warn and reset device paths if bids_root doesn't match the loaded project.
+
+        ``bids_root``, ``deriv_root`` and ``plot_root`` are device-wide settings,
+        shared across all config-files/projects on this device. If the currently
+        configured ``bids_root`` points to a different dataset than the one this
+        project was last used with (recorded as ``bids_dataset_name``), the
+        selection/derivatives/plot paths are stale and must be re-selected.
+        """
+        cached_name = config.get("bids_dataset_name")
+        if not cached_name:
+            return
+        bids_root = self._setting_folder("bids_root")
+        if bids_root is None:
+            return
+        actual_name = self._read_bids_dataset_name(bids_root)
+        if actual_name is None or actual_name == cached_name:
+            return
+        raise_user_attention(
+            f"The configured BIDS-root '{bids_root}' belongs to dataset "
+            f"'{actual_name}', but this project was last used with dataset "
+            f"'{cached_name}'. Please select the correct bids-root, "
+            "derivatives-root and plot-root for this project.",
+            "warning",
+        )
+        for key in ("bids_root", "deriv_root", "plot_root"):
+            self.settings.set(key, None)
+
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
         """Load config from disk and optionally resolve nodes and pipeline dependencies."""
         config_path = self.ensure_config_path(interactive=False)
@@ -706,6 +745,8 @@ class Controller:
         if not isinstance(config, dict):
             logger.warning("Loaded configuration has invalid type. Using defaults.")
             config = deepcopy(default_config)
+
+        self._check_bids_root_mismatch(config)
 
         if nodes and self.viewer is not None:
             self.viewer.load_nodes(config["node_config"])
@@ -817,21 +858,25 @@ class Controller:
     ####################################################################################
     # BIDS
     ####################################################################################
+    @staticmethod
+    def _read_bids_dataset_name(bids_root: Path) -> str | None:
+        """Read the dataset name from a bids-root's dataset_description.json."""
+        dataset_file = bids_root / "dataset_description.json"
+        if not dataset_file.is_file():
+            logger.warning(f"Dataset description file not found at {dataset_file}.")
+            return None
+        return load_json(dataset_file, no_gui=True).get("Name")
+
     def get_dataset_name(self) -> str | None:
         try:
             bids_root = self.ensure_bids_root(interactive=False)
         except RuntimeError:
             bids_root = None
         if bids_root is not None:
-            dataset_file = bids_root / "dataset_description.json"
-            if dataset_file.is_file():
-                dataset_description = load_json(dataset_file, no_gui=True)
-                name = dataset_description.get("Name")
-                if name is not None:
-                    self.set("bids_dataset_name", name)
-                    return name
-            else:
-                logger.warning(f"Dataset description file not found at {dataset_file}.")
+            name = self._read_bids_dataset_name(bids_root)
+            if name is not None:
+                self.set("bids_dataset_name", name)
+                return name
         # Fall back to cached value from config
         return self.get("bids_dataset_name", None)
 
@@ -916,8 +961,8 @@ class Controller:
         -------
         raw, event_id
             If `items` is a single bids-path, a ``(raw, event_id)`` tuple.
-            If `items` is a list, a tuple of two independent generators
-            ``(raw_gen, event_id_gen)`` yielding one raw/event_id per member.
+            If `items` is a list, a tuple of two lists ``(raw_list,
+            event_id_list)`` with one raw/event_id per member.
         """
 
         def _load(bp, preload=True):
@@ -927,9 +972,8 @@ class Controller:
             )
 
         if isinstance(items, list):
-            # tee since a single generator can't be consumed by raw and event_id separately
-            raw_src, event_id_src = tee((_load(bp, preload=False) for bp in items), 2)
-            return (r for r, _ in raw_src), (e for _, e in event_id_src)
+            loaded = [_load(bp, preload=True) for bp in items]
+            return [r for r, _ in loaded], [e for _, e in loaded]
         return _load(items, preload=True)
 
     def load_info(self, items, raw=None):
@@ -948,7 +992,7 @@ class Controller:
         -------
         info
             If `items` is a single bids-path, an `mne.Info` instance.
-            If `items` is a list, a generator yielding one `mne.Info` per
+            If `items` is a list, a list of `mne.Info` instances, one per
             member.
         """
 
@@ -958,8 +1002,8 @@ class Controller:
 
         if isinstance(items, list):
             if raw is not None:
-                return (r.info for r in raw)
-            return (_load(bp) for bp in items)
+                return [r.info for r in raw]
+            return [_load(bp) for bp in items]
         if raw is not None:
             return raw.info
         return _load(items)
@@ -1044,7 +1088,7 @@ class Controller:
 
         A function's own input may accept a port name (e.g. ``evoked``) without
         declaring how to load it from disk itself. This searches every
-        function's inputs for one that both is loadable (has a ``load`` key)
+        function's inputs for one that both is loadable (has a ``read`` key)
         and matches ``port_name`` (its own key or via ``accepted_ports``).
 
         Returns
@@ -1055,11 +1099,31 @@ class Controller:
         """
         for func_meta in self.function_meta.values():
             for input_name, input_meta in func_meta.get("inputs", {}).items():
-                if input_meta.get("read") is None:
+                read_meta = input_meta.get("read")
+                if not read_meta:
                     continue
-                candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
-                if port_name in candidates:
-                    return input_meta
+                if isinstance(read_meta, dict):
+                    read_func = None
+                    for variant in (port_name, port_name.rstrip("s"), port_name + "s"):
+                        if variant in read_meta:
+                            read_func = read_meta[variant]
+                            break
+                    if read_func is not None:
+                        suffix_val = input_meta.get("suffix")
+                        suffix = (
+                            suffix_val.get(port_name)
+                            if isinstance(suffix_val, dict)
+                            else suffix_val
+                        )
+                        return {
+                            "read": read_func,
+                            "suffix": suffix,
+                            "accepted_ports": input_meta.get("accepted_ports", []),
+                        }
+                elif isinstance(read_meta, str):
+                    candidates = [input_name, *(input_meta.get("accepted_ports") or [])]
+                    if port_name in candidates:
+                        return input_meta
         return None
 
     def func_parameters(self, function_name):

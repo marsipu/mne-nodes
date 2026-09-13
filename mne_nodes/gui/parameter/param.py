@@ -1,7 +1,5 @@
 """Base parameter GUI class."""
 
-from __future__ import annotations
-
 from collections.abc import MutableMapping
 from types import NoneType
 from typing import Any

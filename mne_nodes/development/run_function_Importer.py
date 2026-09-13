@@ -8,7 +8,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import faulthandler
 import sys
-from pathlib import Path
 
 from qtpy.QtWidgets import QApplication
 
@@ -26,8 +25,7 @@ def main() -> None:
     # Import GUI-heavy modules only after QApplication exists.
     from mne_nodes.gui.function_widgets import FunctionImporter
 
-    file_path = Path(__file__).parent.parent / "tests" / "validation_functions.py"
-    FunctionImporter(file_path=file_path, allow_exec=True).open()
+    FunctionImporter(allow_exec=True).open()
     sys.exit(app.exec())
 
 
