@@ -17,7 +17,6 @@ from .list_gui import ListGui
 from .multitype_gui import MultiTypeGui
 from .param import Param
 from .path_gui import PathGui
-from .settings_dlg import SettingsDlg
 from .slice_gui import SliceGui
 from .slider_gui import SliderGui
 from .string_gui import StringGui
@@ -45,7 +44,6 @@ __all__ = [
     "MultiTypeGui",
     "Param",
     "PathGui",
-    "SettingsDlg",
     "SliceGui",
     "SliderGui",
     "StringGui",

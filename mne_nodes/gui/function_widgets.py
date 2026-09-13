@@ -267,12 +267,12 @@ class ParameterConfiguration(QDialog):
             type(param["annotation"]) is UnionType
         ):  # alias for typing.Union since Python 3.14
             args = get_args(param["annotation"])
-            gui_type = next((arg for arg in args if arg is not NoneType), str)
+            gui_type = next((arg for arg in args if arg is not NoneType), str).__name__
             none_select = NoneType in args
         else:
-            gui_type = param["annotation"]
+            gui_type = param["annotation"].__name__
             none_select = param["annotation"] == NoneType
-        gui = default_type_guis.get(gui_type.__name__, MultiTypeGui)(
+        gui = default_type_guis.get(gui_type, MultiTypeGui)(
             data=self.config,
             name=name,
             default=param["default"],
@@ -442,6 +442,12 @@ class FunctionImporter(QDialog):
         self.file_path = file_path
         with open(self.file_path) as f:
             code = f.read()
+        # Reset state from any previously loaded file, otherwise stale
+        # function/parameter configs can leak into the newly loaded file.
+        self.plugin_config = {}
+        self.func_config = {}
+        self.fixed_categories = {}
+        self.current_func = None
         config_path = self._get_config_path()
         if isfile(config_path):
             with open(config_path) as f:
@@ -642,6 +648,7 @@ class FunctionImporter(QDialog):
             widget = self.tab_widget.widget(idx)
             widget.deleteLater()
         self.tab_widget.clear()
+        self.editors.clear()
 
     def change_description(self):
         DescriptionEditor(self.plugin_config, self).open()
