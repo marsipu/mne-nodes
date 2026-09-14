@@ -22,10 +22,8 @@ class PluginManagerDlg(QDialog):
 
     * **Disable / Enable** – toggles loading of the plugin on future
       sessions of this device without removing it from the project config.
-    * **Delete / Uninstall** – permanently removes the plugin.  For
-      ``path``-type plugins the script and config files are deleted from
-      disk; for ``github``/``module`` plugins the distribution is
-      uninstalled via pip.
+        * **Remove** – unregisters the plugin from the project without deleting
+            its files or uninstalling its distribution.
 
     Parameters
     ----------
@@ -103,13 +101,12 @@ class PluginManagerDlg(QDialog):
         )
         row_layout.addWidget(toggle_bt)
 
-        delete_label = "Delete Files" if plugin_type == "path" else "Uninstall"
-        delete_bt = QPushButton(delete_label)
-        delete_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        delete_bt.clicked.connect(
+        remove_bt = QPushButton("Remove")
+        remove_bt.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        remove_bt.clicked.connect(
             lambda _checked, pn=plugin_name: self._remove_plugin(pn)
         )
-        row_layout.addWidget(delete_bt)
+        row_layout.addWidget(remove_bt)
 
         return group
 
@@ -130,18 +127,10 @@ class PluginManagerDlg(QDialog):
     def _remove_plugin(self, plugin_name: str):
         from mne_nodes.gui.gui_utils import ask_user
 
-        plugin_meta = self.ct.get("plugin_meta", {}).get(plugin_name, {})
-        plugin_type = plugin_meta.get("plugin_type", "unknown")
-        if plugin_type == "path":
-            question = (
-                f"Delete all files for plugin '{plugin_name}'?\n"
-                "This will permanently delete the script and config files from disk."
-            )
-        else:
-            question = (
-                f"Uninstall plugin '{plugin_name}'?\n"
-                "This will uninstall the Python package via pip."
-            )
+        question = (
+            f"Remove plugin '{plugin_name}' from this project?\n"
+            "The plugin files and installed package will not be changed."
+        )
         if not ask_user(question):
             return
         self.ct.remove_plugin(plugin_name)

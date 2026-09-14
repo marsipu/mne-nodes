@@ -21,6 +21,7 @@ from mne_nodes.gui.gui_utils import (
     information_message,
     set_ratio_geometry,
 )
+from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.pipeline.data_import import load_sample_bids
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         _widgets["main_window"] = self
         self._controller = controller
         self.settings = controller.settings
+        self.node_picker = None
 
         # Initialize properties
         # Console/Error management moved into ConsoleDock
@@ -134,6 +136,13 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
+        node_picker_action = QAction(
+            "&Node Picker", parent=self, statusTip="Open the categorized node picker."
+        )
+        node_picker_action.triggered.connect(self.show_node_picker)
+        view_menu = self.menuBar().addMenu("&View")
+        view_menu.addAction(node_picker_action)
+
         # Pipeline Menu
         self.menuBar().addAction(exit_action)
 
@@ -166,6 +175,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    def show_node_picker(self):
+        """Show the categorized node picker dialog."""
+        if self.node_picker is None:
+            self.node_picker = NodePicker(self.controller, self)
+            self.viewer.node_picker = self.node_picker
+        self.node_picker.show()
+        self.node_picker.raise_()
+        self.node_picker.activateWindow()
+
     def load_pipeline(self):
         self.controller.config_path = None
         self.controller.load(plugins=True)

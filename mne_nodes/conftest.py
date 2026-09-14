@@ -78,6 +78,7 @@ def settings(tmp_path):
 
     os.environ["MNENODES_SETTINGS_DIR"] = str(tmp_path)
     settings = Settings()
+    settings.set("first_start", False)
     return settings
 
 

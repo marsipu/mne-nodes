@@ -113,6 +113,9 @@ class Controller:
         self._initialize_startup_config_path(config_path)
         # Initialize plugins
         self.load_recent_plugins()
+        # If first start initialize welcome-tour
+        if self.first_start():
+            self._initialize_welcome_tour()
 
     ####################################################################################
     # Initialization and Properties
@@ -855,6 +858,18 @@ class Controller:
             )
         return main_window
 
+    def first_start(self) -> bool:
+        """Check if this is the first start of the application."""
+        return self.settings.get("first_start", True)
+
+    def _initialize_welcome_tour(self):
+        """Initialize the welcome tour by loading welcome-tour plugins and steps."""
+        ans = ask_user("Would you like to start the welcome tour?")
+        if ans:
+            pass
+        else:
+            self.settings.set("first_start", False)
+
     ####################################################################################
     # BIDS
     ####################################################################################
@@ -1458,22 +1473,16 @@ class Controller:
             self.viewer.refresh_node_picker()
 
     def remove_plugin(self, plugin_name: str) -> None:
-        """Unload a plugin from the current session and remove it from the config.
+        """Unload a plugin and remove its registration from the project.
 
-        For ``path``-type plugins the script and config files are deleted from
-        disk together with any cached bytecode.  For ``github`` and ``module``
-        plugins the distribution is uninstalled via pip.
+        Plugin files and installed distributions are intentionally left in
+        place so the plugin can be registered again later.
 
         Parameters
         ----------
         plugin_name : str
             Name of the plugin to remove.
         """
-        from pathlib import Path
-
-        plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
-        plugin_type = plugin_meta.get("plugin_type")
-
         # Unload from current session (also removes viewer nodes)
         functions_to_remove = self._unload_plugin_session(plugin_name)
 
@@ -1490,22 +1499,9 @@ class Controller:
         plugin_config = self.settings.get("plugin_config", {})
         plugin_config.pop(plugin_name, None)
         self.settings.set("plugin_config", plugin_config)
-
-        if plugin_type == "path":
-            config_path = plugin_meta.get("config_path")
-            script_path = plugin_meta.get("script_path")
-            for p in [config_path, script_path]:
-                if p is not None:
-                    try:
-                        Path(p).unlink(missing_ok=True)
-                        bytecode = Path(p).with_suffix(".pyc")
-                        bytecode.unlink(missing_ok=True)
-                    except OSError as exc:
-                        logger.warning(f"Could not delete plugin file {p}: {exc}")
-        elif plugin_type in ("github", "module"):
-            from mne_nodes.pipeline.package_utils import uninstall_pip_packages
-
-            uninstall_pip_packages([plugin_name])
+        disabled_plugins = set(self.settings.get("disabled_plugins", []))
+        disabled_plugins.discard(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled_plugins))
 
     def reload_plugins(self, plugin_name: str | None = None) -> None:
         """Reload all plugins in the controller.

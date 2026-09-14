@@ -36,8 +36,7 @@ def main() -> None:
     app.setApplicationName(app_name)
     app.setOrganizationName(organization_name)
     app.setOrganizationDomain(domain_name)
-    # For Spyder to make console accessible again
-    app.lastWindowClosed.connect(app.quit)
+    app.setQuitOnLastWindowClosed(True)
 
     # Avoid file-dialog-problems with custom file-managers in linux
     if mne_nodes.islin:

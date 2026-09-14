@@ -109,9 +109,9 @@ class TitleLabel(QLabel):
 
 
 class DescriptionEditor(QDialog):
-    def __init__(self, plugin_config, parent):
+    def __init__(self, function_config, parent):
         super().__init__(parent)
-        self.plugin_config = plugin_config
+        self.function_config = function_config
         # Initialize Layout
         layout = QGridLayout(self)
         layout.addWidget(TitleLabel("Editor (Markdown)"), 0, 0)
@@ -123,14 +123,14 @@ class DescriptionEditor(QDialog):
         self.viewer.setReadOnly(True)
         layout.addWidget(self.viewer, 1, 1)
         # Initialize text if existing
-        if "description" in plugin_config:
-            self.editor.setPlainText(plugin_config["description"])
+        if "description" in function_config:
+            self.editor.setPlainText(function_config["description"])
         self.setMinimumSize(600, 300)
 
     def _update_viewer(self):
         text = self.editor.toPlainText()
         self.viewer.setMarkdown(text)
-        self.plugin_config["description"] = text
+        self.function_config["description"] = text
 
 
 class FunctionHighlighter(PythonHighlighter):
@@ -336,7 +336,7 @@ class FunctionImporter(QDialog):
         analyze_bt.clicked.connect(self.reanalyze)
         bt_layout.addWidget(analyze_bt)
         dsc_bt = QPushButton(
-            qta.icon("mdi.file-document-edit"), "Change Plugin Description"
+            qta.icon("mdi.file-document-edit"), "Change Function Description"
         )
         dsc_bt.clicked.connect(self.change_description)
         bt_layout.addWidget(dsc_bt)
@@ -434,14 +434,7 @@ class FunctionImporter(QDialog):
         config_path = self._get_config_path()
         if isfile(config_path):
             with open(config_path) as f:
-                config = json.load(f, object_hook=type_json_hook)
-                plugin_config = {
-                    key: value for key, value in config.items() if key != "functions"
-                }
-                if "plugin_name" not in plugin_config:
-                    plugin_config["plugin_name"] = self.plugin_name
-                self.plugin_config = plugin_config
-                self.func_config = config.get("functions", {})
+                self.func_config = json.load(f, object_hook=type_json_hook)
                 logger.info(f"Successfully loaded config from {config_path}")
         self.clear_editor_tabs()
         self.analyze_code(code)
@@ -651,7 +644,12 @@ class FunctionImporter(QDialog):
         self.editors.clear()
 
     def change_description(self):
-        DescriptionEditor(self.plugin_config, self).open()
+        if self.current_func is None:
+            current_index = self.tab_widget.currentIndex()
+            if current_index < 0:
+                return
+            self.update_config(current_index)
+        DescriptionEditor(self.func_config[self.current_func], self).open()
 
     def reanalyze(self):
         # Get code from editors
@@ -770,12 +768,8 @@ class FunctionImporter(QDialog):
 
     def save_config(self):
         save_path = self._get_config_path()
-        if not isinstance(self.plugin_config, dict):
-            self.plugin_config = {}
-        self.plugin_config.setdefault("plugin_name", self.plugin_name)
-        config = {**self.plugin_config, "functions": self.func_config}
         with open(save_path, "w") as f:
-            json.dump(config, f, indent=4, cls=TypedJSONEncoder)
+            json.dump(self.func_config, f, indent=4, cls=TypedJSONEncoder)
             logger.info(f"Saved config to {save_path}")
 
     def save(self):
@@ -809,9 +803,7 @@ class FunctionImporter(QDialog):
                 with open(config_path) as f:
                     loaded_config = json.load(f, object_hook=type_json_hook)
                 same = json.dumps(
-                    loaded_config.get("functions", {}),
-                    sort_keys=True,
-                    cls=TypedJSONEncoder,
+                    loaded_config, sort_keys=True, cls=TypedJSONEncoder
                 ) == json.dumps(self.func_config, sort_keys=True, cls=TypedJSONEncoder)
                 if same:
                     event.accept()

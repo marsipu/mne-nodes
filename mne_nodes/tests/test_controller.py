@@ -65,6 +65,23 @@ def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     # Test insertion
 
 
+def test_remove_plugin_unregisters_without_deleting_files(
+    ct, test_plugin_config, test_script
+):
+    ct.load_plugin_path(test_plugin_config)
+    ct.settings.set("disabled_plugins", ["test_module"])
+
+    ct.remove_plugin("test_module")
+
+    assert test_plugin_config.is_file()
+    assert test_script.is_file()
+    assert "test_module" not in ct.plugins
+    assert "test_module" not in ct.get("plugin_meta")
+    assert "test_func1" not in ct.get("functions")
+    assert "test_module" not in ct.settings.get("plugin_config", {})
+    assert "test_module" not in ct.settings.get("disabled_plugins", [])
+
+
 def test_config_change(tmp_path, ct, monkeypatch):
     old_config_path = ct.config_path
     # Check controller change with other options
