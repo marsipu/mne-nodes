@@ -1845,6 +1845,30 @@ class NodeViewer(QGraphicsView):
         """Redraw the current node graph scene."""
         self._update_scene()
 
+    def prepare_welcome_tour(self, item, widget_size, padding=10):
+        """Fit an item while reserving room for the welcome-tour panel."""
+        item_rect = item.sceneBoundingRect().adjusted(
+            -padding, -padding, padding, padding
+        )
+        reserve_width = widget_size.width() + 20
+        reserve_height = widget_size.height() + 20
+        view_size = self.viewport().size()
+        scene_width = item_rect.width() + reserve_width / max(
+            self.transform().m11(), 0.01
+        )
+        scene_height = item_rect.height() + reserve_height / max(
+            self.transform().m22(), 0.01
+        )
+        scene_rect = QRectF(
+            item_rect.center().x() - scene_width / 2,
+            item_rect.center().y() - scene_height / 2,
+            scene_width,
+            scene_height,
+        )
+        if view_size.width() and view_size.height():
+            self.fitInView(scene_rect, Qt.AspectRatioMode.KeepAspectRatio)
+        self.centerOn(item_rect.center())
+
     def scene_rect(self):
         """Return the scene rect size.
 

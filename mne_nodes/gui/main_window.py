@@ -24,6 +24,7 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.welcome_tour import WelcomeTour
 from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
@@ -158,6 +159,9 @@ class MainWindow(QMainWindow):
                     break
 
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
+
+        if self.controller.settings.get("first_start", True):
+            self.initialize_welcome_tour()
 
     @property
     def controller(self):
@@ -342,3 +346,19 @@ class MainWindow(QMainWindow):
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
         event.accept()
+
+    # ------------------------------------------------------------------
+    # Welcome Tour
+    # ------------------------------------------------------------------
+    def initialize_welcome_tour(self):
+        ans = ask_user("Would you like to start the welcome tour?")
+        if ans:
+            steps = [
+                {
+                    "widget": self.viewer.input_node,
+                    "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded.",
+                }
+            ]
+            self.welcome_tour = WelcomeTour(self, steps)
+        else:
+            self.controller.settings.set("first_start", False)

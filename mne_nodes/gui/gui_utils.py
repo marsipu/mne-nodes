@@ -13,9 +13,8 @@ from os.path import join
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import darkdetect
 from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
-from qtpy.QtGui import QColor, QFont, QIcon, QMouseEvent, QPalette
+from qtpy.QtGui import QColor, QMouseEvent
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
     QApplication,
@@ -33,6 +32,12 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import extra, gui_mode
+from mne_nodes.gui.gui_theme import (
+    _get_auto_theme,
+    get_palette,
+    set_app_theme,
+    theme_colors,
+)
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
 
@@ -625,153 +630,6 @@ def mouseDragBetween(
     mouseMove(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
     QTest.qWait(10)
     mouseRelease(widget=widget_to, pos=pos_to, button=button, modifier=modifier)
-
-
-########################################################################################
-# Theme & Colors
-########################################################################################
-theme_colors = {
-    "light": {
-        "foreground": "#000000",
-        "foreground_disabled": "#b8b8b8",
-        "background": "#e6e6e6",
-        "background_disabled": "#f0f0f0",
-        "alternate_background": "#dddddd",
-        "base": "#ffffff",
-        "button": "#cbcbcb",
-        "primary": "#0070b6",
-        "border_light": "#888888",
-        "border_midlight": "#aaaaaa",
-        "border_dark": "#4b4b4b",
-        "border_mid": "#666666",
-        "border_shadow": "#333333",
-        "link": "#ff00ff",
-    },
-    "dark": {
-        "foreground": "#e5e5e5",
-        "foreground_disabled": "#888888",
-        "background": "#141414",
-        "background_disabled": "#3e3e3e",
-        "alternate_background": "#262626",
-        "base": "#141414",
-        "button": "#151515",
-        "primary": "#0867cc",
-        "border_light": "#888888",
-        "border_midlight": "#aaaaaa",
-        "border_dark": "#4b4b4b",
-        "border_mid": "#666666",
-        "border_shadow": "#333333",
-        "link": "#ff00ff",
-    },
-    "high_contrast": {
-        "foreground": "#ffffff",
-        "foreground_disabled": "#A0A0A0",
-        "background": "#000000",
-        "background_disabled": "#4a4a4a",
-        "alternate_background": "#222222",
-        "base": "#0f0f0f",
-        "button": "#000000",
-        "primary": "#007ACC",
-        "border_light": "#888888",
-        "border_midlight": "#aaaaaa",
-        "border_dark": "#4b4b4b",
-        "border_mid": "#666666",
-        "border_shadow": "#333333",
-        "link": "#ff00ff",
-    },
-}
-
-
-def get_palette(theme):
-    color_roles = {
-        "foreground": ["WindowText", "ToolTipText", "Text"],
-        "foreground_disabled": ["PlaceholderText"],
-        "background": ["Window", "HighlightedText"],
-        "base": ["Base"],
-        "button": ["Button"],
-        "alternate_background": ["AlternateBase", "ToolTipBase"],
-        "primary": ["ButtonText", "Highlight"],
-        "border_light": ["Light"],
-        "border_midlight": ["Midlight"],
-        "border_dark": ["Dark"],
-        "border_mid": ["Mid"],
-        "border_shadow": ["Shadow"],
-        "link": ["Link", "LinkVisited"],
-    }
-    color_roles_disabled = {
-        "foreground_disabled": [
-            "WindowText",
-            "ButtonText",
-            "Highlight",
-            "Text",
-            "Link",
-            "LinkVisited",
-        ],
-        "background_disabled": ["Window", "HighlightedText", "AlternateBase", "Button"],
-    }
-    color_roles_inactive = {"primary": ["Highlight"], "foreground": ["HighlightedText"]}
-
-    colors = {k: QColor(v) for k, v in theme_colors[theme].items()}
-    palette = QPalette()
-
-    for color_name, roles in color_roles.items():
-        for role in roles:
-            if hasattr(QPalette.ColorRole, role):
-                palette.setColor(getattr(QPalette.ColorRole, role), colors[color_name])
-    for color_name, roles in color_roles_disabled.items():
-        for role in roles:
-            if hasattr(QPalette.ColorRole, role):
-                palette.setColor(
-                    QPalette.ColorGroup.Disabled,
-                    getattr(QPalette.ColorRole, role),
-                    colors[color_name],
-                )
-    for color_name, roles in color_roles_inactive.items():
-        for role in roles:
-            if hasattr(QPalette.ColorRole, role):
-                palette.setColor(
-                    QPalette.ColorGroup.Inactive,
-                    getattr(QPalette.ColorRole, role),
-                    colors[color_name],
-                )
-
-    return palette
-
-
-def _get_auto_theme():
-    system_theme = darkdetect.theme().lower()
-    if system_theme is None:
-        logger.info("System theme detection failed. Using light theme.")
-        system_theme = "light"
-    return system_theme
-
-
-def set_app_theme():
-    app = QApplication.instance()
-    style = Settings().get("app_style")
-    app.setStyle(style)
-    app_theme = Settings().get("app_theme")
-    # Detect system theme
-    if app_theme == "auto":
-        app_theme = _get_auto_theme()
-    app.setPalette(get_palette(app_theme))
-    # Set Icon
-    if app_theme == "light":
-        icon_name = "mne_pipeline_icon_light.png"
-    else:
-        icon_name = "mne_pipeline_icon_dark.png"
-    icon_path = join(str(resources.files(extra)), icon_name)
-    app_icon = QIcon(str(icon_path))
-    app.setWindowIcon(app_icon)
-
-
-def set_app_font_size(font_size=None):
-    app = QApplication.instance()
-    font_size = font_size or Settings().get("app_font_size")
-    font = QFont()
-    font.setFamilies(["Segoe UI", "Noto Sans", "Open Sans", "DejaVu Sans"])
-    font.setPointSize(font_size)
-    app.setFont(font)
 
 
 class ColorTester(QDialog):

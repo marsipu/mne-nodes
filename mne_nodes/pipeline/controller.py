@@ -113,9 +113,6 @@ class Controller:
         self._initialize_startup_config_path(config_path)
         # Initialize plugins
         self.load_recent_plugins()
-        # If first start initialize welcome-tour
-        if self.first_start():
-            self._initialize_welcome_tour()
 
     ####################################################################################
     # Initialization and Properties

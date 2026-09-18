@@ -12,7 +12,7 @@ from qtpy.QtCore import Qt, QTimer
 from qtpy.QtWidgets import QApplication
 
 import mne_nodes
-from mne_nodes.gui.gui_utils import set_app_font_size, set_app_theme
+from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
 from mne_nodes.logger import init_logging, logger
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.exception_handling import UncaughtHook

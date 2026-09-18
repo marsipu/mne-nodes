@@ -11,7 +11,7 @@
 This is a GUI to facilitate offline neurophysiological data processing with mne-python by visualizing the data-flow with nodes.
 The goal is to make mne-python accessible for users with little to no programming experience, but also to provide a tool for more experienced users to quickly set up and test processing pipelines for their data.
 It is designed to be easily extendable and subsequently all processing functionality should be moved out of this app to be developed and curated separately in the end.
-This package is supposed to be the successor of [mne_pipeline_hd](https://github.com/marsipu/mne_pipeline_hd).
+This package is supposed to be the successor of [mne_pipeline_hd](https://github.com/marsipu/mne_pipeline_hd) and takes some core ideas from it.
 
 ## Installation
 1. Install MNE-python as instructed in the [documentation](https://mne.tools/stable/install/index.html)
