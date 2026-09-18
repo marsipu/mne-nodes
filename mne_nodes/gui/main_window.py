@@ -68,24 +68,41 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
-        # Pipeline Actions
-        load_pipeline_action = QAction(
-            "&Load Pipeline",
+        # File Actions
+        new_config_action = QAction(
+            "&New Config",
             parent=self,
-            statusTip="Load another pipeline from a configuration file.",
+            statusTip="Create a new configuration file.",
+            shortcut=QKeySequence("Ctrl+N"),
+        )
+        new_config_action.triggered.connect(self.new_config)
+        load_config_action = QAction(
+            "&Load Config",
+            parent=self,
+            statusTip="Load another configuration file.",
             shortcut=QKeySequence("Ctrl+O"),
         )
-        load_pipeline_action.triggered.connect(self.load_pipeline)
-        save_pipeline_action = QAction(
-            "&Save Pipeline",
+        load_config_action.triggered.connect(self.load_config)
+        save_config_action = QAction(
+            "&Save Config",
             parent=self,
-            statusTip="Save the current pipeline to the configuration file.",
+            statusTip="Save the current configuration to disk.",
             shortcut=QKeySequence("Ctrl+S"),
         )
-        save_pipeline_action.triggered.connect(self.save_pipeline)
-        pipeline_menu = self.menuBar().addMenu("&Pipeline")
-        pipeline_menu.addAction(load_pipeline_action)
-        pipeline_menu.addAction(save_pipeline_action)
+        save_config_action.triggered.connect(self.save_config)
+        save_config_as_action = QAction(
+            "Save Config &As...",
+            parent=self,
+            statusTip="Save the current configuration to a different file.",
+            shortcut=QKeySequence("Ctrl+Shift+S"),
+        )
+        save_config_as_action.triggered.connect(self.save_config_as)
+        file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(new_config_action)
+        file_menu.addAction(load_config_action)
+        file_menu.addSeparator()
+        file_menu.addAction(save_config_action)
+        file_menu.addAction(save_config_as_action)
         # BIDS Menu
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
@@ -188,24 +205,45 @@ class MainWindow(QMainWindow):
         self.node_picker.raise_()
         self.node_picker.activateWindow()
 
-    def load_pipeline(self):
-        self.controller.config_path = None
-        self.controller.load(plugins=True)
-        self.viewer.load_nodes(self.controller.get("node_config"))
+    def new_config(self):
+        config_path = self.controller.new_config()
+        if config_path is None:
+            return
+        if self.viewer is not None:
+            self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
-    def save_pipeline(self, show_status: bool = True):
-        export_path = get_user_input(
-            "Select a location to save the pipeline configuration.",
-            input_type="file_new",
-            file_filter="JSON files (*.json)",
-            parent=self,
-        )
-        if export_path is None:
+    def load_config(self):
+        config_path = self.controller.load_config()
+        if config_path is None:
             return
-        self.controller.export_pipeline(export_path)
+        if self.viewer is not None:
+            self.viewer.load_nodes(self.controller.get("node_config"))
+        self.statusBar().showMessage(f"{self.controller.name} is ready.")
+
+    def save_config(self, show_status: bool = True):
+        config_path = self.controller.save_config()
+        if config_path is None:
+            return
         if show_status:
-            self.statusBar().showMessage(f"{self.controller.name} saved.")
+            self.statusBar().showMessage(
+                f"{self.controller.name} saved to {config_path}."
+            )
+
+    def save_config_as(self, show_status: bool = True):
+        config_path = self.controller.save_config_as()
+        if config_path is None:
+            return
+        if show_status:
+            self.statusBar().showMessage(
+                f"{self.controller.name} saved as {config_path}."
+            )
+
+    def load_pipeline(self):
+        self.load_config()
+
+    def save_pipeline(self, show_status: bool = True):
+        self.save_config(show_status=show_status)
 
     def load_plugin_path(self):
         plugin_path = get_user_input(
@@ -353,10 +391,11 @@ class MainWindow(QMainWindow):
     def initialize_welcome_tour(self):
         ans = ask_user("Would you like to start the welcome tour?")
         if ans:
+            self.add_sample_bids()
             steps = [
                 {
                     "widget": self.viewer.input_node,
-                    "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded.",
+                    "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded. The mne-sample dataset is loaded here as an example.",
                 }
             ]
             self.welcome_tour = WelcomeTour(self, steps)

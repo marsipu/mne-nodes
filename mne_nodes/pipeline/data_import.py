@@ -111,7 +111,7 @@ def load_sample_bids(bids_root):
 
     make_dataset_description(
         path=bids_path.root,
-        name=task,
+        name="sample-dataset",
         authors=["Alexandre Gramfort", "Matti Hämäläinen"],
         how_to_acknowledge=how_to_acknowledge,
         acknowledgements="""\

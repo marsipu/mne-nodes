@@ -18,7 +18,6 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
-from shutil import copy2
 from time import perf_counter
 from types import ModuleType
 from typing import Any
@@ -186,11 +185,24 @@ class Controller:
         logger.info(f"Configuration sucessfully loaded from:\n{config_path}")
         return config_path
 
-    def _apply_config_path(self, config_path: Path) -> None:
+    def _normalize_config_path(self, config_path: Any) -> Path:
+        config_path = self._as_path(config_path)
+        if config_path is None:
+            raise RuntimeError("Failed to resolve config file path.")
+        if config_path.suffix.lower() != ".json":
+            config_path = config_path.with_suffix(".json")
+        return config_path
+
+    def _activate_config_path(self, config_path: Any) -> Path:
+        config_path = self._normalize_config_path(config_path)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config_path = config_path
         self._config_lock = FileLock(self._config_path.with_suffix(".lock"))
         self.settings.set("config_path", self._config_path)
-        # Load the config immediately
+        return self._config_path
+
+    def _apply_config_path(self, config_path: Path) -> None:
+        self._activate_config_path(config_path)
         if self._config_path.is_file():
             self.load(nodes=True, plugins=True)
         else:
@@ -854,18 +866,6 @@ class Controller:
                 "Main window is not initialized. Please initialize the main window first."
             )
         return main_window
-
-    def first_start(self) -> bool:
-        """Check if this is the first start of the application."""
-        return self.settings.get("first_start", True)
-
-    def _initialize_welcome_tour(self):
-        """Initialize the welcome tour by loading welcome-tour plugins and steps."""
-        ans = ask_user("Would you like to start the welcome tour?")
-        if ans:
-            pass
-        else:
-            self.settings.set("first_start", False)
 
     ####################################################################################
     # BIDS
@@ -1647,25 +1647,81 @@ class Controller:
         return func_code, start, end
 
     ####################################################################################
-    # Pipeline
+    # config file management
     ####################################################################################
 
-    def export_pipeline(self, export_path=None):
+    def new_config(self, config_path: str | Path | None = None) -> Path | None:
+        """Create a new configuration file and make it the active project config."""
+        if config_path is None:
+            config_path = get_user_input(
+                "Select a location for the new configuration file.",
+                input_type="file_new",
+                file_filter="JSON files (*.json)",
+                cancel_allowed=True,
+            )
+            if config_path is None:
+                logger.warning("New configuration cancelled by user.")
+                return None
+
+        project_name = self.get("name", None)
+        if not isinstance(project_name, str) or project_name.strip() == "":
+            project_name = get_user_input(
+                "Please enter a name for this project",
+                input_type="string",
+                cancel_allowed=False,
+            )
+            if project_name is None:
+                raise RuntimeError("Project name initialization failed.")
+            project_name = str(project_name)
+
+        self._config = {"name": project_name, **deepcopy(default_config)}
+        self._activate_config_path(config_path)
+        self.flush()
+        return self._config_path
+
+    def load_config(self, config_path: str | Path | None = None) -> Path | None:
+        """Load an existing configuration file into the active controller instance."""
+        if config_path is None:
+            config_path = get_user_input(
+                "Please enter the path to an existing config-file",
+                input_type="file",
+                file_filter="JSON files (*.json)",
+                cancel_allowed=True,
+            )
+            if config_path is None:
+                logger.warning("Load configuration cancelled by user.")
+                return None
+
+        self.config_path = config_path
+        return self._config_path
+
+    def save_config(self) -> Path | None:
+        """Write the in-memory configuration to the active config file."""
+        if self._config_path is None:
+            return self.save_config_as()
+        self.flush()
+        return self._config_path
+
+    def save_config_as(self, export_path=None) -> Path | None:
+        """Write the current configuration to a new config file and switch active file."""
         if export_path is None:
             export_path = get_user_input(
-                "Select a location to save the pipeline configuration.",
+                "Select a location to save the configuration file.",
                 input_type="file_new",
                 file_filter="JSON files (*.json)",
                 cancel_allowed=True,
             )
             if export_path is None:
-                logger.warning("Pipeline export cancelled by user.")
-                return
-        if self._local_set:
-            self.flush()
-        if self._config_path is not None:
-            copy2(self._config_path, export_path)
-        self.config_path = export_path
+                logger.warning("Save configuration cancelled by user.")
+                return None
+
+        self._activate_config_path(export_path)
+        self.flush()
+        return self._config_path
+
+    def export_pipeline(self, export_path=None):
+        """Backward-compatible alias for configuration save-as behavior."""
+        return self.save_config_as(export_path)
 
     def start(self, node_sequence):
         # Generate code file

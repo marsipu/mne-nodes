@@ -272,6 +272,30 @@ def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     assert ct.get("node_config") == roundtrip_nodes
 
 
+def test_config_file_actions(tmp_path, ct):
+    new_config_path = tmp_path / "new_config.json"
+    renamed_config_path = tmp_path / "renamed_config.json"
+
+    ct.new_config(new_config_path)
+    ct.set("name", "draft")
+    ct.set("parameters", {"demo_func": {"value": 7}})
+    ct.set("node_config", {"nodes": {}, "connections": {}})
+
+    ct.save_config()
+    assert new_config_path.exists()
+    assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
+
+    ct.save_config_as(renamed_config_path)
+    assert renamed_config_path.exists()
+    assert (
+        json.loads(renamed_config_path.read_text(encoding="utf-8"))["name"] == "draft"
+    )
+
+    ct.load_config(renamed_config_path)
+    assert ct.get("name") == "draft"
+    assert ct.get("parameters") == {"demo_func": {"value": 7}}
+
+
 @pytest.mark.timeout(180)
 def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     from mne_nodes.conftest import _add_complex_nodes, create_test_controller
