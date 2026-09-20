@@ -59,14 +59,18 @@ def main() -> None:
     set_app_theme()
     set_app_font_size()
 
-    # Initialize controller and main window
+    # Initialize controller first, but defer config-path prompting until after the
+    # GUI exists so the first-run welcome tour can appear before any project setup prompts.
     controller = Controller()
-    controller.ensure_ready()
 
-    # Late import of MainWindow, since importing it at the top-level seems to cause Windows fatal access errors when opening dialogs in some cases.
+    # Late import of MainWindow, since importing it at the top-level seems to cause
+    # Windows fatal access errors when opening dialogs in some cases.
     from mne_nodes.gui.main_window import MainWindow
 
-    MainWindow(controller)
+    main_window = MainWindow(controller)
+    controller.initialize_welcome_tour()
+    controller.ensure_ready()
+    main_window.finalize_controller_setup()
 
     # Command-Line interrupt with Ctrl+C possible
     timer = QTimer()

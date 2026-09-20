@@ -19,7 +19,7 @@ def install_pip_packages(
         commands=[(sys.executable, "-m", "pip", "install", *package_names)],
         parent=parent,
         title=f"Installing Packages {', '.join(package_names)}",
-        close_directly=True,
+        close_directly=False,
         blocking=True,
     )
 
@@ -69,7 +69,7 @@ def install_github_package(
         commands=[(sys.executable, "-m", "pip", "install", f"git+{repo_url}")],
         parent=parent,
         title=f"Installing GitHub Package {repo_url}",
-        close_directly=True,
+        close_directly=False,
         blocking=True,
     )
 

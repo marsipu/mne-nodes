@@ -32,7 +32,7 @@ from mne_bids import (
     read_raw_bids,
 )
 
-from mne_nodes import _widgets, ismac, iswin
+from mne_nodes import _widgets, gui_mode, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
@@ -54,10 +54,7 @@ from mne_nodes.pipeline.settings import Settings
 
 default_config = {
     # BIDS
-    "selected_inputs": {
-        "file": [],
-        "subject": [],
-    },  # BIDS entity values as keys for lists
+    "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
     "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
@@ -70,7 +67,6 @@ default_config = {
     "shutdown": False,
     # Plugins
     "plugin_meta": {},
-    "functions": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
 }
@@ -142,7 +138,7 @@ class Controller:
 
     def _prompt_config_path(self) -> Path:
         ans = ask_user_custom(
-            "Do you want to create a new config-file or use an existing one?",
+            "Do you want to create a new pipeline-file or use an existing one?",
             buttons=("Create new", "Use existing"),
             close_on_cancel=True,
         )
@@ -150,47 +146,69 @@ class Controller:
             logger.info("User canceled, closing app.")
             sys.exit(0)
         if ans:
-            logger.info("Creating new config-file.")
-            config_folder = self._as_path(
-                get_user_input(
-                    "Set the folder-path to store the config-file",
-                    input_type="folder",
-                    exit_on_cancel=True,
-                )
+            logger.info("Creating new pipeline file.")
+            name, config_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
             )
-            name = get_user_input(
-                "Please enter a name for this project", input_type="string"
-            )
-            if config_folder is None or name is None:
-                raise RuntimeError("Config path initialization failed.")
-            # Keep project name first in JSON for readability.
+            if config_path is None:
+                raise RuntimeError("Pipeline path initialization failed.")
             config = {"name": name, **deepcopy(default_config)}
-            config_path = config_folder / f"{name}_config.json"
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-                logger.info(f"New configuration created at:\n{config_path}")
+                logger.info(f"New pipeline file created at:\n{config_path}")
             return config_path
 
-        logger.info("Using existing config-file.")
+        logger.info("Using existing pipeline file.")
         config_path = self._as_path(
             get_user_input(
-                "Please enter the path to an existing config-file",
+                "Please enter the path to an existing pipeline file",
                 input_type="file",
                 file_filter="JSON files (*.json)",
                 exit_on_cancel=True,
             )
         )
         if config_path is None:
-            raise RuntimeError("Config path initialization failed.")
-        logger.info(f"Configuration sucessfully loaded from:\n{config_path}")
+            raise RuntimeError("Pipeline path initialization failed.")
+        logger.info(f"Pipeline file successfully loaded from:\n{config_path}")
         return config_path
+
+    def _pipeline_name_to_path(
+        self, pipeline_name: str, folder: Path | None = None
+    ) -> Path:
+        name = str(pipeline_name).strip()
+        if name == "":
+            raise RuntimeError("Pipeline name cannot be empty.")
+        folder = folder or (
+            self._config_path.parent if self._config_path is not None else Path.cwd()
+        )
+        return folder / f"{name}_pipeline.json"
+
+    def _prompt_pipeline_path(self, message: str) -> tuple[str | None, Path | None]:
+        folder = self._as_path(
+            get_user_input(
+                "Select the folder for the pipeline file",
+                input_type="folder",
+                cancel_allowed=True,
+            )
+        )
+        if folder is None:
+            return None, None
+        pipeline_name = get_user_input(
+            message, input_type="string", cancel_allowed=True
+        )
+        if pipeline_name is None:
+            return None, None
+        return str(pipeline_name), self._pipeline_name_to_path(pipeline_name, folder)
 
     def _normalize_config_path(self, config_path: Any) -> Path:
         config_path = self._as_path(config_path)
         if config_path is None:
-            raise RuntimeError("Failed to resolve config file path.")
-        if config_path.suffix.lower() != ".json":
-            config_path = config_path.with_suffix(".json")
+            raise RuntimeError("Failed to resolve pipeline file path.")
+        if config_path.is_dir():
+            name = self.get("name", None)
+            if not isinstance(name, str) or name.strip() == "":
+                raise RuntimeError("Pipeline name is required when selecting a folder.")
+            return self._pipeline_name_to_path(name, config_path)
         return config_path
 
     def _activate_config_path(self, config_path: Any) -> Path:
@@ -234,6 +252,39 @@ class Controller:
                 "Config path is not initialized. Call ensure_config_path() first."
             )
         return self._config_lock
+
+    def initialize_welcome_tour(self) -> None:
+        """Ask whether to start the welcome tour once GUI startup is ready."""
+        if not gui_mode:
+            return
+        main_window = _widgets.get("main_window", None)
+        if main_window is None:
+            logger.debug(
+                "Welcome tour skipped because the main window is not ready yet."
+            )
+            return
+        if not self.settings.get("first_start", True):
+            return
+
+        from mne_nodes.gui.welcome_tour import WelcomeTour
+
+        ans = ask_user("Would you like to start the welcome tour?", parent=main_window)
+        if ans:
+            welcome_config_path = (
+                Path(__file__).resolve().parent.parent
+                / "extra"
+                / "Welcome_pipeline.json"
+            )
+            if welcome_config_path.is_file():
+                self.load_config(welcome_config_path)
+            steps = [
+                {
+                    "widget": main_window.viewer.input_node,
+                    "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded. The mne-sample dataset is loaded here as an example.",
+                }
+            ]
+            self.welcome_tour = WelcomeTour(main_window, steps)
+        self.settings.set("first_start", False)
 
     @staticmethod
     def _as_path(value: Any) -> Path | None:
@@ -398,10 +449,10 @@ class Controller:
 
     def _prompt_name(self) -> str:
         name = get_user_input(
-            "Please enter a name for this project", "string", cancel_allowed=False
+            "Please enter a name for this pipeline", "string", cancel_allowed=False
         )
         if name is None:
-            raise RuntimeError("Project name initialization failed.")
+            raise RuntimeError("Pipeline name initialization failed.")
         return str(name)
 
     @property
@@ -416,10 +467,10 @@ class Controller:
             new_name = str(new_name)
         old_name = self.get("name")
         if old_name != new_name and self._config_path is not None:
-            # Rename the config file if the name changes
             old_path = self._config_path
-            new_path = self._config_path.parent / f"{new_name}_config.json"
-            os.rename(old_path, new_path)
+            new_path = self._config_path.parent / f"{new_name}_pipeline.json"
+            if old_path.exists() and old_path != new_path:
+                os.rename(old_path, new_path)
             self._config_path = new_path
         self.set("name", new_name)
 
@@ -442,6 +493,9 @@ class Controller:
             reprompt_on_none=True,
         )
         if previous_root == new_root:
+            dataset_name = self._read_bids_dataset_name(new_root)
+            if dataset_name is not None:
+                self.set("bids_dataset_name", dataset_name)
             return
         if previous_root != new_root:
             ans = ask_user(
@@ -464,6 +518,9 @@ class Controller:
         # deriv_root/plot_root belonged to the previous dataset, force re-selection
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)
+        dataset_name = self._read_bids_dataset_name(new_root)
+        if dataset_name is not None:
+            self.set("bids_dataset_name", dataset_name)
         # Update input widget when viewer is available.
         if self.viewer is not None:
             self.viewer.input_node.update_widgets()
@@ -731,12 +788,11 @@ class Controller:
         raise_user_attention(
             f"The configured BIDS-root '{bids_root}' belongs to dataset "
             f"'{actual_name}', but this project was last used with dataset "
-            f"'{cached_name}'. Please select the correct bids-root, "
-            "derivatives-root and plot-root for this project.",
-            "warning",
+            f"'{cached_name}'. All selected inputs and custom groups will be considered stale and removed."
         )
-        for key in ("bids_root", "deriv_root", "plot_root"):
-            self.settings.set(key, None)
+        for key in ["selected_inputs", "custom_groups"]:
+            self.reset_value(key)
+        config["bids_dataset_name"] = actual_name
 
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
         """Load config from disk and optionally resolve nodes and pipeline dependencies."""
@@ -844,6 +900,12 @@ class Controller:
         self._config[config_name][key] = value
         self._delayed_flush()
 
+    def reset_value(self, key) -> None:
+        """Reset a specific key in the config-file."""
+        if key in self._config:
+            del self._config[key]
+            self._delayed_flush()
+
     @property
     def run_script_folder(self):
         """Path to the local config folder."""
@@ -880,17 +942,24 @@ class Controller:
         return load_json(dataset_file, no_gui=True).get("Name")
 
     def get_dataset_name(self) -> str | None:
-        try:
-            bids_root = self.ensure_bids_root(interactive=False)
-        except RuntimeError:
-            bids_root = None
+        bids_root = self.bids_root
         if bids_root is not None:
             name = self._read_bids_dataset_name(bids_root)
             if name is not None:
                 self.set("bids_dataset_name", name)
                 return name
-        # Fall back to cached value from config
-        return self.get("bids_dataset_name", None)
+        cached_name = self.get("bids_dataset_name", None)
+        if cached_name is not None:
+            return cached_name
+        try:
+            bids_root = self.ensure_bids_root(interactive=False)
+        except RuntimeError:
+            return None
+        name = self._read_bids_dataset_name(bids_root)
+        if name is not None:
+            self.set("bids_dataset_name", name)
+            return name
+        return None
 
     def get_group_by(self, group_by):
         if group_by == "custom":
@@ -1190,6 +1259,37 @@ class Controller:
     ####################################################################################
     # Plugins
     ####################################################################################
+    @staticmethod
+    def _expose_plugin_functions(plugin, functions, script_path):
+        """Expose configured functions from a plugin's implementation script."""
+        missing_functions = [
+            function_name
+            for function_name in functions
+            if not hasattr(plugin, function_name)
+        ]
+        if not missing_functions or script_path is None:
+            return
+
+        script_path = Path(script_path)
+        if not script_path.is_file():
+            return
+
+        if hasattr(plugin, "__path__"):
+            module_name = f"{plugin.__name__}.{script_path.stem}"
+            script_module = import_module(module_name)
+        elif Path(getattr(plugin, "__file__", "")).resolve() == script_path.resolve():
+            script_module = plugin
+        else:
+            raise ValueError(
+                f"Cannot expose functions from '{script_path}' for plugin "
+                f"'{plugin.__name__}'."
+            )
+
+        for function_name in missing_functions:
+            function = getattr(script_module, function_name, None)
+            if function is not None:
+                setattr(plugin, function_name, function)
+
     def load_plugin(self, plugin, plugin_name, plugin_meta):
         """Load the configuration file for a plugin."""
         config_path = plugin_meta.get("config_path")
@@ -1208,7 +1308,6 @@ class Controller:
                 raise TypeError(
                     f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
                 )
-            self.set_dict_value("functions", func, plugin_name)
             func_meta["plugin"] = plugin_name
         # Populate plugin-meta
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
@@ -1219,6 +1318,7 @@ class Controller:
                 f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
                 "warning",
             )
+        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
 
@@ -1242,7 +1342,11 @@ class Controller:
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def _import_with_install_prompt(
-        self, name: str, github: bool = False, plugin_url: str | None = None
+        self,
+        name: str,
+        github: bool = False,
+        plugin_url: str | None = None,
+        ask_before_install: bool = True,
     ) -> ModuleType | None:
         """Import a module, offering to install it first if it is missing."""
         if github:
@@ -1258,11 +1362,12 @@ class Controller:
         try:
             return importer()
         except ModuleNotFoundError:
-            ans, cancel = question_yes_no(
-                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?"
-            )
-            if cancel or not ans:
-                return None
+            if ask_before_install:
+                ans, cancel = question_yes_no(
+                    f"Do you want to install the Module '{name}'{prompt_suffix}?"
+                )
+                if cancel or not ans:
+                    return None
             installer()
             try:
                 return importer()
@@ -1273,15 +1378,24 @@ class Controller:
                 )
                 return None
 
-    def load_plugin_module_name(self, plugin_name: str) -> None:
-        plugin = self._import_with_install_prompt(plugin_name)
+    def load_plugin_module_name(
+        self, plugin_name: str, ask_before_install: bool = True
+    ) -> None:
+        plugin = self._import_with_install_prompt(
+            plugin_name, ask_before_install=ask_before_install
+        )
         if plugin is not None:
             self.load_plugin_module(plugin)
 
-    def load_plugin_github(self, plugin_url: str) -> None:
+    def load_plugin_github(
+        self, plugin_url: str, ask_before_install: bool = True
+    ) -> None:
         distribution_name = get_name_from_github(plugin_url)
         plugin = self._import_with_install_prompt(
-            distribution_name, github=True, plugin_url=plugin_url
+            distribution_name,
+            github=True,
+            plugin_url=plugin_url,
+            ask_before_install=ask_before_install,
         )
         if plugin is not None:
             self.load_plugin_module(plugin)
@@ -1353,12 +1467,15 @@ class Controller:
         device_plugin_config = self.settings.get("plugin_config", {})
         disabled_plugins = set(self.settings.get("disabled_plugins", []))
         plugin_meta_all = self.get("plugin_meta", {})
-        items = (
-            {plugin_name: plugin_meta_all[plugin_name]}.items()
-            if plugin_name is not None and plugin_name in plugin_meta_all
-            else plugin_meta_all.items()
-        )
-        for pname, plugin_meta in items:
+        if plugin_name is None:
+            plugin_names = list(plugin_meta_all)
+        elif plugin_name in plugin_meta_all:
+            plugin_names = [plugin_name]
+        else:
+            return
+
+        for pname in plugin_names:
+            plugin_meta = plugin_meta_all[pname]
             if pname in disabled_plugins:
                 logger.debug(f"Skipping disabled plugin '{pname}'.")
                 continue
@@ -1389,6 +1506,8 @@ class Controller:
             raise KeyError(
                 f"Function '{function_name}' has no valid plugin configured."
             )
+        # Replace "-" with "_"
+        plugin_name = plugin_name.replace("-", "_")
         return plugin_name
 
     def _unload_plugin_session(self, plugin_name: str) -> list[str]:
@@ -1481,16 +1600,12 @@ class Controller:
             Name of the plugin to remove.
         """
         # Unload from current session (also removes viewer nodes)
-        functions_to_remove = self._unload_plugin_session(plugin_name)
+        self._unload_plugin_session(plugin_name)
 
         # Remove from config
         plugin_meta_config = self.get("plugin_meta", {})
         plugin_meta_config.pop(plugin_name, None)
         self.set("plugin_meta", plugin_meta_config)
-        functions_config = self.get("functions", {})
-        for fn in functions_to_remove:
-            functions_config.pop(fn, None)
-        self.set("functions", functions_config)
 
         # Remove device-specific settings entry
         plugin_config = self.settings.get("plugin_config", {})
@@ -1651,68 +1766,55 @@ class Controller:
     ####################################################################################
 
     def new_config(self, config_path: str | Path | None = None) -> Path | None:
-        """Create a new configuration file and make it the active project config."""
+        """Create a new pipeline file and make it the active project pipeline."""
         if config_path is None:
-            config_path = get_user_input(
-                "Select a location for the new configuration file.",
-                input_type="file_new",
-                file_filter="JSON files (*.json)",
-                cancel_allowed=True,
+            pipeline_name, config_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
             )
             if config_path is None:
-                logger.warning("New configuration cancelled by user.")
+                logger.warning("New pipeline cancelled by user.")
                 return None
+        else:
+            pipeline_name = self.get("name", Path(config_path).stem)
 
-        project_name = self.get("name", None)
-        if not isinstance(project_name, str) or project_name.strip() == "":
-            project_name = get_user_input(
-                "Please enter a name for this project",
-                input_type="string",
-                cancel_allowed=False,
-            )
-            if project_name is None:
-                raise RuntimeError("Project name initialization failed.")
-            project_name = str(project_name)
-
-        self._config = {"name": project_name, **deepcopy(default_config)}
+        self._config = {"name": str(pipeline_name), **deepcopy(default_config)}
         self._activate_config_path(config_path)
         self.flush()
         return self._config_path
 
     def load_config(self, config_path: str | Path | None = None) -> Path | None:
-        """Load an existing configuration file into the active controller instance."""
+        """Load an existing pipeline file into the active controller instance."""
         if config_path is None:
-            config_path = get_user_input(
-                "Please enter the path to an existing config-file",
-                input_type="file",
-                file_filter="JSON files (*.json)",
-                cancel_allowed=True,
+            config_path = self._as_path(
+                get_user_input(
+                    "Please enter the path to an existing pipeline file",
+                    input_type="file",
+                    file_filter="JSON files (*.json)",
+                    cancel_allowed=True,
+                )
             )
             if config_path is None:
-                logger.warning("Load configuration cancelled by user.")
+                logger.warning("Load pipeline cancelled by user.")
                 return None
 
         self.config_path = config_path
         return self._config_path
 
     def save_config(self) -> Path | None:
-        """Write the in-memory configuration to the active config file."""
+        """Write the current pipeline state to the active pipeline file."""
         if self._config_path is None:
             return self.save_config_as()
         self.flush()
         return self._config_path
 
     def save_config_as(self, export_path=None) -> Path | None:
-        """Write the current configuration to a new config file and switch active file."""
+        """Write the current pipeline to a new pipeline file and switch active file."""
         if export_path is None:
-            export_path = get_user_input(
-                "Select a location to save the configuration file.",
-                input_type="file_new",
-                file_filter="JSON files (*.json)",
-                cancel_allowed=True,
+            _, export_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
             )
             if export_path is None:
-                logger.warning("Save configuration cancelled by user.")
+                logger.warning("Save pipeline cancelled by user.")
                 return None
 
         self._activate_config_path(export_path)
@@ -1726,7 +1828,7 @@ class Controller:
     def start(self, node_sequence):
         # Generate code file
         code = CodeGenerator(self, node_sequence).code
-        run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
+        run_file_path = self.run_script_folder / f"{self.name}_code.py"
         with open(run_file_path, "w") as file:
             file.write(code)
         logger.info(f"Pipeline code generated at {run_file_path}.\nStarting execution.")

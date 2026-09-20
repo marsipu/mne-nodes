@@ -16,6 +16,7 @@ from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
+from mne_nodes.pipeline.settings import Settings
 
 
 def test_init(ct):
@@ -77,7 +78,7 @@ def test_remove_plugin_unregisters_without_deleting_files(
     assert test_script.is_file()
     assert "test_module" not in ct.plugins
     assert "test_module" not in ct.get("plugin_meta")
-    assert "test_func1" not in ct.get("functions")
+
     assert "test_module" not in ct.settings.get("plugin_config", {})
     assert "test_module" not in ct.settings.get("disabled_plugins", [])
 
@@ -296,6 +297,20 @@ def test_config_file_actions(tmp_path, ct):
     assert ct.get("parameters") == {"demo_func": {"value": 7}}
 
 
+def test_pipeline_file_name_pattern(tmp_path, monkeypatch):
+    controller = Controller(settings=Settings())
+
+    inputs = iter([tmp_path, "demo_pipeline"])
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda *args, **kwargs: next(inputs),
+    )
+
+    saved_path = controller.new_config()
+    assert saved_path == tmp_path / "demo_pipeline_pipeline.json"
+    assert saved_path.exists()
+
+
 @pytest.mark.timeout(180)
 def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
     from mne_nodes.conftest import _add_complex_nodes, create_test_controller
@@ -465,6 +480,34 @@ def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
     ct.settings.remove("bids_root")
     cached_name = ct.get_dataset_name()
     assert cached_name == "TestDataset"
+
+
+def test_bids_root_syncs_dataset_name(ct, settings, tmp_path, monkeypatch):
+    """Changing the BIDS root updates the cached dataset name, and vice versa."""
+    root_a = tmp_path / "bids_a"
+    root_b = tmp_path / "bids_b"
+    root_a.mkdir()
+    root_b.mkdir()
+    (root_a / "dataset_description.json").write_text(
+        json.dumps({"Name": "Dataset A"}), encoding="utf-8"
+    )
+    (root_b / "dataset_description.json").write_text(
+        json.dumps({"Name": "Dataset B"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
+
+    ct.bids_root = root_a
+    assert ct.get("bids_dataset_name") == "Dataset A"
+
+    ct.bids_root = root_b
+    assert ct.get("bids_dataset_name") == "Dataset B"
+    assert ct.get_dataset_name() == "Dataset B"
+
+    ct.set("bids_dataset_name", "Manual Name")
+    assert ct.get("bids_dataset_name") == "Manual Name"
+    ct.bids_root = root_a
+    assert ct.get("bids_dataset_name") == "Dataset A"
 
 
 def test_codegen_multi_type_read_write(ct):

@@ -1,0 +1,15 @@
+{
+    "group_by": "subject",
+    "custom_groups": {},
+    "bids_dataset_name": null,
+    "parameters": {},
+    "show_plots": true,
+    "save_plots": true,
+    "overwrite": false,
+    "shutdown": false,
+    "plugin_meta": {},
+    "node_config": {
+        "nodes": {},
+        "connections": {}
+    }
+}

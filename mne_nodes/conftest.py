@@ -207,6 +207,7 @@ def main_window(ct, qtbot):
     from mne_nodes.gui.main_window import MainWindow
 
     mw = MainWindow(ct)
+    mw.finalize_controller_setup()
     _add_nodes(mw.viewer)
     qtbot.addWidget(mw)
 

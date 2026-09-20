@@ -24,7 +24,6 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
-from mne_nodes.gui.welcome_tour import WelcomeTour
 from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
@@ -58,10 +57,10 @@ class MainWindow(QMainWindow):
         # Init Dock options
         self.setDockOptions(QMainWindow.DockOption.AnimatedDocks)
 
-        # Init Node-Viewer
+        # Init Node-Viewer without loading project state yet; the controller may
+        # still need to finish first-run setup and welcome-tour prompting.
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.load_nodes(controller.get("node_config"))
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -70,33 +69,33 @@ class MainWindow(QMainWindow):
 
         # File Actions
         new_config_action = QAction(
-            "&New Config",
+            "&New Pipeline",
             parent=self,
-            statusTip="Create a new configuration file.",
+            statusTip="Create a new pipeline file.",
             shortcut=QKeySequence("Ctrl+N"),
         )
-        new_config_action.triggered.connect(self.new_config)
+        new_config_action.triggered.connect(self.new_pipeline)
         load_config_action = QAction(
-            "&Load Config",
+            "&Load Pipeline",
             parent=self,
-            statusTip="Load another configuration file.",
+            statusTip="Load another pipeline file.",
             shortcut=QKeySequence("Ctrl+O"),
         )
-        load_config_action.triggered.connect(self.load_config)
+        load_config_action.triggered.connect(self.load_pipeline)
         save_config_action = QAction(
-            "&Save Config",
+            "&Save Pipeline",
             parent=self,
-            statusTip="Save the current configuration to disk.",
+            statusTip="Save the current pipeline file to disk.",
             shortcut=QKeySequence("Ctrl+S"),
         )
-        save_config_action.triggered.connect(self.save_config)
+        save_config_action.triggered.connect(self.save_pipeline)
         save_config_as_action = QAction(
-            "Save Config &As...",
+            "Save Pipeline &As...",
             parent=self,
-            statusTip="Save the current configuration to a different file.",
+            statusTip="Save the current pipeline to a different pipeline file.",
             shortcut=QKeySequence("Ctrl+Shift+S"),
         )
-        save_config_as_action.triggered.connect(self.save_config_as)
+        save_config_as_action.triggered.connect(self.save_pipeline_as)
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(new_config_action)
         file_menu.addAction(load_config_action)
@@ -175,10 +174,10 @@ class MainWindow(QMainWindow):
                     self.windowHandle().setScreen(screen)
                     break
 
+    def finalize_controller_setup(self):
+        """Load the current project config after the controller has finished setup."""
+        self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
-
-        if self.controller.settings.get("first_start", True):
-            self.initialize_welcome_tour()
 
     @property
     def controller(self):
@@ -205,7 +204,7 @@ class MainWindow(QMainWindow):
         self.node_picker.raise_()
         self.node_picker.activateWindow()
 
-    def new_config(self):
+    def new_pipeline(self):
         config_path = self.controller.new_config()
         if config_path is None:
             return
@@ -213,7 +212,7 @@ class MainWindow(QMainWindow):
             self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
-    def load_config(self):
+    def load_pipeline(self):
         config_path = self.controller.load_config()
         if config_path is None:
             return
@@ -221,29 +220,17 @@ class MainWindow(QMainWindow):
             self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
-    def save_config(self, show_status: bool = True):
+    def save_pipeline(self):
         config_path = self.controller.save_config()
         if config_path is None:
             return
-        if show_status:
-            self.statusBar().showMessage(
-                f"{self.controller.name} saved to {config_path}."
-            )
+        self.statusBar().showMessage(f"{self.controller.name} saved to {config_path}.")
 
-    def save_config_as(self, show_status: bool = True):
+    def save_pipeline_as(self):
         config_path = self.controller.save_config_as()
         if config_path is None:
             return
-        if show_status:
-            self.statusBar().showMessage(
-                f"{self.controller.name} saved as {config_path}."
-            )
-
-    def load_pipeline(self):
-        self.load_config()
-
-    def save_pipeline(self, show_status: bool = True):
-        self.save_config(show_status=show_status)
+        self.statusBar().showMessage(f"{self.controller.name} saved as {config_path}.")
 
     def load_plugin_path(self):
         plugin_path = get_user_input(
@@ -265,7 +252,7 @@ class MainWindow(QMainWindow):
         )
         if plugin_name is None:
             return
-        self.controller.load_plugin_module_name(plugin_name)
+        self.controller.load_plugin_module_name(plugin_name, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
 
     def load_plugin_github(self):
@@ -274,7 +261,7 @@ class MainWindow(QMainWindow):
         )
         if plugin_url is None:
             return
-        self.controller.load_plugin_github(plugin_url)
+        self.controller.load_plugin_github(plugin_url, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def manage_plugins(self):
@@ -384,20 +371,3 @@ class MainWindow(QMainWindow):
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
         event.accept()
-
-    # ------------------------------------------------------------------
-    # Welcome Tour
-    # ------------------------------------------------------------------
-    def initialize_welcome_tour(self):
-        ans = ask_user("Would you like to start the welcome tour?")
-        if ans:
-            self.add_sample_bids()
-            steps = [
-                {
-                    "widget": self.viewer.input_node,
-                    "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded. The mne-sample dataset is loaded here as an example.",
-                }
-            ]
-            self.welcome_tour = WelcomeTour(self, steps)
-        else:
-            self.controller.settings.set("first_start", False)
