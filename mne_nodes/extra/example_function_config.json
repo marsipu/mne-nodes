@@ -1,0 +1,37 @@
+{
+    "example_filter": {
+        "inputs": {
+            "raw": {
+                "accepted_ports": [
+                    "raw"
+                ],
+                "optional": false
+            }
+        },
+        "parameters": {
+            "highpass": {
+                "description": "",
+                "default": 1,
+                "gui": "IntGui"
+            },
+            "lowpass": {
+                "description": "",
+                "default": 30,
+                "gui": "IntGui"
+            }
+        },
+        "outputs": {
+            "raw": {
+                "accepted_ports": [
+                    "raw"
+                ]
+            }
+        },
+        "target": "file",
+        "category": "example_function",
+        "sub_category": null,
+        "description": "This is an example function, that processes the raw-data of a the mne-sample-dataset.",
+        "module_name": null,
+        "class_name": null
+    }
+}

@@ -168,7 +168,7 @@ QPushButton {
     padding: 7px 13px;
     min-width: 52px;
 }
-QPushButton:hover {
+QPushButton:hover:enabled {
     border-color: palette(highlight);
 }
 QPushButton#nextButton {
@@ -177,10 +177,12 @@ QPushButton#nextButton {
     border-color: palette(highlight);
     font-weight: 700;
 }
-QPushButton#nextButton:hover {
+QPushButton#nextButton:hover:enabled {
     border-color: palette(highlighted-text);
 }
-QPushButton#finishButton {
-    color: palette(highlight);
+QPushButton#nextButton:disabled {
+    background-color: palette(button);
+    color: palette(mid);
+    border-color: palette(mid);
 }
 """

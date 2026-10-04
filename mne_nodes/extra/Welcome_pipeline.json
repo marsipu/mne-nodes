@@ -7,12 +7,7 @@
     "save_plots": true,
     "overwrite": false,
     "shutdown": false,
-    "plugin_meta": {
-        "simple_functions": {
-            "plugin_github": "https://github.com/marsipu/mne-nodes_simple-functions",
-            "plugin_type": "github"
-        }
-    },
+    "plugin_meta": {},
     "node_config": {
         "nodes": {
             "1702347330624": {

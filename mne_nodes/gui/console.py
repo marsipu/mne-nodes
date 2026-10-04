@@ -356,6 +356,8 @@ class ConsoleDock(QDockWidget):
     generate a report from the script and handling errors there too.
     """
 
+    process_started = Signal()
+
     def __init__(self, controller, parent=None):
         super().__init__("Console", parent)
         self.ct = controller
@@ -392,6 +394,7 @@ class ConsoleDock(QDockWidget):
             self_destruct=True,
         )
         self.processes.append(process)
+        process.started.connect(self.process_started)
         # Start process
         process.start(program, arguments)
 

@@ -372,4 +372,5 @@ class MainWindow(QMainWindow):
         widget_registry().unregister("viewer", self.viewer)
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
+        self.controller.cancel_welcome_tour()
         event.accept()
