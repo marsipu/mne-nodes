@@ -20,7 +20,7 @@ from os.path import isdir, isfile, join
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import mne
 from filelock import FileLock, Timeout
@@ -32,7 +32,7 @@ from mne_bids import (
     read_raw_bids,
 )
 
-from mne_nodes import _widgets, gui_mode, ismac, iswin
+from mne_nodes import gui_mode, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
@@ -40,6 +40,7 @@ from mne_nodes.gui.gui_utils import (
     question_yes_no,
     raise_user_attention,
 )
+from mne_nodes.gui.widget_registry import get_widget
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
@@ -51,6 +52,10 @@ from mne_nodes.pipeline.package_utils import (
 )
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
+
+if TYPE_CHECKING:
+    from mne_nodes.gui.main_window import MainWindow
+    from mne_nodes.gui.node.node_viewer import NodeViewer
 
 default_config = {
     # BIDS
@@ -257,13 +262,13 @@ class Controller:
         """Ask whether to start the welcome tour once GUI startup is ready."""
         if not gui_mode:
             return
-        main_window = _widgets.get("main_window", None)
+        main_window = cast("MainWindow | None", get_widget("main_window"))
         if main_window is None:
             logger.debug(
                 "Welcome tour skipped because the main window is not ready yet."
             )
             return
-        if not self.settings.get("first_start", True):
+        if not self.settings.get("first_start", True) or False:
             return
 
         from mne_nodes.gui.welcome_tour import WelcomeTour
@@ -522,8 +527,9 @@ class Controller:
         if dataset_name is not None:
             self.set("bids_dataset_name", dataset_name)
         # Update input widget when viewer is available.
-        if self.viewer is not None:
-            self.viewer.input_node.update_widgets()
+        viewer = self.viewer
+        if viewer is not None and viewer.input_node is not None:
+            viewer.input_node.update_widgets()
 
     @property
     def deriv_root(self) -> Path | None:
@@ -915,14 +921,14 @@ class Controller:
         return local_config_path
 
     @property
-    def viewer(self):
-        """Get the viewer object from the _widgets dictionary."""
-        return _widgets.get("viewer", None)
+    def viewer(self) -> "NodeViewer | None":
+        """Get the registered viewer if it is available."""
+        return cast("NodeViewer | None", get_widget("viewer"))
 
     @property
-    def main_window(self):
-        """Get the main window object from the _widgets dictionary."""
-        main_window = _widgets.get("main_window", None)
+    def main_window(self) -> "MainWindow":
+        """Get the registered main window, raising if it is unavailable."""
+        main_window = cast("MainWindow | None", get_widget("main_window"))
         if main_window is None:
             raise RuntimeError(
                 "Main window is not initialized. Please initialize the main window first."

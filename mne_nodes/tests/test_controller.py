@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
@@ -204,8 +203,8 @@ def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):
     monkeypatch.setattr(
         ct, "load_plugin_github", lambda plugin_url: loaded_plugins.append(plugin_url)
     )
-    monkeypatch.setitem(_widgets, "viewer", DummyViewer())
-    monkeypatch.setitem(_widgets, "main_window", object())
+    viewer = DummyViewer()
+    monkeypatch.setattr(type(ct), "viewer", property(lambda self: viewer))
 
     ct.config_path = import_path
 

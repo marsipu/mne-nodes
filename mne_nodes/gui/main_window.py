@@ -11,7 +11,7 @@ from qtpy.QtCore import QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
-from mne_nodes import _widgets, iswin
+from mne_nodes import iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import SysInfoMsg
 from mne_nodes.gui.gui_utils import (
@@ -24,6 +24,7 @@ from mne_nodes.gui.gui_utils import (
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
@@ -42,7 +43,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, controller):
         super().__init__()
-        _widgets["main_window"] = self
+        widget_registry().register("main_window", self, retain=True)
         self._controller = controller
         self.settings = controller.settings
         self.node_picker = None
@@ -366,8 +367,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
-        _widgets["main_window"] = None
-        _widgets["viewer"] = None
+        widget_registry().unregister("main_window", self)
+        widget_registry().unregister("viewer", self.viewer)
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
         event.accept()

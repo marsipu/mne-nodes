@@ -28,7 +28,7 @@ def test_main_window_defers_viewer_load_until_controller_ready(settings):
     main_window.close()
 
 
-def test_app_start(ct, main_window):
+def test_app_start(ct, main_window, qtbot):
     """Test the application startup process with a controller and main
     window."""
     # Ensure the main window is created and visibl
@@ -59,6 +59,7 @@ def test_app_start(ct, main_window):
 
     # test re-opening and loading config
     new_main_window = MainWindow(ct)
+    qtbot.addWidget(new_main_window)
     new_main_window.finalize_controller_setup()
     assert new_main_window.isVisible()
     assert new_main_window.controller.name == "test2"
@@ -66,10 +67,8 @@ def test_app_start(ct, main_window):
     assert new_main_window.viewer.node(node_name="test_epochs") is not None
 
 
-def test_controller_welcome_tour_starts_when_gui_ready(ct, monkeypatch):
+def test_controller_welcome_tour_starts_when_gui_ready(ct, main_window, monkeypatch):
     """The welcome tour should be triggered from the controller once the main window exists."""
-    import mne_nodes
-
     ct.settings.set("first_start", True)
     seen = {}
 
@@ -81,7 +80,7 @@ def test_controller_welcome_tour_starts_when_gui_ready(ct, monkeypatch):
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
     )
-    monkeypatch.setitem(mne_nodes._widgets, "main_window", ct.main_window)
+    monkeypatch.setattr(ct, "load_config", lambda path: path)
     monkeypatch.setattr("mne_nodes.gui.welcome_tour.WelcomeTour", DummyTour)
 
     ct.initialize_welcome_tour()
@@ -89,3 +88,25 @@ def test_controller_welcome_tour_starts_when_gui_ready(ct, monkeypatch):
     assert ct.settings.get("first_start", True) is False
     assert seen["main_window"] is ct.main_window
     assert seen["steps"][0]["widget"] is ct.main_window.viewer.input_node
+
+
+def test_window_registry_lookup_and_replacement(settings, qtbot):
+    """Closing an older window must not unregister its replacement."""
+    from mne_nodes.gui.widget_registry import get_widget
+    from mne_nodes.pipeline.controller import Controller
+
+    controller = Controller(settings=settings)
+    old_window = MainWindow(controller)
+    qtbot.addWidget(old_window)
+    assert controller.main_window is old_window
+    assert controller.viewer is old_window.viewer
+
+    replacement = MainWindow(controller)
+    qtbot.addWidget(replacement)
+    old_window.close()
+    assert controller.main_window is replacement
+    assert controller.viewer is replacement.viewer
+
+    replacement.close()
+    assert get_widget("main_window") is None
+    assert controller.viewer is None

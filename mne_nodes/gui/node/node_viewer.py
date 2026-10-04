@@ -21,7 +21,7 @@ from qtpy.QtWidgets import (
     QRubberBand,
 )
 
-from mne_nodes import _widgets, debug_mode
+from mne_nodes import debug_mode
 from mne_nodes.gui.gui_utils import invert_rgb_color
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
@@ -30,6 +30,7 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
 
 
@@ -63,8 +64,7 @@ class NodeViewer(QGraphicsView):
         self.default_x_distance = 200
         self.default_y_distance = 50
 
-        # add to global object references
-        _widgets["viewer"] = self
+        widget_registry().register("viewer", self, retain=parent is None)
 
         # attributes
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
