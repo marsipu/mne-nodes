@@ -1,7 +1,7 @@
 {
     "group_by": "subject",
     "custom_groups": {},
-    "bids_dataset_name": null,
+    "bids_dataset_name": "tiny_bids",
     "parameters": {},
     "show_plots": true,
     "save_plots": true,
@@ -9,7 +9,47 @@
     "shutdown": false,
     "plugin_meta": {},
     "node_config": {
-        "nodes": {},
-        "connections": {}
+        "nodes": {
+            "1440363709376": {
+                "name": "tiny_bids",
+                "class": "InputNode",
+                "pos": [
+                    0.0,
+                    0.0
+                ],
+                "ports": {
+                    "1438820608000": {
+                        "name": "eeg",
+                        "port_type": "out",
+                        "multi_connection": true,
+                        "accepted_ports": [
+                            "eeg",
+                            "raw"
+                        ],
+                        "old_id": 1438820608000
+                    },
+                    "1438820600192": {
+                        "name": "event_id",
+                        "port_type": "out",
+                        "multi_connection": true,
+                        "accepted_ports": [
+                            "event_id"
+                        ],
+                        "old_id": 1438820600192
+                    }
+                },
+                "old_id": 1440363709376,
+                "checked": false
+            }
+        },
+        "connections": {
+            "1440363709376": {
+                "1438820608000": {},
+                "1438820600192": {}
+            }
+        }
+    },
+    "selected_inputs": {
+        "subject": []
     }
 }
