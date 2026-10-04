@@ -1,56 +1,61 @@
 {
     "group_by": "subject",
     "custom_groups": {},
-    "bids_dataset_name": "tiny_bids",
+    "bids_dataset_name": "sample-dataset",
     "parameters": {},
     "show_plots": true,
     "save_plots": true,
     "overwrite": false,
     "shutdown": false,
-    "plugin_meta": {},
+    "plugin_meta": {
+        "simple_functions": {
+            "plugin_github": "https://github.com/marsipu/mne-nodes_simple-functions",
+            "plugin_type": "github"
+        }
+    },
     "node_config": {
         "nodes": {
-            "2982753232896": {
-                "name": "tiny_bids",
+            "1702347330624": {
+                "name": "sample-dataset",
                 "class": "InputNode",
                 "pos": [
-                    0.0,
-                    0.0
+                    5.233572397751544,
+                    19.887575111455703
                 ],
                 "ports": {
-                    "2983187532928": {
-                        "name": "eeg",
+                    "1702346890560": {
+                        "name": "meg",
                         "port_type": "out",
                         "multi_connection": true,
                         "accepted_ports": [
-                            "eeg",
+                            "meg",
                             "raw"
                         ],
-                        "old_id": 2983187532928
+                        "old_id": 1702346890560
                     },
-                    "2983187545728": {
+                    "1702347337344": {
                         "name": "event_id",
                         "port_type": "out",
                         "multi_connection": true,
                         "accepted_ports": [
                             "event_id"
                         ],
-                        "old_id": 2983187545728
+                        "old_id": 1702347337344
                     }
                 },
-                "old_id": 2982753232896,
+                "old_id": 1702347330624,
                 "checked": false
             }
         },
         "connections": {
-            "2982753232896": {
-                "2983187532928": {},
-                "2983187545728": {}
+            "1702347330624": {
+                "1702346890560": {},
+                "1702347337344": {}
             }
         }
     },
     "selected_inputs": {
-        "subject": [],
-        "eeg": []
+        "meg": [],
+        "subject": []
     }
 }

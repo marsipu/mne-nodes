@@ -176,8 +176,9 @@ class MainWindow(QMainWindow):
                     break
 
     def finalize_controller_setup(self):
-        """Load the current project config after the controller has finished setup."""
-        self.viewer.load_nodes(self.controller.get("node_config"))
+        """Load startup nodes unless controller setup has already populated the viewer."""
+        if not self.viewer.nodes:
+            self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
     @property

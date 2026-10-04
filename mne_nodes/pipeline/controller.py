@@ -8,6 +8,7 @@ import ast
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -18,6 +19,7 @@ from importlib.util import cache_from_source
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from time import perf_counter
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, cast
@@ -99,6 +101,7 @@ class Controller:
         self._config_lock = None
         self._last_load = 0
         self._local_set = False
+        self._welcome_config_directory: TemporaryDirectory | None = None
         self.plugins = {}
         self.function_meta = {}
         self.lock_timeout = 5  # seconds
@@ -259,7 +262,7 @@ class Controller:
         return self._config_lock
 
     def initialize_welcome_tour(self) -> None:
-        """Ask whether to start the welcome tour once GUI startup is ready."""
+        """Start the tour using a disposable copy of the packaged pipeline."""
         if not gui_mode:
             return
         main_window = cast("MainWindow | None", get_widget("main_window"))
@@ -268,10 +271,12 @@ class Controller:
                 "Welcome tour skipped because the main window is not ready yet."
             )
             return
-        if not self.settings.get("first_start", True) or False:
-            return
 
-        from mne_nodes.gui.welcome_tour import WelcomeTour
+        # Uncomment for real use
+        # if not self.settings.get("first_start", True):
+        #     return
+
+        from mne_nodes.gui.welcome_tour import WelcomeTour, WelcomeTourStep
 
         ans = ask_user("Would you like to start the welcome tour?", parent=main_window)
         if ans:
@@ -280,16 +285,102 @@ class Controller:
                 / "extra"
                 / "Welcome_pipeline.json"
             )
-            if welcome_config_path.is_file():
-                self.load_config(welcome_config_path)
-            steps = [
+            self._welcome_config_directory = TemporaryDirectory(
+                prefix="mne-nodes-welcome-"
+            )
+            tour_config_path = (
+                Path(self._welcome_config_directory.name) / welcome_config_path.name
+            )
+            shutil.copyfile(welcome_config_path, tour_config_path)
+            previous_config_path = self.settings.get("config_path", None)
+            try:
+                self.load_config(tour_config_path)
+            finally:
+                self.settings.set("config_path", previous_config_path)
+
+            def function_node():
+                return next(iter(main_window.viewer.function_nodes.values()), None)
+
+            def input_port():
+                node = main_window.viewer.input_node
+                return node.outputs[0] if node is not None and node.outputs else None
+
+            def node_is_connected() -> bool:
+                node = function_node()
+                return node is not None and any(
+                    connected.node is main_window.viewer.input_node
+                    for port in node.inputs
+                    for connected in port.connected_ports
+                )
+
+            steps: list[WelcomeTourStep] = [
                 {
-                    "widget": main_window.viewer.input_node,
+                    "widget": main_window.viewer,
+                    "text": "Welcome to mne-nodes!\nThis is the main viewer area where you can see and interact with the nodes.",
+                },
+                {
+                    "widget": lambda: main_window.viewer.input_node,
                     "text": "This is the input-node. It is where you see your bids-dataset, if it is loaded. The mne-sample dataset is loaded here as an example.",
-                }
+                },
+                {
+                    "widget": input_port,
+                    "text": "Add a node. To add a new node, either right-click on the background or on a port of an existing node.",
+                    "is_complete": lambda: function_node() is not None,
+                },
+                {
+                    "widget": function_node,
+                    "text": "This is a function node. Function nodes perform various operations on the data.",
+                },
+                {
+                    "widget": function_node,
+                    "text": "Connect the input node to your function node by dragging "
+                    "between compatible output and input ports.",
+                    "is_complete": node_is_connected,
+                },
+                {
+                    "widget": lambda: (
+                        node.param_box
+                        if (node := function_node()) is not None
+                        else None
+                    ),
+                    "text": "Here you can set the parameters for the function node.",
+                },
+                {
+                    "widget": lambda: (
+                        node.start_button
+                        if (node := main_window.viewer.input_node) is not None
+                        else None
+                    ),
+                    "text": "Click this button to start processing the input data.",
+                },
+                {
+                    "widget": main_window.console_dock,
+                    "text": "Here you can view the output of the processing steps.",
+                },
+                {
+                    "widget": main_window.viewer,
+                    "text": "This concludes the welcome tour.",
+                },
             ]
             self.welcome_tour = WelcomeTour(main_window, steps)
+            self.welcome_tour.finished.connect(self._finish_welcome_tour)
         self.settings.set("first_start", False)
+
+    def _finish_welcome_tour(self) -> None:
+        """Discard the demo and prompt for a new or existing user pipeline."""
+        self._config_path = None
+        self._config_lock = None
+        self._config = deepcopy(default_config)
+        self._last_load = 0
+        self._local_set = False
+        self.settings.set("config_path", None)
+        self.main_window.viewer.clear()
+        if self._welcome_config_directory is not None:
+            self._welcome_config_directory.cleanup()
+            self._welcome_config_directory = None
+        self.config_path = None
+        self.ensure_ready()
+        self.main_window.finalize_controller_setup()
 
     @staticmethod
     def _as_path(value: Any) -> Path | None:

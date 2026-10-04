@@ -230,9 +230,9 @@ class FunctionNode(BaseNode):
             )
         # Initialize the parameters
         self.parameter_guis = {}
-        widget = QGroupBox("Parameters")
+        self.param_box = QGroupBox("Parameters")
         if len(func_meta["parameters"]) > 5:
-            box_layout = QVBoxLayout(widget)
+            box_layout = QVBoxLayout(self.param_box)
             scroll_area = QScrollArea()
             scroll_area.setWidgetResizable(True)
             box_layout.addWidget(scroll_area)
@@ -240,7 +240,7 @@ class FunctionNode(BaseNode):
             scroll_area.setWidget(scroll_widget)
             layout = QVBoxLayout(scroll_widget)
         else:
-            layout = QVBoxLayout(widget)
+            layout = QVBoxLayout(self.param_box)
         for param_name, param_kwargs in func_meta["parameters"].items():
             param_kwargs = deepcopy(param_kwargs)
             param_kwargs["groupbox_layout"] = False
@@ -252,7 +252,7 @@ class FunctionNode(BaseNode):
             )
             layout.addWidget(parameter_gui)
             self.parameter_guis[param_name] = parameter_gui
-        self.add_widget(widget)
+        self.add_widget(self.param_box)
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)

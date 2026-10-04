@@ -1,4 +1,7 @@
-from qtpy.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, Signal
+from collections.abc import Callable
+from typing import NotRequired, TypedDict
+
+from qtpy.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, Signal
 from qtpy.QtGui import QColor, QPainter, QPainterPath, QPainterPathStroker, QPalette
 from qtpy.QtWidgets import (
     QGraphicsDropShadowEffect,
@@ -13,6 +16,15 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
 
 WELCOME_TOUR_PADDING = 10
+
+
+class WelcomeTourStep(TypedDict):
+    """A tour target and optional task, resolved from current application state."""
+
+    widget: QWidget | QGraphicsItem | Callable[[], QWidget | QGraphicsItem | None]
+    text: str
+    is_complete: NotRequired[Callable[[], bool]]
+    requires_completion: NotRequired[bool]
 
 
 class WelcomeTourOverlay(QWidget):
@@ -66,6 +78,9 @@ class WelcomeTourWidget(QWidget):
         self.label = QLabel("Welcome step text")
         self.label.setObjectName("tourLabel")
         self.label.setWordWrap(True)
+        self.status_label = QLabel()
+        self.status_label.setWordWrap(True)
+        self.status_label.hide()
 
         self.next_btn = QPushButton("Next")
         self.next_btn.setObjectName("nextButton")
@@ -84,6 +99,7 @@ class WelcomeTourWidget(QWidget):
         layout.setContentsMargins(18, 16, 18, 14)
         layout.setSpacing(12)
         layout.addWidget(self.label)
+        layout.addWidget(self.status_label)
         layout.addLayout(btns)
         self._button_layout = btns
         self._content_layout = layout
@@ -113,6 +129,11 @@ class WelcomeTourWidget(QWidget):
     def set_text(self, text: str):
         self.label.setText(text)
 
+    def set_status(self, text: str) -> None:
+        """Display task feedback, or hide it for an informational step."""
+        self.status_label.setText(text)
+        self.status_label.setVisible(bool(text))
+
     def size_for_width(self, width: int) -> QSize:
         """Return the panel size required to display its current text."""
         margins = self._content_layout.contentsMargins()
@@ -126,6 +147,11 @@ class WelcomeTourWidget(QWidget):
             + button_height
             + margins.bottom()
         )
+        if not self.status_label.isHidden():
+            height += (
+                self.status_label.heightForWidth(label_width)
+                + self._content_layout.spacing()
+            )
         return QSize(width, height)
 
 
@@ -136,16 +162,29 @@ class WelcomeTour(QObject):
     ----------
     main_window : QMainWindow
         The main application window.
-    steps : list of dict
-        The steps of the tour, each containing "widget", "text", and optional "padding".
+    steps : list of WelcomeTourStep
+        Each step contains ``widget`` and ``text``. ``widget`` may be a zero-argument
+        callable returning the current target, or None until it exists.
 
     Notes
     -----
     Steps contain ``"widget"`` and ``"text"``. Highlights use the standard
     :data:`WELCOME_TOUR_PADDING` value and the target's own shape.
+    The ``finished`` signal is emitted after the tour stops observing its target,
+    allowing the controller to safely replace the demo pipeline.
+    Dynamic targets and optional ``is_complete`` predicates are rechecked every
+    100 ms. Predicates should be cheap, side-effect-free state queries. Returning
+    False displays task feedback and blocks Next; returning True enables Next
+    and emits ``task_completed(index)``. The user advances manually. If the state
+    is undone, Next is disabled again. For signal-driven tasks, use
+    ``requires_completion=True`` and call ``complete_task(index)`` instead.
+    Finish remains available to leave the tour early.
     """
 
-    def __init__(self, main_window, steps):
+    finished = Signal()
+    task_completed = Signal(int)
+
+    def __init__(self, main_window, steps: list[WelcomeTourStep]):
         super().__init__()
         self.main_window = main_window
         self.steps = steps
@@ -153,6 +192,14 @@ class WelcomeTour(QObject):
         self._observed_objects = []
         self._observed_scrollbars = []
         self._scene = None
+        self._finished = False
+        self._refreshing = False
+        self._target: QWidget | QGraphicsItem | None = None
+        self._task_complete = False
+        self._completed_tasks: set[int] = set()
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(100)
+        self._refresh_timer.timeout.connect(self.refresh)
 
         self.overlay = WelcomeTourOverlay(main_window)
         self.overlay.resize(main_window.size())
@@ -232,7 +279,8 @@ class WelcomeTour(QObject):
             self._scene = scene
             scene.changed.connect(self.refresh)
         else:
-            objects.append(target)
+            if target is not None:
+                objects.append(target)
         for observed in objects:
             observed.installEventFilter(self)
             self._observed_objects.append(observed)
@@ -320,26 +368,97 @@ class WelcomeTour(QObject):
             self.refresh()
         return super().eventFilter(watched, event)
 
-    def refresh(self):
-        step = self.steps[self.index]
-        target = step["widget"]
-        path = self.compute_highlight_path(target)
-        self.overlay.resize(self.main_window.size())
-        self.overlay.set_highlight(path)
-        self._move_widget_into_window(path)
-        self.widget.raise_()
+    def _resolve_target(self) -> QWidget | QGraphicsItem | None:
+        source = self.steps[self.index]["widget"]
+        target = source() if callable(source) else source
+        if isinstance(target, QWidget):
+            proxy = target.graphicsProxyWidget()
+            if proxy is not None:
+                return proxy
+        return target
+
+    def refresh(self) -> None:
+        """Resolve the active target and check task progress without advancing."""
+        if self._finished or self._refreshing:
+            return
+        self._refreshing = True
+        try:
+            step = self.steps[self.index]
+            target = self._resolve_target()
+            if target is not self._target:
+                self._target = target
+                self._observe_target(target)
+                if target is not None:
+                    self._ensure_target_visible(target)
+            check = step.get("is_complete")
+            is_task = check is not None or step.get("requires_completion", False)
+            complete = (
+                bool(check())
+                if check is not None
+                else self.index in self._completed_tasks
+            )
+            self.widget.next_btn.setEnabled(
+                target is not None and (not is_task or complete)
+            )
+            if target is None:
+                status = "Waiting for the target to be created."
+            elif is_task:
+                status = (
+                    "Task completed! You can continue."
+                    if complete
+                    else ("Complete the task to continue.")
+                )
+            else:
+                status = ""
+            self.widget.set_status(status)
+            path = (
+                self.compute_highlight_path(target)
+                if target is not None
+                else QPainterPath()
+            )
+            self.overlay.resize(self.main_window.size())
+            if self.overlay.highlight_path != path:
+                self.overlay.set_highlight(path)
+            self._move_widget_into_window(path)
+            self.widget.raise_()
+            newly_complete = is_task and complete and not self._task_complete
+            self._task_complete = complete
+        finally:
+            self._refreshing = False
+        if newly_complete:
+            self.task_completed.emit(self.index)
+
+    def complete_task(self, index: int) -> None:
+        """Record signal-driven success for a specific step, even before entry."""
+        if not 0 <= index < len(self.steps):
+            raise IndexError(f"Invalid welcome-tour step index: {index}")
+        step = self.steps[index]
+        if not step.get("requires_completion") or "is_complete" in step:
+            raise ValueError("complete_task requires a signal-driven task step.")
+        self._completed_tasks.add(index)
+        if index == self.index:
+            self.refresh()
 
     def show_step(self, idx):
+        self._refresh_timer.stop()
         self.index = idx
         step = self.steps[idx]
-        self._observe_target(step["widget"])
+        self._target = None
+        self._task_complete = False
+        self._observe_target(None)
         self.widget.set_text(step["text"])
         self.widget.show()
-        self._ensure_target_visible(step["widget"])
         self.refresh()
+        if not self._finished and (
+            callable(step["widget"])
+            or "is_complete" in step
+            or step.get("requires_completion")
+        ):
+            self._refresh_timer.start()
 
     def next_step(self):
-        if self.index < len(self.steps) - 1:
+        self.refresh()
+        if self.widget.next_btn.isEnabled() and self.index < len(self.steps) - 1:
             self.show_step(self.index + 1)
 
     def prev_step(self):
@@ -347,7 +466,13 @@ class WelcomeTour(QObject):
             self.show_step(self.index - 1)
 
     def finish(self):
+        """Close the tour and notify the controller after removing observers."""
+        if self._finished:
+            return
+        self._finished = True
+        self._refresh_timer.stop()
         self._clear_observers()
         self.overlay.hide()
         self.widget.hide()
         self.deleteLater()
+        self.finished.emit()

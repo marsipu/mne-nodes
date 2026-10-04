@@ -194,13 +194,15 @@ class NodeViewer(QGraphicsView):
 
     @property
     def input_node(self):
-        """Return the (only) input node in the node graph.
+        """Return the (only) input node in the node graph. Ensures it exists.
 
         Returns
         -------
         InputNode
             The input node in the node graph.
         """
+        if self._input_node is None:
+            self.add_input_node()
         return self._input_node
 
     @input_node.setter
