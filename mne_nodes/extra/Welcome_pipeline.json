@@ -1,0 +1,57 @@
+{
+    "name": "Welcome",
+    "group_by": "subject",
+    "custom_groups": {},
+    "bids_dataset_name": "sample-dataset",
+    "parameters": {},
+    "show_plots": true,
+    "save_plots": true,
+    "overwrite": false,
+    "shutdown": false,
+    "plugin_meta": {},
+    "node_config": {
+        "nodes": {
+            "1702347330624": {
+                "name": "sample-dataset",
+                "class": "InputNode",
+                "pos": [
+                    5.233572397751544,
+                    19.887575111455703
+                ],
+                "ports": {
+                    "1702346890560": {
+                        "name": "meg",
+                        "port_type": "out",
+                        "multi_connection": true,
+                        "accepted_ports": [
+                            "meg",
+                            "raw"
+                        ],
+                        "old_id": 1702346890560
+                    },
+                    "1702347337344": {
+                        "name": "event_id",
+                        "port_type": "out",
+                        "multi_connection": true,
+                        "accepted_ports": [
+                            "event_id"
+                        ],
+                        "old_id": 1702347337344
+                    }
+                },
+                "old_id": 1702347330624,
+                "checked": false
+            }
+        },
+        "connections": {
+            "1702347330624": {
+                "1702346890560": {},
+                "1702347337344": {}
+            }
+        }
+    },
+    "selected_inputs": {
+        "meg": [],
+        "subject": []
+    }
+}

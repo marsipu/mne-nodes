@@ -27,6 +27,7 @@ default_device_settings = {
     "bids_root": None,  # BIDS root directory
     "deriv_root": None,  # BIDS derivatives root directory
     "plot_root": None,  # Plot export root directory
+    "plot_root_is_config_specific": False,  # Root already includes the config name
     "fs_path": None,  # FREESURFER_HOME (legacy / optional)
     "wls_mne_path": None,  # Legacy WSL MNE path
     "use_qthread": 1,  # Kept for backwards compatibility
@@ -38,6 +39,7 @@ default_device_settings = {
     "app_style": "fusion",  # Qt style
     "app_font": "Calibri",  # Default application font family
     "app_font_size": 12,  # Default application font size
+    "first_start": True,  # Flag indicating if this is the first start of the application
 }
 
 

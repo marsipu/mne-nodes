@@ -4,7 +4,9 @@ import sys
 from mne_nodes.pipeline.package_utils import get_import_name, install_pip_packages
 
 
-def test_install_and_import_package_at_runtime(tmp_path, qtbot):
+def test_install_and_import_package_at_runtime(tmp_path, qtbot, monkeypatch):
+    from mne_nodes.gui.run_widgets import ProcessDialog
+
     distribution_name = "runtime-import-fixture"
     module_name = "runtime_import_fixture"
     package_path = tmp_path / "package"
@@ -16,6 +18,14 @@ def test_install_and_import_package_at_runtime(tmp_path, qtbot):
         f"setup(name='{distribution_name}', version='0.0.1', "
         f"packages=['{module_name}'])\n",
         encoding="utf-8",
+    )
+
+    def close_dialog_when_finished(**kwargs):
+        kwargs["close_directly"] = True
+        return ProcessDialog(**kwargs)
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.package_utils.ProcessDialog", close_dialog_when_finished
     )
 
     try:

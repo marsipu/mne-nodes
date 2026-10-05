@@ -5,8 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 # ruff: noqa: N999
-
-import faulthandler
 import sys
 
 from qtpy.QtWidgets import QApplication
@@ -15,7 +13,6 @@ from mne_nodes.logger import init_logging
 
 
 def main() -> None:
-    faulthandler.enable()
     init_logging()
 
     app = QApplication.instance()

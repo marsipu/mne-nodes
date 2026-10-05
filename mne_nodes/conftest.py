@@ -78,6 +78,7 @@ def settings(tmp_path):
 
     os.environ["MNENODES_SETTINGS_DIR"] = str(tmp_path)
     settings = Settings()
+    settings.set("first_start", False)
     return settings
 
 
@@ -106,6 +107,9 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     # Monkeypatch needs to be set on controller-module, since its already imported
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.ask_user_custom", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
     )
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.get_user_input", dummy_user_input
@@ -206,6 +210,7 @@ def main_window(ct, qtbot):
     from mne_nodes.gui.main_window import MainWindow
 
     mw = MainWindow(ct)
+    mw.finalize_controller_setup()
     _add_nodes(mw.viewer)
     qtbot.addWidget(mw)
 
