@@ -440,6 +440,98 @@ def test_signal_driven_completion_and_timer_cleanup(qtbot):
     assert completed == [1]
 
 
+@pytest.mark.parametrize("signal_driven", [False, True])
+def test_back_through_completed_tasks_requires_manual_next(qtbot, signal_driven):
+    """Revisiting tasks preserves changes and never queues another advance."""
+    main_window = QMainWindow()
+    qtbot.addWidget(main_window)
+    main_window.show()
+    state = {"completed": False}
+    tasks = [
+        {
+            "widget": main_window,
+            "text": f"Task {index}",
+            **(
+                {"requires_completion": True}
+                if signal_driven
+                else {"is_complete": lambda: state["completed"]}
+            ),
+        }
+        for index in range(2)
+    ]
+    tour = WelcomeTour(
+        main_window,
+        [
+            {"widget": main_window, "text": "Intro"},
+            *tasks,
+            {"widget": main_window, "text": "End"},
+        ],
+    )
+    completed = []
+    tour.task_completed.connect(completed.append)
+    try:
+        tour.next_step()
+        assert not tour.widget.next_btn.isEnabled()
+        state["completed"] = True
+        if signal_driven:
+            tour.complete_task(1)
+            tour.complete_task(2)
+        qtbot.waitUntil(lambda: tour.index == 3)
+        assert completed == [1, 2]
+
+        for index in (2, 1, 0):
+            qtbot.mouseClick(tour.widget.prev_btn, Qt.MouseButton.LeftButton)
+            qtbot.wait(150)
+            assert tour.index == index
+            assert not tour._pending_advance.isActive()
+            assert state["completed"]
+
+        for index in (1, 2, 3):
+            qtbot.mouseClick(tour.widget.next_btn, Qt.MouseButton.LeftButton)
+            qtbot.wait(150)
+            assert tour.index == index
+            assert not tour._pending_advance.isActive()
+        assert completed == [1, 2]
+    finally:
+        tour.finish()
+
+
+def test_passed_task_can_be_skipped_after_target_and_state_change(qtbot):
+    """Later actions must not block navigating through a previously passed step."""
+    main_window = QMainWindow()
+    qtbot.addWidget(main_window)
+    main_window.show()
+    state = {"target": main_window, "completed": False}
+    tour = WelcomeTour(
+        main_window,
+        [
+            {
+                "widget": lambda: state["target"],
+                "text": "Task",
+                "is_complete": lambda: state["completed"],
+            },
+            {"widget": main_window, "text": "New task", "is_complete": lambda: False},
+        ],
+    )
+    try:
+        state["completed"] = True
+        qtbot.waitUntil(lambda: tour.index == 1)
+        state["completed"] = False
+        state["target"] = None
+        tour.prev_step()
+        qtbot.wait(150)
+        assert tour.index == 0
+        assert tour.widget.next_btn.isEnabled()
+        assert not tour._pending_advance.isActive()
+        assert "Click Next" in tour.widget.status_label.text()
+        tour.next_step()
+        assert tour.index == 1
+        assert not tour.widget.next_btn.isEnabled()
+        assert state == {"target": None, "completed": False}
+    finally:
+        tour.finish()
+
+
 @pytest.mark.parametrize("precompleted", [False, True])
 def test_signal_driven_task_advances_automatically(qtbot, precompleted):
     """Both live completion and completion recorded before entry advance."""

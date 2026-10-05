@@ -52,6 +52,7 @@ class InputWidget(QWidget):
         self.update_widgets()
 
     def update_widgets(self):
+        self.selected_inputs = self.ct.get("selected_inputs")
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists

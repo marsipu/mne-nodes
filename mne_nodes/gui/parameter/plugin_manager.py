@@ -22,8 +22,8 @@ class PluginManagerDlg(QDialog):
 
     * **Disable / Enable** – toggles loading of the plugin on future
       sessions of this device without removing it from the project config.
-        * **Remove** – unregisters the plugin from the project without deleting
-            its files or uninstalling its distribution.
+    * **Remove** – unregisters the plugin from the project without deleting
+        its files or uninstalling its distribution.
 
     Parameters
     ----------

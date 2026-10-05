@@ -161,6 +161,15 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(node_picker_action)
 
+        welcome_tour_action = QAction(
+            "&Restart Welcome Tour",
+            parent=self,
+            statusTip="Start the welcome tour again with the sample dataset.",
+        )
+        welcome_tour_action.triggered.connect(self.restart_welcome_tour)
+        help_menu = self.menuBar().addMenu("&Help")
+        help_menu.addAction(welcome_tour_action)
+
         # Pipeline Menu
         self.menuBar().addAction(exit_action)
 
@@ -197,6 +206,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    def restart_welcome_tour(self) -> None:
+        """Start the welcome tour again without restarting the application."""
+        self.controller.initialize_welcome_tour()
+
     def show_node_picker(self):
         """Show the categorized node picker dialog."""
         if self.node_picker is None:

@@ -28,7 +28,7 @@
             }
         },
         "target": "file",
-        "category": "example_function",
+        "category": "example_plugin",
         "sub_category": null,
         "description": "This is an example function, that processes the raw-data of a the mne-sample-dataset.",
         "module_name": null,

@@ -215,7 +215,7 @@ class NodeViewer(QGraphicsView):
         """
         if self._input_node is not None:
             logger.info("Replacing existing input node.")
-            self.remove_node(self._input_node)
+            self.remove_node(self._input_node, force=True)
         self._input_node = input_node
 
     @property

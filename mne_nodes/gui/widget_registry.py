@@ -43,8 +43,8 @@ class WidgetRegistry:
 def widget_registry() -> WidgetRegistry:
     """Return the QApplication registry, creating it on first access."""
     app = QApplication.instance()
-    if not isinstance(app, QApplication):
-        raise TypeError("Widget registration requires a QApplication.")
+    if not app:
+        raise RuntimeError("Widget registration requires a QApplication.")
     registry = getattr(app, "_mne_nodes_widget_registry", None)
     if registry is None:
         registry = WidgetRegistry()

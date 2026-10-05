@@ -17,6 +17,16 @@ from mne_nodes.gui.main_window import MainWindow
 from mne_nodes.pipeline.io import type_json_hook
 
 
+@pytest.fixture(autouse=True)
+def welcome_sample_loader(monkeypatch):
+    """Keep GUI tour tests on tiny BIDS data; expose the real loader to its tests."""
+    from mne_nodes.gui import welcome_tour
+
+    loader = welcome_tour._ensure_welcome_sample
+    monkeypatch.setattr(welcome_tour, "_ensure_welcome_sample", lambda *args: None)
+    return loader
+
+
 def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
     """The main window should not load viewer nodes before the controller setup is finalized."""
     from pathlib import Path
@@ -46,6 +56,62 @@ def test_finalize_controller_setup_preserves_loaded_nodes(ct, main_window):
 
     assert main_window.viewer.nodes == nodes
     assert all(node.scene() is main_window.viewer.scene() for node in nodes.values())
+
+
+def test_replacing_input_node_removes_previous_dataset(main_window):
+    """Replacing the input must remove the old node, scene item and connections."""
+    from mne_nodes.gui.node.nodes import InputNode
+
+    viewer = main_window.viewer
+    previous_node = viewer.input_node
+    previous_id = previous_node.id
+    node = viewer.add_input_node()
+
+    assert viewer.input_node is node
+    assert previous_id not in viewer.nodes
+    assert previous_node not in viewer.scene().items()
+    assert [item for item in viewer.nodes.values() if isinstance(item, InputNode)] == [
+        node
+    ]
+    assert [item for item in viewer.scene().items() if isinstance(item, InputNode)] == [
+        node
+    ]
+
+
+def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
+    """The Help action must start a tour even after the first session."""
+    calls = []
+    ct.settings.set("first_start", False)
+    monkeypatch.setattr(ct, "initialize_welcome_tour", lambda: calls.append(True))
+    help_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&Help"
+    )
+    action = next(
+        action
+        for action in help_menu.actions()
+        if action.text() == "&Restart Welcome Tour"
+    )
+    action.trigger()
+    assert calls == [True]
+
+
+def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
+    """Invoking the action during a tour must not replace its plugin snapshot."""
+    from types import SimpleNamespace
+
+    tour = SimpleNamespace(_finished=False, finish=lambda **kwargs: None)
+    ct.welcome_tour = tour
+
+    def unexpected_start(*args, **kwargs):
+        pytest.fail("An active tour must not be started again.")
+
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.start_welcome_tour", unexpected_start
+    )
+    main_window.restart_welcome_tour()
+    assert ct.welcome_tour is tour
 
 
 def test_app_start(ct, main_window, qtbot):
@@ -127,7 +193,7 @@ def test_welcome_tour_tracks_loaded_input_node(
 
     ct.initialize_welcome_tour()
     tour = ct.welcome_tour
-    assert "example_function" in ct.plugins
+    assert set(ct.plugins) == {"example_plugin"}
     assert "example_filter" in ct.function_meta
     try:
         ct.ensure_ready()
@@ -176,6 +242,80 @@ def test_welcome_tour_does_not_inherit_previous_input_selection(
         assert not main_window.viewer.input_node.start_button.isEnabled()
     finally:
         tour.finish()
+
+
+def test_input_widget_refresh_uses_current_selection(ct, main_window):
+    """Refreshing an existing widget must not reuse a previous pipeline's selection."""
+    widget = main_window.viewer.input_node.input_widget
+    filename = widget.tab_widget.widget(0).model.index(0, 0).data()
+    ct.input_selection_changed([filename], "eeg")
+    previous_selection = widget.selected_inputs
+    ct.set("selected_inputs", {"eeg": [], "subject": []})
+
+    widget.update_widgets()
+
+    assert widget.selected_inputs is ct.get("selected_inputs")
+    assert widget.selected_inputs is not previous_selection
+    assert (
+        widget.tab_widget.widget(0)
+        .model.index(0, 0)
+        .data(Qt.ItemDataRole.CheckStateRole)
+        == Qt.CheckState.Unchecked
+    )
+    assert not main_window.viewer.input_node.start_button.isEnabled()
+
+
+@pytest.mark.parametrize("tour", [False, True])
+def test_bids_root_switch_replaces_input_dataset_information(
+    ct, main_window, monkeypatch, tmp_path, welcome_sample_loader, tour
+):
+    """An existing input node must display only the newly selected root's data."""
+    node = main_window.viewer.input_node
+    widget = node.input_widget
+    old_filename = widget.tab_widget.widget(0).model.index(0, 0).data()
+    ct.input_selection_changed([old_filename], "eeg")
+    ct.set("custom_groups", {"previous-group": [old_filename]})
+    ct.set("group_by", "custom")
+    widget.update_widgets()
+    ct.settings.set("deriv_root", tmp_path / "previous-derivatives")
+    ct.settings.set("plot_root", tmp_path / "previous-plots")
+
+    root = tmp_path / "new-bids"
+    meg_dir = root / "sub-01" / "ses-01" / "meg"
+    meg_dir.mkdir(parents=True)
+    filename = "sub-01_ses-01_task-audiovisual_run-1_meg.fif"
+    (meg_dir / filename).touch()
+    (root / "dataset_description.json").write_text(
+        json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
+    )
+    if tour:
+        ct.settings.set("sample_bids_root", root)
+        welcome_sample_loader(ct, main_window)
+    else:
+        monkeypatch.setattr(
+            "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
+        )
+        ct.bids_root = root
+
+    assert main_window.viewer.input_node is node
+    assert node.input_widget is widget
+    assert node.name == "sample-dataset"
+    assert ct.get("bids_dataset_name") == "sample-dataset"
+    assert [widget.tab_widget.tabText(index) for index in range(2)] == ["meg", "Groups"]
+    assert widget.tab_widget.count() == 2
+    model = widget.tab_widget.widget(0).model
+    assert model.rowCount() == 1
+    assert model.index(0, 0).data() == filename
+    assert (
+        model.index(0, 0).data(Qt.ItemDataRole.CheckStateRole)
+        == Qt.CheckState.Unchecked
+    )
+    assert widget.group_tree.model.rowCount() == 0
+    assert ct.get("custom_groups") == {}
+    assert not any(ct.get("selected_inputs").values())
+    assert ct.settings.get("deriv_root") is None
+    assert ct.settings.get("plot_root") is None
+    assert not node.start_button.isEnabled()
 
 
 @pytest.mark.parametrize("cancel", [False, True])
@@ -242,7 +382,7 @@ def test_welcome_tour_finish_selects_user_pipeline(
         qtbot.mouseClick(tour.widget.next_btn, Qt.MouseButton.LeftButton)
 
     assert prompts == [("Create new", "Use existing")]
-    assert "example_function" not in ct.plugins
+    assert "example_plugin" not in ct.plugins
     assert "example_filter" not in ct.function_meta
     assert ct.config_path == user_config
     assert ct.settings.get("config_path") == user_config
@@ -379,7 +519,7 @@ def test_welcome_tour_adds_node_from_context_menu(
             action
             for popup in [menu, *menu.findChildren(QMenu)]
             for action in popup.actions()
-            if action.text() == "test_filter"
+            if action.text() == "example_filter"
         ]
         assert len(actions) == 1
         action = actions[0]
@@ -517,7 +657,7 @@ def test_closing_welcome_tour_does_not_save_packaged_pipeline(
     assert ct.settings.get("config_path") == previous_config
     assert not ct.welcome_tour._refresh_timer.isActive()
     assert ct.welcome_tour.demo_directory is None
-    assert "example_function" not in ct.plugins
+    assert "example_plugin" not in ct.plugins
     assert "example_filter" not in ct.function_meta
     assert not main_window.viewer.function_nodes
 
@@ -529,20 +669,21 @@ def test_welcome_plugin_restores_existing_session(ct, main_window):
     from mne_nodes.gui.welcome_tour import _load_welcome_plugin
 
     original = ModuleType("previous_example")
-    ct.plugins["example_function"] = original
-    metadata = {**ct.get_function_meta("test_filter"), "plugin": "example_function"}
+    ct.plugins["example_plugin"] = original
+    metadata = {**ct.get_function_meta("test_filter"), "plugin": "example_plugin"}
     ct.function_meta["example_filter"] = metadata
-    plugin_meta = {"example_function": {"plugin_type": "module"}}
+    plugin_meta = {"example_plugin": {"plugin_type": "module"}}
     ct.set("plugin_meta", plugin_meta)
     plugin_settings = ct.settings.get("plugin_config", {}).copy()
     disabled_plugins = ct.settings.get("disabled_plugins", []).copy()
     cleanup = _load_welcome_plugin(ct)
-    assert ct.plugins["example_function"] is not original
+    assert set(ct.plugins) == {"example_plugin"}
+    assert set(ct.function_meta) == {"example_filter"}
     assert ct.get_default("lowpass", "example_filter") == 30
     cleanup()
-    assert ct.plugins["example_function"] is original
+    assert ct.plugins["example_plugin"] is original
     assert ct.function_meta["example_filter"] is metadata
-    assert ct.get("plugin_meta") == {"example_function": {"plugin_type": "module"}}
+    assert ct.get("plugin_meta") == {"example_plugin": {"plugin_type": "module"}}
     assert ct.settings.get("plugin_config", {}) == plugin_settings
     assert ct.settings.get("disabled_plugins", []) == disabled_plugins
 
@@ -554,10 +695,94 @@ def test_welcome_tour_decline_does_not_load_example_plugin(
         "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: False
     )
     previous_config = ct.config_path
+    previous_bids_root = ct.bids_root
     ct.initialize_welcome_tour()
     assert ct.config_path == previous_config
-    assert "example_function" not in ct.plugins
+    assert ct.bids_root == previous_bids_root
+    assert "example_plugin" not in ct.plugins
     assert "example_filter" not in ct.function_meta
+
+
+@pytest.mark.parametrize("available", ["current", "cached", "missing", "incomplete"])
+def test_welcome_sample_reuses_or_loads_data(
+    ct, monkeypatch, tmp_path, welcome_sample_loader, available
+):
+    """Only a complete converted dataset should skip the sample-data worker."""
+    from types import SimpleNamespace
+
+    from mne_nodes.gui import welcome_tour
+
+    sample_root = tmp_path / "sample-bids"
+    ct.settings.set("sample_bids_root", sample_root)
+    ct.settings.set("deriv_root", tmp_path / "old-derivatives")
+    ct.settings.set("plot_root", tmp_path / "old-plots")
+    ct.set("selected_inputs", {"eeg": ["old_file.vhdr"], "subject": ["old"]})
+    ct.set("custom_groups", {"old-group": ["old_file.vhdr"]})
+    calls = []
+
+    def write_sample(bids_root):
+        meg_dir = bids_root / "sub-01" / "ses-01" / "meg"
+        meg_dir.mkdir(parents=True, exist_ok=True)
+        (bids_root / "dataset_description.json").write_text(
+            json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
+        )
+        (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+
+    if available in ("current", "cached"):
+        write_sample(sample_root)
+    elif available == "incomplete":
+        sample_root.mkdir()
+        (sample_root / "dataset_description.json").write_text(
+            json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
+        )
+    if available == "current":
+        ct.settings.set("bids_root", sample_root)
+
+    def run_worker(parent, *, function, bids_root, **kwargs):
+        calls.append((parent, bids_root, kwargs))
+        return SimpleNamespace(return_value=function(bids_root=bids_root))
+
+    monkeypatch.setattr(welcome_tour, "load_sample_bids", write_sample)
+    monkeypatch.setattr(welcome_tour, "WorkerDialog", run_worker)
+    parent = object()
+    welcome_sample_loader(ct, parent)
+    assert ct.bids_root == sample_root
+    assert ct.settings.get("sample_bids_root") == sample_root
+    if available != "current":
+        assert not any(ct.get("selected_inputs").values())
+        assert ct.get("custom_groups") == {}
+        assert ct.settings.get("deriv_root") is None
+        assert ct.settings.get("plot_root") is None
+        assert ct.get("bids_dataset_name") == "sample-dataset"
+    assert len(calls) == (1 if available in ("missing", "incomplete") else 0)
+    if calls:
+        assert calls[0][0] is parent
+        assert calls[0][2]["blocking"] is True
+        assert calls[0][2]["return_exception"] is True
+
+
+@pytest.mark.parametrize("worker_error", [False, True])
+def test_welcome_sample_failure_preserves_dataset(
+    ct, monkeypatch, tmp_path, welcome_sample_loader, worker_error
+):
+    """Worker errors and incomplete conversion must not select a broken dataset."""
+    from types import SimpleNamespace
+
+    from mne_nodes.gui import welcome_tour
+    from mne_nodes.pipeline.exception_handling import ExceptionTuple
+
+    previous_root = ct.bids_root
+    ct.settings.set("sample_bids_root", tmp_path / "missing-sample")
+    error = RuntimeError("Sample conversion failed")
+    result = ExceptionTuple(RuntimeError, error, "traceback") if worker_error else None
+    monkeypatch.setattr(
+        welcome_tour,
+        "WorkerDialog",
+        lambda *args, **kwargs: SimpleNamespace(return_value=result),
+    )
+    with pytest.raises(RuntimeError):
+        welcome_sample_loader(ct, None)
+    assert ct.bids_root == previous_root
 
 
 def test_welcome_tour_start_failure_unloads_example_plugin(
@@ -581,7 +806,7 @@ def test_welcome_tour_start_failure_unloads_example_plugin(
         start_welcome_tour(ct, main_window)
     assert ct.plugins == previous_plugins
     assert ct.function_meta == previous_functions
-    assert "example_function" not in ct.get("plugin_meta")
+    assert "example_plugin" not in ct.get("plugin_meta")
     assert ct.settings.get("config_path") == previous_config
     assert not ct.config_path.exists()
 

@@ -68,9 +68,9 @@ def main() -> None:
     from mne_nodes.gui.main_window import MainWindow
 
     main_window = MainWindow(controller)
-    controller.initialize_welcome_tour()
-    controller.ensure_ready()
-    main_window.finalize_controller_setup()
+    if not controller.initialize_welcome_tour():
+        controller.ensure_ready()
+        main_window.finalize_controller_setup()
 
     # Command-Line interrupt with Ctrl+C possible
     timer = QTimer()

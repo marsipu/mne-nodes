@@ -86,6 +86,8 @@ class FunctionPickerModel(QAbstractItemModel):
         return self.createIndex(item.parent.children.index(item), 0, item)
 
     def rowCount(self, parent=None):
+        if parent is not None and parent.isValid() and parent.column() != 0:
+            return 0
         return len(self._item(parent or QModelIndex()).children)
 
     def columnCount(self, parent=None):

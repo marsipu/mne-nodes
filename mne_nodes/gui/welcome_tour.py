@@ -43,6 +43,9 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
 from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.gui.run_widgets import WorkerDialog
+from mne_nodes.pipeline.data_import import load_sample_bids
+from mne_nodes.pipeline.exception_handling import ExceptionTuple
 
 if TYPE_CHECKING:
     from mne_nodes.gui.main_window import MainWindow
@@ -236,6 +239,9 @@ class WelcomeTour(QObject):
     next event-loop turn. If the state is undone before advancing, Next is
     disabled again. Informational steps advance manually. For signal-driven tasks, use
     ``requires_completion=True`` and call ``complete_task(index)`` instead.
+    Steps already passed remain available through Back and advance manually with
+    Next, without rechecking completion or undoing the user's changes. They can
+    also be skipped when their dynamic target no longer exists.
     Interactive widgets are disabled except for those explicitly listed in
     ``interactive_widgets`` for the active step. Descendant controls and menu
     actions belonging to those widgets remain available.
@@ -257,6 +263,7 @@ class WelcomeTour(QObject):
         self._target: QWidget | QGraphicsItem | None = None
         self._task_complete = False
         self._completed_tasks: set[int] = set()
+        self._passed_steps: set[int] = set()
         self._widget_enabled: dict[QWidget, bool] = {}
         self._interaction_policy_dirty = True
         self._active_graphics_view: QGraphicsView | None = None
@@ -735,15 +742,20 @@ class WelcomeTour(QObject):
                 self._observe_target(target)
             check = step.get("is_complete")
             is_task = check is not None or step.get("requires_completion", False)
-            complete = (
+            already_passed = index in self._passed_steps
+            complete = already_passed or (
                 bool(check())
                 if check is not None
                 else self.index in self._completed_tasks
             )
-            can_continue = target is not None and (not is_task or complete)
+            can_continue = already_passed or (
+                target is not None and (not is_task or complete)
+            )
             if self.widget.next_btn.isEnabled() != can_continue:
                 self.widget.next_btn.setEnabled(can_continue)
-            if target is None:
+            if already_passed:
+                status = "Step already completed. Click Next to continue."
+            elif target is None:
                 status = "Waiting for the target to be created."
             elif is_task:
                 status = (
@@ -772,7 +784,9 @@ class WelcomeTour(QObject):
                     self.overlay.set_highlight(path)
                 self._move_widget_into_window(path)
                 self.widget.raise_()
-            newly_complete = is_task and complete and not self._task_complete
+            newly_complete = (
+                is_task and complete and not self._task_complete and not already_passed
+            )
             self._task_complete = complete
         finally:
             self._refreshing = False
@@ -783,6 +797,7 @@ class WelcomeTour(QObject):
             and self.index == index
             and is_task
             and can_continue
+            and not already_passed
             and not self._pending_advance.isActive()
         ):
             self._pending_advance.start()
@@ -828,6 +843,7 @@ class WelcomeTour(QObject):
             or not self.widget.next_btn.isEnabled()
         ):
             return
+        self._passed_steps.add(index)
         if self.index == len(self.steps) - 1:
             self.finish()
         else:
@@ -958,7 +974,7 @@ def build_welcome_steps(
             "widget": input_port,
             "text": "Add a node. To add a new node, either right-click on the "
             "background or on a port of an existing node. Select example_filter "
-            "from the example_function plugin.",
+            "from the example_plugin plugin.",
             "is_complete": lambda: function_node() is not None,
             "interactive_views": [viewer],
             "interactive_items": input_ports,
@@ -1021,9 +1037,14 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
     def cleanup() -> None:
         if viewer is not None:
             for node in list(viewer.function_nodes.values()):
-                if ct.get_plugin_from_function(node.name) == "example_function":
+                if node.name is None:
+                    continue
+                metadata = ct.function_meta.get(node.name.split("-")[0], {})
+                if metadata.get("plugin") == "example_plugin":
                     viewer.remove_node(node, force=True)
-        ct._unload_plugin_session("example_function")
+            ct._unload_plugin_session("example_plugin")
+            ct.plugins.clear()
+            ct.function_meta.clear()
         ct.plugins.update(previous_plugins)
         ct.function_meta.update(previous_functions)
         ct.set("plugin_meta", previous_meta)
@@ -1031,15 +1052,18 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
             viewer.refresh_node_picker()
 
     try:
-        plugin = import_module("mne_nodes.extra.example_function")
+        ct.plugins.clear()
+        ct.function_meta.clear()
+        ct.set("plugin_meta", {})
+        plugin = import_module("mne_nodes.extra.example_plugin")
         ct.load_plugin(
             plugin,
-            "example_function",
+            "example_plugin",
             {
                 "config_path": WELCOME_CONFIG_PATH.with_name(
-                    "example_function_config.json"
+                    "example_plugin_config.json"
                 ),
-                "script_path": WELCOME_CONFIG_PATH.with_name("example_function.py"),
+                "script_path": WELCOME_CONFIG_PATH.with_name("example_plugin.py"),
                 "plugin_type": "path",
             },
         )
@@ -1051,6 +1075,46 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
     return cleanup
 
 
+def _ensure_welcome_sample(ct: "Controller", main_window: "MainWindow") -> None:
+    """Reuse a converted sample dataset or prepare one before loading the demo."""
+
+    def is_sample(root: Path | None) -> bool:
+        return (
+            root is not None
+            and ct._read_bids_dataset_name(root) == "sample-dataset"
+            and any(
+                (root / "sub-01" / "ses-01" / "meg").glob(
+                    "*task-audiovisual_run-1*_meg.fif"
+                )
+            )
+        )
+
+    root = ct.bids_root
+    if not is_sample(root):
+        root = Path(
+            ct.settings.get(
+                "sample_bids_root", Path.home() / "mne_data" / "mne-nodes-sample-bids"
+            )
+        )
+        if not is_sample(root):
+            dialog = WorkerDialog(
+                main_window,
+                function=load_sample_bids,
+                title="Loading Sample BIDS Data",
+                show_console=True,
+                blocking=True,
+                return_exception=True,
+                bids_root=root,
+            )
+            if isinstance(dialog.return_value, ExceptionTuple):
+                raise dialog.return_value[1]
+            if not is_sample(root):
+                raise RuntimeError("Sample BIDS data was not successfully written.")
+    ct.settings.set("sample_bids_root", root)
+    if ct.bids_root != root:
+        ct._activate_bids_root(root)
+
+
 def start_welcome_tour(
     ct: "Controller", main_window: "MainWindow"
 ) -> WelcomeTour | None:
@@ -1058,21 +1122,25 @@ def start_welcome_tour(
 
     The packaged ``Welcome_pipeline.json`` is copied to a temporary directory so
     the tour never writes to the package. The copy is removed when the tour ends.
+    Sample BIDS data is prepared before loading the demo and reused on later tours.
+    Only ``example_plugin`` is available during the tour; existing plugins and
+    their functions are restored when it ends without changing disabled settings.
     Returns None when the user declines.
     """
     if not ask_user("Would you like to start the welcome tour?", parent=main_window):
         return None
+    _ensure_welcome_sample(ct, main_window)
     demo_directory = TemporaryDirectory(prefix="mne-nodes-welcome-")
     demo_config = Path(demo_directory.name) / WELCOME_CONFIG_PATH.name
     shutil.copyfile(WELCOME_CONFIG_PATH, demo_config)
     # Loading would otherwise remember the demo as the user's last pipeline.
     previous_config_path = ct.settings.get("config_path", None)
-    try:
-        ct.load_config(demo_config)
-    finally:
-        ct.settings.set("config_path", previous_config_path)
     cleanup_plugin = None
     try:
+        try:
+            ct.load_config(demo_config)
+        finally:
+            ct.settings.set("config_path", previous_config_path)
         cleanup_plugin = _load_welcome_plugin(ct)
         tour = WelcomeTour(main_window, build_welcome_steps(ct, main_window))
     except Exception:
@@ -1087,7 +1155,9 @@ def start_welcome_tour(
         tour.complete_task(7)
 
     main_window.console_dock.process_started.connect(process_started)
-    tour._disconnect_process_started = lambda: (
+
+    def disconnect_process_started() -> None:
         main_window.console_dock.process_started.disconnect(process_started)
-    )
+
+    tour._disconnect_process_started = disconnect_process_started
     return tour

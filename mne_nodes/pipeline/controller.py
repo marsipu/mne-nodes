@@ -262,6 +262,9 @@ class Controller:
         """Start the tour using a disposable copy of the packaged pipeline."""
         if not gui_mode:
             return
+        active_tour = getattr(self, "welcome_tour", None)
+        if active_tour is not None and not active_tour._finished:
+            return
         main_window = cast("MainWindow | None", get_widget("main_window"))
         if main_window is None:
             logger.debug(
@@ -508,8 +511,7 @@ class Controller:
         )
         if previous_root == new_root:
             dataset_name = self._read_bids_dataset_name(new_root)
-            if dataset_name is not None:
-                self.set("bids_dataset_name", dataset_name)
+            self.set("bids_dataset_name", dataset_name)
             return
         if previous_root != new_root:
             ans = ask_user(
@@ -520,6 +522,11 @@ class Controller:
                 self.settings.set("bids_root", previous_root)
                 return
 
+        self._activate_bids_root(new_root)
+
+    def _activate_bids_root(self, new_root: Path) -> None:
+        """Select one dataset and discard state associated with the previous root."""
+        self.settings.set("bids_root", new_root)
         # Clear selected inputs and custom groups
         selected_inputs = self.get("selected_inputs")
         custom_groups = self.get("custom_groups")
@@ -533,8 +540,7 @@ class Controller:
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)
         dataset_name = self._read_bids_dataset_name(new_root)
-        if dataset_name is not None:
-            self.set("bids_dataset_name", dataset_name)
+        self.set("bids_dataset_name", dataset_name)
         # Update input widget when viewer is available.
         viewer = self.viewer
         if viewer is not None and viewer.input_node is not None:
@@ -806,7 +812,7 @@ class Controller:
             f"'{cached_name}'. All selected inputs and custom groups will be considered stale and removed."
         )
         for key in ["selected_inputs", "custom_groups"]:
-            self.reset_value(key)
+            config[key] = deepcopy(default_config.get(key))
         config["bids_dataset_name"] = actual_name
 
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
@@ -1522,8 +1528,6 @@ class Controller:
             raise KeyError(
                 f"Function '{function_name}' has no valid plugin configured."
             )
-        # Replace "-" with "_"
-        plugin_name = plugin_name.replace("-", "_")
         return plugin_name
 
     def _unload_plugin_session(self, plugin_name: str) -> list[str]:
