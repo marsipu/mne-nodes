@@ -138,12 +138,229 @@ def test_getters_noninteractive(settings):
         controller.ensure_ready(required=("config_path",), interactive=False)
 
 
+@pytest.mark.parametrize("action", ["load", "new", "save_as"])
+def test_config_switch_confirms_bids_and_resets_outputs(
+    ct, tmp_path, monkeypatch, action
+):
+    dataset_name = ct.get_dataset_name()
+    root = ct.bids_root
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    new_config = tmp_path / "other_pipeline.json"
+    new_config.write_text(
+        json.dumps(
+            {
+                "name": "other",
+                "bids_dataset_name": dataset_name,
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or True,
+    )
+    actions = {
+        "load": ct.load_config,
+        "new": ct.new_config,
+        "save_as": ct.save_config_as,
+    }
+    actions[action](new_config)
+
+    assert len(confirmations) == 1
+    assert str(root) in confirmations[0]
+    assert ct.bids_root == root
+    assert ct.deriv_root is None
+    assert ct.plot_root is None
+    if action == "load":
+        assert ct.get("selected_inputs") == {"subject": ["01"]}
+        assert ct.get("custom_groups") == {"group": ["01"]}
+    ct.load()
+    ct.config_path = new_config
+    assert len(confirmations) == 1
+
+
+def test_config_switch_reselects_bids_root(ct, tmp_path, monkeypatch):
+    new_root = tmp_path / "other_bids"
+    new_root.mkdir()
+    (new_root / "dataset_description.json").write_text(
+        json.dumps({"Name": "Other dataset"}), encoding="utf-8"
+    )
+    new_config = tmp_path / "other_pipeline.json"
+    new_config.write_text(
+        json.dumps(
+            {
+                "name": "other",
+                "bids_dataset_name": ct.get_dataset_name(),
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or False,
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", lambda *args, **kwargs: new_root
+    )
+
+    ct.load_config(new_config)
+
+    assert len(confirmations) == 1
+    assert ct.bids_root == new_root
+    assert ct.get("bids_dataset_name") == "Other dataset"
+    assert ct.get("selected_inputs") == {}
+    assert ct.get("custom_groups") == {}
+    ct.flush()
+    ct.load()
+    assert ct.get("bids_dataset_name") == "Other dataset"
+
+
+def test_config_output_roots_share_parent(ct, tmp_path, monkeypatch):
+    ct.set("name", "first")
+    prompts = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts.append(message) or tmp_path,
+    )
+    ct.ensure_ready(required=("deriv_root", "plot_root"))
+    assert len(prompts) == 1
+    assert ct.deriv_root == tmp_path / "first_derivatives"
+    assert ct.plot_root == tmp_path / "first_plots"
+    assert ct.plot_path == ct.plot_root
+    assert ct.deriv_root.is_dir()
+    assert ct.plot_root.is_dir()
+
+    ct.flush()
+    reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
+    assert reloaded.plot_path == ct.plot_root
+    assert len(prompts) == 1
+
+    new_config = tmp_path / "second_pipeline.json"
+    new_config.write_text(json.dumps({"name": "second"}), encoding="utf-8")
+    ct.load_config(new_config)
+    with pytest.raises(RuntimeError):
+        ct.ensure_deriv_root(interactive=False)
+    ct.ensure_ready(required=("deriv_root", "plot_root"))
+    assert len(prompts) == 2
+    assert ct.deriv_root == tmp_path / "second_derivatives"
+    assert ct.plot_path == tmp_path / "second_plots"
+
+
+def test_startup_config_switch_defers_confirmation(ct, tmp_path, monkeypatch):
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    config_path = tmp_path / "startup_pipeline.json"
+    config_path.write_text(json.dumps({"name": "startup"}), encoding="utf-8")
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or True,
+    )
+    controller = Controller(config_path=config_path, settings=ct.settings)
+
+    assert confirmations == []
+    assert controller.deriv_root is None
+    assert controller.plot_root is None
+    with pytest.raises(RuntimeError, match="must be confirmed"):
+        controller.ensure_bids_root(interactive=False)
+    assert controller.ensure_bids_root() == ct.bids_root
+    assert len(confirmations) == 1
+    controller.ensure_bids_root()
+    assert len(confirmations) == 1
+
+
+def test_config_switch_keeps_root_with_dataset_mismatch(ct, tmp_path, monkeypatch):
+    config_path = tmp_path / "mismatch_pipeline.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "name": "mismatch",
+                "bids_dataset_name": "different dataset",
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    root = ct.bids_root
+    warnings = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.raise_user_attention",
+        lambda message: warnings.append(message),
+    )
+    ct.load_config(config_path)
+
+    assert ct.bids_root == root
+    assert len(warnings) == 1
+    assert "different dataset" in warnings[0]
+    assert ct.get("selected_inputs") == {}
+    assert ct.get("custom_groups") == {}
+    assert ct.get("bids_dataset_name") == ct._read_bids_dataset_name(root)
+
+
+def test_explicit_output_roots_keep_legacy_layout(ct, tmp_path):
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+
+    assert ct.ensure_deriv_root(interactive=False) == tmp_path
+    assert ct.ensure_plot_root(interactive=False) == tmp_path
+    assert ct.plot_path == tmp_path / ct.name
+
+
+@pytest.mark.parametrize(
+    ("action", "method"),
+    [
+        ("new_pipeline", "new_config"),
+        ("load_pipeline", "load_config"),
+        ("save_pipeline_as", "save_config_as"),
+    ],
+)
+def test_gui_config_actions_initialize_output_roots(
+    ct, qtbot, tmp_path, monkeypatch, action, method
+):
+    from mne_nodes.gui.main_window import MainWindow
+    from mne_nodes.pipeline.controller import default_config
+
+    monkeypatch.setattr(ct, "get_datatype_items", dict)
+    window = MainWindow(ct)
+    qtbot.addWidget(window)
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    config_path = tmp_path / "gui_pipeline.json"
+    config_path.write_text(
+        json.dumps({**default_config, "name": "gui"}), encoding="utf-8"
+    )
+    original_method = getattr(ct, method)
+    monkeypatch.setattr(ct, method, lambda: original_method(config_path))
+    prompts = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts.append(message) or tmp_path,
+    )
+
+    getattr(window, action)()
+
+    assert ct.config_path == config_path
+    assert len(prompts) == 1
+    assert ct.deriv_root == tmp_path / f"{ct.name}_derivatives"
+    assert ct.plot_path == tmp_path / f"{ct.name}_plots"
+    ct.ensure_ready(interactive=False)
+
+
 def test_path_prompts(settings, tmp_path, monkeypatch):
     controller = Controller(settings=settings)
+    controller.set("name", "test")
     prompts = {
         "Please select/create a folder for the bids-root.": tmp_path / "bids",
-        "Please select/create a folder for the derivatives root.": tmp_path / "deriv",
-        "Please select/create a folder for saving plots.": tmp_path / "plots",
+        "Select the parent folder for 'test_derivatives' and 'test_plots'.": tmp_path
+        / "outputs",
         "Please enter the path to the FreeSurfer subjects directory": tmp_path
         / "subjects",
     }
@@ -165,14 +382,8 @@ def test_path_prompts(settings, tmp_path, monkeypatch):
         controller.bids_root
         == prompts["Please select/create a folder for the bids-root."]
     )
-    assert (
-        controller.deriv_root
-        == prompts["Please select/create a folder for the derivatives root."]
-    )
-    assert (
-        controller.plot_root
-        == prompts["Please select/create a folder for saving plots."]
-    )
+    assert controller.deriv_root == tmp_path / "outputs" / "test_derivatives"
+    assert controller.plot_root == tmp_path / "outputs" / "test_plots"
     assert (
         controller.subjects_dir
         == prompts["Please enter the path to the FreeSurfer subjects directory"]

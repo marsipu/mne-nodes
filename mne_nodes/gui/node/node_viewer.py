@@ -732,7 +732,6 @@ class NodeViewer(QGraphicsView):
         of different node types and activated/deactivated nodes should
         be done in Controller.
         """
-        # ToDoNext: NodeSequence has to tell me each step what are the inputs and to which preceding node are they connected
         node_sequence = {"file": [], "group": []}
         visited = set()
         # Add the starting node

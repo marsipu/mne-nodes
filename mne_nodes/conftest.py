@@ -109,6 +109,9 @@ def create_test_controller(settings, tmp_path, monkeypatch):
         "mne_nodes.pipeline.controller.ask_user_custom", lambda *args, **kwargs: True
     )
     monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
         "mne_nodes.pipeline.controller.get_user_input", dummy_user_input
     )
     monkeypatch.setattr(

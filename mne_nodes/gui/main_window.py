@@ -223,6 +223,7 @@ class MainWindow(QMainWindow):
         config_path = self.controller.new_config()
         if config_path is None:
             return
+        self.controller.ensure_ready()
         if self.viewer is not None:
             self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
@@ -231,6 +232,7 @@ class MainWindow(QMainWindow):
         config_path = self.controller.load_config()
         if config_path is None:
             return
+        self.controller.ensure_ready()
         if self.viewer is not None:
             self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
@@ -245,6 +247,7 @@ class MainWindow(QMainWindow):
         config_path = self.controller.save_config_as()
         if config_path is None:
             return
+        self.controller.ensure_ready()
         self.statusBar().showMessage(f"{self.controller.name} saved as {config_path}.")
 
     def load_plugin_path(self):

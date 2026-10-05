@@ -96,6 +96,8 @@ class Controller:
         # These hidden attributes should not be set directly
         self._config = deepcopy(default_config)
         self._config_path: Path | None = None
+        self._paths_config_path = self._as_path(self.settings.get("config_path"))
+        self._bids_root_confirmation_pending = False
         self._config_lock = None
         self._last_load = 0
         self._local_set = False
@@ -139,7 +141,9 @@ class Controller:
     def _initialize_startup_config_path(self, config_path: Any) -> None:
         startup_path = self._resolve_startup_config_path(config_path)
         if startup_path is not None:
-            self._set_config_path(startup_path, reprompt_on_none=False)
+            self._set_config_path(
+                startup_path, reprompt_on_none=False, interactive=False
+            )
 
     def _prompt_config_path(self) -> Path:
         ans = ask_user_custom(
@@ -219,19 +223,33 @@ class Controller:
     def _activate_config_path(self, config_path: Any) -> Path:
         config_path = self._normalize_config_path(config_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
+        if self._paths_config_path != config_path:
+            self.settings.set("deriv_root", None)
+            self.settings.set("plot_root", None)
+            self._bids_root_confirmation_pending = (
+                self._paths_config_path is not None and self.bids_root is not None
+            )
+        self._paths_config_path = config_path
         self._config_path = config_path
-        self._config_lock = FileLock(self._config_path.with_suffix(".lock"))
-        self.settings.set("config_path", self._config_path)
-        return self._config_path
+        self._config_lock = FileLock(config_path.with_suffix(".lock"))
+        self.settings.set("config_path", config_path)
+        return config_path
 
-    def _apply_config_path(self, config_path: Path) -> None:
-        self._activate_config_path(config_path)
-        if self._config_path.is_file():
-            self.load(nodes=True, plugins=True)
+    def _apply_config_path(
+        self, config_path: Path, *, interactive: bool = True
+    ) -> None:
+        config_path = self._activate_config_path(config_path)
+        if config_path.is_file():
+            self.load(plugins=True)
         else:
             self.flush()
+        self._confirm_config_bids_root(interactive=interactive)
+        if self.viewer is not None:
+            self.viewer.load_nodes(self._config["node_config"])
 
-    def _set_config_path(self, value: Any, *, reprompt_on_none: bool = False) -> Path:
+    def _set_config_path(
+        self, value: Any, *, reprompt_on_none: bool = False, interactive: bool = True
+    ) -> Path:
         config_path = self._set_setting_file(
             key="config_path",
             value=value,
@@ -242,7 +260,7 @@ class Controller:
             ),
             reprompt_on_none=reprompt_on_none,
         )
-        self._apply_config_path(config_path)
+        self._apply_config_path(config_path, interactive=interactive)
         return config_path
 
     @config_path.setter
@@ -510,6 +528,7 @@ class Controller:
             reprompt_on_none=True,
         )
         if previous_root == new_root:
+            self._bids_root_confirmation_pending = False
             dataset_name = self._read_bids_dataset_name(new_root)
             self.set("bids_dataset_name", dataset_name)
             return
@@ -526,6 +545,7 @@ class Controller:
 
     def _activate_bids_root(self, new_root: Path) -> None:
         """Select one dataset and discard state associated with the previous root."""
+        self._bids_root_confirmation_pending = False
         self.settings.set("bids_root", new_root)
         # Clear selected inputs and custom groups
         selected_inputs = self.get("selected_inputs")
@@ -553,6 +573,9 @@ class Controller:
 
     @deriv_root.setter
     def deriv_root(self, value: Any) -> None:
+        if value is None:
+            self._setup_output_roots()
+            return
         self._set_setting_path(
             key="deriv_root",
             value=value,
@@ -587,6 +610,9 @@ class Controller:
 
     @plot_root.setter
     def plot_root(self, value):
+        if value is None:
+            self._setup_output_roots()
+            return
         self._set_setting_path(
             key="plot_root",
             value=value,
@@ -597,11 +623,48 @@ class Controller:
             ),
             reprompt_on_none=True,
         )
+        self.settings.set("plot_root_is_config_specific", False)
+
+    def _setup_output_roots(self) -> None:
+        """Create config-specific derivatives and plots under one selected parent."""
+        name = self.ensure_name()
+        parent = self._validate_existing_dir(
+            self._prompt_path(
+                f"Select the parent folder for '{name}_derivatives' and '{name}_plots'."
+            ),
+            key="output_parent",
+        )
+        deriv_root = parent / f"{name}_derivatives"
+        plot_root = parent / f"{name}_plots"
+        deriv_root.mkdir(exist_ok=True)
+        plot_root.mkdir(exist_ok=True)
+        self.settings.set("deriv_root", deriv_root)
+        self.settings.set("plot_root", plot_root)
+        self.settings.set("plot_root_is_config_specific", True)
+
+    def _ensure_output_root(self, key: str, *, interactive: bool) -> Path:
+        root = self._setting_folder(key)
+        if root is not None:
+            return root
+        configured_root = self.settings.get(key)
+        if configured_root is not None:
+            message = f"Output folder {configured_root} does not exist."
+            logger.warning(message)
+            if interactive:
+                raise_user_attention(message)
+        if not interactive:
+            raise RuntimeError(
+                f"Required path '{key}' is not configured. Call ensure_{key}() first."
+            )
+        self._setup_output_roots()
+        return self._validate_existing_dir(self.settings.get(key), key=key)
 
     @property
     def plot_path(self) -> Path:
         """Path to the plot directory for the current project."""
         plot_root = self.ensure_plot_root(interactive=False)
+        if self.settings.get("plot_root_is_config_specific", False):
+            return plot_root
         name = self.ensure_name(interactive=False)
         plot_path = plot_root / name
         if not isdir(plot_path):
@@ -620,7 +683,7 @@ class Controller:
             ),
             interactive=interactive,
         )
-        self._apply_config_path(config_path)
+        self._apply_config_path(config_path, interactive=interactive)
         return config_path
 
     def ensure_name(self, interactive: bool = True) -> str:
@@ -640,6 +703,33 @@ class Controller:
         return coerced_name
 
     def ensure_bids_root(self, interactive: bool = True) -> Path:
+        if self._bids_root_confirmation_pending:
+            if not interactive:
+                raise RuntimeError(
+                    "The BIDS root must be confirmed for the current configuration."
+                )
+            bids_root = self.bids_root
+            if bids_root is not None:
+                keep_root = ask_user(
+                    f"Keep the BIDS-root '{bids_root}' for the configuration "
+                    f"'{self.name or self.ensure_config_path(False).stem}'?",
+                    cancel_allowed=False,
+                )
+                if not keep_root:
+                    new_root = self._validate_existing_dir(
+                        self._prompt_path(
+                            "Please select/create a folder for the bids-root."
+                        ),
+                        key="bids_root",
+                    )
+                    if new_root != bids_root:
+                        self._activate_bids_root(new_root)
+                self._check_bids_root_mismatch(self._config)
+                active_root = self._validate_existing_dir(
+                    self.settings.get("bids_root"), key="bids_root"
+                )
+                self.set("bids_dataset_name", self._read_bids_dataset_name(active_root))
+            self._bids_root_confirmation_pending = False
         return self._ensure_setting_path(
             key="bids_root",
             prompt="Please select/create a folder for the bids-root.",
@@ -650,27 +740,15 @@ class Controller:
             interactive=interactive,
         )
 
+    def _confirm_config_bids_root(self, *, interactive: bool) -> None:
+        if interactive and self._bids_root_confirmation_pending:
+            self.ensure_bids_root()
+
     def ensure_deriv_root(self, interactive: bool = True) -> Path:
-        return self._ensure_setting_path(
-            key="deriv_root",
-            prompt="Please select/create a folder for the derivatives root.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select the correct folder for data derivatives."
-            ),
-            interactive=interactive,
-        )
+        return self._ensure_output_root("deriv_root", interactive=interactive)
 
     def ensure_plot_root(self, interactive: bool = True) -> Path:
-        return self._ensure_setting_path(
-            key="plot_root",
-            prompt="Please select/create a folder for saving plots.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select/create the folder where plots should be saved."
-            ),
-            interactive=interactive,
-        )
+        return self._ensure_output_root("plot_root", interactive=interactive)
 
     def ensure_subjects_dir(self, interactive: bool = True) -> Path:
         subjects_dir = self.subjects_dir
@@ -789,13 +867,12 @@ class Controller:
         return deepcopy(default_config.get(key, None))
 
     def _check_bids_root_mismatch(self, config: dict) -> None:
-        """Warn and reset device paths if bids_root doesn't match the loaded project.
+        """Warn and reset selections if bids_root differs from the loaded dataset.
 
-        ``bids_root``, ``deriv_root`` and ``plot_root`` are device-wide settings,
-        shared across all config-files/projects on this device. If the currently
+        ``bids_root`` is a device-wide setting. If the currently
         configured ``bids_root`` points to a different dataset than the one this
         project was last used with (recorded as ``bids_dataset_name``), the
-        selection/derivatives/plot paths are stale and must be re-selected.
+        input selections and custom groups are stale and must be re-selected.
         """
         cached_name = config.get("bids_dataset_name")
         if not cached_name:
@@ -835,7 +912,8 @@ class Controller:
             logger.warning("Loaded configuration has invalid type. Using defaults.")
             config = deepcopy(default_config)
 
-        self._check_bids_root_mismatch(config)
+        if not self._bids_root_confirmation_pending:
+            self._check_bids_root_mismatch(config)
 
         return config
 
@@ -1026,7 +1104,7 @@ class Controller:
 
     # TodoNext: Only show measurments and separate empty room measurements. Also facilitate plugin-addition (drag/drop etc.)
     def get_datatype_items(self):
-        items = {}
+        items = {"emptyroom": []}
         data_types = self.get_datatypes()
         for dt in data_types:
             bp_kwargs = {"root": self.bids_root, "check": False}
@@ -1034,9 +1112,12 @@ class Controller:
                 bp_kwargs.update({"suffix": dt})
             else:
                 bp_kwargs.update({"datatype": dt})
-            items[dt] = [
-                f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+            file_candidates = [
+                f.basename
+                for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+                if f.acquisition not in ["calibration", "crosstalk"]
             ]
+            items[dt] = [f.basename for f in file_candidates]
         return items
 
     def input_selection_changed(self, selected, data_type):
@@ -1800,6 +1881,7 @@ class Controller:
         self._config = {"name": str(pipeline_name), **deepcopy(default_config)}
         self._activate_config_path(config_path)
         self.flush()
+        self._confirm_config_bids_root(interactive=True)
         return self._config_path
 
     def load_config(self, config_path: str | Path | None = None) -> Path | None:
@@ -1839,6 +1921,7 @@ class Controller:
 
         self._activate_config_path(export_path)
         self.flush()
+        self._confirm_config_bids_root(interactive=True)
         return self._config_path
 
     def export_pipeline(self, export_path=None):

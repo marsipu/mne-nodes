@@ -214,6 +214,38 @@ def test_welcome_tour_tracks_loaded_input_node(
         tour.finish()
 
 
+def test_welcome_tour_uses_packaged_pipeline_name(ct, qtbot, monkeypatch, tmp_path):
+    """Tour output setup must use the demo name without asking for a new one."""
+    monkeypatch.setattr(ct, "get_datatype_items", dict)
+    main_window = MainWindow(ct)
+    qtbot.addWidget(main_window)
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
+    )
+    prompts = []
+
+    def select_output_parent(message, input_type, **kwargs):
+        assert input_type == "folder", "The tour must not ask for a pipeline name."
+        prompts.append(message)
+        return tmp_path
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", select_output_parent
+    )
+    ct.initialize_welcome_tour()
+    tour = ct.welcome_tour
+    try:
+        ct.ensure_ready()
+        assert ct.name == "Welcome"
+        assert ct.deriv_root == tmp_path / "Welcome_derivatives"
+        assert ct.plot_path == tmp_path / "Welcome_plots"
+        assert prompts == [
+            "Select the parent folder for 'Welcome_derivatives' and 'Welcome_plots'."
+        ]
+    finally:
+        tour.finish(notify=False)
+
+
 def test_welcome_tour_does_not_inherit_previous_input_selection(
     ct, main_window, monkeypatch
 ):

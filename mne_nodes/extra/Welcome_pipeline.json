@@ -1,4 +1,5 @@
 {
+    "name": "Welcome",
     "group_by": "subject",
     "custom_groups": {},
     "bids_dataset_name": "sample-dataset",
