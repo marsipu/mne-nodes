@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Settings &#8212; mne-nodes 0.1.0.dev1+gc9eec207b documentation</title>
+    <title>Settings &#8212; mne-nodes 0.1.0.dev1+g7438d57f4 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=461655ba"></script>
+    <script src="../_static/documentation_options.js?v=5ba88cbc"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/settings';</script>
@@ -114,7 +114,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+gc9eec207b documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+g7438d57f4 documentation</p>
   
 </a></div>
     
@@ -235,6 +235,10 @@
     </div>
   
 
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
   
 </div>
 
@@ -414,6 +418,25 @@ It depends on whether the settings is device-specific or project-specific.
 For device-specific settings, such as the number of jobs or whether cuda is enabled, are stored either with <em>Settings</em> in a JSON file located in an OS-dependent directory.
 The user-specific settings are used to store user preferences, such as the image format or the appearance of the GUI.
 These settings are stored in the configuration file used to configure a project.</p>
+<section id="dataset-and-output-folders">
+<h2>Dataset and output folders<a class="headerlink" href="#dataset-and-output-folders" title="Link to this heading">#</a></h2>
+<p>When switching to another pipeline configuration, MNE-Nodes asks whether to keep
+the current BIDS root, even if both configurations use the same dataset name.
+Choosing No opens a folder picker for a different BIDS root. Keeping the same
+root preserves the loaded configuration’s input selections and custom groups,
+unless its recorded dataset name differs from the dataset at that root.</p>
+<p>Derivative and plot roots are reset whenever the active configuration file
+changes. During setup, select one parent folder: MNE-Nodes creates
+<code class="docutils literal notranslate"><span class="pre">&lt;config-name&gt;_derivatives</span></code> and <code class="docutils literal notranslate"><span class="pre">&lt;config-name&gt;_plots</span></code> within it. Plots are
+saved directly in the config-specific plots folder, without an additional
+config-name subfolder. Existing output files are not moved or deleted.
+The welcome tour uses its packaged pipeline name, <code class="docutils literal notranslate"><span class="pre">Welcome</span></code>, so output setup
+does not ask for a pipeline name.
+If a different BIDS root is selected when starting the tour, the sample BIDS
+dataset is prepared in that destination before the tour’s input node is loaded.
+Explicitly assigned output roots remain supported; legacy plot roots still use
+their config-name subfolder.</p>
+</section>
 </section>
 
 
@@ -432,6 +455,24 @@ These settings are stored in the configuration file used to configure a project.
             </div>
             
             
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-and-output-folders">Dataset and output folders</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>
@@ -456,7 +497,7 @@ These settings are stored in the configuration file used to configure a project.
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-04 11:58 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-05 22:35 UTC.
       <br/>
     
   </p>

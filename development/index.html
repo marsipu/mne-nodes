@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Development &#8212; mne-nodes 0.1.0.dev1+gc9eec207b documentation</title>
+    <title>Development &#8212; mne-nodes 0.1.0.dev1+g7438d57f4 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=461655ba"></script>
+    <script src="../_static/documentation_options.js?v=5ba88cbc"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'development/index';</script>
@@ -116,7 +116,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+gc9eec207b documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+g7438d57f4 documentation</p>
   
 </a></div>
     
@@ -237,6 +237,10 @@
     </div>
   
 
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
   
 </div>
 
@@ -439,6 +443,30 @@
 </li>
 </ul>
 </div>
+<section id="widget-registry">
+<h2>Widget Registry<a class="headerlink" href="#widget-registry" title="Link to this heading">#</a></h2>
+<p>GUI widgets are discovered through a registry stored on the current
+<code class="docutils literal notranslate"><span class="pre">QApplication</span></code>. Importing the registry does not import the main window or
+node viewer. Lookups return <code class="docutils literal notranslate"><span class="pre">None</span></code> when no application or entry exists.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mne_nodes.gui.widget_registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_widget</span><span class="p">,</span> <span class="n">widget_registry</span>
+
+<span class="n">widget_registry</span><span class="p">()</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"my_dialog"</span><span class="p">,</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">retain</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">main_window</span> <span class="o">=</span> <span class="n">get_widget</span><span class="p">(</span><span class="s2">"main_window"</span><span class="p">)</span>
+<span class="n">widget_registry</span><span class="p">()</span><span class="o">.</span><span class="n">unregister</span><span class="p">(</span><span class="s2">"my_dialog"</span><span class="p">,</span> <span class="n">dialog</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Registration uses weak references by default. Use <code class="docutils literal notranslate"><span class="pre">retain=True</span></code> when the
+registry should keep a parentless widget’s Python wrapper alive. Qt destruction
+automatically removes an entry, including retained entries. Unregister widgets
+on close when they should no longer be discoverable even if Qt has not deleted
+them. Passing the widget to <code class="docutils literal notranslate"><span class="pre">unregister</span></code> prevents cleanup of an older instance
+from removing its replacement. Closing a widget does not automatically destroy
+it unless its Qt deletion policy requests that behavior.</p>
+<p>The controller exposes typed <code class="docutils literal notranslate"><span class="pre">main_window</span></code> and <code class="docutils literal notranslate"><span class="pre">viewer</span></code> properties backed
+by this registry. <code class="docutils literal notranslate"><span class="pre">viewer</span></code> returns <code class="docutils literal notranslate"><span class="pre">None</span></code> when unavailable; <code class="docutils literal notranslate"><span class="pre">main_window</span></code>
+raises <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code>. The former package-global <code class="docutils literal notranslate"><span class="pre">_widgets</span></code> dictionary has
+been replaced by this API.</p>
+</section>
 </section>
 
 
@@ -476,6 +504,24 @@
             
             
               
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#widget-registry">Widget Registry</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -499,7 +545,7 @@
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-04 11:58 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-05 22:35 UTC.
       <br/>
     
   </p>
