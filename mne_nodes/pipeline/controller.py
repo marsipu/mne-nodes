@@ -236,7 +236,11 @@ class Controller:
         return config_path
 
     def _apply_config_path(
-        self, config_path: Path, *, interactive: bool = True
+        self,
+        config_path: Path,
+        *,
+        interactive: bool = True,
+        prepare_bids_root: Callable[[], None] | None = None,
     ) -> None:
         config_path = self._activate_config_path(config_path)
         if config_path.is_file():
@@ -244,6 +248,8 @@ class Controller:
         else:
             self.flush()
         self._confirm_config_bids_root(interactive=interactive)
+        if prepare_bids_root is not None:
+            prepare_bids_root()
         if self.viewer is not None:
             self.viewer.load_nodes(self._config["node_config"])
 
@@ -276,7 +282,7 @@ class Controller:
             )
         return self._config_lock
 
-    def initialize_welcome_tour(self) -> None:
+    def initialize_welcome_tour(self, *, force: bool = False) -> None:
         """Start the tour using a disposable copy of the packaged pipeline."""
         if not gui_mode:
             return
@@ -290,9 +296,8 @@ class Controller:
             )
             return
 
-        # Uncomment for real use
-        # if not self.settings.get("first_start", True):
-        #     return
+        if not force and not self.settings.get("first_start", True):
+            return
 
         from mne_nodes.gui.welcome_tour import start_welcome_tour
 
@@ -1104,7 +1109,7 @@ class Controller:
 
     # TodoNext: Only show measurments and separate empty room measurements. Also facilitate plugin-addition (drag/drop etc.)
     def get_datatype_items(self):
-        items = {"emptyroom": []}
+        items = {}
         data_types = self.get_datatypes()
         for dt in data_types:
             bp_kwargs = {"root": self.bids_root, "check": False}
@@ -1113,10 +1118,18 @@ class Controller:
             else:
                 bp_kwargs.update({"datatype": dt})
             file_candidates = [
-                f.basename
+                f
                 for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
                 if f.acquisition not in ["calibration", "crosstalk"]
             ]
+            for f in file_candidates.copy():
+                try:
+                    er_bp = f.find_empty_room()
+                    if er_bp is not None and er_bp in file_candidates:
+                        file_candidates.remove(er_bp)
+                        items.setdefault("emptyroom", []).append(er_bp.basename)
+                except (RuntimeError, ValueError):
+                    pass
             items[dt] = [f.basename for f in file_candidates]
         return items
 

@@ -15,7 +15,6 @@ import pytest
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
-from mne_nodes.pipeline.settings import Settings
 
 
 def test_init(ct):
@@ -458,7 +457,13 @@ def test_import_plugin_from_config_file(ct, tmp_path):
     }
 
 
-def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
+@pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
+def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
+    """New, save, save-as/export and load preserve the complete pipeline state."""
+    new_config_path = tmp_path / "new_config.json"
+    export_path = tmp_path / "pipeline_roundtrip.json"
+    ct.new_config(new_config_path)
+    ct.set("name", "draft")
     roundtrip_nodes = {
         "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
         "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
@@ -470,50 +475,31 @@ def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     ct.set("parameters", roundtrip_parameters)
     ct.set("node_config", roundtrip_nodes)
 
-    export_path = tmp_path / "pipeline_roundtrip.json"
-    ct.export_pipeline(export_path)
+    ct.save_config()
+    assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
+    getattr(ct, save_as_method)(export_path)
+    assert ct.config_path == export_path
+    assert json.loads(export_path.read_text(encoding="utf-8"))["name"] == "draft"
 
     ct.set("parameters", {})
     ct.set("node_config", {})
-    ct.config_path = export_path
-    ct.load(plugins=True)
+    ct.load_config(export_path)
 
-    assert export_path.exists(), "Roundtrip export should create a JSON file"
+    assert ct.get("name") == "draft"
     assert ct.get("parameters") == roundtrip_parameters
     assert ct.get("node_config") == roundtrip_nodes
 
 
-def test_config_file_actions(tmp_path, ct):
-    new_config_path = tmp_path / "new_config.json"
-    renamed_config_path = tmp_path / "renamed_config.json"
-
-    ct.new_config(new_config_path)
-    ct.set("name", "draft")
-    ct.set("parameters", {"demo_func": {"value": 7}})
-    ct.set("node_config", {"nodes": {}, "connections": {}})
-
-    ct.save_config()
-    assert new_config_path.exists()
-    assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
-
-    ct.save_config_as(renamed_config_path)
-    assert renamed_config_path.exists()
-    assert (
-        json.loads(renamed_config_path.read_text(encoding="utf-8"))["name"] == "draft"
-    )
-
-    ct.load_config(renamed_config_path)
-    assert ct.get("name") == "draft"
-    assert ct.get("parameters") == {"demo_func": {"value": 7}}
-
-
-def test_pipeline_file_name_pattern(tmp_path, monkeypatch):
-    controller = Controller(settings=Settings())
+def test_pipeline_file_name_pattern(tmp_path, monkeypatch, settings):
+    controller = Controller(settings=settings)
 
     inputs = iter([tmp_path, "demo_pipeline"])
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.get_user_input",
         lambda *args, **kwargs: next(inputs),
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
     )
 
     saved_path = controller.new_config()
@@ -671,29 +657,8 @@ def test_load_recent_plugins_uses_settings_override(
     )
 
 
-def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
-    """get_dataset_name stores the name in config and returns it even without bids_root."""
-    bids_root = tmp_path / "bids"
-    bids_root.mkdir()
-    desc = bids_root / "dataset_description.json"
-    desc.write_text(json.dumps({"Name": "TestDataset"}), encoding="utf-8")
-
-    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
-    ct.settings.set("bids_root", bids_root)
-
-    name = ct.get_dataset_name()
-    assert name == "TestDataset"
-    # Must be persisted in config
-    assert ct.get("bids_dataset_name") == "TestDataset"
-
-    # Now remove bids_root from settings – should fall back to cached config value
-    ct.settings.remove("bids_root")
-    cached_name = ct.get_dataset_name()
-    assert cached_name == "TestDataset"
-
-
-def test_bids_root_syncs_dataset_name(ct, settings, tmp_path, monkeypatch):
-    """Changing the BIDS root updates the cached dataset name, and vice versa."""
+def test_bids_root_syncs_and_caches_dataset_name(ct, tmp_path):
+    """Root changes and name lookups refresh the cache used without a root."""
     root_a = tmp_path / "bids_a"
     root_b = tmp_path / "bids_b"
     root_a.mkdir()
@@ -704,8 +669,6 @@ def test_bids_root_syncs_dataset_name(ct, settings, tmp_path, monkeypatch):
     (root_b / "dataset_description.json").write_text(
         json.dumps({"Name": "Dataset B"}), encoding="utf-8"
     )
-
-    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
 
     ct.bids_root = root_a
     assert ct.get("bids_dataset_name") == "Dataset A"
@@ -718,6 +681,11 @@ def test_bids_root_syncs_dataset_name(ct, settings, tmp_path, monkeypatch):
     assert ct.get("bids_dataset_name") == "Manual Name"
     ct.bids_root = root_a
     assert ct.get("bids_dataset_name") == "Dataset A"
+    ct.set("bids_dataset_name", None)
+    assert ct.get_dataset_name() == "Dataset A"
+    assert ct.get("bids_dataset_name") == "Dataset A"
+    ct.settings.remove("bids_root")
+    assert ct.get_dataset_name() == "Dataset A"
 
 
 def test_codegen_multi_type_read_write(ct):

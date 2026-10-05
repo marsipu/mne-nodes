@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def restart_welcome_tour(self) -> None:
         """Start the welcome tour again without restarting the application."""
-        self.controller.initialize_welcome_tour()
+        self.controller.initialize_welcome_tour(force=True)
 
     def show_node_picker(self):
         """Show the categorized node picker dialog."""

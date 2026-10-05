@@ -492,13 +492,7 @@ class WelcomeTour(QObject):
             self._interaction_policy_dirty = True
             self.refresh()
         if event.type() == QEvent.Type.Shortcut:
-            focused = QApplication.focusWidget()
-            if focused is None:
-                return True
-            allowed_widgets, allowed_views = self._allowed_widgets()
-            return not self._interaction_allowed(
-                focused, allowed_widgets, allowed_views
-            )
+            return True
         if (
             event.type() == QEvent.Type.ChildAdded
             and isinstance(watched, QWidget)
@@ -1081,8 +1075,10 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
     return cleanup
 
 
-def _ensure_welcome_sample(ct: "Controller", main_window: "MainWindow") -> None:
-    """Reuse a converted sample dataset or prepare one before loading the demo."""
+def _ensure_welcome_sample(
+    ct: "Controller", main_window: "MainWindow", *, root: Path | None = None
+) -> None:
+    """Reuse sample data or prepare it at an explicitly selected destination."""
 
     def is_sample(root: Path | None) -> bool:
         return (
@@ -1095,30 +1091,33 @@ def _ensure_welcome_sample(ct: "Controller", main_window: "MainWindow") -> None:
             )
         )
 
-    root = ct.bids_root
-    if not is_sample(root):
+    selected_root = root
+    root = root or ct.bids_root
+    if root is None or (selected_root is None and not is_sample(root)):
         root = Path(
             ct.settings.get(
                 "sample_bids_root", Path.home() / "mne_data" / "mne-nodes-sample-bids"
             )
         )
+    if not is_sample(root):
+        dialog = WorkerDialog(
+            main_window,
+            function=load_sample_bids,
+            title="Loading Sample BIDS Data",
+            show_console=True,
+            blocking=True,
+            return_exception=True,
+            bids_root=root,
+        )
+        if isinstance(dialog.return_value, ExceptionTuple):
+            raise dialog.return_value[1]
         if not is_sample(root):
-            dialog = WorkerDialog(
-                main_window,
-                function=load_sample_bids,
-                title="Loading Sample BIDS Data",
-                show_console=True,
-                blocking=True,
-                return_exception=True,
-                bids_root=root,
-            )
-            if isinstance(dialog.return_value, ExceptionTuple):
-                raise dialog.return_value[1]
-            if not is_sample(root):
-                raise RuntimeError("Sample BIDS data was not successfully written.")
+            raise RuntimeError("Sample BIDS data was not successfully written.")
     ct.settings.set("sample_bids_root", root)
     if ct.bids_root != root:
         ct._activate_bids_root(root)
+    else:
+        ct.set("bids_dataset_name", ct._read_bids_dataset_name(root))
 
 
 def start_welcome_tour(
@@ -1129,6 +1128,8 @@ def start_welcome_tour(
     The packaged ``Welcome_pipeline.json`` is copied to a temporary directory so
     the tour never writes to the package. The copy is removed when the tour ends.
     Sample BIDS data is prepared before loading the demo and reused on later tours.
+    If root confirmation selects another destination, sample data is prepared
+    there before the demo nodes are rebuilt.
     Only ``example_plugin`` is available during the tour; existing plugins and
     their functions are restored when it ends without changing disabled settings.
     Returns None when the user declines.
@@ -1144,7 +1145,12 @@ def start_welcome_tour(
     cleanup_plugin = None
     try:
         try:
-            ct.load_config(demo_config)
+            ct._apply_config_path(
+                demo_config,
+                prepare_bids_root=lambda: _ensure_welcome_sample(
+                    ct, main_window, root=ct.bids_root
+                ),
+            )
         finally:
             ct.settings.set("config_path", previous_config_path)
         cleanup_plugin = _load_welcome_plugin(ct)

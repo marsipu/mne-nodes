@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 import pytest
-from qtpy.QtCore import QObject, QPointF, Qt, Signal
+from qtpy.QtCore import QPointF, Qt
 from qtpy.QtGui import QContextMenuEvent
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QMenu, QStyle, QStyleOptionViewItem
@@ -23,8 +23,16 @@ def welcome_sample_loader(monkeypatch):
     from mne_nodes.gui import welcome_tour
 
     loader = welcome_tour._ensure_welcome_sample
-    monkeypatch.setattr(welcome_tour, "_ensure_welcome_sample", lambda *args: None)
+    monkeypatch.setattr(
+        welcome_tour, "_ensure_welcome_sample", lambda *args, **kwargs: None
+    )
     return loader
+
+
+@pytest.fixture
+def welcome_tour_enabled(ct):
+    """Enable the first-run tour for tests that explicitly start it."""
+    ct.settings.set("first_start", True)
 
 
 def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
@@ -45,17 +53,11 @@ def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
     main_window.finalize_controller_setup()
     assert main_window.viewer.input_node is not None
     assert main_window.viewer.input_node.scene() is main_window.viewer.scene()
-    main_window.close()
-
-
-def test_finalize_controller_setup_preserves_loaded_nodes(ct, main_window):
-    """Finalization should not replace nodes already loaded by the controller."""
-    ct.load(nodes=True)
     nodes = dict(main_window.viewer.nodes)
     main_window.finalize_controller_setup()
-
     assert main_window.viewer.nodes == nodes
     assert all(node.scene() is main_window.viewer.scene() for node in nodes.values())
+    main_window.close()
 
 
 def test_replacing_input_node_removes_previous_dataset(main_window):
@@ -82,7 +84,9 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
     """The Help action must start a tour even after the first session."""
     calls = []
     ct.settings.set("first_start", False)
-    monkeypatch.setattr(ct, "initialize_welcome_tour", lambda: calls.append(True))
+    monkeypatch.setattr(
+        ct, "initialize_welcome_tour", lambda **kwargs: calls.append(kwargs)
+    )
     help_menu = next(
         menu
         for menu in main_window.menuBar().findChildren(QMenu)
@@ -94,7 +98,7 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
         if action.text() == "&Restart Welcome Tour"
     )
     action.trigger()
-    assert calls == [True]
+    assert calls == [{"force": True}]
 
 
 def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
@@ -153,53 +157,106 @@ def test_app_start(ct, main_window, qtbot):
     assert new_main_window.viewer.node(node_name="test_epochs") is not None
 
 
-def test_controller_welcome_tour_starts_when_gui_ready(ct, main_window, monkeypatch):
-    """The welcome tour should be triggered from the controller once the main window exists."""
-    ct.settings.set("first_start", True)
-    seen = {}
-
-    class DummyTour(QObject):
-        finished = Signal()
-
-        def __init__(self, main_window, steps):
-            super().__init__()
-            seen["main_window"] = main_window
-            seen["steps"] = steps
-
-        def finish(self, *, notify=True):
-            pass
-
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    monkeypatch.setattr(ct, "load_config", lambda path: path)
-    monkeypatch.setattr("mne_nodes.gui.welcome_tour.WelcomeTour", DummyTour)
-
-    ct.initialize_welcome_tour()
-
-    assert ct.settings.get("first_start", True) is False
-    assert seen["main_window"] is ct.main_window
-    assert seen["steps"][0]["widget"] is ct.main_window.viewer
-    assert seen["steps"][1]["widget"]() is ct.main_window.viewer.input_node
-
-
-def test_welcome_tour_tracks_loaded_input_node(
-    ct, main_window, monkeypatch, tmp_path, qtbot
+@pytest.mark.parametrize("relocate_sample", [False, True])
+def test_welcome_tour_initializes_demo_and_tracks_input_node(
+    settings, monkeypatch, tmp_path, qtbot, welcome_sample_loader, relocate_sample
 ):
-    """Starting the real tour should highlight and follow the loaded input node."""
+    """The real tour loads fresh demo state and follows its input node."""
+    from mne_bids import BIDSPath
+
+    from mne_nodes.conftest import create_test_controller
+
+    monkeypatch.setattr(BIDSPath, "find_empty_room", lambda self: None)
+    ct = create_test_controller(settings, tmp_path, monkeypatch)
+    main_window = MainWindow(ct)
+    qtbot.addWidget(main_window)
+    main_window.finalize_controller_setup()
+    ct.settings.set("first_start", True)
+    checklist = main_window.viewer.input_node.input_widget.tab_widget.widget(0)
+    selected = checklist.model.index(0, 0).data()
+    ct.input_selection_changed([selected], "eeg")
+    previous_selection = ct.get("selected_inputs")
     monkeypatch.setattr(
         "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
     )
+    sample_root = tmp_path / "selected-sample"
+    conversions = []
+    if relocate_sample:
+        from types import SimpleNamespace
 
+        from mne_nodes.gui import welcome_tour
+
+        def write_sample(bids_root):
+            conversions.append(bids_root)
+            meg_dir = bids_root / "sub-01" / "ses-01" / "meg"
+            meg_dir.mkdir(parents=True, exist_ok=True)
+            (bids_root / "dataset_description.json").write_text(
+                json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
+            )
+            (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+
+        cached_root = tmp_path / "cached-sample"
+        write_sample(cached_root)
+        conversions.clear()
+        sample_root.mkdir()
+        ct.settings.set("sample_bids_root", cached_root)
+        monkeypatch.setattr(
+            welcome_tour, "_ensure_welcome_sample", welcome_sample_loader
+        )
+        monkeypatch.setattr(welcome_tour, "load_sample_bids", write_sample)
+        monkeypatch.setattr(
+            welcome_tour,
+            "WorkerDialog",
+            lambda *args, function, bids_root, **kwargs: SimpleNamespace(
+                return_value=function(bids_root=bids_root)
+            ),
+        )
+        monkeypatch.setattr(
+            "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: False
+        )
+
+    def select_output_parent(message, input_type, **kwargs):
+        assert input_type == "folder", "The tour must not ask for a pipeline name."
+        if "bids-root" in message:
+            return sample_root
+        return tmp_path
+
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", select_output_parent
+    )
     ct.initialize_welcome_tour()
     tour = ct.welcome_tour
-    assert set(ct.plugins) == {"example_plugin"}
-    assert "example_filter" in ct.function_meta
     try:
+        assert ct.settings.get("first_start") is False
+        assert set(ct.plugins) == {"example_plugin"}
+        assert "example_filter" in ct.function_meta
+        assert tour.steps[0]["widget"] is main_window.viewer
         ct.ensure_ready()
+        assert ct.name == "Welcome"
+        assert ct.deriv_root == tmp_path / "Welcome_derivatives"
+        assert ct.plot_path == tmp_path / "Welcome_plots"
+        if relocate_sample:
+            assert conversions == [sample_root]
+            assert ct.bids_root == sample_root
+            assert ct.settings.get("sample_bids_root") == sample_root
+            assert ct.get_dataset_name() == "sample-dataset"
+            tabs = main_window.viewer.input_node.input_widget.tab_widget
+            assert "meg" in [tabs.tabText(index) for index in range(tabs.count())]
         main_window.finalize_controller_setup()
         node = main_window.viewer.input_node
         assert node.scene() is main_window.viewer.scene()
+        widget = node.input_widget
+        assert widget.selected_inputs is ct.get("selected_inputs")
+        assert widget.selected_inputs is not previous_selection
+        for tab_index in range(widget.tab_widget.count() - 1):
+            model = widget.tab_widget.widget(tab_index).model
+            for row in range(model.rowCount()):
+                assert (
+                    model.index(row, 0).data(Qt.ItemDataRole.CheckStateRole)
+                    == Qt.CheckState.Unchecked
+                )
+        assert not any(ct.get("selected_inputs").values())
+        assert not node.start_button.isEnabled()
         tour.show_step(1)
         assert tour.steps[1]["widget"]() is node
         assert tour.overlay.highlight_path == tour.compute_highlight_path(node)
@@ -211,69 +268,7 @@ def test_welcome_tour_tracks_loaded_input_node(
         )
         assert tour.overlay.highlight_path.boundingRect() != before
     finally:
-        tour.finish()
-
-
-def test_welcome_tour_uses_packaged_pipeline_name(ct, qtbot, monkeypatch, tmp_path):
-    """Tour output setup must use the demo name without asking for a new one."""
-    monkeypatch.setattr(ct, "get_datatype_items", dict)
-    main_window = MainWindow(ct)
-    qtbot.addWidget(main_window)
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    prompts = []
-
-    def select_output_parent(message, input_type, **kwargs):
-        assert input_type == "folder", "The tour must not ask for a pipeline name."
-        prompts.append(message)
-        return tmp_path
-
-    monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.get_user_input", select_output_parent
-    )
-    ct.initialize_welcome_tour()
-    tour = ct.welcome_tour
-    try:
-        ct.ensure_ready()
-        assert ct.name == "Welcome"
-        assert ct.deriv_root == tmp_path / "Welcome_derivatives"
-        assert ct.plot_path == tmp_path / "Welcome_plots"
-        assert prompts == [
-            "Select the parent folder for 'Welcome_derivatives' and 'Welcome_plots'."
-        ]
-    finally:
         tour.finish(notify=False)
-
-
-def test_welcome_tour_does_not_inherit_previous_input_selection(
-    ct, main_window, monkeypatch
-):
-    """New input widgets must bind to the loaded config, not the previous one."""
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    checklist = main_window.viewer.input_node.input_widget.tab_widget.widget(0)
-    selected = checklist.model.index(0, 0).data()
-    ct.input_selection_changed([selected], "eeg")
-    previous_selection = ct.get("selected_inputs")
-    ct.initialize_welcome_tour()
-    tour = ct.welcome_tour
-    try:
-        widget = main_window.viewer.input_node.input_widget
-        assert widget.selected_inputs is ct.get("selected_inputs")
-        assert widget.selected_inputs is not previous_selection
-        for tab_index in range(widget.tab_widget.count() - 1):
-            model = widget.tab_widget.widget(tab_index).model
-            for row in range(model.rowCount()):
-                assert (
-                    model.index(row, 0).data(Qt.ItemDataRole.CheckStateRole)
-                    == Qt.CheckState.Unchecked
-                )
-        assert not any(ct.get("selected_inputs").values())
-        assert not main_window.viewer.input_node.start_button.isEnabled()
-    finally:
-        tour.finish()
 
 
 def test_input_widget_refresh_uses_current_selection(ct, main_window):
@@ -353,7 +348,14 @@ def test_bids_root_switch_replaces_input_dataset_information(
 @pytest.mark.parametrize("cancel", [False, True])
 @pytest.mark.parametrize("create_new", [True, False])
 def test_welcome_tour_finish_selects_user_pipeline(
-    ct, main_window, monkeypatch, tmp_path, qtbot, create_new, cancel
+    ct,
+    main_window,
+    monkeypatch,
+    tmp_path,
+    qtbot,
+    welcome_tour_enabled,
+    create_new,
+    cancel,
 ):
     """Finish and Cancel discard the demo and open normal pipeline setup."""
     from mne_nodes.pipeline.controller import default_config
@@ -400,10 +402,16 @@ def test_welcome_tour_finish_selects_user_pipeline(
     monkeypatch.setattr(
         ct, "_prompt_pipeline_path", lambda message: ("new", user_config)
     )
-    monkeypatch.setattr(
-        "mne_nodes.pipeline.controller.get_user_input",
-        lambda *args, **kwargs: user_config,
-    )
+
+    def select_path(*args, **kwargs):
+        input_type = kwargs.get("input_type")
+        if input_type is None and len(args) > 1:
+            input_type = args[1]
+        if input_type == "folder":
+            return tmp_path
+        return user_config
+
+    monkeypatch.setattr("mne_nodes.pipeline.controller.get_user_input", select_path)
     if cancel:
         tour.show_step(2)
         assert not tour.widget.next_btn.isEnabled()
@@ -429,7 +437,7 @@ def test_welcome_tour_finish_selects_user_pipeline(
 
 
 def test_welcome_tour_creation_and_connection_tasks(
-    ct, main_window, monkeypatch, qtbot
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
 ):
     """The real tour waits for node creation and a compatible port connection."""
     monkeypatch.setattr(
@@ -485,7 +493,9 @@ def test_welcome_tour_creation_and_connection_tasks(
         tour.finish()
 
 
-def test_welcome_tour_waits_for_pipeline_start(ct, main_window, monkeypatch, qtbot):
+def test_welcome_tour_waits_for_pipeline_start(
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
+):
     """The console step is reached only after a process actually starts."""
     monkeypatch.setattr(
         "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
@@ -532,7 +542,7 @@ def test_welcome_tour_waits_for_pipeline_start(ct, main_window, monkeypatch, qtb
 
 @pytest.mark.parametrize("on_port", [False, True])
 def test_welcome_tour_adds_node_from_context_menu(
-    ct, main_window, monkeypatch, qtbot, on_port
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled, on_port
 ):
     """The node-creation step permits choosing functions from real popup menus."""
     monkeypatch.setattr(
@@ -599,7 +609,7 @@ def test_welcome_tour_adds_node_from_context_menu(
 @pytest.mark.parametrize("rebuild", [False, True])
 @pytest.mark.parametrize("window_input", [False, True])
 def test_welcome_tour_input_checkbox_is_clickable(
-    ct, main_window, monkeypatch, qtbot, rebuild, window_input
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled, rebuild, window_input
 ):
     """File selection must work through a real click on the embedded checklist."""
     monkeypatch.setattr(
@@ -670,7 +680,7 @@ def test_new_function_node_is_fitted_into_view(ct, main_window):
 
 
 def test_closing_welcome_tour_does_not_save_packaged_pipeline(
-    ct, main_window, monkeypatch
+    ct, main_window, monkeypatch, welcome_tour_enabled
 ):
     """Closing the application during the tour saves only its disposable copy."""
     packaged_config = Path(__file__).parents[1] / "extra" / "Welcome_pipeline.json"
@@ -721,7 +731,7 @@ def test_welcome_plugin_restores_existing_session(ct, main_window):
 
 
 def test_welcome_tour_decline_does_not_load_example_plugin(
-    ct, main_window, monkeypatch
+    ct, main_window, monkeypatch, welcome_tour_enabled
 ):
     monkeypatch.setattr(
         "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: False

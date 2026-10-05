@@ -21,5 +21,7 @@ saved directly in the config-specific plots folder, without an additional
 config-name subfolder. Existing output files are not moved or deleted.
 The welcome tour uses its packaged pipeline name, ``Welcome``, so output setup
 does not ask for a pipeline name.
+If a different BIDS root is selected when starting the tour, the sample BIDS
+dataset is prepared in that destination before the tour's input node is loaded.
 Explicitly assigned output roots remain supported; legacy plot roots still use
 their config-name subfolder.
