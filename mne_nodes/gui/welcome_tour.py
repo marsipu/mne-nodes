@@ -830,6 +830,12 @@ class WelcomeTour(QObject):
         self.overlay.setVisible(idx != len(self.steps) - 1)
         self.widget.show()
         self.refresh()
+        focus_button = (
+            self.widget.next_btn
+            if self.widget.next_btn.isEnabled()
+            else self.widget.cancel_btn
+        )
+        focus_button.setFocus(Qt.FocusReason.OtherFocusReason)
         self._refresh_timer.start()
 
     def next_step(self):
