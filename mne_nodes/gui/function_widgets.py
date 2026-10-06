@@ -7,6 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import json
+import keyword
 import tokenize
 from collections.abc import Callable
 from functools import partial
@@ -320,6 +321,7 @@ class FunctionImporter(QDialog):
         # Check code parameter
         # Attributes
         self._file_path = None
+        self._created_file = False
         self._pkg_dir = destination_dir
         self._plugin_name = plugin_name
         self._source_code = ""
@@ -402,14 +404,16 @@ class FunctionImporter(QDialog):
     @property
     def plugin_name(self):
         if self.file_path is not None:
-            return Path(self.file_path).stem
-        if self._plugin_name is None:
-            self._plugin_name = get_user_input(
-                "How do you want to name this new plugin?",
-                cancel_allowed=False,
-                parent=self,
-            )
-        return self._plugin_name
+            plugin_name = Path(self.file_path).stem
+        else:
+            if self._plugin_name is None:
+                self._plugin_name = get_user_input(
+                    "How do you want to name this new plugin?",
+                    cancel_allowed=False,
+                    parent=self,
+                )
+            plugin_name = self._plugin_name
+        return plugin_name
 
     @property
     def file_path(self):
@@ -451,6 +455,7 @@ class FunctionImporter(QDialog):
             code = f.read()
         self._parse_functions(code)
         self.file_path = file_path
+        self._created_file = False
         # Reset state from any previously loaded file, otherwise stale
         # function/parameter configs can leak into the newly loaded file.
         self.plugin_config = {}
@@ -842,13 +847,28 @@ class FunctionImporter(QDialog):
         try:
             if not self.func_config:
                 raise ValueError("Load Python functions before saving a plugin.")
+            plugin_name = self.plugin_name
+            if (
+                not isinstance(plugin_name, str)
+                or not plugin_name.isidentifier()
+                or keyword.iskeyword(plugin_name)
+            ):
+                raise ValueError(
+                    "Plugin names must be valid Python module names containing "
+                    "only letters, digits, and underscores, and cannot be keywords."
+                )
             if self.file_path is None:
-                save_path = Path(self.pkg_dir()) / f"{self.plugin_name}.py"
+                save_path = Path(self.pkg_dir()) / f"{plugin_name}.py"
                 code = self.get_code()
                 ast.parse(code)
                 with save_path.open("x", encoding="utf-8") as stream:
                     stream.write(code)
                 self.file_path = save_path
+                self._created_file = True
+            elif self._created_file:
+                code = self.get_code()
+                ast.parse(code)
+                self.file_path.write_text(code, encoding="utf-8")
             config_path = self.save_config()
         except Exception:  # noqa: BLE001
             ErrorDialog(

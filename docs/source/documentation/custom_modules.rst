@@ -19,10 +19,12 @@ parameter field continues to edit that field normally.
 The importer analyzes top-level functions without executing the supplied code.
 Review the detected inputs, outputs and parameters, and use **Re-analyze Code**
 after editing a function. Code text requires a plugin name; when saving, choose
-the directory for the new Python module and its configuration. Module imports,
+the directory for the new Python module and its configuration. Plugin names
+must be valid Python module names (identifiers, not keywords). Module imports,
 decorators and other supporting code are preserved when saving a plugin from
-text. For an existing Python file, **Save** writes the configuration alongside
-the original file; it does not overwrite the original Python source.
+text. Subsequent saves update that newly created module. For an existing Python
+file, **Save** writes the configuration alongside the original file; it does
+not overwrite the original Python source.
 
 Saving from the application automatically loads the generated plugin and
 refreshes the node picker, making its functions available immediately.

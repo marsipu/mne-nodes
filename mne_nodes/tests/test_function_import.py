@@ -212,6 +212,35 @@ def test_file_import_uses_python_encoding(qtbot, tmp_path):
     importer.close()
 
 
+@pytest.mark.parametrize("plugin_name", ["my-plugin", "two words", "1plugin", "class"])
+@pytest.mark.parametrize("source", ["text", "file"])
+def test_invalid_plugin_names_cannot_be_saved(
+    qtbot, monkeypatch, tmp_path, plugin_name, source
+):
+    from mne_nodes.gui import function_widgets
+
+    errors = []
+    monkeypatch.setattr(
+        function_widgets.ErrorDialog, "open", lambda self: errors.append(self)
+    )
+    if source == "text":
+        monkeypatch.setattr(
+            function_widgets, "get_user_input", lambda *args, **kwargs: plugin_name
+        )
+        importer = FunctionImporter(code=CODE)
+    else:
+        path = tmp_path / f"{plugin_name}.py"
+        path.write_text(CODE, encoding="utf-8")
+        importer = FunctionImporter(file_path=path)
+    qtbot.addWidget(importer)
+
+    assert not importer.save()
+    assert len(errors) == 1
+    assert not list(tmp_path.glob("*_config.json"))
+    importer.func_config.clear()
+    importer.close()
+
+
 @pytest.mark.parametrize("source", ["text", "file"])
 def test_saved_plugin_is_loaded_automatically(
     main_window, importer_input, tmp_path, source
@@ -232,6 +261,28 @@ def test_saved_plugin_is_loaded_automatically(
     node = main_window.viewer.add_function_node("transform")
     assert node.input(port_name="raw") is not None
     assert node.output(port_name="result") is not None
+    importer.close()
+
+
+def test_resaving_text_plugin_reloads_updated_code(
+    main_window, importer_input, tmp_path
+):
+    main_window.import_functions(code="import math\n\n" + CODE)
+    (importer,) = _importers(main_window)
+    assert importer.save()
+    old_plugin = main_window.controller.plugins["custom_functions"]
+    assert old_plugin.transform(2) == 4
+
+    editor = importer.editors["transform"]
+    editor.setPlainText(editor.toPlainText().replace("scale=2", "scale=3"))
+    importer.reanalyze()
+    assert importer.save()
+
+    updated_plugin = main_window.controller.plugins["custom_functions"]
+    assert updated_plugin is not old_plugin
+    assert updated_plugin.transform(2) == 6
+    assert "scale=3" in (tmp_path / "custom_functions.py").read_text(encoding="utf-8")
+    importer.func_config.clear()
     importer.close()
 
 

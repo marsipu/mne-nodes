@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import ast
 import json
+import keyword
 import os
 import re
 import subprocess
@@ -14,7 +15,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from importlib.util import cache_from_source
+from importlib.util import cache_from_source, module_from_spec, spec_from_file_location
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
@@ -1431,16 +1432,22 @@ class Controller:
                     f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
                 )
             func_meta["plugin"] = plugin_name
-        # Populate plugin-meta
-        self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
-        # Warn for duplicates, but let the newly loaded plugin's functions win
-        duplicate_functions = [fn for fn in functions if fn in self.function_meta]
+        # Warn for collisions with other plugins, but let the newly loaded
+        # plugin's functions win.
+        duplicate_functions = [
+            fn
+            for fn in functions
+            if fn in self.function_meta
+            and self.function_meta[fn].get("plugin") != plugin_name
+        ]
         if len(duplicate_functions) > 0:
             raise_user_attention(
                 f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
                 "warning",
             )
         self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
+        self._unload_plugin_session(plugin_name)
+        self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
 
@@ -1554,6 +1561,10 @@ class Controller:
             raise RuntimeError(
                 f"Expected script file '{script_path.name}' not found in {script_path.parent}. For just loading a plugin from a config-file, the script file is required to be in the same folder as the config-file and named like '<plugin_name>.py'."
             )
+        if not plugin_name.isidentifier() or keyword.iskeyword(plugin_name):
+            raise ValueError(
+                f"Plugin name '{plugin_name}' is not a valid Python module name."
+            )
         plugin_meta = {
             "config_path": config_path,
             "script_path": script_path,
@@ -1570,8 +1581,26 @@ class Controller:
             self.settings.set("plugin_config", plugin_config)
         if str(folder_path) not in sys.path:
             sys.path.append(str(folder_path))
-        plugin = import_module(plugin_name)
-        self.load_plugin(plugin, plugin_name, plugin_meta)
+        previous_module = sys.modules.get(plugin_name)
+        bytecode_file = cache_from_source(str(script_path))
+        try:
+            os.remove(bytecode_file)
+        except FileNotFoundError:
+            pass
+        spec = spec_from_file_location(plugin_name, script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load plugin module from '{script_path}'.")
+        plugin = module_from_spec(spec)
+        sys.modules[plugin_name] = plugin
+        try:
+            spec.loader.exec_module(plugin)
+            self.load_plugin(plugin, plugin_name, plugin_meta)
+        except BaseException:
+            if previous_module is None:
+                sys.modules.pop(plugin_name, None)
+            else:
+                sys.modules[plugin_name] = previous_module
+            raise
 
     def load_plugin_code(self, code: str):
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
