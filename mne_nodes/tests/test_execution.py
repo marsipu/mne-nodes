@@ -15,6 +15,7 @@ from qtpy.QtCore import Qt
 from mne_nodes.gui.console import ConsoleWidget
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.pipeline.execution import Process
+from mne_nodes.pipeline.pipeline_utils import get_run_command
 
 
 def _wait_for_console_output(qtbot, get_text, expected_substrings, timeout_s=5.0):
@@ -25,6 +26,26 @@ def _wait_for_console_output(qtbot, get_text, expected_substrings, timeout_s=5.0
             return text
         qtbot.wait(50)
     return get_text()
+
+
+def test_get_run_command_for_regular_python(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "frozen", False, raising=False)
+    monkeypatch.setattr(sys, "executable", "python")
+
+    assert get_run_command(tmp_path / "pipeline.py") == (
+        "python",
+        [str(tmp_path / "pipeline.py")],
+    )
+
+
+def test_get_run_command_for_frozen_app(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", "mne-nodes")
+
+    assert get_run_command(tmp_path / "pipeline.py") == (
+        "mne-nodes",
+        ["--run-script", str(tmp_path / "pipeline.py")],
+    )
 
 
 def test_process(qtbot):

@@ -24,6 +24,13 @@ This package is supposed to be the successor of [mne_pipeline_hd](https://github
     - Install the development version with `pip install git+https://github.com/marsipu/mne-nodes.git@main`
 
 
+## Download
+Prebuilt executables for the latest release are available for:
+
+- [Windows](https://github.com/marsipu/mne-nodes/releases/latest/download/mne-nodes-windows.zip)
+- [macOS](https://github.com/marsipu/mne-nodes/releases/latest/download/mne-nodes-macos.tar.gz)
+- [Linux](https://github.com/marsipu/mne-nodes/releases/latest/download/mne-nodes-linux.tar.gz)
+
 ## Update
 Run `pip install --upgrade --no-deps --force-reinstall git+https://github.com/marsipu/mne-nodes.git@main`
 for an update to the development version

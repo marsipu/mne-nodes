@@ -50,7 +50,7 @@ from mne_nodes.pipeline.package_utils import (
     install_github_package,
     install_pip_packages,
 )
-from mne_nodes.pipeline.pipeline_utils import is_test
+from mne_nodes.pipeline.pipeline_utils import get_run_command, is_test
 from mne_nodes.pipeline.settings import Settings
 
 if TYPE_CHECKING:
@@ -1949,6 +1949,7 @@ class Controller:
             file.write(code)
         logger.info(f"Pipeline code generated at {run_file_path}.\nStarting execution.")
         # Start process in Console-Dock (handle processes there)
+        program, arguments = get_run_command(run_file_path)
         self.main_window.console_dock.start_process(
-            sys.executable, [str(run_file_path)]
+            program, arguments
         )

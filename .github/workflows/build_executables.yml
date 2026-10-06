@@ -1,0 +1,70 @@
+name: Build executables
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 pyinstaller .
+      - name: Build executable
+        run: >
+          pyinstaller --noconfirm --clean --windowed --onedir
+          --name mne-nodes
+          --collect-all mne_nodes
+          --collect-all mne
+          --collect-all mne_connectivity
+          --collect-all mne_qt_browser
+          --collect-all pyvista
+          --collect-all pyvistaqt
+          --collect-all vtk
+          mne_nodes/__main__.py
+      - name: Archive executable
+        if: runner.os != 'Windows'
+        run: tar -czf dist/mne-nodes-${{ matrix.platform }}.tar.gz -C dist mne-nodes
+      - name: Archive executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/mne-nodes -DestinationPath dist/mne-nodes-windows.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: executable-${{ matrix.platform }}
+          path: dist/mne-nodes-${{ matrix.platform }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: executable-*
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/*
+          fail_on_unmatched_files: true

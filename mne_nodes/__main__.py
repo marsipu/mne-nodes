@@ -5,6 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import argparse
+import runpy
 import sys
 
 import qtpy
@@ -88,9 +89,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nogui", "-n", action="store_true", help="Run headless without GUI"
     )
+    parser.add_argument("--run-script", help=argparse.SUPPRESS)
     cli_args = parser.parse_args(sys.argv[1:])
 
-    if cli_args.nogui:
-        mne_nodes.gui_mode = False
-
-    main()
+    if cli_args.run_script:
+        sys.argv = [cli_args.run_script]
+        runpy.run_path(cli_args.run_script, run_name="__main__")
+    else:
+        if cli_args.nogui:
+            mne_nodes.gui_mode = False
+        main()

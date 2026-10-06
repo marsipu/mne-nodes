@@ -24,6 +24,13 @@ def get_n_jobs(n_jobs):
     return n_cores
 
 
+def get_run_command(script_path: str | Path) -> tuple[str, list[str]]:
+    """Return the command used to execute a generated pipeline script."""
+    if getattr(sys, "frozen", False):
+        return sys.executable, ["--run-script", str(script_path)]
+    return sys.executable, [str(script_path)]
+
+
 def compare_filep(obj, path, target_parameters=None, verbose=True):
     """Compare the parameters of the previous run to the current parameters for
     the given path.
