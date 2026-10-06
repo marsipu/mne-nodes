@@ -5,20 +5,24 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import sys
+from pathlib import Path
 
 import mne
-from qtpy.QtCore import QProcess, Qt, Signal
+from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
 from mne_nodes import iswin
 from mne_nodes.gui.console import ConsoleDock
-from mne_nodes.gui.dialogs import SysInfoMsg
+from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
+from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import (
     ask_user,
     center,
     get_user_input,
     information_message,
+    is_function_import_mime,
+    raise_user_attention,
     set_ratio_geometry,
 )
 from mne_nodes.gui.node.node_picker import NodePicker
@@ -26,6 +30,7 @@ from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.pipeline.data_import import load_sample_bids
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
 
@@ -47,6 +52,7 @@ class MainWindow(QMainWindow):
         self._controller = controller
         self.settings = controller.settings
         self.node_picker = None
+        self.setAcceptDrops(True)
 
         # Initialize properties
         # Console/Error management moved into ConsoleDock
@@ -62,6 +68,7 @@ class MainWindow(QMainWindow):
         # still need to finish first-run setup and welcome-tour prompting.
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
+        self.viewer.DataDropped.connect(self.import_function_mime)
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
@@ -138,6 +145,16 @@ class MainWindow(QMainWindow):
         )
         manage_plugins_action.triggered.connect(self.manage_plugins)
         plugin_menu = self.menuBar().addMenu("&Plugins")
+        import_functions_action = QAction(
+            "&Import Functions...",
+            parent=self,
+            statusTip="Create a plugin from Python functions.",
+        )
+        import_functions_action.triggered.connect(
+            lambda _checked=False: self.import_functions()
+        )
+        plugin_menu.addAction(import_functions_action)
+        plugin_menu.addSeparator()
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
         plugin_menu.addAction(load_plugin_github_action)
@@ -262,6 +279,48 @@ class MainWindow(QMainWindow):
         self.controller.load_plugin_path(plugin_path)
         self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
+    def import_functions(
+        self, code: str | None = None, file_path: str | Path | None = None
+    ) -> None:
+        """Open the function importer without executing the supplied code."""
+        importer = FunctionImporter(parent=self, on_saved=self._load_saved_plugin)
+        try:
+            if code is not None:
+                importer.analyze_code(code)
+            elif file_path is not None:
+                importer.load_file(file_path)
+        except Exception:  # noqa: BLE001
+            importer.deleteLater()
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not import Python functions."
+            ).open()
+            return
+        importer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        importer.open()
+
+    def _load_saved_plugin(self, config_path: Path) -> None:
+        self.controller.load_plugin_path(config_path)
+        self.viewer.refresh_node_picker()
+        self.statusBar().showMessage(f"Plugin saved and loaded from {config_path}.")
+
+    def import_function_mime(self, mime: QMimeData) -> None:
+        """Open an importer for each Python file, or for dropped code text."""
+        if not is_function_import_mime(mime):
+            return
+        if mime.hasUrls():
+            for url in mime.urls():
+                self.import_functions(file_path=Path(url.toLocalFile()))
+        else:
+            self.import_functions(code=mime.text())
+
+    def paste_function_code(self) -> None:
+        """Import clipboard code without intercepting paste in text editors."""
+        code = QApplication.clipboard().text()
+        if not code.strip():
+            raise_user_attention("The clipboard contains no Python code.", parent=self)
+            return
+        self.import_functions(code=code)
+
     def load_plugin_module(self):
         plugin_name = get_user_input(
             "Enter the name of the plugin module to load.",
@@ -375,8 +434,29 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
+    def dragEnterEvent(self, event):
+        if is_function_import_mime(event.mimeData()):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if is_function_import_mime(event.mimeData()):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            self.import_function_mime(event.mimeData())
+        else:
+            event.ignore()
+
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_C:
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_function_code()
+            event.accept()
+        elif event.key() == Qt.Key.Key_C:
             self.console_dock.setVisible(not self.console_dock.isVisible())
         else:
             super().keyPressEvent(event)

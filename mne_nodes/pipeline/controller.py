@@ -1111,6 +1111,10 @@ class Controller:
     def get_datatype_items(self):
         items = {}
         data_types = self.get_datatypes()
+        data_types = [dt for dt in data_types if dt in self.raw_types] + [
+            dt for dt in data_types if dt not in self.raw_types
+        ]
+        empty_room_items = []
         for dt in data_types:
             bp_kwargs = {"root": self.bids_root, "check": False}
             if dt in self.raw_types:
@@ -1127,10 +1131,12 @@ class Controller:
                     er_bp = f.find_empty_room()
                     if er_bp is not None and er_bp in file_candidates:
                         file_candidates.remove(er_bp)
-                        items.setdefault("emptyroom", []).append(er_bp.basename)
+                        empty_room_items.append(er_bp.basename)
                 except (RuntimeError, ValueError):
                     pass
             items[dt] = [f.basename for f in file_candidates]
+        if empty_room_items:
+            items["emptyroom"] = empty_room_items
         return items
 
     def input_selection_changed(self, selected, data_type):
