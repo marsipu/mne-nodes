@@ -74,6 +74,22 @@ exclude = [
     "/*.yml",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/mne_nodes"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/development",
+    "/docs",
+    "/docker",
+    "/pyproject.toml",
+    "/README.md",
+    "/CONTRIBUTING.md",
+    "/LICENSE",
+]
+
 [tool.hatch.version]
 source = "vcs"
 raw-options = { version_scheme = "release-branch-semver" }
@@ -110,7 +126,8 @@ ignore = ["D001", "D004"]
 file-encoding = "utf-8"
 
 [tool.pytest.ini_options]
-addopts = "-v --tb=long -p no:cacheprovider"
+testpaths = ["tests"]
+addopts = "-v --tb=long -p no:cacheprovider --import-mode=importlib"
 qt_api = "pyside6"
 qt_no_opengl = true
 log_cli = true

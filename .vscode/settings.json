@@ -1,6 +1,6 @@
 {
     "python.testing.pytestArgs": [
-        "mne_nodes/tests"
+        "tests"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,

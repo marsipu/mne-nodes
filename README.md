@@ -5,7 +5,7 @@
 > **Important notice:** This application is still in early
 > development and is **NOT** production-ready for analysis.
 
-![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/mne_nodes/extra/wip_overview.png "Overview of the mne-nodes GUI")
+![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/src/mne_nodes/resources/wip_overview.png "Overview of the mne-nodes GUI")
 
 ## A Node-GUI for [mne-python](https://mne.tools/stable/index.html)
 This is a GUI to facilitate offline neurophysiological data processing with mne-python by visualizing the data-flow with nodes.
@@ -34,8 +34,8 @@ Run `mne_nodes` in the terminal of your conda-environment where you installed mn
 
 **or**
 
-run \_\_main\_\_.py from the terminal or an IDE like PyCharm, VSCode, Atom,
-etc.
+run `python -m mne_nodes` from the terminal or configure your IDE to launch
+the `mne_nodes` module. Install the package first, including for a source checkout.
 
 
 ## Bug-Report/Feature-Request

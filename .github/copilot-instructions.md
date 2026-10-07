@@ -7,7 +7,7 @@ MNE-Python.
 
 - Run tests, application commands, scripts, and other executable validation in
   the existing `mnedev` Conda environment when it is available. For example:
-  `conda run -n mnedev pytest mne_nodes/tests/test_controller.py`.
+  `conda run -n mnedev pytest tests/test_controller.py`.
 - Do not install dependencies or create a new environment unless required to
   complete the task.
 - Run the narrowest relevant test after a change. GUI tests use `pytest-qt` and
@@ -18,9 +18,9 @@ MNE-Python.
 
 ## Project Layout
 
-- `mne_nodes/gui/`: Qt GUI components, including node and parameter widgets.
-- `mne_nodes/pipeline/`: pipeline execution, I/O, code generation, and control.
-- `mne_nodes/tests/`: pytest and pytest-qt tests.
+- `src/mne_nodes/gui/`: Qt GUI components, including node and parameter widgets.
+- `src/mne_nodes/backend/`: pipeline execution, I/O, code generation, and control.
+- `tests/`: pytest and pytest-qt tests.
 - `docs/source/`: Sphinx documentation.
 - `pyproject.toml`: package metadata, dependencies, and tool configuration.
 

@@ -1,0 +1,2193 @@
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+GitHub: https://github.com/marsipu/mne-nodes
+"""
+
+import math
+import re
+from collections import OrderedDict
+from typing import TypeGuard
+
+import qtpy
+from qtpy.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
+from qtpy.QtWidgets import (
+    QApplication,
+    QGraphicsPathItem,
+    QGraphicsTextItem,
+    QGraphicsView,
+    QMenu,
+    QRubberBand,
+)
+
+from mne_nodes import debug_mode
+from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
+from mne_nodes.gui.node.base_node import BaseNode
+from mne_nodes.gui.node.function_node import FunctionNode
+from mne_nodes.gui.node.input_node import InputNode
+from mne_nodes.gui.node.node_defaults import defaults
+from mne_nodes.gui.node.node_scene import NodeScene
+from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
+from mne_nodes.gui.node.ports import Port
+from mne_nodes.gui.user_interaction import raise_user_attention
+from mne_nodes.gui.widget_registry import widget_registry
+from mne_nodes.logger import logger
+
+
+class NodeViewer(QGraphicsView):
+    """The NodeGraph displays the nodes and connections and manages them.
+
+    This class provides a graphical interface for viewing and
+    manipulating node graphs with support for zooming, panning, node
+    selection, and connection management.
+    """
+
+    ####################################################################################
+    # Signals
+    ####################################################################################
+    NodesCreated = Signal(list)
+    NodesDeleted = Signal(list)
+    NodeDoubleClicked = Signal(BaseNode)
+    PortConnected = Signal(Port, Port)
+    PortDisconnected = Signal(Port, Port)
+    DataDropped = Signal(QMimeData, QPointF)
+
+    MovedNodes = Signal(dict)
+    ConnectionChanged = Signal(list, list)
+    InsertNode = Signal(object, str, dict)
+    NodeNameChanged = Signal(str, str)
+
+    def __init__(self, ct, parent=None):
+        super().__init__(parent)
+        self.ct = ct
+
+        self.default_x_distance = 200
+        self.default_y_distance = 50
+
+        widget_registry().register("viewer", self, retain=parent is None)
+
+        # attributes
+        self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
+        self._input_node: InputNode | None = None
+        self._function_nodes: dict[str, FunctionNode] = {}
+        self.node_picker = None  # Set by MainWindow when NodePicker is created
+        self._pipe_layout = defaults["viewer"]["pipe_layout"]
+        self._last_size = self.size()
+        self._detached_port: Port | None = None
+        self._start_port: Port | None = None
+        self._origin_pos: QPoint | None = None
+        self._previous_pos = QPoint(int(self.width() / 2), int(self.height() / 2))
+        self._prev_selection_nodes: list[BaseNode] = []
+        self._prev_selection_pipes: list[Pipe] = []
+        self._node_positions = {}
+        self.LMB_state = False
+        self.RMB_state = False
+        self.MMB_state = False
+        self.COLLIDING_state = False
+        self._rmb_dragged = False
+        self._rubber_band_active = False
+
+        # init QGraphicsView
+        self.setScene(NodeScene(self))
+        self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        self.setOptimizationFlag(
+            QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing
+        )
+        self.setAcceptDrops(True)
+        # Also set on the viewport where Qt delivers drag/drop events.
+        self.viewport().setAcceptDrops(True)
+
+        # initialize debug coordinate system (grid + axes)
+        self._coord_grid = QGraphicsPathItem()
+        self._coord_grid.setZValue(-6)
+        grid_pen = self._coord_grid.pen()
+        grid_pen.setColor(QColor(0, 200, 0, 50))
+        grid_pen.setWidth(0)
+        self._coord_grid.setPen(grid_pen)
+        self._coord_grid.setPath(QPainterPath())
+        self._coord_grid.setVisible(False)
+        self._coord_grid.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_grid.setFlag(
+            self._coord_grid.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_grid)
+
+        self._coord_axes = QGraphicsPathItem()
+        self._coord_axes.setZValue(-5)
+        axes_pen = self._coord_axes.pen()
+        axes_pen.setColor(QColor(0, 200, 0, 160))
+        axes_pen.setWidth(0)
+        self._coord_axes.setPen(axes_pen)
+        self._coord_axes.setPath(QPainterPath())
+        self._coord_axes.setVisible(False)
+        self._coord_axes.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._coord_axes.setFlag(
+            self._coord_axes.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self.scene().addItem(self._coord_axes)
+
+        # tick label items for debug grid
+        self._coord_tick_labels = []
+
+        # set initial range
+        self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
+        self._update_scene()
+
+        # initialize rubberband
+        self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self)
+        # initialize cursor text
+        text_color = QColor(*invert_rgb_color(defaults["viewer"]["background_color"]))
+        text_color.setAlpha(50)
+        self._cursor_text = QGraphicsTextItem()
+        self._cursor_text.setFlag(
+            self._cursor_text.GraphicsItemFlag.ItemIsSelectable, False
+        )
+        self._cursor_text.setDefaultTextColor(text_color)
+        self._cursor_text.setZValue(-2)
+        font = self._cursor_text.font()
+        font.setPointSize(7)
+        self._cursor_text.setFont(font)
+        self.scene().addItem(self._cursor_text)
+
+        # initialize live pipe
+        self._LIVE_PIPE = LivePipeItem()
+        self._LIVE_PIPE.setVisible(False)
+        self.scene().addItem(self._LIVE_PIPE)
+
+        # initialize slicer pipe
+        self._SLICER_PIPE = SlicerPipeItem()
+        self._SLICER_PIPE.setVisible(False)
+        self.scene().addItem(self._SLICER_PIPE)
+
+        # initialize debug path
+        self._debug_path = QGraphicsPathItem()
+        self._debug_path.setZValue(1)
+        pen = self._debug_path.pen()
+        pen.setColor(QColor(255, 0, 0, 255))
+        pen.setWidth(2)
+        self._debug_path.setPen(pen)
+        self._debug_path.setPath(QPainterPath())
+        self.scene().addItem(self._debug_path)
+
+        # show immediately if in debug mode
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+
+    ####################################################################################
+    # Properties
+    ####################################################################################
+    @property
+    def nodes(self):
+        """Return list of nodes in the node graph.
+
+        Returns
+        -------
+        OrderedDict
+            The nodes are stored in an OrderedDict with the node id as the key.
+        """
+        return self._nodes
+
+    @property
+    def input_node(self):
+        """Return the (only) input node in the node graph. Ensures it exists.
+
+        Returns
+        -------
+        InputNode
+            The input node in the node graph.
+        """
+        if self._input_node is None:
+            self.add_input_node()
+        return self._input_node
+
+    @input_node.setter
+    def input_node(self, input_node):
+        """Set the input node in the node graph.
+        Parameters
+        ----------
+        input_node : InputNode
+            The input node to set in the node graph.
+        """
+        if self._input_node is not None:
+            logger.info("Replacing existing input node.")
+            self.remove_node(self._input_node, force=True)
+        self._input_node = input_node
+
+    @property
+    def function_nodes(self):
+        """Return the function nodes in the node graph.
+
+        Returns
+        -------
+        dict
+            Dictionary of FunctionNode instances with the function name as the
+            first key and the node id as the second key.
+        """
+        return self._function_nodes
+
+    @property
+    def pipe_layout(self):
+        """Return the pipe layout mode.
+
+        Returns
+        -------
+        str
+            Pipe layout mode (either 'straight', 'curved', or 'angle').
+        """
+        return self._pipe_layout
+
+    @pipe_layout.setter
+    def pipe_layout(self, layout):
+        """Set the pipe layout mode.
+
+        Parameters
+        ----------
+        layout : str
+            Pipe layout mode (either 'straight', 'curved', or 'angle').
+        """
+        if layout not in ["straight", "curved", "angle"]:
+            logger.warning(
+                f"{layout} is not a valid pipe layout, defaulting to 'curved'."
+            )
+            layout = "curved"
+        self._pipe_layout = layout
+
+    ####################################################################################
+    # Backend
+    ####################################################################################
+    def _adjust_node(self, node, direction="y"):
+        """Adjust node position to avoid overlapping with other nodes."""
+        max_iterations = 1000
+        iteration = 0
+
+        while iteration < max_iterations:
+            node_rect = node.sceneBoundingRect()
+            overlapping = False
+            for other_node in self._nodes.values():
+                if other_node.id == node.id:
+                    continue
+                other_rect = other_node.sceneBoundingRect()
+                if node_rect.intersects(other_rect):
+                    overlapping = True
+                    # Position node at exact default distance from the overlapping node
+                    if direction == "y":
+                        new_x = node_rect.left()
+                        new_y = other_rect.bottom() + self.default_y_distance
+                    else:
+                        new_x = other_rect.right() + self.default_x_distance
+                        new_y = node_rect.top()
+                    new_pos = QPointF(new_x, new_y)
+                    node.setPos(new_pos)
+                    break
+
+            if not overlapping:
+                break
+
+            iteration += 1
+
+    def add_node(self, node, pos=None, connected=None):
+        """Add a node to the node graph.
+
+        Parameters
+        ----------
+        node : BaseNode
+            The node to add to the node graph.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the node.
+        Returns
+        -------
+        BaseNode
+            The added node.
+
+        See Also
+        --------
+        NodeGraph.registered_nodes : To list all node types
+        """
+        self.scene().addItem(node)
+        self._nodes[node.id] = node
+        # draw node after being added to the scene
+        node.draw_node()
+        if pos is not None:
+            node.setPos(pos)
+        # Adjust position to avoid overlapping with other nodes
+        self._adjust_node(node, direction="y")
+        if connected is not None:
+            for port_config in connected.values():
+                target_port = port_config["port_to"]
+                port_from = node.port(
+                    port_type=port_config["type"],
+                    port_name=target_port.name,
+                    include_accepted=True,
+                    accepted_ports=target_port.accepted_ports,
+                )
+                if port_from is not None:
+                    port_from.connect_to(target_port)
+
+        return node
+
+    def add_input_node(self, node=None, pos=None, connected=None, **kwargs):
+        """Add a input node to the project. Currently only one is allowed.
+
+        Parameters
+        ----------
+        node : InputNode, optional
+            The input node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the input node.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the BaseNode constructor.
+
+        Returns
+        -------
+        InputNode
+            The created input node.
+
+        Raises
+        ------
+        ValueError
+            If data_type is not in the available input data types.
+        """
+        if node is None:
+            node = InputNode(ct=self.ct, **kwargs)
+        self.input_node = node
+        self.add_node(node, pos=pos, connected=connected)
+
+        return node
+
+    def add_function_node(
+        self, function_name=None, node=None, pos=None, connected=None, **kwargs
+    ):
+        """Add a new function node to the project.
+
+        Parameters
+        ----------
+        function_name : str, optional
+            Name of the function to create a node for. If the name already exists,
+            a numbered suffix is added to the name. Can be None only if node is provided.
+        node : FunctionNode, optional
+            The function node to add to the node graph. If None, create one.
+        pos : QPointF | None, optional
+            The position to place the node at. If None, the node is placed at the
+            center of the current view.
+        connected : dict, optional
+            Dictionary of connected ports to create connections for the function node.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the FunctionNode constructor.
+
+        Returns
+        -------
+        FunctionNode
+            The created function node.
+        """
+        if node is None:
+            if function_name in self.function_nodes:
+                # Get function node index (0-based with 0 not showing)
+                func_idx = len(self.get_node_by_function(function_name))
+                # Add function node index to name
+                function_name = f"{function_name}-{func_idx}"
+                logger.info(
+                    f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
+                )
+            node = FunctionNode(self.ct, name=function_name, **kwargs or {})
+        else:
+            function_name = node.name
+        if function_name is None:
+            raise ValueError("Function node name cannot be None.")
+        self.function_nodes[function_name] = node
+        self.add_node(node, pos=pos, connected=connected)
+        self.zoom_to_nodes(nodes=list(self.nodes.values()))
+
+        return node
+
+    def remove_node(self, node=None, force=False, **kwargs):
+        """Remove a node from the node graph.
+
+        Parameters
+        ----------
+        node : BaseNode, optional
+            Node instance to remove.
+        **kwargs : dict
+            Keyword arguments to find node with self.node by index, name, or id.
+        """
+        if node is None:
+            node = self.node(**kwargs)
+        if node is None:
+            return
+        if node.deletable is False and not force:
+            logger.warning(f"Node '{node.name}' is not deletable.")
+            return
+        # Remove connected pipes
+        for port in node.ports:
+            for connected_port in list(port.connected_ports):
+                port.disconnect_from(connected_port)
+        # Remove node
+        if node in self.scene().items():
+            self.scene().removeItem(node)
+        # Deliberately with room for KeyError to detect,
+        # if nodes are not correctly added in the first place
+        self.nodes.pop(node.id)
+        # Also remove from unction-nodes container
+        if isinstance(node, FunctionNode):
+            function_name = node.name
+            if function_name in self.function_nodes:
+                del self.function_nodes[function_name]
+        elif isinstance(node, InputNode):
+            self._input_node = None
+        # Ensure all node internals are explicitly torn down.
+        node.delete()
+
+    def node(self, node_idx=None, node_name=None, node_id=None, old_id=None):
+        """Get a node from the node graph based on either its index, name, or
+        id.
+
+        Parameters
+        ----------
+        node_idx : int, optional
+            Index of the node in the node graph.
+        node_name : str, optional
+            Name of the node in the node graph.
+        node_id : str, optional
+            Unique identifier of the node in the node graph.
+        old_id : int, optional
+            Old id of the node for reestablishing connections.
+
+        Returns
+        -------
+        BaseNode or None
+            The node that matches the provided index, name, or id. If multiple
+            parameters are provided, the method will prioritize them in
+            the following order: node_idx, node_name, node_id, old_id.
+            If no parameters are provided or if no match is found,
+            the method will return None.
+        """
+        if node_idx is not None:
+            return list(self.nodes.values())[node_idx]
+        elif node_name is not None:
+            node_list = [n for n in self.nodes.values() if n.name == node_name]
+            if len(node_list) == 0:
+                logger.warning(f"No node found with name '{node_name}'.")
+            else:
+                if len(node_list) > 1:
+                    logger.warning(
+                        f"Multiple nodes found with name '{node_name}'. Returning the first one."
+                    )
+                return node_list[0]
+        elif node_id is not None:
+            return self.nodes[node_id]
+        elif old_id is not None:
+            for node in self.nodes.values():
+                if node.old_id == old_id:
+                    return node
+        logger.warning("No node found with the provided parameters.")
+        return None
+
+    def get_node_by_function(self, name):
+        """Get all nodes of a function.
+
+        Parameters
+        ----------
+        name : str
+            Name of the function.
+
+        Returns
+        -------
+        list of FunctionNode
+            The node(s) that match the provided function name.
+        """
+        func_nodes = [
+            self.function_nodes[fn]
+            for fn in self.function_nodes
+            if re.match(rf"{name}[-\d]*", fn)
+        ]
+        if len(func_nodes) == 0:
+            raise KeyError(f"Function '{name}' not found in project.")
+        return func_nodes
+
+    def enable_start_buttons(self, enable=True):
+        """Enable or disable the start buttons of all nodes in the node graph.
+
+        Parameters
+        ----------
+        enable : bool, optional
+            If True, enable the start buttons. If False, disable them.
+            Default is True.
+        """
+        for node in self.nodes.values():
+            node.enable_start(enable=enable)
+
+    def port(self, **kwargs):
+        """Get a port from the node graph based on its properties.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Keyword arguments to find the port by its properties, such as
+            node_id, port_id, or old_id.
+
+        Returns
+        -------
+        Port or list of Port or None
+            The port that matches the provided properties. If multiple ports matcht the properties, a list of matching ports is returned.If no match is found,
+            returns None.
+        """
+        ports = [
+            node.port(ignore_warnings=True, **kwargs)
+            for node in self.nodes.values()
+            if node.port(ignore_warnings=True, **kwargs) is not None
+        ]
+        if len(ports) == 0:
+            logger.warning("No port found with the provided parameters.")
+            return None
+        elif len(ports) == 1:
+            return ports[0]
+        else:
+            logger.warning(f"Found {len(ports)} ports with the provided parameters.")
+            return ports
+
+    def to_dict(self):
+        """Serialize the node viewer to a dictionary.
+
+        Returns
+        -------
+        dict
+            Dictionary containing nodes and connections data.
+        """
+        viewer_dict = {}
+        viewer_dict["nodes"] = {
+            node_id: node.to_dict() for node_id, node in self.nodes.items()
+        }
+
+        # Save connections
+        viewer_dict["connections"] = {}
+        for node in self.nodes.values():
+            viewer_dict["connections"][node.id] = {}
+            for port in node.ports:
+                viewer_dict["connections"][node.id][port.id] = {}
+                for connected_port in port.connected_ports:
+                    viewer_dict["connections"][node.id][port.id][
+                        connected_port.node.id
+                    ] = connected_port.id
+
+        return viewer_dict
+
+    def from_dict(self, viewer_dict):
+        """Load node viewer from a dictionary.
+
+        Parameters
+        ----------
+        viewer_dict : dict
+            Dictionary containing nodes and connections data.
+        """
+        self.clear()
+        # Create nodes
+        for node_info in viewer_dict["nodes"].values():
+            node_classes = {"InputNode": InputNode, "FunctionNode": FunctionNode}
+            node_class = node_classes.get(node_info["class"])
+            if node_class is None:
+                logger.warning(
+                    f"Node class '{node_info['class']}' not found. Skipping node."
+                )
+                continue
+            try:
+                node = node_class.from_dict(self.ct, node_info)
+            except KeyError:
+                logger.warning(
+                    f"Could not load node class '{node_info['class']}'. Skipping node."
+                )
+                continue
+            if node_info["class"] == "InputNode":
+                self.add_input_node(node=node)
+            elif node_info["class"] == "FunctionNode":
+                self.add_function_node(node=node)
+            else:
+                raise RuntimeError(f"Unknown node type '{node_class}'.")
+        # Initialize connections
+        for node_id, port_dict in viewer_dict["connections"].items():
+            node = self.node(old_id=node_id)
+            if node is None:
+                continue
+            for port_id, connected_dict in port_dict.items():
+                port = node.port(old_id=port_id)
+                if port is None:
+                    continue
+                for con_node_id, con_port_id in connected_dict.items():
+                    connected_node = self.node(old_id=con_node_id)
+                    if connected_node is None:
+                        continue
+                    connected_port = connected_node.port(old_id=con_port_id)
+                    if not isinstance(connected_port, Port):
+                        continue
+                    port.connect_to(connected_port)
+
+        # Check if an input node exists
+        if self.input_node is None:
+            self.add_input_node()
+
+    def get_unique_functions(self):
+        func_names = [
+            n.name
+            for n in self.nodes.values()
+            if isinstance(n, FunctionNode) and not re.match(r".*-\d+$", n.name or "")
+        ]
+
+        return func_names
+
+    def load_nodes(self, config: dict):
+        if not isinstance(config, dict) or not all(
+            k in config for k in ("nodes", "connections")
+        ):
+            logger.warning("Invalid configuration dictionary provided.")
+            return
+        if not isinstance(config["nodes"], dict) or not isinstance(
+            config["connections"], dict
+        ):
+            logger.warning(
+                "Invalid configuration structure: nodes and connections must be dicts."
+            )
+            return
+        self.from_dict(config)
+        self.ct.check_selection_enable()
+        self.zoom_to_nodes()
+
+    def clear(self):
+        """Clear the node graph.
+
+        Notes
+        -----
+        This removes all nodes from the graph. List conversion is necessary
+        because self.nodes is mutated during iteration.
+        """
+        # list conversion necessary because self.nodes is mutated
+        for node in list(self.nodes.values()):
+            self.remove_node(node, force=True)
+
+    def refresh_node_picker(self):
+        """Rebuild the function list in the node picker.
+
+        Called after plugins are loaded or unloaded so that the picker
+        reflects the current state of :attr:`~Controller.function_meta`.
+        Does nothing if no node picker has been registered on this viewer.
+        """
+        if self.node_picker is None:
+            return
+        from mne_nodes.gui.widget_models.function_picker_model import (
+            FunctionPickerModel,
+        )
+
+        new_model = FunctionPickerModel(self.ct.function_meta)
+        self.node_picker.functions_view.setModel(new_model)
+
+    def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
+        if visited is None:
+            visited = set()
+        for port_id, port_info in node_dict.items():
+            port = self.port(port_id=port_id)
+            if not isinstance(port, Port):
+                continue
+            # If the port has no connected ports, skip it
+            if len(port.connected_ports) == 0:
+                continue
+            previous_node = port.node
+            for node_id, node_info in port_info.items():
+                if node_id in visited:
+                    continue
+                visited.add(node_id)
+                node = self.node(node_id=node_id)
+                if node is None:
+                    continue
+                if len(node.inputs) > 1:
+                    # If the node has multiple inputs, we need to ensure
+                    # that all inputs are processed before this node.
+                    other_ports = [
+                        p for p in node.inputs if p not in port.connected_ports
+                    ]
+                    for oport in other_ports:
+                        reverse_exec_order = {"file": [], "group": []}
+                        up_nodes = node.upstream_node_dict(port_id=oport.id)
+                        self._iterate_node_sequence(
+                            reverse_exec_order, up_nodes, visited
+                        )
+                        for key, sequence in reverse_exec_order.items():
+                            sequence.reverse()
+                            node_sequence[key].extend(sequence)
+                description, target = node.get_description()
+                _, previous_target = previous_node.get_description()
+                if previous_target == "group":
+                    target = "group"
+                if target:
+                    node_sequence[target].append(description)
+                self._iterate_node_sequence(node_sequence, node_info, visited)
+
+    def get_node_sequence(self, node):
+        """Start from a node and create an execution order.
+
+        The execution goes downstream from the selected node. Multiple
+        output paths are executed sequentially. If downstream there are
+        multiple inputs, the upstream nodes are executed first. Handling
+        of different node types and activated/deactivated nodes should
+        be done in Controller.
+        """
+        node_sequence = {"file": [], "group": []}
+        visited = set()
+        # Add the starting node
+        description, target = node.get_description()
+        if target:
+            node_sequence[target].append(description)
+        visited.add(node.id)
+        self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
+
+        return node_sequence
+
+    ####################################################################################
+    # Frontend
+    ####################################################################################
+    def _set_viewer_zoom(self, value, sensitivity=None, pos=None):
+        """Set the zoom level.
+
+        Parameters
+        ----------
+        value : float
+            Zoom factor.
+        sensitivity : float, optional
+            Zoom sensitivity.
+        pos : QPoint, optional
+            Mapped position for zoom center.
+        """
+        if pos:
+            pos = self.mapToScene(pos)
+        if sensitivity is None:
+            scale = 1.001**value
+            self.scale(scale, scale, pos)
+            return
+
+        if value == 0.0:
+            return
+
+        scale = (0.9 + sensitivity) if value < 0.0 else (1.1 - sensitivity)
+        zoom = self.get_zoom()
+        if defaults["viewer"]["zoom_min"] >= zoom and scale == 0.9:
+            return
+        if defaults["viewer"]["zoom_max"] <= zoom and scale == 1.1:
+            return
+        self.scale(scale, scale, pos)
+
+    def _set_viewer_pan(self, pos_x, pos_y):
+        """Set the viewer in panning mode.
+
+        Parameters
+        ----------
+        pos_x : float
+            X position offset.
+        pos_y : float
+            Y position offset.
+        """
+        self._scene_range.adjust(pos_x, pos_y, pos_x, pos_y)
+        self._update_scene()
+
+    def scale(self, sx, sy, pos=None):
+        """Scale the viewer.
+
+        Parameters
+        ----------
+        sx : float
+            X scale factor.
+        sy : float
+            Y scale factor.
+        pos : QPointF, optional
+            Center position for scaling.
+        """
+        scale = [sx, sx]
+        center = pos or self._scene_range.center()
+        w = self._scene_range.width() / scale[0]
+        h = self._scene_range.height() / scale[1]
+        self._scene_range = QRectF(
+            center.x() - (center.x() - self._scene_range.left()) / scale[0],
+            center.y() - (center.y() - self._scene_range.top()) / scale[1],
+            w,
+            h,
+        )
+        self._update_scene()
+
+    def _update_scene(self):
+        """Redraw the scene.
+
+        Notes
+        -----
+        This method updates the scene rectangle and fits the view.
+        """
+        self.setSceneRect(self._scene_range)
+        self.fitInView(self._scene_range, Qt.AspectRatioMode.KeepAspectRatio)
+
+        # Update debug coordinate system (grid + axes)
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+
+    def _combined_rect(self, nodes):
+        """Return a QRectF with the combined size of the provided node items.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            List of node graphics items.
+
+        Returns
+        -------
+        QRectF
+            Combined bounding rectangle.
+        """
+        rect = QRectF()
+        for node in nodes:
+            rect = rect | node.sceneBoundingRect()
+        # Add padding
+        rect.setX(rect.x() - 20)
+        rect.setY(rect.y() - 20)
+        rect.setWidth(rect.width() + 20)
+        rect.setHeight(rect.height() + 20)
+
+        return rect
+
+    def _items_near(self, pos, width=20, height=20):
+        """Filter node graph items from the specified position, width and
+        height area.
+
+        Parameters
+        ----------
+        pos : QPointF
+            Scene position.
+        width : int, optional
+            Width of search area, by default 20.
+        height : int, optional
+            Height of search area, by default 20.
+
+        Returns
+        -------
+        list
+            Graphics items from the scene within the specified area.
+        """
+        x, y = pos.x() - width, pos.y() - height
+        rect = QRectF(x, y, width, height)
+        items = []
+        excl = [self._LIVE_PIPE, self._SLICER_PIPE]
+        # exclude debug helpers from hit-tests
+        if hasattr(self, "_coord_grid"):
+            excl.append(self._coord_grid)
+        if hasattr(self, "_coord_axes"):
+            excl.append(self._coord_axes)
+        if hasattr(self, "_debug_path"):
+            excl.append(self._debug_path)
+        for item in self.scene().items(rect):
+            if item in excl:
+                continue
+            items.append(item)
+        return items
+
+    # Reimplement events
+    def resizeEvent(self, event):
+        w, h = self.size().width(), self.size().height()
+        if 0 in [w, h]:
+            self.resize(self._last_size)
+        delta = max(w / self._last_size.width(), h / self._last_size.height())
+        self._set_viewer_zoom(delta)
+        self._last_size = self.size()
+        super().resizeEvent(event)
+
+    def contextMenuEvent(self, event):
+        if self._rmb_dragged:
+            self._rmb_dragged = False
+            event.accept()
+            return
+        port = self._port_at_view_pos(event.pos())
+        if port is not None:
+            self._show_port_context_menu(port, event)
+            event.accept()
+            return
+        # On macOS trackpads, context-menu gestures may not deliver a matching
+        # right-button release to the view, so clear stale RMB state here.
+        self.RMB_state = False
+
+        menu = QMenu(self)
+        for category, cat_dict in self.ct.get_functions_categorized().items():
+            category_menu = menu.addMenu(category)
+            for sub_category, func_list in cat_dict.items():
+                if sub_category != "__main__":
+                    sub_category_menu = category_menu.addMenu(sub_category)
+                else:
+                    sub_category_menu = category_menu
+                for func_name in func_list:
+                    func_action = QAction(func_name, sub_category_menu)
+                    func_action.triggered.connect(
+                        lambda checked=False, fn=func_name: self.add_function_node(
+                            function_name=fn, pos=self.mapToScene(event.pos())
+                        )
+                    )
+                    sub_category_menu.addAction(func_action)
+
+        if menu.isEmpty():
+            raise_user_attention("No plugins loaded.", message_type="info")
+        else:
+            menu.exec(event.globalPos())
+        event.accept()
+
+    def _port_at_view_pos(self, pos: QPoint, tolerance: int = 8) -> Port | None:
+        """Return the top-most port under a view position."""
+        scene_pos = self.mapToScene(pos)
+        for item in self._items_near(scene_pos, tolerance, tolerance):
+            port = self._port_from_item(item)
+            if port is not None:
+                return port
+        return None
+
+    def _show_port_context_menu(self, port: Port, event) -> None:
+        """Show context menu with actions specific to a single port."""
+        menu = QMenu(self)
+        menus = {}
+
+        # Get corresponding functions for inputs/outputs
+        funcs = set()
+        possible_names = [port.name, *port.accepted_ports]
+        for p_name in possible_names:
+            if port.port_type == "in":
+                funcs.update(self.ct.get_func_by_output(p_name))
+            else:
+                funcs.update(self.ct.get_func_by_input(p_name))
+        connected = (
+            {port.name: {"type": "in", "port_to": port}}
+            if port.port_type == "out"
+            else {port.name: {"type": "out", "port_to": port}}
+        )
+        scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
+        # Sort funcs alphabetically
+        funcs = sorted(funcs)
+        for func_name in funcs:
+            func_meta = self.ct.get_function_meta(func_name)
+            cls_name = func_meta.get("class_name")
+            if cls_name is not None:
+                if cls_name not in menus:
+                    sub_menu = menu.addMenu(cls_name)
+                    menus[cls_name] = sub_menu
+                else:
+                    sub_menu = menus[cls_name]
+            else:
+                sub_menu = menu
+            func_action = QAction(func_name, sub_menu)
+            func_action.triggered.connect(
+                lambda checked=False, fn=func_name, pos=scene_pos: (
+                    self.add_function_node(
+                        function_name=fn, pos=pos, connected=connected
+                    )
+                )
+            )
+            sub_menu.addAction(func_action)
+        if menu.isEmpty():
+            raise_user_attention(
+                "No functions available for this port or no plugins are loaded.",
+                message_type="info",
+            )
+        else:
+            menu.exec(event.globalPos())
+        self.RMB_state = False
+        event.accept()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.LMB_state = True
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.RMB_state = True
+            self._rmb_dragged = False
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self.MMB_state = True
+
+        self._origin_pos = event.pos()
+        self._previous_pos = event.pos()
+        self._prev_selection_nodes, self._prev_selection_pipes = self.selected_items()
+
+        # cursor pos.
+        map_pos = self.mapToScene(event.pos())
+
+        # debug path
+        if debug_mode() and self.LMB_state:
+            path = self._debug_path.path()
+            path.moveTo(map_pos)
+            self._debug_path.setPath(path)
+
+        # pipe slicer enabled.
+        if self.LMB_state and event.modifiers() == (
+            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ):
+            self._SLICER_PIPE.draw_path(map_pos, map_pos)
+            self._SLICER_PIPE.setVisible(True)
+            return
+
+        # pan mode.
+        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
+            return
+
+        items = self._items_near(map_pos, 20, 20)
+        nodes = [i for i in items if self.isnode(i)]
+
+        if len(nodes) > 0:
+            self.MMB_state = False
+
+        # update the recorded node positions.
+        selection = set()
+        selection.update(self.selected_nodes())
+        self._node_positions.update({n: n.xy_pos for n in selection})
+
+        # show selection marquee.
+        if self.LMB_state and not items:
+            rect = QRect(self._previous_pos, QSize())
+            rect = rect.normalized()
+            map_rect = self.mapToScene(rect).boundingRect()
+            self.scene().update(map_rect)
+            self._rubber_band.setGeometry(rect)
+            self._rubber_band_active = True
+
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.LMB_state = False
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.RMB_state = False
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self.MMB_state = False
+
+        # hide pipe slicer.
+        if self._SLICER_PIPE.isVisible():
+            for i in self.scene().items(self._SLICER_PIPE.path()):
+                if (
+                    self.ispipe(i)
+                    and i != self._LIVE_PIPE
+                    and i.input_port is not None
+                    and i.output_port is not None
+                ):
+                    i.input_port.disconnect_from(i.output_port)
+            p = QPointF(0.0, 0.0)
+            self._SLICER_PIPE.draw_path(p, p)
+            self._SLICER_PIPE.setVisible(False)
+
+        # hide selection marquee
+        if self._rubber_band_active:
+            self._rubber_band_active = False
+            if self._rubber_band.isVisible():
+                rect = self._rubber_band.rect()
+                map_rect = self.mapToScene(rect).boundingRect()
+                self._rubber_band.hide()
+                self.scene().update(map_rect)
+                return
+
+        # find position changed nodes and emit signal.
+        moved_nodes = {
+            n: xy_pos
+            for n, xy_pos in self._node_positions.items()
+            if n.xy_pos != xy_pos
+        }
+        # only emit of node is not colliding with a pipe.
+        if moved_nodes and not self.COLLIDING_state:
+            self.MovedNodes.emit(moved_nodes)
+
+        # reset recorded positions.
+        self._node_positions = {}
+
+        # emit signal if selected node collides with pipe.
+        # Note: if collide state is true then only 1 node is selected.
+        # ToDo: Implement colliding if necessary
+        # nodes, pipes = self.selected_items()
+        # if self.COLLIDING_state and nodes and pipes:
+        #     self.InsertNode.emit(pipes[0], nodes[0].id, moved_nodes)
+
+        super().mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # Keep internal mouse-button state aligned with the currently pressed
+        # buttons to avoid stale state when native context menus steal release events.
+        buttons = event.buttons()
+        self.LMB_state = bool(buttons & Qt.MouseButton.LeftButton)
+        self.RMB_state = bool(buttons & Qt.MouseButton.RightButton)
+        self.MMB_state = bool(buttons & Qt.MouseButton.MiddleButton)
+
+        alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
+        origin_pos = self._origin_pos or event.pos()
+        if debug_mode() and self.LMB_state:
+            # Debug mouse
+            to_pos = self.mapToScene(event.pos())
+            path = self._debug_path.path()
+            path.lineTo(to_pos)
+            self._debug_path.setPath(path)
+
+        # Draw slicer
+        if self.LMB_state and event.modifiers() == (
+            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ):
+            if self._SLICER_PIPE.isVisible():
+                p1 = self._SLICER_PIPE.path().pointAtPercent(0)
+                p2 = self.mapToScene(self._previous_pos)
+                self._SLICER_PIPE.draw_path(p1, p2)
+                self._SLICER_PIPE.show()
+            self._previous_pos = event.pos()
+            super().mouseMoveEvent(event)
+            return
+
+        # Pan view
+        if (
+            self.MMB_state
+            or (self.LMB_state and alt_modifier and not self._LIVE_PIPE.isVisible())
+            or self.RMB_state
+        ):
+            if self.RMB_state:
+                drag_distance = QApplication.startDragDistance()
+                moved_distance = abs(event.pos().x() - origin_pos.x()) + abs(
+                    event.pos().y() - origin_pos.y()
+                )
+                if moved_distance >= drag_distance:
+                    self._rmb_dragged = True
+            previous_pos = self.mapToScene(self._previous_pos)
+            current_pos = self.mapToScene(event.pos())
+            delta = previous_pos - current_pos
+            self._set_viewer_pan(delta.x(), delta.y())
+
+        if self.LMB_state and self._rubber_band_active:
+            rect = QRect(origin_pos, event.pos()).normalized()
+            # if the rubber band is too small, do not show it.
+            if max(rect.width(), rect.height()) > 5:
+                if not self._rubber_band.isVisible():
+                    self._rubber_band.show()
+                map_rect = self.mapToScene(rect).boundingRect()
+                path = QPainterPath()
+                path.addRect(map_rect)
+                self._rubber_band.setGeometry(rect)
+                self.scene().setSelectionArea(
+                    path, mode=Qt.ItemSelectionMode.IntersectsItemShape
+                )
+                self.scene().update(map_rect)
+
+        elif self.LMB_state:
+            self.COLLIDING_state = False
+            nodes, pipes = self.selected_items()
+            if len(nodes) == 1:
+                node = nodes[0]
+                [p.setSelected(False) for p in pipes]
+
+                colliding_pipes = [
+                    i for i in node.collidingItems() if self.ispipe(i) and i.isVisible()
+                ]
+                for pipe in colliding_pipes:
+                    if pipe.input_port is None or pipe.output_port is None:
+                        continue
+                    port_node_check = all(
+                        [
+                            pipe.input_port.node is not node,
+                            pipe.output_port.node is not node,
+                        ]
+                    )
+                    if port_node_check:
+                        pipe.setSelected(True)
+                        self.COLLIDING_state = True
+                        break
+
+        self._previous_pos = event.pos()
+        super().mouseMoveEvent(event)
+
+    def wheelEvent(self, event):
+        try:
+            delta = event.delta()
+        except AttributeError:
+            # For PyQt5
+            delta = event.angleDelta().y()
+            if delta == 0:
+                delta = event.angleDelta().x()
+        self._set_viewer_zoom(delta, pos=event.pos())
+
+    def dropEvent(self, event):
+        pos = self.mapToScene(event.pos())
+        # enforce copy action for external drops
+        event.setDropAction(Qt.DropAction.CopyAction)
+        mime = event.mimeData()
+        self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
+
+        # Handle drop from NodePicker
+        text = mime.text() if hasattr(mime, "text") else ""
+        if text is None:
+            logger.debug("No text payload in drop event, ignoring.")
+            return
+        if text.startswith("mne-nodes/function:"):
+            fname = text[len("mne-nodes/function:") :]
+            if not fname:
+                return
+            node = self.add_function_node(fname)
+            node.xy_pos = (pos.x(), pos.y())
+        elif text.startswith("mne-nodes/input:"):
+            node = self.add_input_node()
+            node.xy_pos = (pos.x(), pos.y())
+        else:
+            event.accept()
+            return
+        self.zoom_to_nodes()
+
+        event.accept()
+
+    def _on_viewer_drop(self, mime, pos):
+        """Create nodes on drop from NodePicker.
+
+        Expected mime text payloads:
+        - "mne-nodes/function:<function_name>"
+        - "mne-nodes/input:<data_type>:<group>"
+        """
+
+    def _check_drag_event(self, event):
+        mime = event.mimeData()
+        is_acceptable = is_function_import_mime(mime) or (
+            not mime.hasUrls() and mime.text().startswith("mne-nodes/")
+        )
+        if is_acceptable:
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragEnterEvent(self, event):
+        self._check_drag_event(event)
+
+    def dragMoveEvent(self, event):
+        self._check_drag_event(event)
+
+    def dragLeaveEvent(self, event):
+        event.ignore()
+
+    def keyPressEvent(self, event):
+        if event.key() in [Qt.Key.Key_Delete, Qt.Key.Key_Backspace]:
+            # delete selected nodes and pipes
+            for node in self.selected_nodes():
+                self.remove_node(node)
+            for pipe in self.selected_pipes():
+                if pipe.input_port is not None and pipe.output_port is not None:
+                    pipe.input_port.disconnect_from(pipe.output_port)
+            return
+
+        if self._LIVE_PIPE.isVisible():
+            super().keyPressEvent(event)
+            return
+
+        # show cursor text
+        overlay_text = None
+        self._cursor_text.setVisible(False)
+
+        if (
+            event.modifiers()
+            == Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ):
+            overlay_text = "\n    ALT + SHIFT:\n    Pipe Slicer Enabled"
+        if overlay_text:
+            self._cursor_text.setPlainText(overlay_text)
+            self._cursor_text.setPos(self.mapToScene(self._previous_pos))
+            self._cursor_text.setVisible(True)
+
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        # hide and reset cursor text.
+        self._cursor_text.setPlainText("")
+        self._cursor_text.setVisible(False)
+
+        super().keyReleaseEvent(event)
+
+    ####################################################################################
+    # Scene Events
+    ####################################################################################
+
+    def sceneMouseMoveEvent(self, event):
+        """Handle mouse move event for the scene.
+
+        This method redraws the live connection pipe during node connections.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
+        """
+        if not self._LIVE_PIPE.isVisible():
+            return
+        if not self._start_port:
+            return
+
+        pos = event.scenePos()
+        pointer_color = None
+        for item in self.scene().items(pos):
+            item = self._port_from_item(item)
+            if item is None:
+                continue
+
+            x = item.boundingRect().width() / 2
+            y = item.boundingRect().height() / 2
+            pos = item.scenePos()
+            pos.setX(pos.x() + x)
+            pos.setY(pos.y() + y)
+            if item == self._start_port:
+                break
+            if self._ports_can_connect(self._start_port, item):
+                pointer_color = defaults["pipes"]["highlight_color"]
+            else:
+                pointer_color = defaults["pipes"]["disabled_color"]
+            break
+
+        self._LIVE_PIPE.draw_path(self._start_port, cursor_pos=pos, color=pointer_color)
+
+    def sceneMousePressEvent(self, event):
+        """Handle mouse press event for the scene.
+
+        This method takes priority over viewer events and detects selected
+        pipes to start connections.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsScenePressEvent
+            The event handler from the QtWidgets.QGraphicsScene.
+        """
+        # pipe slicer enabled.
+        if event.modifiers() == (
+            Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier
+        ):
+            return
+
+        # viewer pan mode.
+        if event.modifiers() == Qt.KeyboardModifier.AltModifier:
+            return
+
+        if self._LIVE_PIPE.isVisible():
+            self.apply_live_connection(event)
+            return
+
+        pos = event.scenePos()
+        items = self._items_near(pos, 5, 5)
+
+        # filter from the selection stack in the following order
+        # "node, port, pipe" this is to avoid selecting items under items.
+        node, port, pipe = None, None, None
+        for item in items:
+            if self.isnode(item):
+                node = item
+            elif self.isport(item):
+                port = item
+            elif self.ispipe(item):
+                pipe = item
+            if any([node, port, pipe]):
+                break
+
+        if port:
+            if event.button() == Qt.MouseButton.RightButton:
+                return
+            if not port.multi_connection and len(port.connected_ports) > 0:
+                # ToDo: Might cause problems with multi-connections
+                self._detached_port = port.connected_ports[0]
+            self.start_live_connection(port)
+            if not port.multi_connection:
+                [p.delete() for p in port.connected_pipes.values()]
+            return
+
+        if node:
+            node_items = [i for i in self._items_near(pos, 3, 3) if self.isnode(i)]
+
+            # record the node positions at selection time.
+            for n in node_items:
+                self._node_positions[n] = n.xy_pos
+
+        if pipe:
+            # Just let Qt handle pipe selection via super().mousePressEvent()
+            # in NodeScene. Deletion is handled by the Del key.
+            return
+
+    def sceneMouseReleaseEvent(self, event):
+        """Handle mouse release event for the scene.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
+        """
+        if event.button() != Qt.MouseButton.MiddleButton:
+            self.apply_live_connection(event)
+
+    def apply_live_connection(self, event):
+        """Apply live connection for mouse press/release events.
+
+        This method verifies the live connection pipe, makes a connection
+        pipe if valid, and emits the "connection changed" signal.
+
+        Parameters
+        ----------
+        event : QtWidgets.QGraphicsSceneMouseEvent
+            The event handler from the QtWidgets.QGraphicsScene.
+        """
+        if not self._LIVE_PIPE.isVisible():
+            return
+        start_port = self._start_port
+        if start_port is None:
+            self.end_live_connection()
+            return
+        origin_pos = self._origin_pos or self._previous_pos
+
+        start_port.hovered = False
+
+        # find the end port with tolerance and parent traversal so dropping
+        # on labels/children still resolves to the parent port.
+        end_port = None
+        for item in self.scene().items(event.scenePos()):
+            candidate = self._port_from_item(item)
+            if candidate is not None:
+                end_port = candidate
+                break
+
+        if end_port is None:
+            for item in self._items_near(event.scenePos(), 12, 12):
+                candidate = self._port_from_item(item)
+                if candidate is not None:
+                    end_port = candidate
+                    break
+
+        # if port disconnected from existing pipe.
+        if end_port is None:
+            if self._detached_port and not self._LIVE_PIPE.shift_selected:
+                dist = math.hypot(
+                    self._previous_pos.x() - origin_pos.x(),
+                    self._previous_pos.y() - origin_pos.y(),
+                )
+                if dist <= 2.0:  # cursor pos threshold.
+                    start_port.connect_to(self._detached_port)
+                    self._detached_port = None
+                else:
+                    start_port.disconnect_from(self._detached_port)
+
+            self._detached_port = None
+            self.end_live_connection()
+            return
+
+        else:
+            if start_port is end_port:
+                return
+
+        # Normalize connection direction so compatibility is evaluated
+        # consistently as output -> input, independent of gesture direction.
+        if start_port.port_type == "out":
+            output_port = start_port
+            input_port = end_port
+        else:
+            output_port = end_port
+            input_port = start_port
+
+        # constrain check
+        compatible = self._ports_can_connect(start_port, end_port, verbose=True)
+
+        # restore connection if ports are not compatible
+        if not compatible:
+            if self._detached_port:
+                to_port = self._detached_port or end_port
+                start_port.connect_to(to_port)
+                self._detached_port = None
+            self.end_live_connection()
+            return
+
+        # end connection if starting port is already connected.
+        if output_port.multi_connection and output_port.connected(input_port):
+            self._detached_port = None
+            self.end_live_connection()
+            logger.debug("Target Port is already connected.")
+            return
+
+        # disconnect target port from its connections if not multi connection.
+        if not end_port.multi_connection and len(end_port.connected_ports) > 0:
+            end_port.clear_connections()
+
+        # Connect from detached port if available.
+        if self._detached_port:
+            start_port.disconnect_from(self._detached_port)
+
+        # Make connection
+        output_port.connect_to(input_port)
+
+        self._detached_port = None
+        self.end_live_connection()
+
+    def start_live_connection(self, selected_port: Port | None):
+        """Create new pipe for the connection.
+
+        Shows the live pipe visibility from the port following the cursor position.
+
+        Parameters
+        ----------
+        selected_port : Port
+            The port to start the connection from.
+        """
+        if not selected_port:
+            return
+        start_port = selected_port
+        self._start_port = start_port
+        if start_port.port_type == "in":
+            self._LIVE_PIPE.input_port = start_port
+        elif start_port.port_type == "out":
+            self._LIVE_PIPE.output_port = start_port
+        self._LIVE_PIPE.setVisible(True)
+        self._set_live_connection_port_highlights(start_port)
+        origin_pos = self._origin_pos or self._previous_pos
+        self._LIVE_PIPE.draw_index_pointer(selected_port, self.mapToScene(origin_pos))
+
+    def _port_from_item(self, item) -> Port | None:
+        while item is not None:
+            if self.isport(item):
+                return item
+            if not hasattr(item, "parentItem"):
+                break
+            item = item.parentItem()
+        return None
+
+    def end_live_connection(self):
+        """Delete live connection pipe and reset start port.
+
+        Notes
+        -----
+        This hides the pipe item used for drawing the live connection.
+        """
+        self._clear_live_connection_port_highlights()
+        self._LIVE_PIPE.reset_path()
+        self._LIVE_PIPE.setVisible(False)
+        self._LIVE_PIPE.shift_selected = False
+        self._start_port = None
+
+    def _ports_can_connect(
+        self, start_port: Port, end_port: Port, verbose=False
+    ) -> bool:
+        if start_port is end_port:
+            return False
+        if start_port.node is end_port.node:
+            return False
+        if start_port.port_type == end_port.port_type:
+            return False
+        if start_port.port_type == "out":
+            output_port = start_port
+            input_port = end_port
+        else:
+            output_port = end_port
+            input_port = start_port
+        return output_port.compatible(input_port, verbose=verbose)
+
+    def _set_live_connection_port_highlights(self, start_port: Port) -> None:
+        for node in self.nodes.values():
+            for port in node.ports:
+                if port is start_port:
+                    port.set_connection_highlight()
+                    continue
+                port.set_connection_highlight(self._ports_can_connect(start_port, port))
+
+    def _clear_live_connection_port_highlights(self) -> None:
+        for node in self.nodes.values():
+            for port in node.ports:
+                port.set_connection_highlight()
+
+    def isnode(self, item) -> TypeGuard[BaseNode]:
+        """Check if the item is a node.
+
+        Parameters
+        ----------
+        item : QGraphicsItem
+            The graphics item to check.
+
+        Returns
+        -------
+        bool
+            True if the item is a node.
+        """
+        # For some reason, issubclass(item.__class__, BaseNode) does not work
+        return item in self.nodes.values()
+
+    def isport(self, item) -> TypeGuard[Port]:
+        """Check if the item is a port.
+
+        Parameters
+        ----------
+        item : QGraphicsItem
+            The graphics item to check.
+
+        Returns
+        -------
+        bool
+            True if the item is a port.
+        """
+        return isinstance(item, Port)
+
+    def ispipe(self, item) -> TypeGuard[Pipe]:
+        """Check if the item is a pipe.
+
+        Parameters
+        ----------
+        item : QGraphicsItem
+            The graphics item to check.
+
+        Returns
+        -------
+        bool
+            True if the item is a pipe.
+        """
+        return isinstance(item, Pipe)
+
+    def all_pipes(self):
+        """Return all pipe graphics items.
+
+        Returns
+        -------
+        list of PipeItem
+            Instances of pipe items in the scene.
+        """
+        return [i for i in self.scene().items() if self.ispipe(i)]
+
+    def selected_nodes(self):
+        """Return selected node graphics items.
+
+        Returns
+        -------
+        list of AbstractNodeItem
+            Instances of selected node items.
+        """
+        return [i for i in self.scene().selectedItems() if self.isnode(i)]
+
+    def selected_pipes(self):
+        """Return selected pipe graphics items.
+
+        Returns
+        -------
+        list of Pipe
+            Selected pipe items.
+        """
+        return [i for i in self.scene().selectedItems() if self.ispipe(i)]
+
+    def selected_items(self):
+        """Return selected graphics items in the scene.
+
+        Returns
+        -------
+        tuple of (list of AbstractNodeItem, list of Pipe)
+            Selected node items and pipe items.
+        """
+        nodes = [i for i in self.scene().selectedItems() if self.isnode(i)]
+        pipes = [i for i in self.scene().selectedItems() if self.ispipe(i)]
+
+        return nodes, pipes
+
+    def move_nodes(self, nodes, pos=None, offset=None):
+        """Globally move specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            Node items to move.
+        pos : tuple or list, optional
+            Custom x, y position.
+        offset : tuple or list, optional
+            X, y position offset.
+        """
+        group = self.scene().createItemGroup(nodes)
+        group_rect = group.boundingRect()
+        if pos:
+            x, y = pos
+        else:
+            pos = self.mapToScene(self._previous_pos)
+            x = pos.x() - group_rect.center().x()
+            y = pos.y() - group_rect.center().y()
+        if offset:
+            x += offset[0]
+            y += offset[1]
+        group.setPos(x, y)
+        self.scene().destroyItemGroup(group)
+
+    def get_pipes_from_nodes(self, nodes=None):
+        """Get pipes connected between the specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem, optional
+            Nodes to get pipes from. If None, uses selected nodes.
+
+        Returns
+        -------
+        list of Pipe
+            Pipes connecting the specified nodes.
+        """
+        nodes = nodes or self.selected_nodes()
+        if not nodes:
+            return
+        pipes = []
+        for node in nodes:
+            n_inputs = node.inputs
+            n_outputs = node.outputs
+
+            for port in n_inputs:
+                for pipe in port.connected_pipes.values():
+                    connected_node = pipe.output_port.node
+                    if connected_node in nodes:
+                        pipes.append(pipe)
+            for port in n_outputs:
+                for pipe in port.connected_pipes.values():
+                    connected_node = pipe.input_port.node
+                    if connected_node in nodes:
+                        pipes.append(pipe)
+        return pipes
+
+    def center_selection(self, nodes=None):
+        """Center on the given nodes or all nodes by default.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem, optional
+            A list of node items. If None, uses selected nodes or all nodes.
+        """
+        nodes = nodes or self.selected_nodes() or self.nodes.values()
+        if not nodes:
+            return
+
+        rect = self._combined_rect(nodes)
+        self._scene_range.translate(rect.center() - self._scene_range.center())
+        self.setSceneRect(self._scene_range)
+
+    def clear_selection(self):
+        """Clear the selected items in the scene."""
+        for node in self.nodes.values():
+            node.setSelected(False)
+
+    def reset_zoom(self, cent=None):
+        """Reset the viewer zoom level.
+
+        Parameters
+        ----------
+        cent : QtCore.QPoint, optional
+            Specified center point.
+        """
+        self._scene_range = QRectF(0, 0, self.size().width(), self.size().height())
+        if cent:
+            self._scene_range.translate(cent - self._scene_range.center())
+        self._update_scene()
+
+    def get_zoom(self):
+        """Return the viewer zoom level.
+
+        Returns
+        -------
+        float
+            Current zoom level.
+        """
+        transform = self.transform()
+        cur_scale = (transform.m11(), transform.m22())
+        return float(f"{cur_scale[0] - 1.0:0.2f}")
+
+    def set_zoom(self, value=0.0):
+        """Set the viewer zoom level.
+
+        Parameters
+        ----------
+        value : float, optional
+            Zoom level, by default 0.0.
+        """
+        if value == 0.0:
+            self.reset_zoom()
+            return
+        zoom = self.get_zoom()
+        if zoom < 0.0:
+            if not (
+                defaults["viewer"]["zoom_min"] <= zoom <= defaults["viewer"]["zoom_max"]
+            ):
+                return
+        else:
+            if not (
+                defaults["viewer"]["zoom_min"]
+                <= value
+                <= defaults["viewer"]["zoom_max"]
+            ):
+                return
+        value = value - zoom
+        self._set_viewer_zoom(value, 0.0)
+
+    def zoom_to_nodes(self, nodes=None):
+        """Zoom to fit the specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of BaseNode, optional
+            Nodes to zoom to. If None, uses all nodes in the graph.
+        """
+        nodes = nodes or list(self.nodes.values())
+        self._scene_range = self._combined_rect(nodes)
+        self._update_scene()
+
+        if self.get_zoom() > 0.1:
+            self.reset_zoom(self._scene_range.center())
+
+    def fit_to_selection(self):
+        """Set the zoom level to fit selected nodes.
+
+        Notes
+        -----
+        If no nodes are selected then all nodes in the graph will be framed.
+        """
+        nodes = self.selected_nodes() or self.nodes.values()
+        if not nodes:
+            return
+        self.zoom_to_nodes(nodes)
+
+    def force_update(self):
+        """Redraw the current node graph scene."""
+        self._update_scene()
+
+    def scene_rect(self):
+        """Return the scene rect size.
+
+        Returns
+        -------
+        list of float
+            Scene rectangle as [x, y, width, height].
+        """
+        return [
+            self._scene_range.x(),
+            self._scene_range.y(),
+            self._scene_range.width(),
+            self._scene_range.height(),
+        ]
+
+    def set_scene_rect(self, rect):
+        """Set the scene rect and redraw the scene.
+
+        Parameters
+        ----------
+        rect : list of float
+            Scene rectangle as [x, y, width, height].
+        """
+        self._scene_range = QRectF(*rect)
+        self._update_scene()
+
+    def scene_center(self):
+        """Get the center x,y position from the scene.
+
+        Returns
+        -------
+        list of float
+            Center position as [x, y].
+        """
+        cent = self._scene_range.center()
+        return [cent.x(), cent.y()]
+
+    def scene_cursor_pos(self):
+        """Return the cursor last position mapped to the scene.
+
+        Returns
+        -------
+        QtCore.QPoint
+            Cursor position in scene coordinates.
+        """
+        return self.mapToScene(self._previous_pos)
+
+    def nodes_rect_center(self, nodes):
+        """Get the center x,y position from the specified nodes.
+
+        Parameters
+        ----------
+        nodes : list of AbstractNodeItem
+            List of node graphics items.
+
+        Returns
+        -------
+        list of float
+            Center position as [x, y].
+        """
+        cent = self._combined_rect(nodes).center()
+        return [cent.x(), cent.y()]
+
+    def use_OpenGL(self):
+        """Use QOpenGLWidget as the viewer.
+
+        Notes
+        -----
+        This method enables OpenGL rendering for better performance.
+        """
+        if qtpy.PYQT5 or qtpy.PYSIDE2:
+            from qtpy.QtWidgets import QOpenGLWidget
+        else:
+            from qtpy.QtOpenGLWidgets import QOpenGLWidget
+        self.setViewport(QOpenGLWidget())
+
+    def node_position_scene(self, **node_kwargs):
+        node = self.node(**node_kwargs)
+        if node is None:
+            raise ValueError("No node found with the provided parameters.")
+        scene_pos = node.scenePos() + node.boundingRect().center()
+
+        return scene_pos
+
+    def node_position_view(self, **node_kwargs):
+        scene_pos = self.node_position_scene(**node_kwargs)
+        view_pos = self.mapFromScene(scene_pos)
+
+        return view_pos
+
+    def port_position_scene(
+        self,
+        port_type=None,
+        port_idx=None,
+        port_name=None,
+        port_id=None,
+        node_idx=None,
+        node_name=None,
+        node_id=None,
+    ):
+        node = self.node(node_idx, node_name, node_id)
+        if node is None:
+            raise ValueError("No node found with the provided parameters.")
+        port = node.port(port_type, port_idx, port_name, port_id)
+        if not isinstance(port, Port):
+            raise TypeError("No port found with the provided parameters.")
+        scene_pos = port.scenePos() + port.boundingRect().center()
+        # Convert to float point
+        scene_pos = QPointF(scene_pos)
+
+        return scene_pos
+
+    def port_position_view(self, **port_node_kwargs):
+        scene_pos = self.port_position_scene(**port_node_kwargs)
+        view_pos = self.mapFromScene(scene_pos)
+        # Convert to float point
+        view_pos = QPointF(view_pos)
+
+        return view_pos
+
+    # --------------------------------------------------------------------------------------
+    # AutoLayout
+    # --------------------------------------------------------------------------------------
+
+    @staticmethod
+    def _update_node_rank(node, nodes_rank, down_stream=True):
+        """Update the ranking of a node and its connected nodes.
+
+        Parameters
+        ----------
+        node : BaseNode
+            The node to update ranking for.
+        nodes_rank : dict
+            Node ranking object to be updated.
+        down_stream : bool, optional
+            True to rank downstream nodes, by default True.
+        """
+        if down_stream:
+            node_values = node.connected_output_nodes().values()
+        else:
+            node_values = node.connected_input_nodes().values()
+
+        connected_nodes = set()
+        for nds in node_values:
+            connected_nodes.update(nds)
+
+        rank = nodes_rank[node] + 1
+        for n in connected_nodes:
+            if n in nodes_rank:
+                nodes_rank[n] = max(nodes_rank[n], rank)
+            else:
+                nodes_rank[n] = rank
+            NodeViewer._update_node_rank(n, nodes_rank, down_stream)
+
+    @staticmethod
+    def _compute_node_rank(nodes, down_stream=True):
+        """Compute the ranking of nodes.
+
+        Parameters
+        ----------
+        nodes : list of BaseNode
+            Nodes to start ranking from.
+        down_stream : bool, optional
+            True to compute downstream ranking, by default True.
+
+        Returns
+        -------
+        dict
+            Mapping of BaseNode to node_rank.
+        """
+        nodes_rank = {}
+        for node in nodes:
+            nodes_rank[node] = 0
+            NodeViewer._update_node_rank(node, nodes_rank, down_stream)
+        return nodes_rank
+
+    def auto_layout_nodes(self, nodes=None, down_stream=True, start_nodes=None):
+        """Auto layout the nodes in the node graph.
+
+        Parameters
+        ----------
+        nodes : list of BaseNode, optional
+            List of nodes to auto layout. If None, all nodes are laid out.
+        down_stream : bool, optional
+            False to layout upstream, by default True.
+        start_nodes : list of BaseNode, optional
+            List of nodes to start the auto layout from..
+        """
+        nodes = nodes or list(self.nodes.values())
+
+        start_nodes = start_nodes or []
+        if down_stream:
+            start_nodes += [
+                n for n in nodes if not any(n.connected_input_nodes().values())
+            ]
+        else:
+            start_nodes += [
+                n for n in nodes if not any(n.connected_output_nodes().values())
+            ]
+
+        if not start_nodes:
+            return
+
+        nodes_center_0 = self.nodes_rect_center(nodes)
+
+        nodes_rank = NodeViewer._compute_node_rank(start_nodes, down_stream)
+
+        rank_map = {}
+        for node, rank in nodes_rank.items():
+            if rank in rank_map:
+                rank_map[rank].append(node)
+            else:
+                rank_map[rank] = [node]
+
+        current_x = 0
+        node_height = 120
+        # Iterate over actual rank keys to handle non-contiguous ranks correctly
+        for rank in sorted(rank_map.keys(), reverse=not down_stream):
+            ranked_nodes = rank_map[rank]
+            max_width = max([node.width for node in ranked_nodes])
+            current_y = 0
+            for idx, node in enumerate(ranked_nodes):
+                dy = max(node_height, node.height)
+                node.setPos(current_x, current_y)
+                current_y += dy + self.default_y_distance
+
+            current_x += max_width + self.default_x_distance
+
+        nodes_center_1 = self.nodes_rect_center(nodes)
+        dx = nodes_center_0[0] - nodes_center_1[0]
+        dy = nodes_center_0[1] - nodes_center_1[1]
+        [n.setPos(n.x() + dx, n.y() + dy) for n in nodes]
+
+    def _update_coord_axes(self):
+        """Update the debug coordinate system (grid + axes) in the scene."""
+        if not debug_mode():
+            self._set_grid_visible(False)
+            return
+
+        # Use the current visible viewport in scene coordinates to cover full view
+        visible_rect = self.mapToScene(self.viewport().rect()).boundingRect()
+        left, right = visible_rect.left(), visible_rect.right()
+        top, bottom = visible_rect.top(), visible_rect.bottom()
+
+        # Build grid path
+        grid_path = QPainterPath()
+        step = 100.0
+
+        # Qt.Orientation.Vertical grid lines
+        start_x = math.floor(left / step) * step
+        x = start_x
+        while x <= right:
+            grid_path.moveTo(x, top)
+            grid_path.lineTo(x, bottom)
+            x += step
+
+        # Qt.Orientation.Horizontal grid lines
+        start_y = math.floor(top / step) * step
+        y = start_y
+        while y <= bottom:
+            grid_path.moveTo(left, y)
+            grid_path.lineTo(right, y)
+            y += step
+
+        self._coord_grid.setPath(grid_path)
+
+        # Build axes path (x=0 and y=0) if within current rect
+        axes_path = QPainterPath()
+        if left <= 0.0 <= right:
+            axes_path.moveTo(0.0, top)
+            axes_path.lineTo(0.0, bottom)
+        if top <= 0.0 <= bottom:
+            axes_path.moveTo(left, 0.0)
+            axes_path.lineTo(right, 0.0)
+        self._coord_axes.setPath(axes_path)
+
+        # Update numeric tick labels (top and left edges)
+        # Clear old labels
+        if self._coord_tick_labels:
+            for t in self._coord_tick_labels:
+                if t.scene() is self.scene():
+                    self.scene().removeItem(t)
+            self._coord_tick_labels = []
+
+        # Color and font for ticks
+        tick_color = QColor(0, 200, 0, 160)
+        # Offsets in scene units approximating a few pixels
+        # Convert a 10px Qt.Orientation.Vertical and 6px Qt.Orientation.Horizontal offset to scene units
+        dy_scene = (
+            self.mapToScene(QPoint(0, 10)).y() - self.mapToScene(QPoint(0, 0)).y()
+        )
+        dx_scene = self.mapToScene(QPoint(6, 0)).x() - self.mapToScene(QPoint(0, 0)).x()
+
+        # X ticks along the top
+        x = start_x
+        while x <= right:
+            txt = QGraphicsTextItem(f"{int(x)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            # Keep text a constant size regardless of zoom
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(x + 2 * dx_scene, top + dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            x += step
+
+        # Y ticks along the left
+        y = start_y
+        while y <= bottom:
+            txt = QGraphicsTextItem(f"{int(y)}")
+            txt.setDefaultTextColor(tick_color)
+            txt.setZValue(-4)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations, True)
+            txt.setFlag(txt.GraphicsItemFlag.ItemIsSelectable, False)
+            txt.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+            txt.setPos(QPointF(left + dx_scene, y + 0.2 * dy_scene))
+            self.scene().addItem(txt)
+            self._coord_tick_labels.append(txt)
+            y += step
+
+    def _set_grid_visible(self, visible):
+        """Show/hide the debug grid and axes."""
+        self._coord_grid.setVisible(bool(visible))
+        self._coord_axes.setVisible(bool(visible))
+        # toggle tick labels
+        for t in getattr(self, "_coord_tick_labels", []) or []:
+            t.setVisible(bool(visible))
+
+    def update_debug_grid(self):
+        """Enable or disable debug mode."""
+        if debug_mode():
+            self._update_coord_axes()
+            self._set_grid_visible(True)
+        else:
+            self._set_grid_visible(False)
+            # also clear labels to avoid stale items
+            for t in getattr(self, "_coord_tick_labels", []) or []:
+                if t.scene() is self.scene():
+                    self.scene().removeItem(t)
+            self._coord_tick_labels = []

@@ -19,6 +19,26 @@ All analysis logic should be implemented in separate, importable Python modules/
 
 **Alternative:** You can also use [mne-dev-setup](https://github.com/marsipu/mne-dev-setup) for the setup of a development environment.
 
+## Project layout and testing
+
+- `src/mne_nodes/gui/`: Qt UI components.
+- `src/mne_nodes/backend/`: workflow control, execution, I/O and code generation.
+- `src/mne_nodes/resources/`: packaged icons, images and welcome-tour examples.
+- `tests/`: tests, shared fixtures and the tiny BIDS dataset; not installed.
+- `development/`: development-only helpers; not installed. Run helpers from the
+  repository root, for example `python -m development.param_tester`.
+
+The project uses a `src` layout: install it before importing or testing it.
+Use `python -m pytest` (or `conda run -n mnedev python -m pytest`) from the
+repository root. Pytest discovers only `tests/` and uses importlib import mode;
+it does not add `src/` to the import path. Configuration lives in `pyproject.toml`.
+CI tests a non-editable installation to catch missing modules and resources.
+
+The module path has changed from `mne_nodes.pipeline` to `mne_nodes.backend`.
+Update external plugins and scripts that import this module. The
+`mne_nodes.gui` module path, package name and `mne_nodes` launch command
+remain unchanged.
+
 ## Docker
 
 See the [Docker GUI development guide](docs/source/development/docker_gui.rst)

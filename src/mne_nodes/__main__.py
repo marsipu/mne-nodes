@@ -1,0 +1,96 @@
+"""
+Authors: Martin Schulz <dev@mgschulz.de>
+License: BSD 3-Clause
+GitHub: https://github.com/marsipu/mne-nodes
+"""
+
+import argparse
+import sys
+
+import qtpy
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtWidgets import QApplication
+
+import mne_nodes
+from mne_nodes.backend.controller import Controller
+from mne_nodes.backend.exception_handling import UncaughtHook
+from mne_nodes.backend.streams import init_streams
+from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
+from mne_nodes.logger import init_logging, logger
+
+app_name = "mne-nodes"
+organization_name = "marsipu"
+domain_name = "https://github.com/marsipu/mne-nodes"
+
+
+def main() -> None:
+    # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
+    init_logging(mne_nodes.debug_mode())
+    logger.info("Starting MNE-Nodes...")
+    # Set gui_mode to true since starting as module always means gui-mode
+    mne_nodes.gui_mode = True
+    # Create QApplication
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    app.setApplicationName(app_name)
+    app.setOrganizationName(organization_name)
+    app.setOrganizationDomain(domain_name)
+    app.setQuitOnLastWindowClosed(True)
+
+    # Avoid file-dialog-problems with custom file-managers in linux
+    if mne_nodes.islin:
+        app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
+
+    # Initialize streams from stdout/stderr into Qt
+    init_streams()
+
+    # Show Qt-binding
+    logger.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")
+
+    # Initialize Exception-Hook
+    if mne_nodes.debug_mode():
+        logger.info("Debug-Mode is activated")
+    else:
+        qt_exception_hook = UncaughtHook()
+        sys.excepthook = qt_exception_hook.exception_hook
+
+    # Set style and font
+    set_app_theme()
+    set_app_font_size()
+
+    # Initialize controller first, but defer config-path prompting until after the
+    # GUI exists so the first-run welcome tour can appear before any project setup prompts.
+    controller = Controller()
+
+    # Late import of MainWindow, since importing it at the top-level seems to cause
+    # Windows fatal access errors when opening dialogs in some cases.
+    from mne_nodes.gui.main_window import MainWindow
+
+    main_window = MainWindow(controller)
+    if not controller.initialize_welcome_tour():
+        controller.ensure_ready()
+        main_window.finalize_controller_setup()
+
+    # Command-Line interrupt with Ctrl+C possible
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(500)
+
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        prog="MNE-Nodes", description="A GUI with Nodes for MNE-Python"
+    )
+    parser.add_argument(
+        "--nogui", "-n", action="store_true", help="Run headless without GUI"
+    )
+    cli_args = parser.parse_args(sys.argv[1:])
+
+    if cli_args.nogui:
+        mne_nodes.gui_mode = False
+
+    main()
