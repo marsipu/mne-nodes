@@ -22,7 +22,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import debug_mode
-from mne_nodes.gui.gui_utils import invert_rgb_color
+from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
@@ -1203,20 +1203,9 @@ class NodeViewer(QGraphicsView):
         self._set_viewer_zoom(delta, pos=event.pos())
 
     def dropEvent(self, event):
-        # ToDo: More drops possible:
-        # 1. Drop an meeg-file/fsmri-folder to add data
-        # 2. Drag and drop some selected text to add a custom function
-        # 3. Drag a pipeline-config-file to load a pipeline
-
         pos = self.mapToScene(event.pos())
         # enforce copy action for external drops
         event.setDropAction(Qt.DropAction.CopyAction)
-        print(
-            "[NodeViewer] dropEvent received. hasText=",
-            event.mimeData().hasText(),
-            "text=",
-            event.mimeData().text(),
-        )
         mime = event.mimeData()
         self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
 
@@ -1234,6 +1223,9 @@ class NodeViewer(QGraphicsView):
         elif text.startswith("mne-nodes/input:"):
             node = self.add_input_node()
             node.xy_pos = (pos.x(), pos.y())
+        else:
+            event.accept()
+            return
         self.zoom_to_nodes()
 
         event.accept()
@@ -1247,10 +1239,9 @@ class NodeViewer(QGraphicsView):
         """
 
     def _check_drag_event(self, event):
-        acceptable_formats = ["text/plain"]
-        is_acceptable = (
-            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
-            or event.mimeData().hasText()
+        mime = event.mimeData()
+        is_acceptable = is_function_import_mime(mime) or (
+            not mime.hasUrls() and mime.text().startswith("mne-nodes/")
         )
         if is_acceptable:
             event.setDropAction(Qt.DropAction.CopyAction)

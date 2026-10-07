@@ -7,6 +7,9 @@ GitHub: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import json
+import keyword
+import tokenize
+from collections.abc import Callable
 from functools import partial
 from os import PathLike
 from os.path import isfile
@@ -295,23 +298,40 @@ class ParameterConfiguration(QDialog):
 
 # ToDo: Function Categories
 class FunctionImporter(QDialog):
+    """Analyze Python functions and save their plugin configuration.
+
+    ``on_saved`` receives the saved configuration path, allowing the application
+    to load the plugin. Standalone importers only write files by default.
+    ``plugin_name`` and ``destination_dir`` can preselect the save destination,
+    for example when importing disposable code in the welcome tour.
+    """
+
     def __init__(
         self,
         code: str | None = None,
         file_path: str | PathLike | None = None,
         allow_exec: bool = False,
         parent: QWidget | None = None,
+        *,
+        on_saved: Callable[[Path], None] | None = None,
+        plugin_name: str | None = None,
+        destination_dir: Path | None = None,
     ):
         super().__init__(parent)
         # Check code parameter
         # Attributes
-        self._file_path = file_path
-        self._pkg_dir = None
+        self._file_path = None
+        self._created_file = False
+        self._pkg_dir = destination_dir
+        self._plugin_name = plugin_name
+        self._source_code = ""
+        self._function_lines = {}
         self.plugin_config = {}
         self.func_config = {}
         self.current_func = None
         self.editors = {}
         self.allow_exec = allow_exec
+        self._on_saved = on_saved
         self.fixed_categories = {}
         # UI
         layout = QHBoxLayout(self)
@@ -320,7 +340,7 @@ class FunctionImporter(QDialog):
         tab_layout = QVBoxLayout()
         # Load button
         load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
-        load_bt.clicked.connect(lambda x: self.load_file())
+        load_bt.clicked.connect(self._load_file_clicked)
         tab_layout.addWidget(load_bt)
         # Tab widget
         self.tab_widget = QTabWidget()
@@ -341,6 +361,7 @@ class FunctionImporter(QDialog):
         dsc_bt.clicked.connect(self.change_description)
         bt_layout.addWidget(dsc_bt)
         save_bt = QPushButton(qta.icon("fa5.save"), "Save")
+        self.save_button = save_bt
         save_bt.clicked.connect(self.save)
         bt_layout.addWidget(save_bt)
         tab_layout.addLayout(bt_layout)
@@ -383,12 +404,16 @@ class FunctionImporter(QDialog):
     @property
     def plugin_name(self):
         if self.file_path is not None:
-            name = Path(self.file_path).stem
+            plugin_name = Path(self.file_path).stem
         else:
-            name = get_user_input(
-                "What is the name of this plugin?", cancel_allowed=False, parent=self
-            )
-        return name
+            if self._plugin_name is None:
+                self._plugin_name = get_user_input(
+                    "How do you want to name this new plugin?",
+                    cancel_allowed=False,
+                    parent=self,
+                )
+            plugin_name = self._plugin_name
+        return plugin_name
 
     @property
     def file_path(self):
@@ -400,14 +425,18 @@ class FunctionImporter(QDialog):
             self._file_path = value
             self._pkg_dir = Path(value).parent
 
-    def pkg_dir(self):
+    def pkg_dir(self) -> Path:
+        """Get the destination directory for the plugin."""
         if self._pkg_dir is None:
-            self._pkg_dir = get_user_input(
-                "What is the package directory?",
+            directory = get_user_input(
+                "In which directory should the plugin be saved?",
                 input_type="folder",
                 cancel_allowed=False,
                 parent=self,
             )
+            if directory is None:
+                raise ValueError("A plugin destination directory is required.")
+            self._pkg_dir = Path(directory)
         return self._pkg_dir
 
     def load_file(self, file_path: PathLike | str | None = None):
@@ -422,9 +451,11 @@ class FunctionImporter(QDialog):
                 file_path = input_file_path
             else:
                 return
-        self.file_path = file_path
-        with open(self.file_path) as f:
+        with tokenize.open(file_path) as f:
             code = f.read()
+        self._parse_functions(code)
+        self.file_path = file_path
+        self._created_file = False
         # Reset state from any previously loaded file, otherwise stale
         # function/parameter configs can leak into the newly loaded file.
         self.plugin_config = {}
@@ -432,15 +463,42 @@ class FunctionImporter(QDialog):
         self.fixed_categories = {}
         self.current_func = None
         config_path = self._get_config_path()
-        if isfile(config_path):
+        if config_path is not None and isfile(config_path):
             with open(config_path) as f:
                 self.func_config = json.load(f, object_hook=type_json_hook)
                 logger.info(f"Successfully loaded config from {config_path}")
         self.clear_editor_tabs()
         self.analyze_code(code)
 
+    def _load_file_clicked(self):
+        try:
+            self.load_file()
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not load Python functions."
+            ).open()
+
+    @staticmethod
+    def _parse_functions(code: str) -> list[ast.FunctionDef]:
+        tree = ast.parse(code)
+        function_defs = [
+            node for node in tree.body if isinstance(node, ast.FunctionDef)
+        ]
+        if not function_defs:
+            raise ValueError("The code contains no top-level Python functions.")
+        return function_defs
+
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
+        function_defs = self._parse_functions(code)
+        function_names = {func.name for func in function_defs}
+        self.func_config = {
+            name: config
+            for name, config in self.func_config.items()
+            if name in function_names
+        }
+        self._source_code = code
+        self._function_lines = {}
         namespace = {}
         if self.allow_exec:
             try:
@@ -450,10 +508,6 @@ class FunctionImporter(QDialog):
                 ErrorDialog(
                     exc_tuple, self, "There was an error executing the code."
                 ).open()
-        tree = ast.parse(code)
-        function_defs = [
-            node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
-        ]
         for func in function_defs:
             fixed = self.fixed_categories.get(
                 func.name, {"inputs": [], "parameters": []}
@@ -470,8 +524,11 @@ class FunctionImporter(QDialog):
                     "module_name": None,
                     "class_name": None,
                 }
-            start_line = func.lineno - 1
+            start_line = (
+                min([func.lineno] + [node.lineno for node in func.decorator_list]) - 1
+            )
             end_line = func.end_lineno
+            self._function_lines[func.name] = (start_line, end_line)
             func_code = "\n".join(code.splitlines()[start_line:end_line])
 
             # Create a new tab with an editor for the function code
@@ -654,9 +711,14 @@ class FunctionImporter(QDialog):
     def reanalyze(self):
         # Get code from editors
         code = self.get_code()
-        # ToDo: Save changed code back into file if loaded from life
-        self.clear_editor_tabs()
-        self.analyze_code(code)
+        try:
+            self._parse_functions(code)
+            self.clear_editor_tabs()
+            self.analyze_code(code)
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not analyze Python functions."
+            ).open()
 
     @staticmethod
     def _populate_config(config_items, layout, config_slot, move_slot=None):
@@ -682,7 +744,9 @@ class FunctionImporter(QDialog):
             layout.addRow(item, bt_layout)
 
     def update_config(self, idx):
-        self.current_func = list(self.func_config.keys())[idx]
+        if idx < 0 or idx >= self.tab_widget.count():
+            return
+        self.current_func = self.tab_widget.tabText(idx)
         # Update target
         target = self.func_config[self.current_func].get("target", "file")
         self.target_cmbx.setCurrentText(target)
@@ -708,10 +772,12 @@ class FunctionImporter(QDialog):
         )
 
     def get_code(self):
-        code = ""
-        for editor in self.editors.values():
-            code += editor.toPlainText() + "\n\n"
-        return code
+        lines = self._source_code.splitlines(keepends=True)
+        for name, (start, end) in sorted(
+            self._function_lines.items(), key=lambda item: item[1][0], reverse=True
+        ):
+            lines[start:end] = [self.editors[name].toPlainText() + "\n"]
+        return "".join(lines)
 
     def move_item(self, item):
         """Move item between inputs and parameters."""
@@ -766,23 +832,65 @@ class FunctionImporter(QDialog):
         if self._pkg_dir is not None:
             return Path(self._pkg_dir) / f"{self.plugin_name}_config.json"
 
-    def save_config(self):
+    def save_config(self) -> Path:
+        """Write the plugin configuration and return its path."""
         save_path = self._get_config_path()
+        if save_path is None:
+            raise ValueError("A plugin destination directory is required.")
         with open(save_path, "w") as f:
             json.dump(self.func_config, f, indent=4, cls=TypedJSONEncoder)
             logger.info(f"Saved config to {save_path}")
+        return save_path
 
-    def save(self):
-        # Todo: Implement change of code with existing file (consider imports)
-        if self.file_path is None:
-            self.file_path = f"{self.plugin_name}.py"
-            code = self.get_code()
-            with open(self.file_path, "w") as f:
-                f.write(code)
-
-        self.save_config()
+    def save(self) -> bool:
+        """Save the plugin, displaying errors and reporting whether it succeeded."""
+        try:
+            if not self.func_config:
+                raise ValueError("Load Python functions before saving a plugin.")
+            plugin_name = self.plugin_name
+            if (
+                not isinstance(plugin_name, str)
+                or not plugin_name.isidentifier()
+                or keyword.iskeyword(plugin_name)
+            ):
+                raise ValueError(
+                    "Plugin names must be valid Python module names containing "
+                    "only letters, digits, and underscores, and cannot be keywords."
+                )
+            if self.file_path is None:
+                save_path = Path(self.pkg_dir()) / f"{plugin_name}.py"
+                code = self.get_code()
+                ast.parse(code)
+                with save_path.open("x", encoding="utf-8") as stream:
+                    stream.write(code)
+                self.file_path = save_path
+                self._created_file = True
+            elif self._created_file:
+                code = self.get_code()
+                ast.parse(code)
+                self.file_path.write_text(code, encoding="utf-8")
+            config_path = self.save_config()
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not save the plugin."
+            ).open()
+            return False
+        if self._on_saved is not None:
+            try:
+                self._on_saved(config_path)
+            except Exception:  # noqa: BLE001
+                ErrorDialog(
+                    get_exception_tuple(),
+                    self,
+                    "The plugin was saved, but could not be loaded.",
+                ).open()
+                return False
+        return True
 
     def closeEvent(self, event):
+        if not self.func_config:
+            event.accept()
+            return
         # Check for mandatory configuration items
         warning_msg = "The following mandatory configuration items are missing:\n"
         ok = True
@@ -799,7 +907,7 @@ class FunctionImporter(QDialog):
         if ok:
             # Check if configuration was saved
             config_path = self._get_config_path()
-            if isfile(config_path):
+            if config_path is not None and isfile(config_path):
                 with open(config_path) as f:
                     loaded_config = json.load(f, object_hook=type_json_hook)
                 same = json.dumps(
@@ -812,8 +920,9 @@ class FunctionImporter(QDialog):
                 "You have unsaved config-changes, to you want to save them before closing?",
                 buttons=["Save and Quit", "Quit without saving"],
             )
-            if ans:
-                self.save()
+            if ans and not self.save():
+                event.ignore()
+                return
             event.accept()
         else:
             warning_msg += "Do you want to close anyway?"

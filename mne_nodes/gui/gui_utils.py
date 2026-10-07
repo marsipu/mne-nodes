@@ -13,7 +13,7 @@ from os.path import join
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from qtpy.QtCore import QEvent, QPoint, QPointF, Qt
+from qtpy.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt
 from qtpy.QtGui import QColor, QMouseEvent
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
@@ -40,6 +40,16 @@ from mne_nodes.gui.gui_theme import (
 )
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.settings import Settings
+
+
+def is_function_import_mime(mime: QMimeData) -> bool:
+    """Recognize external Python-file or code-text import payloads."""
+    if mime.hasUrls():
+        return bool(mime.urls()) and all(
+            url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".py"
+            for url in mime.urls()
+        )
+    return bool(mime.text().strip()) and not mime.text().startswith("mne-nodes/")
 
 
 def center(widget):

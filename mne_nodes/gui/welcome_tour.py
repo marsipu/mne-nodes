@@ -1,6 +1,8 @@
 import shutil
+import sys
 from collections.abc import Callable
 from copy import deepcopy
+from html import escape
 from importlib import import_module
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -53,6 +55,13 @@ if TYPE_CHECKING:
 
 WELCOME_TOUR_PADDING = 10
 WELCOME_CONFIG_PATH = Path(__file__).parents[1] / "extra" / "Welcome_pipeline.json"
+WELCOME_CROP_CODE = (
+    "def crop_raw(raw, tmin=0.0, tmax=10.0):\n"
+    '    """Crop a copy; times are in seconds."""\n'
+    "    raw = raw.copy()\n"
+    "    raw.crop(tmin=tmin, tmax=tmax)\n"
+    "    return raw\n"
+)
 
 
 class WelcomeTourStep(TypedDict):
@@ -60,6 +69,9 @@ class WelcomeTourStep(TypedDict):
 
     widget: QWidget | QGraphicsItem | Callable[[], QWidget | QGraphicsItem | None]
     text: str
+    action: NotRequired[Callable[[], None]]
+    action_text: NotRequired[str]
+    cleanup: NotRequired[Callable[[], None]]
     is_complete: NotRequired[Callable[[], bool]]
     requires_completion: NotRequired[bool]
     interactive_widgets: NotRequired[list[QWidget] | Callable[[], list[QWidget]]]
@@ -128,6 +140,7 @@ class WelcomeTourWidget(QWidget):
     next_clicked = Signal()
     prev_clicked = Signal()
     cancel_clicked = Signal()
+    action_clicked = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -138,6 +151,10 @@ class WelcomeTourWidget(QWidget):
         self.label = QLabel("Welcome step text")
         self.label.setObjectName("tourLabel")
         self.label.setWordWrap(True)
+        self.label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
         self.status_label.hide()
@@ -148,6 +165,9 @@ class WelcomeTourWidget(QWidget):
         self.prev_btn.setObjectName("backButton")
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.setObjectName("cancelButton")
+        self.action_btn = QPushButton()
+        self.action_btn.hide()
+        self.action_btn.clicked.connect(self.action_clicked)
 
         btns = QHBoxLayout()
         btns.setSpacing(8)
@@ -160,6 +180,7 @@ class WelcomeTourWidget(QWidget):
         layout.setSpacing(12)
         layout.addWidget(self.label)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.action_btn)
         layout.addLayout(btns)
         self._button_layout = btns
         self._content_layout = layout
@@ -212,6 +233,10 @@ class WelcomeTourWidget(QWidget):
                 self.status_label.heightForWidth(label_width)
                 + self._content_layout.spacing()
             )
+        if not self.action_btn.isHidden():
+            height += (
+                self.action_btn.sizeHint().height() + self._content_layout.spacing()
+            )
         return QSize(width, height)
 
 
@@ -245,6 +270,9 @@ class WelcomeTour(QObject):
     Interactive widgets are disabled except for those explicitly listed in
     ``interactive_widgets`` for the active step. Descendant controls and menu
     actions belonging to those widgets remain available.
+    An optional ``action`` and ``action_text`` expose a step-specific button.
+    Step ``cleanup`` callbacks run on completion or cancellation before the
+    demo plugins and temporary directory are removed.
     """
 
     finished = Signal()
@@ -292,6 +320,7 @@ class WelcomeTour(QObject):
         self.widget.next_clicked.connect(self.next_step)
         self.widget.prev_clicked.connect(self.prev_step)
         self.widget.cancel_clicked.connect(self.finish)
+        self.widget.action_clicked.connect(self._run_step_action)
 
         application = QApplication.instance()
         if application is not None:
@@ -818,6 +847,8 @@ class WelcomeTour(QObject):
         self._task_complete = False
         self._observe_target(None)
         self.widget.set_text(step["text"])
+        self.widget.action_btn.setVisible("action" in step)
+        self.widget.action_btn.setText(step.get("action_text", ""))
         self.widget.next_btn.setText(
             "Finished" if idx == len(self.steps) - 1 else "Next"
         )
@@ -831,6 +862,12 @@ class WelcomeTour(QObject):
         )
         focus_button.setFocus(Qt.FocusReason.OtherFocusReason)
         self._refresh_timer.start()
+
+    def _run_step_action(self) -> None:
+        action = self.steps[self.index].get("action")
+        if action is not None:
+            action()
+            self.refresh()
 
     def next_step(self):
         if self._finished:
@@ -868,6 +905,10 @@ class WelcomeTour(QObject):
             application.removeEventFilter(self)
         self.overlay.hide()
         self.widget.hide()
+        for step in self.steps:
+            cleanup = step.get("cleanup")
+            if cleanup is not None:
+                cleanup()
         if self._disconnect_process_started is not None:
             self._disconnect_process_started()
             self._disconnect_process_started = None
@@ -883,7 +924,7 @@ class WelcomeTour(QObject):
 
 
 def build_welcome_steps(
-    ct: "Controller", main_window: "MainWindow"
+    ct: "Controller", main_window: "MainWindow", *, plugin_directory: Path | None = None
 ) -> list[WelcomeTourStep]:
     """Return the built-in tour steps for the demo pipeline.
 
@@ -891,6 +932,88 @@ def build_welcome_steps(
     after a user action, so they are resolved from the live viewer state.
     """
     viewer = main_window.viewer
+    from mne_nodes.gui.function_widgets import FunctionImporter
+
+    importer: FunctionImporter | None = None
+    plugin_name = (
+        plugin_directory.name.replace("-", "_") + "_crop"
+        if plugin_directory is not None
+        else "welcome_crop"
+    )
+
+    def import_crop_example() -> None:
+        nonlocal importer
+        if importer is not None:
+            importer.show()
+            importer.raise_()
+            return
+        if plugin_directory is None:
+            raise RuntimeError("The crop example requires a temporary tour directory.")
+
+        def load_saved_plugin(config_path: Path) -> None:
+            main_window._load_saved_plugin(config_path)
+            if importer is not None:
+                QTimer.singleShot(0, importer.close)
+
+        importer = FunctionImporter(
+            code=WELCOME_CROP_CODE,
+            parent=main_window,
+            plugin_name=plugin_name,
+            destination_dir=plugin_directory,
+            on_saved=load_saved_plugin,
+        )
+        # A modal importer would block the tour's Back/Cancel/Next controls.
+        importer.setWindowModality(Qt.WindowModality.NonModal)
+        importer.show()
+
+    def cleanup_crop_example() -> None:
+        if importer is not None:
+            importer.func_config.clear()
+            importer.close()
+            importer.deleteLater()
+        module = sys.modules.get(plugin_name)
+        if module is not None and plugin_directory is not None:
+            module_file = getattr(module, "__file__", None)
+            if module_file is not None and Path(module_file).parent == plugin_directory:
+                sys.modules.pop(plugin_name, None)
+        if plugin_directory is not None and str(plugin_directory) in sys.path:
+            sys.path.remove(str(plugin_directory))
+
+    def crop_node():
+        return next(
+            (
+                node
+                for node in viewer.function_nodes.values()
+                if node.name is not None
+                and ct.function_meta.get(node.name.split("-")[0], {}).get("plugin")
+                == plugin_name
+            ),
+            None,
+        )
+
+    def crop_connection_ports() -> list[QGraphicsItem]:
+        source = function_node()
+        target = crop_node()
+        if source is None or target is None:
+            return []
+        return [*source.outputs, *target.inputs]
+
+    def crop_source_ports() -> list[QGraphicsItem]:
+        source = function_node()
+        return list(source.outputs) if source is not None else []
+
+    def crop_connected() -> bool:
+        source = function_node()
+        target = crop_node()
+        return (
+            source is not None
+            and target is not None
+            and any(
+                port.node is source
+                for input_port in target.inputs
+                for port in input_port.connected_ports
+            )
+        )
 
     def function_node():
         return next(iter(viewer.function_nodes.values()), None)
@@ -1023,6 +1146,47 @@ def build_welcome_steps(
             "widget": main_window.console_dock,
             "text": "Here you can view the output of the processing steps.",
         },
+        {
+            "widget": main_window.menuBar(),
+            "text": "Add code with Plugins > Import Functions... > Load File, "
+            "drop a Python file or code onto the canvas, or paste with Ctrl+V.",
+        },
+        {
+            "widget": viewer,
+            "text": "<p>Click <b>Import crop example</b> to try this function:</p>"
+            f"<pre>{escape(WELCOME_CROP_CODE)}</pre>",
+            "action_text": "Import crop example",
+            "action": import_crop_example,
+            "is_complete": lambda: importer is not None,
+            "cleanup": cleanup_crop_example,
+        },
+        {
+            "widget": viewer,
+            "text": "Review crop_raw's inputs, outputs and parameters, then click "
+            "Save to load the plugin. Only save code you trust.",
+            "interactive_widgets": lambda: [importer] if importer is not None else [],
+            "is_complete": lambda: plugin_name in ct.plugins,
+        },
+        {
+            "widget": lambda: function_node(),
+            "text": "Right-click the canvas or the filter's raw output "
+            "and choose crop_raw.",
+            "is_complete": lambda: crop_node() is not None,
+            "interactive_views": [viewer],
+            "interactive_items": crop_source_ports,
+        },
+        {
+            "widget": crop_node,
+            "text": "Connect the filter's raw output to crop_raw's raw input.",
+            "is_complete": crop_connected,
+            "interactive_views": [viewer],
+            "interactive_items": crop_connection_ports,
+        },
+        {
+            "widget": main_window.menuBar(),
+            "text": "The Plugins menu also loads existing plugins from a path, "
+            "module or GitHub.",
+        },
         {"widget": viewer, "text": "This concludes the welcome tour."},
     ]
 
@@ -1040,7 +1204,10 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
                 if node.name is None:
                     continue
                 metadata = ct.function_meta.get(node.name.split("-")[0], {})
-                if metadata.get("plugin") == "example_plugin":
+                if (
+                    metadata.get("plugin") == "example_plugin"
+                    or metadata.get("plugin") not in previous_plugins
+                ):
                     viewer.remove_node(node, force=True)
             ct._unload_plugin_session("example_plugin")
             ct.plugins.clear()
@@ -1130,8 +1297,10 @@ def start_welcome_tour(
     Sample BIDS data is prepared before loading the demo and reused on later tours.
     If root confirmation selects another destination, sample data is prepared
     there before the demo nodes are rebuilt.
-    Only ``example_plugin`` is available during the tour; existing plugins and
-    their functions are restored when it ends without changing disabled settings.
+    Initially only ``example_plugin`` is available. The hands-on import task
+    saves its crop plugin in the same temporary directory. Both demo plugins are
+    removed and existing plugins restored on completion or cancellation without
+    changing disabled settings.
     Returns None when the user declines.
     """
     if not ask_user("Would you like to start the welcome tour?", parent=main_window):
@@ -1154,7 +1323,12 @@ def start_welcome_tour(
         finally:
             ct.settings.set("config_path", previous_config_path)
         cleanup_plugin = _load_welcome_plugin(ct)
-        tour = WelcomeTour(main_window, build_welcome_steps(ct, main_window))
+        tour = WelcomeTour(
+            main_window,
+            build_welcome_steps(
+                ct, main_window, plugin_directory=Path(demo_directory.name)
+            ),
+        )
     except Exception:
         if cleanup_plugin is not None:
             cleanup_plugin()

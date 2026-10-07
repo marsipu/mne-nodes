@@ -533,6 +533,8 @@ def test_welcome_tour_waits_for_pipeline_start(
         assert tour._target is dock
         tour.next_step()
         assert tour.index == 9
+        assert tour.overlay.isVisible()
+        tour.show_step(len(tour.steps) - 1)
         assert not tour.overlay.isVisible()
     finally:
         tour.finish()

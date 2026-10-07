@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from qtpy.QtCore import QEvent, QPoint, QPointF, QRectF, Qt
 from qtpy.QtGui import (
@@ -8,6 +10,7 @@ from qtpy.QtGui import (
     QMouseEvent,
     QPainterPath,
     QPalette,
+    QTextDocument,
 )
 from qtpy.QtWidgets import (
     QApplication,
@@ -22,10 +25,171 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.welcome_tour import (
+    WELCOME_CROP_CODE,
     WELCOME_TOUR_PADDING,
     WelcomeTour,
     WelcomeTourWidget,
+    build_welcome_steps,
 )
+
+
+def test_code_plugin_steps_are_tasks(main_window, qtbot):
+    """The crop workflow cannot advance until each real action is complete."""
+    steps = build_welcome_steps(main_window.controller, main_window)
+    assert len(steps) == 16
+    guidance = steps[9:-1]
+    text = "\n".join(step["text"] for step in guidance)
+    for entry in (
+        "Import Functions...",
+        "Load File",
+        "Ctrl+V",
+        "Save to load the plugin",
+        "Connect the filter's raw output",
+        "raw.crop(",
+    ):
+        assert entry in text
+    for step in guidance:
+        document = QTextDocument()
+        document.setHtml(step["text"])
+        prose = document.toPlainText().replace(WELCOME_CROP_CODE.strip(), "")
+        assert len(prose.split()) <= 30
+    document = QTextDocument()
+    document.setHtml(guidance[1]["text"])
+    assert WELCOME_CROP_CODE.strip() in document.toPlainText()
+    tour = WelcomeTour(main_window, steps)
+    try:
+        for index in range(10, 14):
+            step = steps[index]
+            assert "is_complete" in step
+            tour.show_step(index)
+            assert not tour.widget.next_btn.isEnabled()
+            assert tour.widget.label.text() == step["text"]
+            assert main_window.rect().contains(tour.widget.geometry())
+        assert (
+            tour.widget.label.textInteractionFlags()
+            & Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        tour.show_step(len(steps) - 1)
+        assert tour.widget.next_btn.text() == "Finished"
+    finally:
+        tour.finish()
+
+
+@pytest.mark.parametrize("stop_after", ["import", "save", "connect"])
+def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_after):
+    """Actual importer buttons load the example and teardown restores user state."""
+    import sys
+
+    from mne_nodes.gui.function_widgets import FunctionImporter
+    from mne_nodes.gui.welcome_tour import start_welcome_tour
+
+    ct = main_window.controller
+    previous_plugins = ct.plugins.copy()
+    previous_functions = ct.function_meta.copy()
+    previous_settings = ct.settings._load()
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour._ensure_welcome_sample",
+        lambda *args, **kwargs: None,
+    )
+    tour = start_welcome_tour(ct, main_window)
+    assert tour is not None
+    directory = Path(tour.demo_directory.name)
+    plugin_name = directory.name.replace("-", "_") + "_crop"
+    try:
+        filter_node = main_window.viewer.add_function_node("example_filter")
+        tour.show_step(10)
+        qtbot.mouseClick(tour.widget.action_btn, Qt.MouseButton.LeftButton)
+        qtbot.waitUntil(lambda: tour.index == 11)
+        (importer,) = main_window.findChildren(FunctionImporter)
+        assert importer.isVisible()
+        assert importer.windowModality() == Qt.WindowModality.NonModal
+        assert importer.get_code() == WELCOME_CROP_CODE
+        assert importer.save_button.isEnabled()
+        assert not tour.widget.next_btn.isEnabled()
+        if stop_after != "import":
+            if stop_after == "save":
+                errors = []
+
+                def failed_load(path):
+                    raise ImportError("Simulated plugin load failure")
+
+                with monkeypatch.context() as patch:
+                    patch.setattr(ct, "load_plugin_path", failed_load)
+                    patch.setattr(
+                        "mne_nodes.gui.function_widgets.ErrorDialog.open",
+                        lambda self: errors.append(self),
+                    )
+                    qtbot.mouseClick(importer.save_button, Qt.MouseButton.LeftButton)
+                    tour.refresh()
+                    assert errors
+                    assert tour.index == 11
+                    assert not tour.widget.next_btn.isEnabled()
+            qtbot.mouseClick(importer.save_button, Qt.MouseButton.LeftButton)
+            qtbot.waitUntil(lambda: tour.index == 12)
+            qtbot.waitUntil(lambda: not importer.isVisible())
+            assert plugin_name in ct.plugins
+            assert (directory / f"{plugin_name}_config.json").is_file()
+            assert not tour.widget.next_btn.isEnabled()
+        if stop_after == "connect":
+            crop = main_window.viewer.add_function_node("crop_raw")
+            qtbot.waitUntil(lambda: tour.index == 13)
+            assert not tour.widget.next_btn.isEnabled()
+            filter_node.output(port_name="raw").connect_to(crop.input(port_name="raw"))
+            qtbot.waitUntil(lambda: tour.index == 14)
+            assert tour.widget.next_btn.isEnabled()
+            tour.next_step()
+            assert tour.widget.next_btn.text() == "Finished"
+            qtbot.mouseClick(tour.widget.next_btn, Qt.MouseButton.LeftButton)
+        else:
+            qtbot.mouseClick(tour.widget.cancel_btn, Qt.MouseButton.LeftButton)
+        assert tour._finished
+    finally:
+        tour.finish(notify=False)
+    assert not directory.exists()
+    assert ct.plugins == previous_plugins
+    assert ct.function_meta == previous_functions
+    assert plugin_name not in sys.modules
+    assert str(directory) not in sys.path
+    assert not any(
+        node.name is not None and node.name.startswith("crop_raw")
+        for node in main_window.viewer.function_nodes.values()
+    )
+    assert ct.settings._load() == previous_settings
+
+
+def test_crop_example_imports_and_runs(qtbot, monkeypatch):
+    """The suggested code must produce usable ports/parameters and crop real Raw."""
+    import numpy as np
+    from mne import create_info
+    from mne.io import RawArray
+
+    from mne_nodes.gui.function_widgets import FunctionImporter
+
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.get_user_input",
+        lambda *args, **kwargs: "my_crop",
+    )
+    importer = FunctionImporter(code=WELCOME_CROP_CODE)
+    qtbot.addWidget(importer)
+    config = importer.func_config["crop_raw"]
+    assert list(config["inputs"]) == ["raw"]
+    assert list(config["outputs"]) == ["raw"]
+    assert config["parameters"]["tmin"]["default"] == 0.0
+    assert config["parameters"]["tmax"]["default"] == 10.0
+    assert config["parameters"]["tmin"]["gui"] == "FloatGui"
+    assert config["parameters"]["tmax"]["gui"] == "FloatGui"
+    namespace = {}
+    exec(WELCOME_CROP_CODE, namespace)  # noqa: S102
+    raw = RawArray(np.zeros((1, 2001)), create_info(["EEG"], 100.0, "eeg"))
+    cropped = namespace["crop_raw"](raw, tmin=1.0, tmax=2.0)
+    assert cropped is not raw
+    assert cropped.n_times == 101
+    assert raw.n_times == 2001
+    importer.func_config.clear()
+    importer.close()
 
 
 def test_compute_highlight_rect_for_graphics_item(qtbot):
