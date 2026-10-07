@@ -125,7 +125,7 @@ class PluginManagerDlg(QDialog):
         self._refresh_rows()
 
     def _remove_plugin(self, plugin_name: str):
-        from mne_nodes.gui.gui_utils import ask_user
+        from mne_nodes.gui.user_interaction import ask_user
 
         question = (
             f"Remove plugin '{plugin_name}' from this project?\n"

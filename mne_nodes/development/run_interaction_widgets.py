@@ -2,7 +2,7 @@ import sys
 
 from qtpy.QtWidgets import QApplication
 
-from mne_nodes.gui.gui_utils import (
+from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
     get_user_input,

@@ -62,7 +62,7 @@ def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
 
 def test_replacing_input_node_removes_previous_dataset(main_window):
     """Replacing the input must remove the old node, scene item and connections."""
-    from mne_nodes.gui.node.nodes import InputNode
+    from mne_nodes.gui.node.input_node import InputNode
 
     viewer = main_window.viewer
     previous_node = viewer.input_node

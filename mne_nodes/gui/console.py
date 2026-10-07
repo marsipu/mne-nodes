@@ -35,7 +35,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes.gui.gui_utils import ask_user
+from mne_nodes.gui.user_interaction import ask_user
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.pipeline.streams import init_streams

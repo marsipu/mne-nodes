@@ -34,7 +34,7 @@ from mne_bids import (
 )
 
 from mne_nodes import gui_mode, ismac, iswin
-from mne_nodes.gui.gui_utils import (
+from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
     get_user_input,
@@ -1664,7 +1664,7 @@ class Controller:
 
         Removes the plugin from ``self.plugins``, clears the associated entries
         from ``self.function_meta``, and removes every matching
-        :class:`~mne_nodes.gui.node.nodes.FunctionNode` from the node-viewer.
+        :class:`~mne_nodes.gui.node.function_node.FunctionNode` from the node-viewer.
 
         Parameters
         ----------

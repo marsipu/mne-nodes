@@ -44,8 +44,8 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
-from mne_nodes.gui.gui_utils import ask_user
 from mne_nodes.gui.run_widgets import WorkerDialog
+from mne_nodes.gui.user_interaction import ask_user
 from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.exception_handling import ExceptionTuple
 

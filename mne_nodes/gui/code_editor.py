@@ -21,7 +21,7 @@ from qtpy.QtGui import (
 )
 from qtpy.QtWidgets import QPlainTextEdit, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
-from mne_nodes.gui.gui_utils import get_user_input
+from mne_nodes.gui.user_interaction import get_user_input
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.pipeline_utils import change_file_section
 from mne_nodes.pipeline.settings import Settings

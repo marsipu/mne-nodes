@@ -38,13 +38,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.gui_utils import (
-    ask_user,
-    ask_user_custom,
-    edit_font,
-    get_user_input,
-    raise_user_attention,
-)
+from mne_nodes.gui.gui_utils import edit_font
 from mne_nodes.gui.parameter import (
     BoolGui,
     CallableGui,
@@ -67,6 +61,12 @@ from mne_nodes.gui.parameter import (
     SliderGui,
     StringGui,
     TupleGui,
+)
+from mne_nodes.gui.user_interaction import (
+    ask_user,
+    ask_user_custom,
+    get_user_input,
+    raise_user_attention,
 )
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.exception_handling import get_exception_tuple

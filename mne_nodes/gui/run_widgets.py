@@ -17,7 +17,8 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
-from mne_nodes.gui.gui_utils import set_ratio_geometry, warning_message
+from mne_nodes.gui.gui_utils import set_ratio_geometry
+from mne_nodes.gui.user_interaction import warning_message
 from mne_nodes.pipeline.exception_handling import ExceptionTuple
 from mne_nodes.pipeline.execution import Process, Worker
 

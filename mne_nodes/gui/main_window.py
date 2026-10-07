@@ -16,18 +16,16 @@ from mne_nodes import iswin
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
 from mne_nodes.gui.function_widgets import FunctionImporter
-from mne_nodes.gui.gui_utils import (
-    ask_user,
-    center,
-    get_user_input,
-    information_message,
-    is_function_import_mime,
-    raise_user_attention,
-    set_ratio_geometry,
-)
+from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.user_interaction import (
+    ask_user,
+    get_user_input,
+    information_message,
+    raise_user_attention,
+)
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.pipeline.data_import import load_sample_bids
 from mne_nodes.pipeline.exception_handling import get_exception_tuple

@@ -23,13 +23,14 @@ from qtpy.QtWidgets import (
 
 from mne_nodes import debug_mode
 from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
-from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
+from mne_nodes.gui.node.function_node import FunctionNode
+from mne_nodes.gui.node.input_node import InputNode
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
-from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.gui.user_interaction import raise_user_attention
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
 
@@ -592,12 +593,18 @@ class NodeViewer(QGraphicsView):
         self.clear()
         # Create nodes
         for node_info in viewer_dict["nodes"].values():
-            node_class = getattr(nodes, node_info["class"])
+            node_classes = {"InputNode": InputNode, "FunctionNode": FunctionNode}
+            node_class = node_classes.get(node_info["class"])
+            if node_class is None:
+                logger.warning(
+                    f"Node class '{node_info['class']}' not found. Skipping node."
+                )
+                continue
             try:
                 node = node_class.from_dict(self.ct, node_info)
             except KeyError:
                 logger.warning(
-                    f"Node class '{node_info['class']}' not found in nodes module. Skipping node."
+                    f"Could not load node class '{node_info['class']}'. Skipping node."
                 )
                 continue
             if node_info["class"] == "InputNode":
@@ -930,7 +937,10 @@ class NodeViewer(QGraphicsView):
                     )
                     sub_category_menu.addAction(func_action)
 
-        menu.exec(event.globalPos())
+        if menu.isEmpty():
+            raise_user_attention("No plugins loaded.", message_type="info")
+        else:
+            menu.exec(event.globalPos())
         event.accept()
 
     def _port_at_view_pos(self, pos: QPoint, tolerance: int = 8) -> Port | None:
@@ -946,11 +956,6 @@ class NodeViewer(QGraphicsView):
         """Show context menu with actions specific to a single port."""
         menu = QMenu(self)
         menus = {}
-
-        disconnect_action = QAction("Disconnect all", menu)
-        disconnect_action.triggered.connect(port.clear_connections)
-        menu.addAction(disconnect_action)
-        menu.addSeparator()
 
         # Get corresponding functions for inputs/outputs
         funcs = set()
@@ -988,7 +993,13 @@ class NodeViewer(QGraphicsView):
                 )
             )
             sub_menu.addAction(func_action)
-        menu.exec(event.globalPos())
+        if menu.isEmpty():
+            raise_user_attention(
+                "No functions available for this port or no plugins are loaded.",
+                message_type="info",
+            )
+        else:
+            menu.exec(event.globalPos())
         self.RMB_state = False
         event.accept()
 

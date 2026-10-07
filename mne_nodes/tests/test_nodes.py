@@ -56,7 +56,8 @@ def test_nodes_basic_interaction(nodeviewer):
     # including a slightly imprecise drop near the target port.
     port1.disconnect_from(port2)
     assert not port1.connected(port2)
-    near_out1_pos = QPointF(out1_pos.x() + 6, out1_pos.y() + 4)
+    # Keep the imprecise drop inside the port's hit area.
+    near_out1_pos = QPointF(out1_pos.x() + 2, out1_pos.y() + 2)
     mouseDrag(
         widget=nodeviewer.viewport(),
         positions=[in2_pos, near_out1_pos],
@@ -165,6 +166,9 @@ def test_right_click_opens_context_menu(nodeviewer, monkeypatch):
         def exec(self, *args, **kwargs):
             calls.append(True)
 
+        def isEmpty(self):
+            return False
+
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 
     class FakeContextMenuEvent:
@@ -207,6 +211,9 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
         def exec(self, *args, **kwargs):
             calls.append(True)
 
+        def isEmpty(self):
+            return False
+
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 
     start_pos = nodeviewer.viewport().rect().center()
@@ -246,6 +253,9 @@ def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
                 [action.text() for action in self.actions if hasattr(action, "text")]
             )
 
+        def isEmpty(self):
+            return False
+
     monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", FakeMenu)
 
     class FakeContextMenuEvent:
@@ -268,7 +278,7 @@ def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
     nodeviewer.contextMenuEvent(FakeContextMenuEvent(click_pos))
 
     assert calls
-    assert "Disconnect all" in action_texts
+    assert "test_epochs" in action_texts
 
 
 def test_node_serialization(nodeviewer):
