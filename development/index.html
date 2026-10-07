@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Development &#8212; mne-nodes 0.1.0.dev1+gf276c10d5 documentation</title>
+    <title>Development &#8212; mne-nodes 0.1.0.dev1+ga24061714 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=6b0341f5"></script>
+    <script src="../_static/documentation_options.js?v=24395cfb"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'development/index';</script>
@@ -116,7 +116,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+gf276c10d5 documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+ga24061714 documentation</p>
   
 </a></div>
     
@@ -443,10 +443,25 @@
 </li>
 </ul>
 </div>
+<section id="project-layout">
+<h2>Project layout<a class="headerlink" href="#project-layout" title="Link to this heading">#</a></h2>
+<p>Install the checkout with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">&quot;.[test,docs]&quot;</span></code> before running
+the application, tests or Sphinx. Launch the application with
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mne_nodes</span></code>; no import-path modifications are needed.</p>
+<p>The installed package lives in <code class="docutils literal notranslate"><span class="pre">src/mne_nodes</span></code> with Qt components in <code class="docutils literal notranslate"><span class="pre">gui</span></code>,
+workflow services in <code class="docutils literal notranslate"><span class="pre">backend</span></code> and bundled assets in <code class="docutils literal notranslate"><span class="pre">resources</span></code>.
+Tests and their datasets live in the root <code class="docutils literal notranslate"><span class="pre">tests</span></code> directory. Development
+helpers live in the root <code class="docutils literal notranslate"><span class="pre">development</span></code> directory and can be run as modules,
+for example <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">development.param_tester</span></code>. Neither directory is
+included in the wheel.</p>
+<p>Plugins using the previous <code class="docutils literal notranslate"><span class="pre">mne_nodes.pipeline</span></code> imports must switch to
+<code class="docutils literal notranslate"><span class="pre">mne_nodes.backend</span></code>. The <code class="docutils literal notranslate"><span class="pre">mne_nodes.gui</span></code> module path and application
+entry point are unchanged.</p>
+</section>
 <section id="test-isolation">
 <h2>Test isolation<a class="headerlink" href="#test-isolation" title="Link to this heading">#</a></h2>
 <p>Run tests in the existing development environment, for example
-<code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">run</span> <span class="pre">-n</span> <span class="pre">mnedev</span> <span class="pre">pytest</span> <span class="pre">mne_nodes/tests/test_main_window.py</span></code>.
+<code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">run</span> <span class="pre">-n</span> <span class="pre">mnedev</span> <span class="pre">pytest</span> <span class="pre">tests/test_main_window.py</span></code>.
 Pytest redirects <code class="docutils literal notranslate"><span class="pre">MNENODES_SETTINGS_DIR</span></code> to temporary settings before
 collecting test modules, and gives each test its own fresh settings directory,
 even when it does not request the <code class="docutils literal notranslate"><span class="pre">settings</span></code> fixture. Test logging also uses
@@ -530,6 +545,7 @@ been replaced by this API.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-layout">Project layout</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-isolation">Test isolation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#widget-registry">Widget Registry</a></li>
 </ul>
@@ -560,7 +576,7 @@ been replaced by this API.</p>
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-07 19:35 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-07 20:25 UTC.
       <br/>
     
   </p>

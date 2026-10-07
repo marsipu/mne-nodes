@@ -6,11 +6,29 @@ Development
 
     Docker GUI <docker_gui>
 
+Project layout
+--------------
+
+Install the checkout with ``pip install -e ".[test,docs]"`` before running
+the application, tests or Sphinx. Launch the application with
+``python -m mne_nodes``; no import-path modifications are needed.
+
+The installed package lives in ``src/mne_nodes`` with Qt components in ``gui``,
+workflow services in ``backend`` and bundled assets in ``resources``.
+Tests and their datasets live in the root ``tests`` directory. Development
+helpers live in the root ``development`` directory and can be run as modules,
+for example ``python -m development.param_tester``. Neither directory is
+included in the wheel.
+
+Plugins using the previous ``mne_nodes.pipeline`` imports must switch to
+``mne_nodes.backend``. The ``mne_nodes.gui`` module path and application
+entry point are unchanged.
+
 Test isolation
 --------------
 
 Run tests in the existing development environment, for example
-``conda run -n mnedev pytest mne_nodes/tests/test_main_window.py``.
+``conda run -n mnedev pytest tests/test_main_window.py``.
 Pytest redirects ``MNENODES_SETTINGS_DIR`` to temporary settings before
 collecting test modules, and gives each test its own fresh settings directory,
 even when it does not request the ``settings`` fixture. Test logging also uses
