@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from pprint import pprint
 
+import pytest
 from qtpy.QtCore import QObject, QPoint, QPointF, Qt
 from qtpy.QtWidgets import QLabel
 
@@ -13,6 +14,51 @@ from mne_nodes.gui.gui_utils import mouseDrag, mouseMove, mousePress, mouseRelea
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.ports import Port
 from tests.conftest import _add_complex_nodes
+
+
+@pytest.mark.parametrize("directory", ["bids_root", "subjects_dir"])
+@pytest.mark.parametrize("accept", [False, True])
+def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, directory, accept):
+    from mne_nodes.gui.node.input_node import InputWidget
+
+    subjects_dir = tmp_path / "subjects"
+    subjects_dir.mkdir()
+    ct.subjects_dir = subjects_dir
+    old_directory = getattr(ct, directory)
+    new_directory = tmp_path / "new_input"
+    new_directory.mkdir()
+    selections = {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]}
+    ct.set("selected_inputs", selections.copy())
+    monkeypatch.setattr(
+        ct,
+        "get_datatype_items",
+        lambda: {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]},
+    )
+    monkeypatch.setattr(ct, "get_group_by_strings", lambda group_by: {})
+    widget = InputWidget(ct)
+    qtbot.addWidget(widget)
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.ask_user",
+        lambda message: confirmations.append(message) or accept,
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.node.input_node.get_user_input",
+        lambda *args, **kwargs: new_directory,
+    )
+
+    button = widget.root_bt if directory == "bids_root" else widget.subdir_bt
+    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+
+    assert len(confirmations) == 1
+    assert getattr(ct, directory) == (new_directory if accept else old_directory)
+    for index in range(2):
+        data_type = widget.tab_widget.tabText(index)
+        expected = selections[data_type]
+        if accept and ((data_type == "subject") == (directory == "subjects_dir")):
+            expected = []
+        assert widget.tab_widget.widget(index).model._checked == expected
+        assert ct.get("selected_inputs")[data_type] == expected
 
 
 def test_nodes_basic_interaction(nodeviewer):

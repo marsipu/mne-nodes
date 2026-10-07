@@ -6,7 +6,14 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from qtpy.QtWidgets import QComboBox, QPushButton, QTabWidget, QVBoxLayout, QWidget
+from qtpy.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.user_interaction import get_user_input
@@ -24,9 +31,15 @@ class InputWidget(QWidget):
         self.setMinimumSize(400, 300)
 
         # Add bids-root button
-        self.root_bt = QPushButton("Set BIDS Root Directory")
+        hbox = QHBoxLayout()
+        layout.addLayout(hbox)
+        self.root_bt = QPushButton("Set BIDS Root")
         self.root_bt.clicked.connect(self.set_root)
-        layout.addWidget(self.root_bt)
+        hbox.addWidget(self.root_bt)
+        self.subdir_bt = QPushButton("Set SUBJECTS_DIR")
+        self.subdir_bt.clicked.connect(self.set_subdir)
+        hbox.addWidget(self.subdir_bt)
+
         # Datatype Tab Widget
         self.tab_widget = QTabWidget()
         layout.addWidget(self.tab_widget)
@@ -72,6 +85,15 @@ class InputWidget(QWidget):
         )
         if new_root is not None:
             self.ct.bids_root = new_root
+        # Update widgets
+        self.update_widgets()
+
+    def set_subdir(self):
+        new_subdir = get_user_input(
+            "Select SUBJECTS_DIR directory", "folder", cancel_allowed=True
+        )
+        if new_subdir is not None:
+            self.ct.subjects_dir = new_subdir
         # Update widgets
         self.update_widgets()
 
@@ -151,29 +173,18 @@ class InputNode(BaseNode):
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
         for dt in data_types:
-            port_names = [dt]
-
-            for name in port_names:
-                if name in self.outputs:
-                    continue
-                port_kwargs = existing_outputs.get(name, {})
-                accepted = port_kwargs.get("accepted_ports") or [name]
-                if dt in self.ct.raw_types and "raw" not in accepted:
-                    accepted.append("raw")
-                if name not in accepted:
-                    accepted.append(name)
-                self.add_output(
-                    name,
-                    multi_connection=port_kwargs.get("multi_connection", True),
-                    accepted_ports=accepted,
-                    old_id=port_kwargs.get("old_id"),
-                    warn_existing=False,
-                )
-        # Add event-id as output
-        if "event_id" not in self.outputs:
+            if dt in self.outputs:
+                continue
+            port_kwargs = existing_outputs.get(dt, {})
+            accepted = port_kwargs.get("accepted_ports") or [dt]
+            if dt in self.ct.raw_types and "raw" not in accepted:
+                accepted.append("raw")
+            if dt not in accepted:
+                accepted.append(dt)
             self.add_output(
-                "event_id",
-                multi_connection=True,
-                accepted_ports=["event_id"],
+                dt,
+                multi_connection=port_kwargs.get("multi_connection", True),
+                accepted_ports=accepted,
+                old_id=port_kwargs.get("old_id"),
                 warn_existing=False,
             )

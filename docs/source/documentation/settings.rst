@@ -14,6 +14,14 @@ Choosing No opens a folder picker for a different BIDS root. Keeping the same
 root preserves the loaded configuration's input selections and custom groups,
 unless its recorded dataset name differs from the dataset at that root.
 
+Changing the BIDS root or FreeSurfer ``subjects_dir`` asks for confirmation.
+Either change resets custom groups, derivative roots, and plot roots, but keeps
+the other input directory unchanged. A BIDS-root change clears all input
+selections except for data-type ``subject``; a ``subjects_dir`` change clears
+only data-type ``subject`` selections. A dataset-name mismatch likewise
+preserves these FreeSurfer selections. Declining the confirmation or selecting
+the same directory leaves selections, groups, and output roots unchanged.
+
 Derivative and plot roots are reset whenever the active configuration file
 changes. During setup, select one parent folder: MNE-Nodes creates
 ``<config-name>_derivatives`` and ``<config-name>_plots`` within it. Plots are

@@ -214,7 +214,7 @@ def test_config_switch_reselects_bids_root(ct, tmp_path, monkeypatch):
     assert len(confirmations) == 1
     assert ct.bids_root == new_root
     assert ct.get("bids_dataset_name") == "Other dataset"
-    assert ct.get("selected_inputs") == {}
+    assert ct.get("selected_inputs") == {"subject": ["01"]}
     assert ct.get("custom_groups") == {}
     ct.flush()
     ct.load()
@@ -299,9 +299,110 @@ def test_config_switch_keeps_root_with_dataset_mismatch(ct, tmp_path, monkeypatc
     assert ct.bids_root == root
     assert len(warnings) == 1
     assert "different dataset" in warnings[0]
-    assert ct.get("selected_inputs") == {}
+    assert ct.get("selected_inputs") == {"subject": ["01"]}
     assert ct.get("custom_groups") == {}
     assert ct.get("bids_dataset_name") == ct._read_bids_dataset_name(root)
+
+
+def test_bids_root_change_preserves_subject_selection_with_subjects_dir(
+    ct, tmp_path, monkeypatch
+):
+    old_dataset_name = ct.get_dataset_name()
+    subjects_dir = tmp_path / "subjects"
+    for folder in ("mri", "surf", "label"):
+        (subjects_dir / "old-subject" / folder).mkdir(parents=True)
+    ct.subjects_dir = subjects_dir
+    ct.set("selected_inputs", {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]})
+    ct.set("custom_groups", {"old-group": ["old_file.vhdr"]})
+    ct.flush()
+
+    new_root = tmp_path / "new_bids"
+    new_root.mkdir()
+    (new_root / "dataset_description.json").write_text(
+        json.dumps({"Name": "New dataset"}), encoding="utf-8"
+    )
+    ct.settings.set("bids_root", new_root)
+    warnings = []
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.raise_user_attention",
+        lambda message: warnings.append(message),
+    )
+
+    ct.load()
+
+    assert len(warnings) == 1
+    assert old_dataset_name in warnings[0]
+    assert "New dataset" in warnings[0]
+    assert ct.subjects_dir == tmp_path / "subjects"
+    assert ct.get("selected_inputs") == {"subject": ["old-subject"]}
+    assert ct.get("custom_groups") == {}
+    assert ct.get("bids_dataset_name") == "New dataset"
+    assert ct.get_datatype_items()["subject"] == ["old-subject"]
+
+
+@pytest.mark.parametrize("directory", ["bids_root", "subjects_dir"])
+@pytest.mark.parametrize("action", ["accept", "reject", "unchanged"])
+@pytest.mark.parametrize("prompt_for_path", [False, True])
+def test_input_directory_change(
+    ct, tmp_path, monkeypatch, directory, action, prompt_for_path
+):
+    old_subjects_dir = tmp_path / "subjects"
+    old_subjects_dir.mkdir()
+    ct.subjects_dir = old_subjects_dir
+    old_bids_root = ct.bids_root
+    old_directory = getattr(ct, directory)
+    new_directory = tmp_path / "new_input"
+    new_directory.mkdir()
+    if action == "unchanged":
+        new_directory = old_directory
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    selections = {
+        "subject": ["old-subject"],
+        "eeg": ["old_file.vhdr"],
+        "session": ["01"],
+    }
+    groups = {"old-group": ["old_file.vhdr"]}
+    ct.set("selected_inputs", selections.copy())
+    ct.set("custom_groups", groups.copy())
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.ask_user",
+        lambda message: confirmations.append(message) or action == "accept",
+    )
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.get_user_input",
+        lambda *args, **kwargs: new_directory,
+    )
+
+    setattr(ct, directory, None if prompt_for_path else new_directory)
+
+    assert len(confirmations) == (0 if action == "unchanged" else 1)
+    if action == "accept":
+        expected_selections = (
+            {"subject": ["old-subject"]}
+            if directory == "bids_root"
+            else {"eeg": ["old_file.vhdr"], "session": ["01"]}
+        )
+        assert getattr(ct, directory) == new_directory
+        assert ct.get("selected_inputs") == expected_selections
+        assert ct.get("custom_groups") == {}
+        assert ct.deriv_root is None
+        assert ct.plot_root is None
+        assert "subject" in confirmations[0]
+        ct.flush()
+        ct.load()
+        assert ct.get("selected_inputs") == expected_selections
+    else:
+        assert getattr(ct, directory) == old_directory
+        assert ct.get("selected_inputs") == selections
+        assert ct.get("custom_groups") == groups
+        assert ct.deriv_root == tmp_path
+        assert ct.plot_root == tmp_path
+    if directory == "bids_root":
+        assert ct.subjects_dir == old_subjects_dir
+    else:
+        assert ct.bids_root == old_bids_root
 
 
 def test_explicit_output_roots_keep_legacy_layout(ct, tmp_path):

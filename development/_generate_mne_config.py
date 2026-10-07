@@ -35,6 +35,9 @@ MNE_IO_FUNCTIONS_PKG = (
 
 group_functions = {"mne.grand_average"}
 
+# These parameter names are always node inputs, regardless of documented type.
+always_input_names = {"event_id", "subject"}
+
 # Populated from _collect_object_aliases() once `objects` has been built below.
 class_alias = {}
 
@@ -416,6 +419,7 @@ for rst_path in sorted(Path(mnedev_api_path).glob("*.rst")):
 
 
 def get_param_config(param, sig, obj_config):
+    """Classify a parameter, honoring always_input_names before type heuristics."""
     # Skip parameters that don't have a valid name (e.g. *args, **kwargs)
     if not param.arg_name[0].isalpha():  # type: ignore
         return
@@ -442,8 +446,10 @@ def get_param_config(param, sig, obj_config):
     # merely share a name with an alias (e.g. Epochs' "proj" bool vs.
     # Projection's "proj"/"projs", or "metadata" vs. the DataFrame class).
     container_types = ("array", "dict", "list", "tuple")
-    force_input = False
-    if not types or non_primitive or any(t in container_types for t in types):
+    force_input = param.arg_name in always_input_names
+    if not force_input and (
+        not types or non_primitive or any(t in container_types for t in types)
+    ):
         force_input = _is_class_alias(param.arg_name) or _is_known_io_name(
             param.arg_name
         )

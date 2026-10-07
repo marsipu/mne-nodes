@@ -540,7 +540,8 @@ class Controller:
             return
         if previous_root != new_root:
             ans = ask_user(
-                "When you change the BIDS-root, all selections, custom groups, "
+                "When you change the BIDS-root, all selections except for data-type "
+                "'subject', custom groups, "
                 "derivatives-root and plot-root will be lost. Do you want to proceed?"
             )
             if not ans:
@@ -553,20 +554,22 @@ class Controller:
         """Select one dataset and discard state associated with the previous root."""
         self._bids_root_confirmation_pending = False
         self.settings.set("bids_root", new_root)
-        # Clear selected inputs and custom groups
-        selected_inputs = self.get("selected_inputs")
-        custom_groups = self.get("custom_groups")
-        selected_inputs.clear()
-        custom_groups.clear()
-        selected_inputs.update(deepcopy(default_config["selected_inputs"]))
-        custom_groups.update(deepcopy(default_config["custom_groups"]))
-        self.set("selected_inputs", selected_inputs)
-        self.set("custom_groups", custom_groups)
-        # deriv_root/plot_root belonged to the previous dataset, force re-selection
-        self.settings.set("deriv_root", None)
-        self.settings.set("plot_root", None)
         dataset_name = self._read_bids_dataset_name(new_root)
         self.set("bids_dataset_name", dataset_name)
+        self._reset_input_directory_state(subjects_only=False)
+
+    def _reset_input_directory_state(self, *, subjects_only: bool) -> None:
+        selected_inputs = self.get("selected_inputs")
+        custom_groups = self.get("custom_groups")
+        for data_type in list(selected_inputs):
+            if (data_type == "subject") == subjects_only:
+                del selected_inputs[data_type]
+        custom_groups.clear()
+        self.set("selected_inputs", selected_inputs)
+        self.set("custom_groups", custom_groups)
+        # Outputs belonged to the previous input directory, force re-selection.
+        self.settings.set("deriv_root", None)
+        self.settings.set("plot_root", None)
         # Update input widget when viewer is available.
         viewer = self.viewer
         if viewer is not None and viewer.input_node is not None:
@@ -599,15 +602,22 @@ class Controller:
         return self._get_subjects_dir_path()
 
     @subjects_dir.setter
-    def subjects_dir(self, value):
+    def subjects_dir(self, value: Any) -> None:
         if value is None:
-            selected_path = self._prompt_path(
+            value = self._prompt_path(
                 "Please enter the path to the FreeSurfer subjects directory"
             )
-            self._set_subjects_dir_path(selected_path)
-            return
         selected_path = self._validate_existing_dir(value, key="subjects_dir")
+        if selected_path == self.subjects_dir:
+            return
+        if not ask_user(
+            "When you change the FreeSurfer subjects directory, data-type 'subject' "
+            "selections, custom groups, derivatives-root and plot-root will be lost. "
+            "Do you want to proceed?"
+        ):
+            return
         self._set_subjects_dir_path(selected_path)
+        self._reset_input_directory_state(subjects_only=True)
 
     @property
     def plot_root(self) -> Path | None:
@@ -768,7 +778,10 @@ class Controller:
             "Please enter the path to the FreeSurfer subjects directory"
         )
         self.subjects_dir = selected_path
-        return selected_path
+        subjects_dir = self.subjects_dir
+        if subjects_dir is None:
+            raise RuntimeError("FreeSurfer subjects directory initialization canceled.")
+        return subjects_dir
 
     def run_freesurfer_subprocess(self, command: list[str]) -> None:
         """Run a FreeSurfer/MNE command using paths from controller settings."""
@@ -878,7 +891,8 @@ class Controller:
         ``bids_root`` is a device-wide setting. If the currently
         configured ``bids_root`` points to a different dataset than the one this
         project was last used with (recorded as ``bids_dataset_name``), the
-        input selections and custom groups are stale and must be re-selected.
+        BIDS input selections and custom groups are stale and must be re-selected.
+        FreeSurfer data-type ``subject`` selections remain valid.
         """
         cached_name = config.get("bids_dataset_name")
         if not cached_name:
@@ -892,10 +906,15 @@ class Controller:
         raise_user_attention(
             f"The configured BIDS-root '{bids_root}' belongs to dataset "
             f"'{actual_name}', but this project was last used with dataset "
-            f"'{cached_name}'. All selected inputs and custom groups will be considered stale and removed."
+            f"'{cached_name}'. Selected inputs except for data-type 'subject' and "
+            "all custom groups will be considered stale and removed."
         )
-        for key in ["selected_inputs", "custom_groups"]:
-            config[key] = deepcopy(default_config.get(key))
+        config["selected_inputs"] = {
+            key: value
+            for key, value in config.get("selected_inputs", {}).items()
+            if key == "subject"
+        }
+        config["custom_groups"] = deepcopy(default_config["custom_groups"])
         config["bids_dataset_name"] = actual_name
 
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
@@ -1097,45 +1116,62 @@ class Controller:
         return data
 
     def get_fsmri_subjects(self):
-        fsmri_subjects = (
-            os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
-        )
+        fsmri_subjects = []
+        for subj_folder in os.listdir(self.subjects_dir):
+            if all(
+                isdir(self.subjects_dir / subj_folder / tf)
+                for tf in ["mri", "surf", "label"]
+            ):
+                fsmri_subjects.append(subj_folder)
+
         return fsmri_subjects
 
     def get_datatypes(self):
-        # ToDo: Implement data-types other than raw
         bids_root = self.ensure_bids_root(interactive=False)
         excluded_datatypes = ["func"]
-        return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
+        bids_dt = [
+            dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes
+        ]
+        # Add event_id since it gets loaded with raw data
+        bids_dt += ["event_id"]
+        # Add subject from freesurfer if subjects_dir is set
+        if self.subjects_dir is not None:
+            bids_dt += ["subject"]
+        return bids_dt
 
-    # TodoNext: Only show measurments and separate empty room measurements. Also facilitate plugin-addition (drag/drop etc.)
     def get_datatype_items(self):
         items = {}
         data_types = self.get_datatypes()
+        # Raw should be first
         data_types = [dt for dt in data_types if dt in self.raw_types] + [
             dt for dt in data_types if dt not in self.raw_types
         ]
         empty_room_items = []
         for dt in data_types:
-            bp_kwargs = {"root": self.bids_root, "check": False}
-            if dt in self.raw_types:
-                bp_kwargs.update({"suffix": dt})
+            if dt == "event_id":
+                pass
+            elif dt == "subject":
+                items[dt] = self.get_fsmri_subjects()
             else:
-                bp_kwargs.update({"datatype": dt})
-            file_candidates = [
-                f
-                for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
-                if f.acquisition not in ["calibration", "crosstalk"]
-            ]
-            for f in file_candidates.copy():
-                try:
-                    er_bp = f.find_empty_room()
-                    if er_bp is not None and er_bp in file_candidates:
-                        file_candidates.remove(er_bp)
-                        empty_room_items.append(er_bp.basename)
-                except (RuntimeError, ValueError):
-                    pass
-            items[dt] = [f.basename for f in file_candidates]
+                bp_kwargs = {"root": self.bids_root, "check": False}
+                if dt in self.raw_types:
+                    bp_kwargs.update({"suffix": dt})
+                else:
+                    bp_kwargs.update({"datatype": dt})
+                file_candidates = [
+                    f
+                    for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+                    if f.acquisition not in ["calibration", "crosstalk"]
+                ]
+                for f in file_candidates.copy():
+                    try:
+                        er_bp = f.find_empty_room()
+                        if er_bp is not None and er_bp in file_candidates:
+                            file_candidates.remove(er_bp)
+                            empty_room_items.append(er_bp.basename)
+                    except (RuntimeError, ValueError):
+                        pass
+                items[dt] = [f.basename for f in file_candidates]
         if empty_room_items:
             items["emptyroom"] = empty_room_items
         return items
