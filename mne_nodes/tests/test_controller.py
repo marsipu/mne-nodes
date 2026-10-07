@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from mne_nodes import _widgets
 from mne_nodes.pipeline.controller import Controller
 from mne_nodes.pipeline.io import TypedJSONEncoder
 from mne_nodes.pipeline.pipeline_utils import change_file_section
@@ -63,6 +62,23 @@ def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     assert new_func(2) == 8, "New function reference should return updated value"
 
     # Test insertion
+
+
+def test_remove_plugin_unregisters_without_deleting_files(
+    ct, test_plugin_config, test_script
+):
+    ct.load_plugin_path(test_plugin_config)
+    ct.settings.set("disabled_plugins", ["test_module"])
+
+    ct.remove_plugin("test_module")
+
+    assert test_plugin_config.is_file()
+    assert test_script.is_file()
+    assert "test_module" not in ct.plugins
+    assert "test_module" not in ct.get("plugin_meta")
+
+    assert "test_module" not in ct.settings.get("plugin_config", {})
+    assert "test_module" not in ct.settings.get("disabled_plugins", [])
 
 
 def test_config_change(tmp_path, ct, monkeypatch):
@@ -121,12 +137,229 @@ def test_getters_noninteractive(settings):
         controller.ensure_ready(required=("config_path",), interactive=False)
 
 
+@pytest.mark.parametrize("action", ["load", "new", "save_as"])
+def test_config_switch_confirms_bids_and_resets_outputs(
+    ct, tmp_path, monkeypatch, action
+):
+    dataset_name = ct.get_dataset_name()
+    root = ct.bids_root
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    new_config = tmp_path / "other_pipeline.json"
+    new_config.write_text(
+        json.dumps(
+            {
+                "name": "other",
+                "bids_dataset_name": dataset_name,
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or True,
+    )
+    actions = {
+        "load": ct.load_config,
+        "new": ct.new_config,
+        "save_as": ct.save_config_as,
+    }
+    actions[action](new_config)
+
+    assert len(confirmations) == 1
+    assert str(root) in confirmations[0]
+    assert ct.bids_root == root
+    assert ct.deriv_root is None
+    assert ct.plot_root is None
+    if action == "load":
+        assert ct.get("selected_inputs") == {"subject": ["01"]}
+        assert ct.get("custom_groups") == {"group": ["01"]}
+    ct.load()
+    ct.config_path = new_config
+    assert len(confirmations) == 1
+
+
+def test_config_switch_reselects_bids_root(ct, tmp_path, monkeypatch):
+    new_root = tmp_path / "other_bids"
+    new_root.mkdir()
+    (new_root / "dataset_description.json").write_text(
+        json.dumps({"Name": "Other dataset"}), encoding="utf-8"
+    )
+    new_config = tmp_path / "other_pipeline.json"
+    new_config.write_text(
+        json.dumps(
+            {
+                "name": "other",
+                "bids_dataset_name": ct.get_dataset_name(),
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or False,
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input", lambda *args, **kwargs: new_root
+    )
+
+    ct.load_config(new_config)
+
+    assert len(confirmations) == 1
+    assert ct.bids_root == new_root
+    assert ct.get("bids_dataset_name") == "Other dataset"
+    assert ct.get("selected_inputs") == {}
+    assert ct.get("custom_groups") == {}
+    ct.flush()
+    ct.load()
+    assert ct.get("bids_dataset_name") == "Other dataset"
+
+
+def test_config_output_roots_share_parent(ct, tmp_path, monkeypatch):
+    ct.set("name", "first")
+    prompts = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts.append(message) or tmp_path,
+    )
+    ct.ensure_ready(required=("deriv_root", "plot_root"))
+    assert len(prompts) == 1
+    assert ct.deriv_root == tmp_path / "first_derivatives"
+    assert ct.plot_root == tmp_path / "first_plots"
+    assert ct.plot_path == ct.plot_root
+    assert ct.deriv_root.is_dir()
+    assert ct.plot_root.is_dir()
+
+    ct.flush()
+    reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
+    assert reloaded.plot_path == ct.plot_root
+    assert len(prompts) == 1
+
+    new_config = tmp_path / "second_pipeline.json"
+    new_config.write_text(json.dumps({"name": "second"}), encoding="utf-8")
+    ct.load_config(new_config)
+    with pytest.raises(RuntimeError):
+        ct.ensure_deriv_root(interactive=False)
+    ct.ensure_ready(required=("deriv_root", "plot_root"))
+    assert len(prompts) == 2
+    assert ct.deriv_root == tmp_path / "second_derivatives"
+    assert ct.plot_path == tmp_path / "second_plots"
+
+
+def test_startup_config_switch_defers_confirmation(ct, tmp_path, monkeypatch):
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    config_path = tmp_path / "startup_pipeline.json"
+    config_path.write_text(json.dumps({"name": "startup"}), encoding="utf-8")
+    confirmations = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user",
+        lambda message, **kwargs: confirmations.append(message) or True,
+    )
+    controller = Controller(config_path=config_path, settings=ct.settings)
+
+    assert confirmations == []
+    assert controller.deriv_root is None
+    assert controller.plot_root is None
+    with pytest.raises(RuntimeError, match="must be confirmed"):
+        controller.ensure_bids_root(interactive=False)
+    assert controller.ensure_bids_root() == ct.bids_root
+    assert len(confirmations) == 1
+    controller.ensure_bids_root()
+    assert len(confirmations) == 1
+
+
+def test_config_switch_keeps_root_with_dataset_mismatch(ct, tmp_path, monkeypatch):
+    config_path = tmp_path / "mismatch_pipeline.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "name": "mismatch",
+                "bids_dataset_name": "different dataset",
+                "selected_inputs": {"subject": ["01"]},
+                "custom_groups": {"group": ["01"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    root = ct.bids_root
+    warnings = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.raise_user_attention",
+        lambda message: warnings.append(message),
+    )
+    ct.load_config(config_path)
+
+    assert ct.bids_root == root
+    assert len(warnings) == 1
+    assert "different dataset" in warnings[0]
+    assert ct.get("selected_inputs") == {}
+    assert ct.get("custom_groups") == {}
+    assert ct.get("bids_dataset_name") == ct._read_bids_dataset_name(root)
+
+
+def test_explicit_output_roots_keep_legacy_layout(ct, tmp_path):
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+
+    assert ct.ensure_deriv_root(interactive=False) == tmp_path
+    assert ct.ensure_plot_root(interactive=False) == tmp_path
+    assert ct.plot_path == tmp_path / ct.name
+
+
+@pytest.mark.parametrize(
+    ("action", "method"),
+    [
+        ("new_pipeline", "new_config"),
+        ("load_pipeline", "load_config"),
+        ("save_pipeline_as", "save_config_as"),
+    ],
+)
+def test_gui_config_actions_initialize_output_roots(
+    ct, qtbot, tmp_path, monkeypatch, action, method
+):
+    from mne_nodes.gui.main_window import MainWindow
+    from mne_nodes.pipeline.controller import default_config
+
+    monkeypatch.setattr(ct, "get_datatype_items", dict)
+    window = MainWindow(ct)
+    qtbot.addWidget(window)
+    ct.deriv_root = tmp_path
+    ct.plot_root = tmp_path
+    config_path = tmp_path / "gui_pipeline.json"
+    config_path.write_text(
+        json.dumps({**default_config, "name": "gui"}), encoding="utf-8"
+    )
+    original_method = getattr(ct, method)
+    monkeypatch.setattr(ct, method, lambda: original_method(config_path))
+    prompts = []
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda message, *args, **kwargs: prompts.append(message) or tmp_path,
+    )
+
+    getattr(window, action)()
+
+    assert ct.config_path == config_path
+    assert len(prompts) == 1
+    assert ct.deriv_root == tmp_path / f"{ct.name}_derivatives"
+    assert ct.plot_path == tmp_path / f"{ct.name}_plots"
+    ct.ensure_ready(interactive=False)
+
+
 def test_path_prompts(settings, tmp_path, monkeypatch):
     controller = Controller(settings=settings)
+    controller.set("name", "test")
     prompts = {
         "Please select/create a folder for the bids-root.": tmp_path / "bids",
-        "Please select/create a folder for the derivatives root.": tmp_path / "deriv",
-        "Please select/create a folder for saving plots.": tmp_path / "plots",
+        "Select the parent folder for 'test_derivatives' and 'test_plots'.": tmp_path
+        / "outputs",
         "Please enter the path to the FreeSurfer subjects directory": tmp_path
         / "subjects",
     }
@@ -148,14 +381,8 @@ def test_path_prompts(settings, tmp_path, monkeypatch):
         controller.bids_root
         == prompts["Please select/create a folder for the bids-root."]
     )
-    assert (
-        controller.deriv_root
-        == prompts["Please select/create a folder for the derivatives root."]
-    )
-    assert (
-        controller.plot_root
-        == prompts["Please select/create a folder for saving plots."]
-    )
+    assert controller.deriv_root == tmp_path / "outputs" / "test_derivatives"
+    assert controller.plot_root == tmp_path / "outputs" / "test_plots"
     assert (
         controller.subjects_dir
         == prompts["Please enter the path to the FreeSurfer subjects directory"]
@@ -186,8 +413,8 @@ def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):
     monkeypatch.setattr(
         ct, "load_plugin_github", lambda plugin_url: loaded_plugins.append(plugin_url)
     )
-    monkeypatch.setitem(_widgets, "viewer", DummyViewer())
-    monkeypatch.setitem(_widgets, "main_window", object())
+    viewer = DummyViewer()
+    monkeypatch.setattr(type(ct), "viewer", property(lambda self: viewer))
 
     ct.config_path = import_path
 
@@ -230,7 +457,13 @@ def test_import_plugin_from_config_file(ct, tmp_path):
     }
 
 
-def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
+@pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
+def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
+    """New, save, save-as/export and load preserve the complete pipeline state."""
+    new_config_path = tmp_path / "new_config.json"
+    export_path = tmp_path / "pipeline_roundtrip.json"
+    ct.new_config(new_config_path)
+    ct.set("name", "draft")
     roundtrip_nodes = {
         "nodes": {"input": {"name": "Input-0"}, "filter": {"name": "test_filter"}},
         "connections": {"conn_0": {"source": "Input-0", "target": "filter"}},
@@ -242,17 +475,36 @@ def test_pipeline_roundtrip(ct, tmp_path, monkeypatch):
     ct.set("parameters", roundtrip_parameters)
     ct.set("node_config", roundtrip_nodes)
 
-    export_path = tmp_path / "pipeline_roundtrip.json"
-    ct.export_pipeline(export_path)
+    ct.save_config()
+    assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
+    getattr(ct, save_as_method)(export_path)
+    assert ct.config_path == export_path
+    assert json.loads(export_path.read_text(encoding="utf-8"))["name"] == "draft"
 
     ct.set("parameters", {})
     ct.set("node_config", {})
-    ct.config_path = export_path
-    ct.load(plugins=True)
+    ct.load_config(export_path)
 
-    assert export_path.exists(), "Roundtrip export should create a JSON file"
+    assert ct.get("name") == "draft"
     assert ct.get("parameters") == roundtrip_parameters
     assert ct.get("node_config") == roundtrip_nodes
+
+
+def test_pipeline_file_name_pattern(tmp_path, monkeypatch, settings):
+    controller = Controller(settings=settings)
+
+    inputs = iter([tmp_path, "demo_pipeline"])
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.get_user_input",
+        lambda *args, **kwargs: next(inputs),
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
+    )
+
+    saved_path = controller.new_config()
+    assert saved_path == tmp_path / "demo_pipeline_pipeline.json"
+    assert saved_path.exists()
 
 
 @pytest.mark.timeout(180)
@@ -405,25 +657,35 @@ def test_load_recent_plugins_uses_settings_override(
     )
 
 
-def test_get_dataset_name_caches_to_config(ct, settings, tmp_path, monkeypatch):
-    """get_dataset_name stores the name in config and returns it even without bids_root."""
-    bids_root = tmp_path / "bids"
-    bids_root.mkdir()
-    desc = bids_root / "dataset_description.json"
-    desc.write_text(json.dumps({"Name": "TestDataset"}), encoding="utf-8")
+def test_bids_root_syncs_and_caches_dataset_name(ct, tmp_path):
+    """Root changes and name lookups refresh the cache used without a root."""
+    root_a = tmp_path / "bids_a"
+    root_b = tmp_path / "bids_b"
+    root_a.mkdir()
+    root_b.mkdir()
+    (root_a / "dataset_description.json").write_text(
+        json.dumps({"Name": "Dataset A"}), encoding="utf-8"
+    )
+    (root_b / "dataset_description.json").write_text(
+        json.dumps({"Name": "Dataset B"}), encoding="utf-8"
+    )
 
-    monkeypatch.setattr("mne_nodes.pipeline.controller.ask_user", lambda *a, **k: True)
-    ct.settings.set("bids_root", bids_root)
+    ct.bids_root = root_a
+    assert ct.get("bids_dataset_name") == "Dataset A"
 
-    name = ct.get_dataset_name()
-    assert name == "TestDataset"
-    # Must be persisted in config
-    assert ct.get("bids_dataset_name") == "TestDataset"
+    ct.bids_root = root_b
+    assert ct.get("bids_dataset_name") == "Dataset B"
+    assert ct.get_dataset_name() == "Dataset B"
 
-    # Now remove bids_root from settings – should fall back to cached config value
+    ct.set("bids_dataset_name", "Manual Name")
+    assert ct.get("bids_dataset_name") == "Manual Name"
+    ct.bids_root = root_a
+    assert ct.get("bids_dataset_name") == "Dataset A"
+    ct.set("bids_dataset_name", None)
+    assert ct.get_dataset_name() == "Dataset A"
+    assert ct.get("bids_dataset_name") == "Dataset A"
     ct.settings.remove("bids_root")
-    cached_name = ct.get_dataset_name()
-    assert cached_name == "TestDataset"
+    assert ct.get_dataset_name() == "Dataset A"
 
 
 def test_codegen_multi_type_read_write(ct):

@@ -22,7 +22,93 @@ from mne_nodes.pipeline.exception_handling import ExceptionTuple
 from mne_nodes.pipeline.execution import Process, Worker
 
 
-class WorkerDialog(QDialog):
+class _RunDialog(QDialog):
+    def __init__(
+        self,
+        parent,
+        show_buttons,
+        show_console,
+        close_directly,
+        title,
+        blocking,
+        geometry_ratio,
+    ):
+        super().__init__(parent)
+
+        self.show_buttons = show_buttons
+        self.show_console = show_console
+        self.close_directly = close_directly
+        self.title = title
+        self.is_finished = False
+
+        self.init_ui()
+        self.start_operation()
+        set_ratio_geometry(geometry_ratio, self)
+        if blocking:
+            self.exec()
+        else:
+            self.open()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+
+        if self.title:
+            title_label = QLabel(self.title)
+            title_label.setFont(QFont("AnyType", 18, QFont.Weight.Bold))
+            layout.addWidget(title_label)
+
+        self.init_content(layout)
+
+        if self.show_buttons:
+            bt_layout = QHBoxLayout()
+
+            self.cancel_bt = QPushButton("Cancel")
+            self.cancel_bt.clicked.connect(self.cancel)
+            bt_layout.addWidget(self.cancel_bt)
+
+            self.close_bt = QPushButton("Close")
+            self.close_bt.clicked.connect(self.close)
+            self.close_bt.setEnabled(False)
+            bt_layout.addWidget(self.close_bt)
+
+            layout.addLayout(bt_layout)
+
+        self.setLayout(layout)
+
+    def init_content(self, layout):
+        raise NotImplementedError
+
+    def start_operation(self):
+        raise NotImplementedError
+
+    def cancel(self):
+        raise NotImplementedError
+
+    def mark_finished(self):
+        self.is_finished = True
+        if self.show_buttons:
+            self.close_bt.setEnabled(True)
+            self.cancel_bt.setEnabled(False)
+        if self.close_directly:
+            self.close()
+
+    def closeEvent(self, event):
+        if self.is_finished:
+            self.on_closed()
+            event.accept()
+        else:
+            warning_message(
+                "Closing not possible! You can't close this Dialog before this "
+                "operation finished!",
+                parent=self,
+            )
+            event.ignore()
+
+    def on_closed(self):
+        pass
+
+
+class WorkerDialog(_RunDialog):
     """A Dialog for a Worker doing a function.
 
     This dialog manages the execution of a worker thread and provides UI elements
@@ -70,42 +156,23 @@ class WorkerDialog(QDialog):
         title=None,
         **kwargs,
     ):
-        super().__init__(parent)
-
-        self.show_buttons = show_buttons
-        self.show_console = show_console
-        self.close_directly = close_directly
         self.return_exception = return_exception
-        self.title = title
-        self.is_finished = False
         self.return_value = None
 
-        # Initialize worker
         self.worker = Worker(function, **kwargs)
         self.worker.signals.finished.connect(self.on_thread_finished)
         self.worker.signals.error.connect(self.on_thread_finished)
         self.worker.signals.pgbar_max.connect(self.set_pgbar_max)
         self.worker.signals.pgbar_n.connect(self.pgbar_changed)
         self.worker.signals.pgbar_text.connect(self.label_changed)
+        super().__init__(
+            parent, show_buttons, show_console, close_directly, title, blocking, 0.4
+        )
+
+    def start_operation(self):
         self.worker.start()
 
-        if self.show_console:
-            set_ratio_geometry(0.4, self)
-
-        self.init_ui()
-        if blocking:
-            self.exec()
-        else:
-            self.open()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        if self.title:
-            title_label = QLabel(self.title)
-            title_label.setFont(QFont("AnyType", 18, QFont.Weight.Bold))
-            layout.addWidget(title_label)
-
+    def init_content(self, layout):
         self.progress_label = QLabel()
         self.progress_label.hide()
         layout.addWidget(self.progress_label, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -118,32 +185,12 @@ class WorkerDialog(QDialog):
             self.console_output = MainConsoleWidget()
             layout.addWidget(self.console_output)
 
-        if self.show_buttons:
-            bt_layout = QHBoxLayout()
-
-            cancel_bt = QPushButton("Cancel")
-            cancel_bt.clicked.connect(self.cancel)
-            bt_layout.addWidget(cancel_bt)
-
-            self.close_bt = QPushButton("Close")
-            self.close_bt.clicked.connect(self.close)
-            self.close_bt.setEnabled(False)
-            bt_layout.addWidget(self.close_bt)
-
-            layout.addLayout(bt_layout)
-
-        self.setLayout(layout)
-
     def on_thread_finished(self, return_value):
         # Store return value to send it when user closes the dialog
         if type(return_value) is ExceptionTuple and not self.return_exception:
             return_value = None
         self.return_value = return_value
-        self.is_finished = True
-        if self.show_buttons:
-            self.close_bt.setEnabled(True)
-        if self.close_directly:
-            self.close()
+        self.mark_finished()
 
     def set_pgbar_max(self, maximum):
         self.progress_bar.show()
@@ -159,21 +206,12 @@ class WorkerDialog(QDialog):
     def cancel(self):
         self.worker.cancel()
 
-    def closeEvent(self, event):
-        # Can't close Dialog before Thread has finished or threw error
-        if self.is_finished:
-            self.thread_finished.emit(self.return_value)
-            self.deleteLater()
-            event.accept()
-        else:
-            warning_message(
-                "Closing not possible! You can't close this Dialog before this Thread finished!",
-                parent=self,
-            )
-            event.ignore()
+    def on_closed(self):
+        self.thread_finished.emit(self.return_value)
+        self.deleteLater()
 
 
-class ProcessDialog(QDialog):
+class ProcessDialog(_RunDialog):
     def __init__(
         self,
         commands: list[tuple[str, ...]],
@@ -184,66 +222,26 @@ class ProcessDialog(QDialog):
         title: str | None = None,
         blocking: bool = True,
     ):
-        super().__init__(parent)
         self.commands = commands
-        self.show_buttons = show_buttons
-        self.show_console = show_console
-        self.close_directly = close_directly
-        self.title = title
         self.console = None
 
-        layout = QVBoxLayout()
+        super().__init__(
+            parent, show_buttons, show_console, close_directly, title, blocking, 0.5
+        )
 
-        if self.title:
-            title_label = QLabel(self.title)
-            title_label.setFont(QFont("AnyType", 18, QFont.Weight.Bold))
-            layout.addWidget(title_label)
-
+    def init_content(self, layout):
         if self.show_console:
             self.console = ConsoleWidget()
             layout.addWidget(self.console)
 
         self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.is_finished = False
         self.process.finished.connect(self.process_finished)
+
+    def start_operation(self):
         self.process.start()
 
-        if self.show_buttons:
-            bt_layout = QHBoxLayout()
-
-            cancel_bt = QPushButton("Cancel")
-            cancel_bt.clicked.connect(self.process.kill)
-            bt_layout.addWidget(cancel_bt)
-
-            self.close_bt = QPushButton("Close")
-            self.close_bt.clicked.connect(self.close)
-            self.close_bt.setEnabled(False)
-            bt_layout.addWidget(self.close_bt)
-
-            layout.addLayout(bt_layout)
-
-        self.setLayout(layout)
-
-        set_ratio_geometry(0.5, self)
-
-        if blocking:
-            self.exec()
-        else:
-            self.open()
+    def cancel(self):
+        self.process.kill()
 
     def process_finished(self):
-        self.is_finished = True
-        if self.show_buttons:
-            self.close_bt.setEnabled(True)
-        if self.close_directly:
-            self.close()
-
-    def closeEvent(self, event):
-        if self.is_finished:
-            event.accept()
-        else:
-            event.ignore()
-            warning_message(
-                "Closing not possible! You can't close this Dialog before this Process finished!",
-                parent=self,
-            )
+        self.mark_finished()

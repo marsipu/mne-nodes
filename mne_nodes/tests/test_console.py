@@ -11,9 +11,32 @@ from pathlib import Path
 
 import pytest
 import tqdm
+from qtpy.QtCore import QProcess
 
 from mne_nodes.pipeline.execution import Process
 from mne_nodes.tests._test_utils import create_console
+
+
+def test_console_dock_reports_process_start(main_window, qtbot, monkeypatch):
+    """Tour feedback is emitted on process startup after the console opens."""
+    dock = main_window.console_dock
+
+    def test_process(**kwargs):
+        return Process(**{**kwargs, "self_destruct": False})
+
+    monkeypatch.setattr("mne_nodes.gui.console.Process", test_process)
+    main_window.show()
+    dock.hide()
+    with qtbot.waitSignal(dock.process_started, timeout=5000):
+        dock.start_process(sys.executable, ["-c", "pass"])
+    assert dock.isVisible()
+    assert dock.tab_widget.count() == 1
+    process = dock.processes[0]
+    qtbot.waitUntil(
+        lambda: process.state() == QProcess.ProcessState.NotRunning, timeout=5000
+    )
+    assert process.exitCode() == 0
+    dock._close_process(0)
 
 
 def test_console_stream_basic(qtbot):

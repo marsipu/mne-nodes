@@ -5,25 +5,32 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import sys
+from pathlib import Path
 
 import mne
-from qtpy.QtCore import QProcess, Qt, Signal
+from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
-from mne_nodes import _widgets, iswin
+from mne_nodes import iswin
 from mne_nodes.gui.console import ConsoleDock
-from mne_nodes.gui.dialogs import SysInfoMsg
+from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
+from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import (
     ask_user,
     center,
     get_user_input,
     information_message,
+    is_function_import_mime,
+    raise_user_attention,
     set_ratio_geometry,
 )
+from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.pipeline.data_import import load_sample_bids
+from mne_nodes.pipeline.exception_handling import get_exception_tuple
 from mne_nodes.pipeline.pipeline_utils import _run_from_script, restart_program
 
 
@@ -41,9 +48,11 @@ class MainWindow(QMainWindow):
 
     def __init__(self, controller):
         super().__init__()
-        _widgets["main_window"] = self
+        widget_registry().register("main_window", self, retain=True)
         self._controller = controller
         self.settings = controller.settings
+        self.node_picker = None
+        self.setAcceptDrops(True)
 
         # Initialize properties
         # Console/Error management moved into ConsoleDock
@@ -55,34 +64,52 @@ class MainWindow(QMainWindow):
         # Init Dock options
         self.setDockOptions(QMainWindow.DockOption.AnimatedDocks)
 
-        # Init Node-Viewer
+        # Init Node-Viewer without loading project state yet; the controller may
+        # still need to finish first-run setup and welcome-tour prompting.
         self.viewer = NodeViewer(controller, self)
         self.setCentralWidget(self.viewer)
-        self.viewer.load_nodes(controller.get("node_config"))
+        self.viewer.DataDropped.connect(self.import_function_mime)
 
         # Init Console-Widget (manages per-process consoles & errors)
         self.console_dock = ConsoleDock(controller, self)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.console_dock)
         self.console_dock.hide()
 
-        # Pipeline Actions
-        load_pipeline_action = QAction(
+        # File Actions
+        new_config_action = QAction(
+            "&New Pipeline",
+            parent=self,
+            statusTip="Create a new pipeline file.",
+            shortcut=QKeySequence("Ctrl+N"),
+        )
+        new_config_action.triggered.connect(self.new_pipeline)
+        load_config_action = QAction(
             "&Load Pipeline",
             parent=self,
-            statusTip="Load another pipeline from a configuration file.",
+            statusTip="Load another pipeline file.",
             shortcut=QKeySequence("Ctrl+O"),
         )
-        load_pipeline_action.triggered.connect(self.load_pipeline)
-        save_pipeline_action = QAction(
+        load_config_action.triggered.connect(self.load_pipeline)
+        save_config_action = QAction(
             "&Save Pipeline",
             parent=self,
-            statusTip="Save the current pipeline to the configuration file.",
+            statusTip="Save the current pipeline file to disk.",
             shortcut=QKeySequence("Ctrl+S"),
         )
-        save_pipeline_action.triggered.connect(self.save_pipeline)
-        pipeline_menu = self.menuBar().addMenu("&Pipeline")
-        pipeline_menu.addAction(load_pipeline_action)
-        pipeline_menu.addAction(save_pipeline_action)
+        save_config_action.triggered.connect(self.save_pipeline)
+        save_config_as_action = QAction(
+            "Save Pipeline &As...",
+            parent=self,
+            statusTip="Save the current pipeline to a different pipeline file.",
+            shortcut=QKeySequence("Ctrl+Shift+S"),
+        )
+        save_config_as_action.triggered.connect(self.save_pipeline_as)
+        file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(new_config_action)
+        file_menu.addAction(load_config_action)
+        file_menu.addSeparator()
+        file_menu.addAction(save_config_action)
+        file_menu.addAction(save_config_as_action)
         # BIDS Menu
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
@@ -118,6 +145,16 @@ class MainWindow(QMainWindow):
         )
         manage_plugins_action.triggered.connect(self.manage_plugins)
         plugin_menu = self.menuBar().addMenu("&Plugins")
+        import_functions_action = QAction(
+            "&Import Functions...",
+            parent=self,
+            statusTip="Create a plugin from Python functions.",
+        )
+        import_functions_action.triggered.connect(
+            lambda _checked=False: self.import_functions()
+        )
+        plugin_menu.addAction(import_functions_action)
+        plugin_menu.addSeparator()
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
         plugin_menu.addAction(load_plugin_github_action)
@@ -134,6 +171,22 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
+        node_picker_action = QAction(
+            "&Node Picker", parent=self, statusTip="Open the categorized node picker."
+        )
+        node_picker_action.triggered.connect(self.show_node_picker)
+        view_menu = self.menuBar().addMenu("&View")
+        view_menu.addAction(node_picker_action)
+
+        welcome_tour_action = QAction(
+            "&Restart Welcome Tour",
+            parent=self,
+            statusTip="Start the welcome tour again with the sample dataset.",
+        )
+        welcome_tour_action.triggered.connect(self.restart_welcome_tour)
+        help_menu = self.menuBar().addMenu("&Help")
+        help_menu.addAction(welcome_tour_action)
+
         # Pipeline Menu
         self.menuBar().addAction(exit_action)
 
@@ -148,6 +201,10 @@ class MainWindow(QMainWindow):
                     self.windowHandle().setScreen(screen)
                     break
 
+    def finalize_controller_setup(self):
+        """Load startup nodes unless controller setup has already populated the viewer."""
+        if not self.viewer.nodes:
+            self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
     @property
@@ -166,24 +223,49 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
-    def load_pipeline(self):
-        self.controller.config_path = None
-        self.controller.load(plugins=True)
-        self.viewer.load_nodes(self.controller.get("node_config"))
+    def restart_welcome_tour(self) -> None:
+        """Start the welcome tour again without restarting the application."""
+        self.controller.initialize_welcome_tour(force=True)
+
+    def show_node_picker(self):
+        """Show the categorized node picker dialog."""
+        if self.node_picker is None:
+            self.node_picker = NodePicker(self.controller, self)
+            self.viewer.node_picker = self.node_picker
+        self.node_picker.show()
+        self.node_picker.raise_()
+        self.node_picker.activateWindow()
+
+    def new_pipeline(self):
+        config_path = self.controller.new_config()
+        if config_path is None:
+            return
+        self.controller.ensure_ready()
+        if self.viewer is not None:
+            self.viewer.load_nodes(self.controller.get("node_config"))
         self.statusBar().showMessage(f"{self.controller.name} is ready.")
 
-    def save_pipeline(self, show_status: bool = True):
-        export_path = get_user_input(
-            "Select a location to save the pipeline configuration.",
-            input_type="file_new",
-            file_filter="JSON files (*.json)",
-            parent=self,
-        )
-        if export_path is None:
+    def load_pipeline(self):
+        config_path = self.controller.load_config()
+        if config_path is None:
             return
-        self.controller.export_pipeline(export_path)
-        if show_status:
-            self.statusBar().showMessage(f"{self.controller.name} saved.")
+        self.controller.ensure_ready()
+        if self.viewer is not None:
+            self.viewer.load_nodes(self.controller.get("node_config"))
+        self.statusBar().showMessage(f"{self.controller.name} is ready.")
+
+    def save_pipeline(self):
+        config_path = self.controller.save_config()
+        if config_path is None:
+            return
+        self.statusBar().showMessage(f"{self.controller.name} saved to {config_path}.")
+
+    def save_pipeline_as(self):
+        config_path = self.controller.save_config_as()
+        if config_path is None:
+            return
+        self.controller.ensure_ready()
+        self.statusBar().showMessage(f"{self.controller.name} saved as {config_path}.")
 
     def load_plugin_path(self):
         plugin_path = get_user_input(
@@ -197,6 +279,48 @@ class MainWindow(QMainWindow):
         self.controller.load_plugin_path(plugin_path)
         self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
+    def import_functions(
+        self, code: str | None = None, file_path: str | Path | None = None
+    ) -> None:
+        """Open the function importer without executing the supplied code."""
+        importer = FunctionImporter(parent=self, on_saved=self._load_saved_plugin)
+        try:
+            if code is not None:
+                importer.analyze_code(code)
+            elif file_path is not None:
+                importer.load_file(file_path)
+        except Exception:  # noqa: BLE001
+            importer.deleteLater()
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not import Python functions."
+            ).open()
+            return
+        importer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        importer.open()
+
+    def _load_saved_plugin(self, config_path: Path) -> None:
+        self.controller.load_plugin_path(config_path)
+        self.viewer.refresh_node_picker()
+        self.statusBar().showMessage(f"Plugin saved and loaded from {config_path}.")
+
+    def import_function_mime(self, mime: QMimeData) -> None:
+        """Open an importer for each Python file, or for dropped code text."""
+        if not is_function_import_mime(mime):
+            return
+        if mime.hasUrls():
+            for url in mime.urls():
+                self.import_functions(file_path=Path(url.toLocalFile()))
+        else:
+            self.import_functions(code=mime.text())
+
+    def paste_function_code(self) -> None:
+        """Import clipboard code without intercepting paste in text editors."""
+        code = QApplication.clipboard().text()
+        if not code.strip():
+            raise_user_attention("The clipboard contains no Python code.", parent=self)
+            return
+        self.import_functions(code=code)
+
     def load_plugin_module(self):
         plugin_name = get_user_input(
             "Enter the name of the plugin module to load.",
@@ -205,7 +329,7 @@ class MainWindow(QMainWindow):
         )
         if plugin_name is None:
             return
-        self.controller.load_plugin_module_name(plugin_name)
+        self.controller.load_plugin_module_name(plugin_name, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
 
     def load_plugin_github(self):
@@ -214,7 +338,7 @@ class MainWindow(QMainWindow):
         )
         if plugin_url is None:
             return
-        self.controller.load_plugin_github(plugin_url)
+        self.controller.load_plugin_github(plugin_url, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def manage_plugins(self):
@@ -310,8 +434,29 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
+    def dragEnterEvent(self, event):
+        if is_function_import_mime(event.mimeData()):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if is_function_import_mime(event.mimeData()):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            self.import_function_mime(event.mimeData())
+        else:
+            event.ignore()
+
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_C:
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_function_code()
+            event.accept()
+        elif event.key() == Qt.Key.Key_C:
             self.console_dock.setVisible(not self.console_dock.isVisible())
         else:
             super().keyPressEvent(event)
@@ -319,8 +464,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         # Persist screen info
         self.settings.set("screen_name", self.screen().name())
-        _widgets["main_window"] = None
-        _widgets["viewer"] = None
+        widget_registry().unregister("main_window", self)
+        widget_registry().unregister("viewer", self.viewer)
         self.controller.set("node_config", self.viewer.to_dict())
         self.controller.flush()
+        self.controller.cancel_welcome_tour()
         event.accept()

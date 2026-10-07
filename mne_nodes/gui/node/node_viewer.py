@@ -21,8 +21,8 @@ from qtpy.QtWidgets import (
     QRubberBand,
 )
 
-from mne_nodes import _widgets, debug_mode
-from mne_nodes.gui.gui_utils import invert_rgb_color
+from mne_nodes import debug_mode
+from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node import nodes
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_defaults import defaults
@@ -30,6 +30,7 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.nodes import FunctionNode, InputNode
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
 
 
@@ -63,8 +64,7 @@ class NodeViewer(QGraphicsView):
         self.default_x_distance = 200
         self.default_y_distance = 50
 
-        # add to global object references
-        _widgets["viewer"] = self
+        widget_registry().register("viewer", self, retain=parent is None)
 
         # attributes
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
@@ -194,13 +194,15 @@ class NodeViewer(QGraphicsView):
 
     @property
     def input_node(self):
-        """Return the (only) input node in the node graph.
+        """Return the (only) input node in the node graph. Ensures it exists.
 
         Returns
         -------
         InputNode
             The input node in the node graph.
         """
+        if self._input_node is None:
+            self.add_input_node()
         return self._input_node
 
     @input_node.setter
@@ -213,7 +215,7 @@ class NodeViewer(QGraphicsView):
         """
         if self._input_node is not None:
             logger.info("Replacing existing input node.")
-            self.remove_node(self._input_node)
+            self.remove_node(self._input_node, force=True)
         self._input_node = input_node
 
     @property
@@ -404,6 +406,7 @@ class NodeViewer(QGraphicsView):
             raise ValueError("Function node name cannot be None.")
         self.function_nodes[function_name] = node
         self.add_node(node, pos=pos, connected=connected)
+        self.zoom_to_nodes(nodes=list(self.nodes.values()))
 
         return node
 
@@ -729,7 +732,6 @@ class NodeViewer(QGraphicsView):
         of different node types and activated/deactivated nodes should
         be done in Controller.
         """
-        # ToDoNext: NodeSequence has to tell me each step what are the inputs and to which preceding node are they connected
         node_sequence = {"file": [], "group": []}
         visited = set()
         # Add the starting node
@@ -1201,20 +1203,9 @@ class NodeViewer(QGraphicsView):
         self._set_viewer_zoom(delta, pos=event.pos())
 
     def dropEvent(self, event):
-        # ToDo: More drops possible:
-        # 1. Drop an meeg-file/fsmri-folder to add data
-        # 2. Drag and drop some selected text to add a custom function
-        # 3. Drag a pipeline-config-file to load a pipeline
-
         pos = self.mapToScene(event.pos())
         # enforce copy action for external drops
         event.setDropAction(Qt.DropAction.CopyAction)
-        print(
-            "[NodeViewer] dropEvent received. hasText=",
-            event.mimeData().hasText(),
-            "text=",
-            event.mimeData().text(),
-        )
         mime = event.mimeData()
         self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
 
@@ -1232,6 +1223,9 @@ class NodeViewer(QGraphicsView):
         elif text.startswith("mne-nodes/input:"):
             node = self.add_input_node()
             node.xy_pos = (pos.x(), pos.y())
+        else:
+            event.accept()
+            return
         self.zoom_to_nodes()
 
         event.accept()
@@ -1245,10 +1239,9 @@ class NodeViewer(QGraphicsView):
         """
 
     def _check_drag_event(self, event):
-        acceptable_formats = ["text/plain"]
-        is_acceptable = (
-            any(event.mimeData().hasFormat(fmt) for fmt in acceptable_formats)
-            or event.mimeData().hasText()
+        mime = event.mimeData()
+        is_acceptable = is_function_import_mime(mime) or (
+            not mime.hasUrls() and mime.text().startswith("mne-nodes/")
         )
         if is_acceptable:
             event.setDropAction(Qt.DropAction.CopyAction)

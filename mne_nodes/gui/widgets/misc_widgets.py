@@ -21,7 +21,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes import _widgets
+from mne_nodes.gui.widget_registry import get_widget
 from mne_nodes.gui.widgets.dict_widgets import EditDict
 from mne_nodes.gui.widgets.list_widgets import CheckDictList, EditList, SimpleList
 from mne_nodes.pipeline.settings import Settings
@@ -48,7 +48,7 @@ class SimpleDialog(QDialog):
         window_title=None,
         show_close_bt=True,
     ):
-        parent = parent or _widgets["main_window"] or _widgets["viewer"]
+        parent = parent or get_widget("main_window") or get_widget("viewer")
         super().__init__(parent)
 
         # Make sure, the dialog is deleted when closed

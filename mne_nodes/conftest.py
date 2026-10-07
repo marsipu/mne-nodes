@@ -6,20 +6,18 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import faulthandler
 import json
-import os  # added
 from datetime import UTC, datetime
 from os import mkdir
 from os.path import isdir
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from mne_nodes.logger import init_logging
+from mne_nodes.logger import init_logging, logger
 
-# Force debug mode for all tests
-os.environ["MNENODES_DEBUG"] = "true"
 test_parameters = {
     "int": 2,
     "float": 5.3,
@@ -68,16 +66,50 @@ alternative_test_parameters = {
 
 tiny_bids_root = Path(__file__).parent / "tests" / "tiny_bids"
 
-init_logging(debug_mode=True)  # Initialize logging for tests
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Isolate settings and logging before test modules are collected."""
+    from mne_nodes.pipeline.settings import Settings
+
+    directory = TemporaryDirectory(prefix="mne-nodes-pytest-")
+    environment = pytest.MonkeyPatch()
+    previous_handlers = set(logger.handlers)
+    previous_level = logger.level
+    previous_filters = list(logger.filters)
+
+    def cleanup():
+        for handler in list(logger.handlers):
+            if handler not in previous_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(previous_level)
+        logger.filters[:] = previous_filters
+        environment.undo()
+        directory.cleanup()
+
+    config.add_cleanup(cleanup)
+    environment.setenv("MNENODES_SETTINGS_DIR", directory.name)
+    environment.setenv("MNENODES_DEBUG", "true")
+    Settings().set("log_file_path", Path(directory.name) / "mne_nodes.log")
+    init_logging(debug_mode=True)
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch):
+    """Protect implicit Settings users and give each test a clean startup state."""
+    from mne_nodes.pipeline.settings import Settings
+
+    monkeypatch.setenv("MNENODES_SETTINGS_DIR", str(tmp_path))
+    settings = Settings()
+    settings.set("log_file_path", tmp_path / "mne_nodes.log")
+    return settings
 
 
 @pytest.fixture
-def settings(tmp_path):
+def settings(isolated_settings):
     """Fixture to create Settings with a temporary settings directory."""
-    from mne_nodes.pipeline.settings import Settings
-
-    os.environ["MNENODES_SETTINGS_DIR"] = str(tmp_path)
-    settings = Settings()
+    settings = isolated_settings
+    settings.set("first_start", False)
     return settings
 
 
@@ -106,6 +138,9 @@ def create_test_controller(settings, tmp_path, monkeypatch):
     # Monkeypatch needs to be set on controller-module, since its already imported
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.ask_user_custom", lambda *args, **kwargs: True
+    )
+    monkeypatch.setattr(
+        "mne_nodes.pipeline.controller.ask_user", lambda *args, **kwargs: True
     )
     monkeypatch.setattr(
         "mne_nodes.pipeline.controller.get_user_input", dummy_user_input
@@ -206,6 +241,7 @@ def main_window(ct, qtbot):
     from mne_nodes.gui.main_window import MainWindow
 
     mw = MainWindow(ct)
+    mw.finalize_controller_setup()
     _add_nodes(mw.viewer)
     qtbot.addWidget(mw)
 

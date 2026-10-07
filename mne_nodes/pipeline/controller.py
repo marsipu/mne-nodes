@@ -6,6 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import ast
 import json
+import keyword
 import os
 import re
 import subprocess
@@ -14,14 +15,13 @@ from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from importlib.util import cache_from_source
+from importlib.util import cache_from_source, module_from_spec, spec_from_file_location
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
-from shutil import copy2
 from time import perf_counter
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import mne
 from filelock import FileLock, Timeout
@@ -33,7 +33,7 @@ from mne_bids import (
     read_raw_bids,
 )
 
-from mne_nodes import _widgets, ismac, iswin
+from mne_nodes import gui_mode, ismac, iswin
 from mne_nodes.gui.gui_utils import (
     ask_user,
     ask_user_custom,
@@ -41,6 +41,7 @@ from mne_nodes.gui.gui_utils import (
     question_yes_no,
     raise_user_attention,
 )
+from mne_nodes.gui.widget_registry import get_widget
 from mne_nodes.logger import logger
 from mne_nodes.pipeline.code_generation import CodeGenerator
 from mne_nodes.pipeline.io import TypedJSONEncoder, load_json
@@ -53,12 +54,13 @@ from mne_nodes.pipeline.package_utils import (
 from mne_nodes.pipeline.pipeline_utils import is_test
 from mne_nodes.pipeline.settings import Settings
 
+if TYPE_CHECKING:
+    from mne_nodes.gui.main_window import MainWindow
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
 default_config = {
     # BIDS
-    "selected_inputs": {
-        "file": [],
-        "subject": [],
-    },  # BIDS entity values as keys for lists
+    "selected_inputs": {},  # BIDS entity values as keys for lists
     "group_by": "subject",
     "custom_groups": {},
     "bids_dataset_name": None,  # Cached BIDS dataset name from dataset_description.json
@@ -71,7 +73,6 @@ default_config = {
     "shutdown": False,
     # Plugins
     "plugin_meta": {},
-    "functions": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
 }
@@ -96,6 +97,8 @@ class Controller:
         # These hidden attributes should not be set directly
         self._config = deepcopy(default_config)
         self._config_path: Path | None = None
+        self._paths_config_path = self._as_path(self.settings.get("config_path"))
+        self._bids_root_confirmation_pending = False
         self._config_lock = None
         self._last_load = 0
         self._local_set = False
@@ -139,11 +142,13 @@ class Controller:
     def _initialize_startup_config_path(self, config_path: Any) -> None:
         startup_path = self._resolve_startup_config_path(config_path)
         if startup_path is not None:
-            self._set_config_path(startup_path, reprompt_on_none=False)
+            self._set_config_path(
+                startup_path, reprompt_on_none=False, interactive=False
+            )
 
     def _prompt_config_path(self) -> Path:
         ans = ask_user_custom(
-            "Do you want to create a new config-file or use an existing one?",
+            "Do you want to create a new pipeline-file or use an existing one?",
             buttons=("Create new", "Use existing"),
             close_on_cancel=True,
         )
@@ -151,52 +156,107 @@ class Controller:
             logger.info("User canceled, closing app.")
             sys.exit(0)
         if ans:
-            logger.info("Creating new config-file.")
-            config_folder = self._as_path(
-                get_user_input(
-                    "Set the folder-path to store the config-file",
-                    input_type="folder",
-                    exit_on_cancel=True,
-                )
+            logger.info("Creating new pipeline file.")
+            name, config_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
             )
-            name = get_user_input(
-                "Please enter a name for this project", input_type="string"
-            )
-            if config_folder is None or name is None:
-                raise RuntimeError("Config path initialization failed.")
-            # Keep project name first in JSON for readability.
+            if config_path is None:
+                raise RuntimeError("Pipeline path initialization failed.")
             config = {"name": name, **deepcopy(default_config)}
-            config_path = config_folder / f"{name}_config.json"
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(config, file, indent=4, cls=TypedJSONEncoder)
-                logger.info(f"New configuration created at:\n{config_path}")
+                logger.info(f"New pipeline file created at:\n{config_path}")
             return config_path
 
-        logger.info("Using existing config-file.")
+        logger.info("Using existing pipeline file.")
         config_path = self._as_path(
             get_user_input(
-                "Please enter the path to an existing config-file",
+                "Please enter the path to an existing pipeline file",
                 input_type="file",
                 file_filter="JSON files (*.json)",
                 exit_on_cancel=True,
             )
         )
         if config_path is None:
-            raise RuntimeError("Config path initialization failed.")
-        logger.info(f"Configuration sucessfully loaded from:\n{config_path}")
+            raise RuntimeError("Pipeline path initialization failed.")
+        logger.info(f"Pipeline file successfully loaded from:\n{config_path}")
         return config_path
 
-    def _apply_config_path(self, config_path: Path) -> None:
+    def _pipeline_name_to_path(
+        self, pipeline_name: str, folder: Path | None = None
+    ) -> Path:
+        name = str(pipeline_name).strip()
+        if name == "":
+            raise RuntimeError("Pipeline name cannot be empty.")
+        folder = folder or (
+            self._config_path.parent if self._config_path is not None else Path.cwd()
+        )
+        return folder / f"{name}_pipeline.json"
+
+    def _prompt_pipeline_path(self, message: str) -> tuple[str | None, Path | None]:
+        folder = self._as_path(
+            get_user_input(
+                "Select the folder for the pipeline file",
+                input_type="folder",
+                cancel_allowed=True,
+            )
+        )
+        if folder is None:
+            return None, None
+        pipeline_name = get_user_input(
+            message, input_type="string", cancel_allowed=True
+        )
+        if pipeline_name is None:
+            return None, None
+        return str(pipeline_name), self._pipeline_name_to_path(pipeline_name, folder)
+
+    def _normalize_config_path(self, config_path: Any) -> Path:
+        config_path = self._as_path(config_path)
+        if config_path is None:
+            raise RuntimeError("Failed to resolve pipeline file path.")
+        if config_path.is_dir():
+            name = self.get("name", None)
+            if not isinstance(name, str) or name.strip() == "":
+                raise RuntimeError("Pipeline name is required when selecting a folder.")
+            return self._pipeline_name_to_path(name, config_path)
+        return config_path
+
+    def _activate_config_path(self, config_path: Any) -> Path:
+        config_path = self._normalize_config_path(config_path)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        if self._paths_config_path != config_path:
+            self.settings.set("deriv_root", None)
+            self.settings.set("plot_root", None)
+            self._bids_root_confirmation_pending = (
+                self._paths_config_path is not None and self.bids_root is not None
+            )
+        self._paths_config_path = config_path
         self._config_path = config_path
-        self._config_lock = FileLock(self._config_path.with_suffix(".lock"))
-        self.settings.set("config_path", self._config_path)
-        # Load the config immediately
-        if self._config_path.is_file():
-            self.load(nodes=True, plugins=True)
+        self._config_lock = FileLock(config_path.with_suffix(".lock"))
+        self.settings.set("config_path", config_path)
+        return config_path
+
+    def _apply_config_path(
+        self,
+        config_path: Path,
+        *,
+        interactive: bool = True,
+        prepare_bids_root: Callable[[], None] | None = None,
+    ) -> None:
+        config_path = self._activate_config_path(config_path)
+        if config_path.is_file():
+            self.load(plugins=True)
         else:
             self.flush()
+        self._confirm_config_bids_root(interactive=interactive)
+        if prepare_bids_root is not None:
+            prepare_bids_root()
+        if self.viewer is not None:
+            self.viewer.load_nodes(self._config["node_config"])
 
-    def _set_config_path(self, value: Any, *, reprompt_on_none: bool = False) -> Path:
+    def _set_config_path(
+        self, value: Any, *, reprompt_on_none: bool = False, interactive: bool = True
+    ) -> Path:
         config_path = self._set_setting_file(
             key="config_path",
             value=value,
@@ -207,7 +267,7 @@ class Controller:
             ),
             reprompt_on_none=reprompt_on_none,
         )
-        self._apply_config_path(config_path)
+        self._apply_config_path(config_path, interactive=interactive)
         return config_path
 
     @config_path.setter
@@ -222,6 +282,50 @@ class Controller:
                 "Config path is not initialized. Call ensure_config_path() first."
             )
         return self._config_lock
+
+    def initialize_welcome_tour(self, *, force: bool = False) -> None:
+        """Start the tour using a disposable copy of the packaged pipeline."""
+        if not gui_mode:
+            return
+        active_tour = getattr(self, "welcome_tour", None)
+        if active_tour is not None and not active_tour._finished:
+            return
+        main_window = cast("MainWindow | None", get_widget("main_window"))
+        if main_window is None:
+            logger.debug(
+                "Welcome tour skipped because the main window is not ready yet."
+            )
+            return
+
+        if not force and not self.settings.get("first_start", True):
+            return
+
+        from mne_nodes.gui.welcome_tour import start_welcome_tour
+
+        tour = start_welcome_tour(self, main_window)
+        if tour is not None:
+            self.welcome_tour = tour
+            tour.finished.connect(self._finish_welcome_tour)
+        self.settings.set("first_start", False)
+
+    def _finish_welcome_tour(self) -> None:
+        """Discard the demo and prompt for a new or existing user pipeline."""
+        self._config_path = None
+        self._config_lock = None
+        self._config = deepcopy(default_config)
+        self._last_load = 0
+        self._local_set = False
+        self.settings.set("config_path", None)
+        self.main_window.viewer.clear()
+        self.config_path = None
+        self.ensure_ready()
+        self.main_window.finalize_controller_setup()
+
+    def cancel_welcome_tour(self) -> None:
+        """Stop the tour without starting pipeline setup when the window closes."""
+        tour = getattr(self, "welcome_tour", None)
+        if tour is not None:
+            tour.finish(notify=False)
 
     @staticmethod
     def _as_path(value: Any) -> Path | None:
@@ -386,10 +490,10 @@ class Controller:
 
     def _prompt_name(self) -> str:
         name = get_user_input(
-            "Please enter a name for this project", "string", cancel_allowed=False
+            "Please enter a name for this pipeline", "string", cancel_allowed=False
         )
         if name is None:
-            raise RuntimeError("Project name initialization failed.")
+            raise RuntimeError("Pipeline name initialization failed.")
         return str(name)
 
     @property
@@ -404,10 +508,10 @@ class Controller:
             new_name = str(new_name)
         old_name = self.get("name")
         if old_name != new_name and self._config_path is not None:
-            # Rename the config file if the name changes
             old_path = self._config_path
-            new_path = self._config_path.parent / f"{new_name}_config.json"
-            os.rename(old_path, new_path)
+            new_path = self._config_path.parent / f"{new_name}_pipeline.json"
+            if old_path.exists() and old_path != new_path:
+                os.rename(old_path, new_path)
             self._config_path = new_path
         self.set("name", new_name)
 
@@ -430,6 +534,9 @@ class Controller:
             reprompt_on_none=True,
         )
         if previous_root == new_root:
+            self._bids_root_confirmation_pending = False
+            dataset_name = self._read_bids_dataset_name(new_root)
+            self.set("bids_dataset_name", dataset_name)
             return
         if previous_root != new_root:
             ans = ask_user(
@@ -440,6 +547,12 @@ class Controller:
                 self.settings.set("bids_root", previous_root)
                 return
 
+        self._activate_bids_root(new_root)
+
+    def _activate_bids_root(self, new_root: Path) -> None:
+        """Select one dataset and discard state associated with the previous root."""
+        self._bids_root_confirmation_pending = False
+        self.settings.set("bids_root", new_root)
         # Clear selected inputs and custom groups
         selected_inputs = self.get("selected_inputs")
         custom_groups = self.get("custom_groups")
@@ -452,9 +565,12 @@ class Controller:
         # deriv_root/plot_root belonged to the previous dataset, force re-selection
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)
+        dataset_name = self._read_bids_dataset_name(new_root)
+        self.set("bids_dataset_name", dataset_name)
         # Update input widget when viewer is available.
-        if self.viewer is not None:
-            self.viewer.input_node.update_widgets()
+        viewer = self.viewer
+        if viewer is not None and viewer.input_node is not None:
+            viewer.input_node.update_widgets()
 
     @property
     def deriv_root(self) -> Path | None:
@@ -463,6 +579,9 @@ class Controller:
 
     @deriv_root.setter
     def deriv_root(self, value: Any) -> None:
+        if value is None:
+            self._setup_output_roots()
+            return
         self._set_setting_path(
             key="deriv_root",
             value=value,
@@ -497,6 +616,9 @@ class Controller:
 
     @plot_root.setter
     def plot_root(self, value):
+        if value is None:
+            self._setup_output_roots()
+            return
         self._set_setting_path(
             key="plot_root",
             value=value,
@@ -507,11 +629,48 @@ class Controller:
             ),
             reprompt_on_none=True,
         )
+        self.settings.set("plot_root_is_config_specific", False)
+
+    def _setup_output_roots(self) -> None:
+        """Create config-specific derivatives and plots under one selected parent."""
+        name = self.ensure_name()
+        parent = self._validate_existing_dir(
+            self._prompt_path(
+                f"Select the parent folder for '{name}_derivatives' and '{name}_plots'."
+            ),
+            key="output_parent",
+        )
+        deriv_root = parent / f"{name}_derivatives"
+        plot_root = parent / f"{name}_plots"
+        deriv_root.mkdir(exist_ok=True)
+        plot_root.mkdir(exist_ok=True)
+        self.settings.set("deriv_root", deriv_root)
+        self.settings.set("plot_root", plot_root)
+        self.settings.set("plot_root_is_config_specific", True)
+
+    def _ensure_output_root(self, key: str, *, interactive: bool) -> Path:
+        root = self._setting_folder(key)
+        if root is not None:
+            return root
+        configured_root = self.settings.get(key)
+        if configured_root is not None:
+            message = f"Output folder {configured_root} does not exist."
+            logger.warning(message)
+            if interactive:
+                raise_user_attention(message)
+        if not interactive:
+            raise RuntimeError(
+                f"Required path '{key}' is not configured. Call ensure_{key}() first."
+            )
+        self._setup_output_roots()
+        return self._validate_existing_dir(self.settings.get(key), key=key)
 
     @property
     def plot_path(self) -> Path:
         """Path to the plot directory for the current project."""
         plot_root = self.ensure_plot_root(interactive=False)
+        if self.settings.get("plot_root_is_config_specific", False):
+            return plot_root
         name = self.ensure_name(interactive=False)
         plot_path = plot_root / name
         if not isdir(plot_path):
@@ -530,7 +689,7 @@ class Controller:
             ),
             interactive=interactive,
         )
-        self._apply_config_path(config_path)
+        self._apply_config_path(config_path, interactive=interactive)
         return config_path
 
     def ensure_name(self, interactive: bool = True) -> str:
@@ -550,6 +709,33 @@ class Controller:
         return coerced_name
 
     def ensure_bids_root(self, interactive: bool = True) -> Path:
+        if self._bids_root_confirmation_pending:
+            if not interactive:
+                raise RuntimeError(
+                    "The BIDS root must be confirmed for the current configuration."
+                )
+            bids_root = self.bids_root
+            if bids_root is not None:
+                keep_root = ask_user(
+                    f"Keep the BIDS-root '{bids_root}' for the configuration "
+                    f"'{self.name or self.ensure_config_path(False).stem}'?",
+                    cancel_allowed=False,
+                )
+                if not keep_root:
+                    new_root = self._validate_existing_dir(
+                        self._prompt_path(
+                            "Please select/create a folder for the bids-root."
+                        ),
+                        key="bids_root",
+                    )
+                    if new_root != bids_root:
+                        self._activate_bids_root(new_root)
+                self._check_bids_root_mismatch(self._config)
+                active_root = self._validate_existing_dir(
+                    self.settings.get("bids_root"), key="bids_root"
+                )
+                self.set("bids_dataset_name", self._read_bids_dataset_name(active_root))
+            self._bids_root_confirmation_pending = False
         return self._ensure_setting_path(
             key="bids_root",
             prompt="Please select/create a folder for the bids-root.",
@@ -560,27 +746,15 @@ class Controller:
             interactive=interactive,
         )
 
+    def _confirm_config_bids_root(self, *, interactive: bool) -> None:
+        if interactive and self._bids_root_confirmation_pending:
+            self.ensure_bids_root()
+
     def ensure_deriv_root(self, interactive: bool = True) -> Path:
-        return self._ensure_setting_path(
-            key="deriv_root",
-            prompt="Please select/create a folder for the derivatives root.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select the correct folder for data derivatives."
-            ),
-            interactive=interactive,
-        )
+        return self._ensure_output_root("deriv_root", interactive=interactive)
 
     def ensure_plot_root(self, interactive: bool = True) -> Path:
-        return self._ensure_setting_path(
-            key="plot_root",
-            prompt="Please select/create a folder for saving plots.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select/create the folder where plots should be saved."
-            ),
-            interactive=interactive,
-        )
+        return self._ensure_output_root("plot_root", interactive=interactive)
 
     def ensure_subjects_dir(self, interactive: bool = True) -> Path:
         subjects_dir = self.subjects_dir
@@ -699,13 +873,12 @@ class Controller:
         return deepcopy(default_config.get(key, None))
 
     def _check_bids_root_mismatch(self, config: dict) -> None:
-        """Warn and reset device paths if bids_root doesn't match the loaded project.
+        """Warn and reset selections if bids_root differs from the loaded dataset.
 
-        ``bids_root``, ``deriv_root`` and ``plot_root`` are device-wide settings,
-        shared across all config-files/projects on this device. If the currently
+        ``bids_root`` is a device-wide setting. If the currently
         configured ``bids_root`` points to a different dataset than the one this
         project was last used with (recorded as ``bids_dataset_name``), the
-        selection/derivatives/plot paths are stale and must be re-selected.
+        input selections and custom groups are stale and must be re-selected.
         """
         cached_name = config.get("bids_dataset_name")
         if not cached_name:
@@ -719,12 +892,11 @@ class Controller:
         raise_user_attention(
             f"The configured BIDS-root '{bids_root}' belongs to dataset "
             f"'{actual_name}', but this project was last used with dataset "
-            f"'{cached_name}'. Please select the correct bids-root, "
-            "derivatives-root and plot-root for this project.",
-            "warning",
+            f"'{cached_name}'. All selected inputs and custom groups will be considered stale and removed."
         )
-        for key in ("bids_root", "deriv_root", "plot_root"):
-            self.settings.set(key, None)
+        for key in ["selected_inputs", "custom_groups"]:
+            config[key] = deepcopy(default_config.get(key))
+        config["bids_dataset_name"] = actual_name
 
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
         """Load config from disk and optionally resolve nodes and pipeline dependencies."""
@@ -746,10 +918,9 @@ class Controller:
             logger.warning("Loaded configuration has invalid type. Using defaults.")
             config = deepcopy(default_config)
 
-        self._check_bids_root_mismatch(config)
+        if not self._bids_root_confirmation_pending:
+            self._check_bids_root_mismatch(config)
 
-        if nodes and self.viewer is not None:
-            self.viewer.load_nodes(config["node_config"])
         return config
 
     def load(self, *, nodes: bool = False, plugins: bool = False):
@@ -769,10 +940,12 @@ class Controller:
         try:
             with self.config_lock:
                 self._config = self._load_config(nodes=nodes, plugins=plugins)
+                self._last_load = perf_counter()
+                self._local_set = False
                 if plugins and self.viewer:
                     self.load_recent_plugins()
-            self._last_load = perf_counter()
-            self._local_set = False
+                if nodes and self.viewer is not None:
+                    self.viewer.load_nodes(self._config["node_config"])
 
         except Timeout:
             logger.warning(
@@ -832,6 +1005,12 @@ class Controller:
         self._config[config_name][key] = value
         self._delayed_flush()
 
+    def reset_value(self, key) -> None:
+        """Reset a specific key in the config-file."""
+        if key in self._config:
+            del self._config[key]
+            self._delayed_flush()
+
     @property
     def run_script_folder(self):
         """Path to the local config folder."""
@@ -841,14 +1020,14 @@ class Controller:
         return local_config_path
 
     @property
-    def viewer(self):
-        """Get the viewer object from the _widgets dictionary."""
-        return _widgets.get("viewer", None)
+    def viewer(self) -> "NodeViewer | None":
+        """Get the registered viewer if it is available."""
+        return cast("NodeViewer | None", get_widget("viewer"))
 
     @property
-    def main_window(self):
-        """Get the main window object from the _widgets dictionary."""
-        main_window = _widgets.get("main_window", None)
+    def main_window(self) -> "MainWindow":
+        """Get the registered main window, raising if it is unavailable."""
+        main_window = cast("MainWindow | None", get_widget("main_window"))
         if main_window is None:
             raise RuntimeError(
                 "Main window is not initialized. Please initialize the main window first."
@@ -868,17 +1047,24 @@ class Controller:
         return load_json(dataset_file, no_gui=True).get("Name")
 
     def get_dataset_name(self) -> str | None:
-        try:
-            bids_root = self.ensure_bids_root(interactive=False)
-        except RuntimeError:
-            bids_root = None
+        bids_root = self.bids_root
         if bids_root is not None:
             name = self._read_bids_dataset_name(bids_root)
             if name is not None:
                 self.set("bids_dataset_name", name)
                 return name
-        # Fall back to cached value from config
-        return self.get("bids_dataset_name", None)
+        cached_name = self.get("bids_dataset_name", None)
+        if cached_name is not None:
+            return cached_name
+        try:
+            bids_root = self.ensure_bids_root(interactive=False)
+        except RuntimeError:
+            return None
+        name = self._read_bids_dataset_name(bids_root)
+        if name is not None:
+            self.set("bids_dataset_name", name)
+            return name
+        return None
 
     def get_group_by(self, group_by):
         if group_by == "custom":
@@ -922,18 +1108,36 @@ class Controller:
         excluded_datatypes = ["func"]
         return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
 
+    # TodoNext: Only show measurments and separate empty room measurements. Also facilitate plugin-addition (drag/drop etc.)
     def get_datatype_items(self):
         items = {}
         data_types = self.get_datatypes()
+        data_types = [dt for dt in data_types if dt in self.raw_types] + [
+            dt for dt in data_types if dt not in self.raw_types
+        ]
+        empty_room_items = []
         for dt in data_types:
             bp_kwargs = {"root": self.bids_root, "check": False}
             if dt in self.raw_types:
                 bp_kwargs.update({"suffix": dt})
             else:
                 bp_kwargs.update({"datatype": dt})
-            items[dt] = [
-                f.basename for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+            file_candidates = [
+                f
+                for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+                if f.acquisition not in ["calibration", "crosstalk"]
             ]
+            for f in file_candidates.copy():
+                try:
+                    er_bp = f.find_empty_room()
+                    if er_bp is not None and er_bp in file_candidates:
+                        file_candidates.remove(er_bp)
+                        empty_room_items.append(er_bp.basename)
+                except (RuntimeError, ValueError):
+                    pass
+            items[dt] = [f.basename for f in file_candidates]
+        if empty_room_items:
+            items["emptyroom"] = empty_room_items
         return items
 
     def input_selection_changed(self, selected, data_type):
@@ -1178,6 +1382,37 @@ class Controller:
     ####################################################################################
     # Plugins
     ####################################################################################
+    @staticmethod
+    def _expose_plugin_functions(plugin, functions, script_path):
+        """Expose configured functions from a plugin's implementation script."""
+        missing_functions = [
+            function_name
+            for function_name in functions
+            if not hasattr(plugin, function_name)
+        ]
+        if not missing_functions or script_path is None:
+            return
+
+        script_path = Path(script_path)
+        if not script_path.is_file():
+            return
+
+        if hasattr(plugin, "__path__"):
+            module_name = f"{plugin.__name__}.{script_path.stem}"
+            script_module = import_module(module_name)
+        elif Path(getattr(plugin, "__file__", "")).resolve() == script_path.resolve():
+            script_module = plugin
+        else:
+            raise ValueError(
+                f"Cannot expose functions from '{script_path}' for plugin "
+                f"'{plugin.__name__}'."
+            )
+
+        for function_name in missing_functions:
+            function = getattr(script_module, function_name, None)
+            if function is not None:
+                setattr(plugin, function_name, function)
+
     def load_plugin(self, plugin, plugin_name, plugin_meta):
         """Load the configuration file for a plugin."""
         config_path = plugin_meta.get("config_path")
@@ -1196,17 +1431,23 @@ class Controller:
                 raise TypeError(
                     f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
                 )
-            self.set_dict_value("functions", func, plugin_name)
             func_meta["plugin"] = plugin_name
-        # Populate plugin-meta
-        self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
-        # Warn for duplicates, but let the newly loaded plugin's functions win
-        duplicate_functions = [fn for fn in functions if fn in self.function_meta]
+        # Warn for collisions with other plugins, but let the newly loaded
+        # plugin's functions win.
+        duplicate_functions = [
+            fn
+            for fn in functions
+            if fn in self.function_meta
+            and self.function_meta[fn].get("plugin") != plugin_name
+        ]
         if len(duplicate_functions) > 0:
             raise_user_attention(
                 f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
                 "warning",
             )
+        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
+        self._unload_plugin_session(plugin_name)
+        self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
 
@@ -1230,7 +1471,11 @@ class Controller:
         self.load_plugin(plugin, plugin_name, plugin_meta)
 
     def _import_with_install_prompt(
-        self, name: str, github: bool = False, plugin_url: str | None = None
+        self,
+        name: str,
+        github: bool = False,
+        plugin_url: str | None = None,
+        ask_before_install: bool = True,
     ) -> ModuleType | None:
         """Import a module, offering to install it first if it is missing."""
         if github:
@@ -1246,11 +1491,12 @@ class Controller:
         try:
             return importer()
         except ModuleNotFoundError:
-            ans, cancel = question_yes_no(
-                f"Module '{name}' not found. Do you want to install it{prompt_suffix}?"
-            )
-            if cancel or not ans:
-                return None
+            if ask_before_install:
+                ans, cancel = question_yes_no(
+                    f"Do you want to install the Module '{name}'{prompt_suffix}?"
+                )
+                if cancel or not ans:
+                    return None
             installer()
             try:
                 return importer()
@@ -1261,15 +1507,24 @@ class Controller:
                 )
                 return None
 
-    def load_plugin_module_name(self, plugin_name: str) -> None:
-        plugin = self._import_with_install_prompt(plugin_name)
+    def load_plugin_module_name(
+        self, plugin_name: str, ask_before_install: bool = True
+    ) -> None:
+        plugin = self._import_with_install_prompt(
+            plugin_name, ask_before_install=ask_before_install
+        )
         if plugin is not None:
             self.load_plugin_module(plugin)
 
-    def load_plugin_github(self, plugin_url: str) -> None:
+    def load_plugin_github(
+        self, plugin_url: str, ask_before_install: bool = True
+    ) -> None:
         distribution_name = get_name_from_github(plugin_url)
         plugin = self._import_with_install_prompt(
-            distribution_name, github=True, plugin_url=plugin_url
+            distribution_name,
+            github=True,
+            plugin_url=plugin_url,
+            ask_before_install=ask_before_install,
         )
         if plugin is not None:
             self.load_plugin_module(plugin)
@@ -1306,6 +1561,10 @@ class Controller:
             raise RuntimeError(
                 f"Expected script file '{script_path.name}' not found in {script_path.parent}. For just loading a plugin from a config-file, the script file is required to be in the same folder as the config-file and named like '<plugin_name>.py'."
             )
+        if not plugin_name.isidentifier() or keyword.iskeyword(plugin_name):
+            raise ValueError(
+                f"Plugin name '{plugin_name}' is not a valid Python module name."
+            )
         plugin_meta = {
             "config_path": config_path,
             "script_path": script_path,
@@ -1322,8 +1581,26 @@ class Controller:
             self.settings.set("plugin_config", plugin_config)
         if str(folder_path) not in sys.path:
             sys.path.append(str(folder_path))
-        plugin = import_module(plugin_name)
-        self.load_plugin(plugin, plugin_name, plugin_meta)
+        previous_module = sys.modules.get(plugin_name)
+        bytecode_file = cache_from_source(str(script_path))
+        try:
+            os.remove(bytecode_file)
+        except FileNotFoundError:
+            pass
+        spec = spec_from_file_location(plugin_name, script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load plugin module from '{script_path}'.")
+        plugin = module_from_spec(spec)
+        sys.modules[plugin_name] = plugin
+        try:
+            spec.loader.exec_module(plugin)
+            self.load_plugin(plugin, plugin_name, plugin_meta)
+        except BaseException:
+            if previous_module is None:
+                sys.modules.pop(plugin_name, None)
+            else:
+                sys.modules[plugin_name] = previous_module
+            raise
 
     def load_plugin_code(self, code: str):
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
@@ -1341,12 +1618,15 @@ class Controller:
         device_plugin_config = self.settings.get("plugin_config", {})
         disabled_plugins = set(self.settings.get("disabled_plugins", []))
         plugin_meta_all = self.get("plugin_meta", {})
-        items = (
-            {plugin_name: plugin_meta_all[plugin_name]}.items()
-            if plugin_name is not None and plugin_name in plugin_meta_all
-            else plugin_meta_all.items()
-        )
-        for pname, plugin_meta in items:
+        if plugin_name is None:
+            plugin_names = list(plugin_meta_all)
+        elif plugin_name in plugin_meta_all:
+            plugin_names = [plugin_name]
+        else:
+            return
+
+        for pname in plugin_names:
+            plugin_meta = plugin_meta_all[pname]
             if pname in disabled_plugins:
                 logger.debug(f"Skipping disabled plugin '{pname}'.")
                 continue
@@ -1458,54 +1738,31 @@ class Controller:
             self.viewer.refresh_node_picker()
 
     def remove_plugin(self, plugin_name: str) -> None:
-        """Unload a plugin from the current session and remove it from the config.
+        """Unload a plugin and remove its registration from the project.
 
-        For ``path``-type plugins the script and config files are deleted from
-        disk together with any cached bytecode.  For ``github`` and ``module``
-        plugins the distribution is uninstalled via pip.
+        Plugin files and installed distributions are intentionally left in
+        place so the plugin can be registered again later.
 
         Parameters
         ----------
         plugin_name : str
             Name of the plugin to remove.
         """
-        from pathlib import Path
-
-        plugin_meta = self.get("plugin_meta", {}).get(plugin_name, {})
-        plugin_type = plugin_meta.get("plugin_type")
-
         # Unload from current session (also removes viewer nodes)
-        functions_to_remove = self._unload_plugin_session(plugin_name)
+        self._unload_plugin_session(plugin_name)
 
         # Remove from config
         plugin_meta_config = self.get("plugin_meta", {})
         plugin_meta_config.pop(plugin_name, None)
         self.set("plugin_meta", plugin_meta_config)
-        functions_config = self.get("functions", {})
-        for fn in functions_to_remove:
-            functions_config.pop(fn, None)
-        self.set("functions", functions_config)
 
         # Remove device-specific settings entry
         plugin_config = self.settings.get("plugin_config", {})
         plugin_config.pop(plugin_name, None)
         self.settings.set("plugin_config", plugin_config)
-
-        if plugin_type == "path":
-            config_path = plugin_meta.get("config_path")
-            script_path = plugin_meta.get("script_path")
-            for p in [config_path, script_path]:
-                if p is not None:
-                    try:
-                        Path(p).unlink(missing_ok=True)
-                        bytecode = Path(p).with_suffix(".pyc")
-                        bytecode.unlink(missing_ok=True)
-                    except OSError as exc:
-                        logger.warning(f"Could not delete plugin file {p}: {exc}")
-        elif plugin_type in ("github", "module"):
-            from mne_nodes.pipeline.package_utils import uninstall_pip_packages
-
-            uninstall_pip_packages([plugin_name])
+        disabled_plugins = set(self.settings.get("disabled_plugins", []))
+        disabled_plugins.discard(plugin_name)
+        self.settings.set("disabled_plugins", list(disabled_plugins))
 
     def reload_plugins(self, plugin_name: str | None = None) -> None:
         """Reload all plugins in the controller.
@@ -1654,30 +1911,75 @@ class Controller:
         return func_code, start, end
 
     ####################################################################################
-    # Pipeline
+    # config file management
     ####################################################################################
 
-    def export_pipeline(self, export_path=None):
+    def new_config(self, config_path: str | Path | None = None) -> Path | None:
+        """Create a new pipeline file and make it the active project pipeline."""
+        if config_path is None:
+            pipeline_name, config_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
+            )
+            if config_path is None:
+                logger.warning("New pipeline cancelled by user.")
+                return None
+        else:
+            pipeline_name = self.get("name", Path(config_path).stem)
+
+        self._config = {"name": str(pipeline_name), **deepcopy(default_config)}
+        self._activate_config_path(config_path)
+        self.flush()
+        self._confirm_config_bids_root(interactive=True)
+        return self._config_path
+
+    def load_config(self, config_path: str | Path | None = None) -> Path | None:
+        """Load an existing pipeline file into the active controller instance."""
+        if config_path is None:
+            config_path = self._as_path(
+                get_user_input(
+                    "Please enter the path to an existing pipeline file",
+                    input_type="file",
+                    file_filter="JSON files (*.json)",
+                    cancel_allowed=True,
+                )
+            )
+            if config_path is None:
+                logger.warning("Load pipeline cancelled by user.")
+                return None
+
+        self.config_path = config_path
+        return self._config_path
+
+    def save_config(self) -> Path | None:
+        """Write the current pipeline state to the active pipeline file."""
+        if self._config_path is None:
+            return self.save_config_as()
+        self.flush()
+        return self._config_path
+
+    def save_config_as(self, export_path=None) -> Path | None:
+        """Write the current pipeline to a new pipeline file and switch active file."""
         if export_path is None:
-            export_path = get_user_input(
-                "Select a location to save the pipeline configuration.",
-                input_type="file_new",
-                file_filter="JSON files (*.json)",
-                cancel_allowed=True,
+            _, export_path = self._prompt_pipeline_path(
+                "Please enter a name for this pipeline"
             )
             if export_path is None:
-                logger.warning("Pipeline export cancelled by user.")
-                return
-        if self._local_set:
-            self.flush()
-        if self._config_path is not None:
-            copy2(self._config_path, export_path)
-        self.config_path = export_path
+                logger.warning("Save pipeline cancelled by user.")
+                return None
+
+        self._activate_config_path(export_path)
+        self.flush()
+        self._confirm_config_bids_root(interactive=True)
+        return self._config_path
+
+    def export_pipeline(self, export_path=None):
+        """Backward-compatible alias for configuration save-as behavior."""
+        return self.save_config_as(export_path)
 
     def start(self, node_sequence):
         # Generate code file
         code = CodeGenerator(self, node_sequence).code
-        run_file_path = self.run_script_folder / f"{self.name}_pipeline.py"
+        run_file_path = self.run_script_folder / f"{self.name}_code.py"
         with open(run_file_path, "w") as file:
             file.write(code)
         logger.info(f"Pipeline code generated at {run_file_path}.\nStarting execution.")
