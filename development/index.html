@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Development &#8212; mne-nodes 0.1.0.dev1+g7438d57f4 documentation</title>
+    <title>Development &#8212; mne-nodes 0.1.0.dev1+ge131bfc36 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=5ba88cbc"></script>
+    <script src="../_static/documentation_options.js?v=d2c947d8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'development/index';</script>
@@ -116,7 +116,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+g7438d57f4 documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+ge131bfc36 documentation</p>
   
 </a></div>
     
@@ -443,6 +443,20 @@
 </li>
 </ul>
 </div>
+<section id="test-isolation">
+<h2>Test isolation<a class="headerlink" href="#test-isolation" title="Link to this heading">#</a></h2>
+<p>Run tests in the existing development environment, for example
+<code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">run</span> <span class="pre">-n</span> <span class="pre">mnedev</span> <span class="pre">pytest</span> <span class="pre">mne_nodes/tests/test_main_window.py</span></code>.
+Pytest redirects <code class="docutils literal notranslate"><span class="pre">MNENODES_SETTINGS_DIR</span></code> to temporary settings before
+collecting test modules, and gives each test its own fresh settings directory,
+even when it does not request the <code class="docutils literal notranslate"><span class="pre">settings</span></code> fixture. Test logging also uses
+temporary files. The original environment is restored when pytest finishes.</p>
+<p>Tests must not persist demo pipelines, plugin selections or dataset paths into
+the settings used by normal application startup. Subprocesses should inherit
+the isolated environment, or explicitly select their own temporary settings
+directory. Use <code class="docutils literal notranslate"><span class="pre">monkeypatch.setenv</span></code> rather than assigning environment
+variables directly in tests so overrides are restored during teardown.</p>
+</section>
 <section id="widget-registry">
 <h2>Widget Registry<a class="headerlink" href="#widget-registry" title="Link to this heading">#</a></h2>
 <p>GUI widgets are discovered through a registry stored on the current
@@ -516,6 +530,7 @@ been replaced by this API.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#test-isolation">Test isolation</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#widget-registry">Widget Registry</a></li>
 </ul>
   </nav></div>
@@ -545,7 +560,7 @@ been replaced by this API.</p>
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-05 22:35 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-07 17:51 UTC.
       <br/>
     
   </p>

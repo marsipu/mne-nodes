@@ -6,6 +6,22 @@ Development
 
     Docker GUI <docker_gui>
 
+Test isolation
+--------------
+
+Run tests in the existing development environment, for example
+``conda run -n mnedev pytest mne_nodes/tests/test_main_window.py``.
+Pytest redirects ``MNENODES_SETTINGS_DIR`` to temporary settings before
+collecting test modules, and gives each test its own fresh settings directory,
+even when it does not request the ``settings`` fixture. Test logging also uses
+temporary files. The original environment is restored when pytest finishes.
+
+Tests must not persist demo pipelines, plugin selections or dataset paths into
+the settings used by normal application startup. Subprocesses should inherit
+the isolated environment, or explicitly select their own temporary settings
+directory. Use ``monkeypatch.setenv`` rather than assigning environment
+variables directly in tests so overrides are restored during teardown.
+
 Widget Registry
 ---------------
 

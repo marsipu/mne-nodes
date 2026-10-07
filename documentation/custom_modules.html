@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Custom Modules/Functions &#8212; mne-nodes 0.1.0.dev1+g7438d57f4 documentation</title>
+    <title>Custom Modules/Functions &#8212; mne-nodes 0.1.0.dev1+ge131bfc36 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0" />
 
-    <script src="../_static/documentation_options.js?v=5ba88cbc"></script>
+    <script src="../_static/documentation_options.js?v=d2c947d8"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/custom_modules';</script>
@@ -114,7 +114,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.1.0.dev1+g7438d57f4 documentation</p>
+    <p class="title logo__title">mne-nodes 0.1.0.dev1+ge131bfc36 documentation</p>
   
 </a></div>
     
@@ -414,8 +414,35 @@
   <section id="custom-modules-functions">
 <h1>Custom Modules/Functions<a class="headerlink" href="#custom-modules-functions" title="Link to this heading">#</a></h1>
 <p>To extend the functionality of <strong>mne-nodes</strong>, you can add custom modules.
-.. ToDo: From the gui, you can add custom modules by</p>
+The welcome tour (also available under <strong>Help &gt; Restart Welcome Tour</strong>) explains
+the import and plugin-loading options and guides you through importing a
+<code class="docutils literal notranslate"><span class="pre">raw.crop()</span></code> example, reviewing it, saving/loading the plugin, and adding and
+connecting its node. The tour uses a temporary plugin destination and removes
+the demo plugin and files on completion or cancellation.</p>
+<section id="importing-functions-from-the-application">
+<h2>Importing functions from the application<a class="headerlink" href="#importing-functions-from-the-application" title="Link to this heading">#</a></h2>
+<p>Choose <strong>Plugins &gt; Import Functions…</strong> and use <strong>Load File</strong> to open a Python
+file in the function importer. You can also drop one or more local <code class="docutils literal notranslate"><span class="pre">.py</span></code> files
+or selected Python code text onto the main window or node canvas.
+The standard paste shortcut (<code class="docutils literal notranslate"><span class="pre">Ctrl+V</span></code> on Windows/Linux) imports clipboard
+text when the canvas or main window has focus. Paste inside an editor or
+parameter field continues to edit that field normally.</p>
+<p>The importer analyzes top-level functions without executing the supplied code.
+Review the detected inputs, outputs and parameters, and use <strong>Re-analyze Code</strong>
+after editing a function. Code text requires a plugin name; when saving, choose
+the directory for the new Python module and its configuration. Plugin names
+must be valid Python module names (identifiers, not keywords). Module imports,
+decorators and other supporting code are preserved when saving a plugin from
+text. Subsequent saves update that newly created module. For an existing Python
+file, <strong>Save</strong> writes the configuration alongside the original file; it does
+not overwrite the original Python source.</p>
+<p>Saving from the application automatically loads the generated plugin and
+refreshes the node picker, making its functions available immediately.
+Saving therefore imports the Python module and executes its module-level code;
+only save code you trust. If loading fails, an error is displayed and the saved
+files remain available for correction and retry.</p>
 <p>The configuration file (JSON) is expected to be in the same directory as the module.</p>
+</section>
 <section id="inputs">
 <h2>Inputs<a class="headerlink" href="#inputs" title="Link to this heading">#</a></h2>
 <p>The inputs are expected to be all arguments from the function without a default value (args).
@@ -463,6 +490,7 @@ Their name needs to be identical to the names of return statements from other fu
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#importing-functions-from-the-application">Importing functions from the application</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inputs">Inputs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#outputs">Outputs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a></li>
@@ -495,7 +523,7 @@ Their name needs to be identical to the names of return statements from other fu
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-05 22:35 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-10-07 17:51 UTC.
       <br/>
     
   </p>
