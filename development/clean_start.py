@@ -1,74 +1,64 @@
 """Run MNE-Nodes as if it were started for the first time.
 
-The app uses a temporary settings directory, so the real settings file is never
-touched. Other persistent state in the home directory (``~/.mne-nodes`` and
-``~/mne_nodes.log``) is backed up before the start and restored after the app
-closes. Additional command-line arguments are passed on to MNE-Nodes.
+The app uses temporary settings, home and data directories, including an empty
+sample-data cache, like a fresh container. Your original settings, log and home
+files are never touched. Temporary state is removed after the app closes.
+Files explicitly selected outside the temporary directory are not restored.
+Additional command-line arguments are passed on to MNE-Nodes.
 
 Close any existing MNE-Nodes instances before running this script:
     conda run -n mnedev python development/clean_start.py
 """
 
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 SRC_PATH = Path(__file__).resolve().parents[1] / "src"
-HOME_STATE = [Path.home() / ".mne-nodes", Path.home() / "mne_nodes.log"]
-
-
-def _remove(path: Path) -> None:
-    if path.is_dir():
-        shutil.rmtree(path)
-    elif path.exists():
-        path.unlink()
-
-
-def _copy(source: Path, destination: Path) -> None:
-    if source.is_dir():
-        shutil.copytree(source, destination)
-    else:
-        shutil.copy2(source, destination)
 
 
 def main() -> int:
-    """Start MNE-Nodes with fresh state and restore the previous state on exit."""
+    """Run MNE-Nodes with disposable state without changing the original state."""
     with tempfile.TemporaryDirectory(prefix="mne-nodes-fresh-") as temp_dir:
         temp_path = Path(temp_dir)
-        backup_dir = temp_path / "backup"
-        backup_dir.mkdir()
-
-        backups = {}
-        for path in HOME_STATE:
-            if path.exists():
-                backups[path] = backup_dir / path.name
-                _copy(path, backups[path])
-                _remove(path)
-
         env = os.environ.copy()
+        home = temp_path / "home"
+        home.mkdir()
+        env["HOME"] = str(home)
+        env["USERPROFILE"] = str(home)
+        for variable, directory in (
+            ("APPDATA", home / "AppData" / "Roaming"),
+            ("LOCALAPPDATA", home / "AppData" / "Local"),
+            ("XDG_CONFIG_HOME", home / ".config"),
+            ("MNE_DATA", home / "mne_data"),
+        ):
+            directory.mkdir(parents=True)
+            env[variable] = str(directory)
         env["MNENODES_SETTINGS_DIR"] = str(temp_path / "settings")
         env["PYTHONPATH"] = os.pathsep.join(
             filter(None, [str(SRC_PATH), env.get("PYTHONPATH")])
         )
-        print(f"Starting MNE-Nodes with fresh settings in {temp_path / 'settings'}")
+        print(f"Starting MNE-Nodes with temporary state in {temp_path}", flush=True)
         try:
-            result = subprocess.run(
+            with subprocess.Popen(
                 [sys.executable, "-P", "-m", "mne_nodes", *sys.argv[1:]],
                 env=env,
-                check=False,
-            )
-            return_code = result.returncode
+                cwd=temp_path,
+            ) as process:
+                try:
+                    return_code = process.wait()
+                except KeyboardInterrupt:
+                    # Do not remove temporary state while the child is still using it.
+                    if process.poll() is None:
+                        process.terminate()
+                    process.wait()
+                    return_code = 130
         except KeyboardInterrupt:
             return_code = 130
         finally:
-            for path in HOME_STATE:
-                _remove(path)
-                if path in backups:
-                    _copy(backups[path], path)
-            print("Previous MNE-Nodes state restored.")
+            print("MNE-Nodes closed; original state was left unchanged.", flush=True)
     return return_code
 
 

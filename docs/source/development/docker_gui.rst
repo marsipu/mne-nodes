@@ -5,21 +5,22 @@ The Docker image can display its Qt window through the host X server. This is
 useful for interactively testing the Linux container; run the application
 natively for ordinary desktop development.
 
-From the repository root, build the image whenever the Dockerfile, Python
-dependencies, or application source changes:
-
-.. code-block:: shell
-
-   python docker/build_docker_image.py
-
-Launch the already-built image with:
+From the repository root, launch the application with:
 
 .. code-block:: shell
 
    python docker/run_docker_gui.py
 
+The launcher refreshes the image from the current checkout before every run.
+Docker reuses unchanged build layers, so it cannot silently launch an older
+version of the application. To build the image without launching it, run
+``python docker/build_docker_image.py``.
+
 Close the MNE-Nodes window to stop the container. Since the container is
 removed after it closes, each launch starts with fresh application settings.
+Both Docker and ``development/clean_start.py`` start the application through
+``python -P -m mne_nodes``. The clean-start script also uses an empty temporary
+home and settings directory, leaving your normal desktop state untouched.
 
 Windows
 -------

@@ -82,12 +82,19 @@ def docker_command(system: str) -> list[str]:
     return [*command, IMAGE]
 
 
-def image_exists() -> bool:
-    """Return whether the Docker image required by the launcher is available."""
-    result = subprocess.run(
-        ["docker", "image", "inspect", IMAGE], capture_output=True, check=False
+def build_image() -> None:
+    """Refresh the image from this checkout, reusing Docker's build cache."""
+    run(
+        [
+            "docker",
+            "build",
+            "-f",
+            str(ROOT / "docker" / "Dockerfile"),
+            "-t",
+            IMAGE,
+            str(ROOT),
+        ]
     )
-    return result.returncode == 0
 
 
 def main() -> None:
@@ -100,11 +107,7 @@ def main() -> None:
     arguments = parser.parse_args()
 
     system = platform.system()
-    if not image_exists():
-        raise SystemExit(
-            f"Docker image '{IMAGE}' is unavailable. Build it with "
-            "'python docker/build_docker_image.py'."
-        )
+    build_image()
 
     if system == "Windows" and not arguments.no_start_x_server:
         start_vcxsrv()

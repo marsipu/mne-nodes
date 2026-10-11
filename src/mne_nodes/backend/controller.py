@@ -252,6 +252,7 @@ class Controller:
         if prepare_bids_root is not None:
             prepare_bids_root()
         if self.viewer is not None:
+            self.ensure_bids_root(interactive=interactive)
             self.viewer.load_nodes(self._config["node_config"])
 
     def _set_config_path(

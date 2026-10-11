@@ -69,4 +69,4 @@ RUN sed -i 's/\r$//' /usr/local/bin/docker_prepare.sh && \
     chmod +x /usr/local/bin/docker_prepare.sh
 
 ENTRYPOINT ["/usr/local/bin/docker_prepare.sh"]
-CMD ["mne_nodes"]
+CMD ["python", "-P", "-m", "mne_nodes"]
