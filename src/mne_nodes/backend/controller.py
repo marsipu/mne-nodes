@@ -1133,8 +1133,8 @@ class Controller:
         bids_dt = [
             dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes
         ]
-        # Add event_id since it gets loaded with raw data
-        bids_dt += ["event_id"]
+        # Add event_id and info, since they can be loaded with raw
+        bids_dt += ["event_id", "info"]
         # Add subject from freesurfer if subjects_dir is set
         if self.subjects_dir is not None:
             bids_dt += ["subject"]
