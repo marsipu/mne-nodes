@@ -38,6 +38,9 @@ group_functions = {"mne.grand_average"}
 # These parameter names are always node inputs, regardless of documented type.
 always_input_names = {"event_id", "subject"}
 
+# Alternative port names not captured by the class aliases. List both directions.
+hard_aliases = {"surfs": ["surfaces"], "surfaces": ["surfs"]}
+
 # Populated from _collect_object_aliases() once `objects` has been built below.
 class_alias = {}
 
@@ -125,9 +128,9 @@ def _docutils_html_to_qt_html(html):
 
 
 def _accepted_aliases(name):
-    """Return accepted port names for a class or output name."""
+    """Return class-derived and hardcoded aliases, keeping the port name first."""
     key = name.lower()
-    return _accepted_names(key, *class_alias.get(key, []))
+    return _accepted_names(key, *class_alias.get(key, []), *hard_aliases.get(key, []))
 
 
 def _accepted_names_from_types(types):
@@ -439,7 +442,7 @@ def get_param_config(param, sig, obj_config):
     none_select = parsed["none_select"] or default is None
     # Non-primitive types (object references) are treated as node inputs.
     non_primitive = [t for t in types if t not in default_type_guis]
-    # A name matching a known class/io alias only forces a param into being an
+    # A name matching a known class/io/hard alias only forces a param into being an
     # input when its type isn't already a clean, GUI-backed primitive (e.g.
     # "DataFrame") or is a container commonly used for pipeline data (e.g.
     # array-typed "events"); this avoids sweeping in unrelated params that
@@ -450,8 +453,10 @@ def get_param_config(param, sig, obj_config):
     if not force_input and (
         not types or non_primitive or any(t in container_types for t in types)
     ):
-        force_input = _is_class_alias(param.arg_name) or _is_known_io_name(
-            param.arg_name
+        force_input = (
+            _is_class_alias(param.arg_name)
+            or _is_known_io_name(param.arg_name)
+            or param.arg_name.lower() in hard_aliases
         )
     if force_input or len(types) == 0 or len(non_primitive) > 0:
         # Report only genuinely unrecognized types, not known object classes.
@@ -460,7 +465,9 @@ def get_param_config(param, sig, obj_config):
                 missing_types[t].add(param.arg_name)  # type: ignore
         input_config = {  # type: ignore
             "accepted_ports": _accepted_names(
-                param.arg_name, *_accepted_names_from_types(types)
+                param.arg_name,
+                *hard_aliases.get(param.arg_name.lower(), []),
+                *_accepted_names_from_types(types),
             ),
             "optional": default is not inspect.Parameter.empty,
         }

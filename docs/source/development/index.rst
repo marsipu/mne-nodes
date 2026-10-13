@@ -24,6 +24,17 @@ Plugins using the previous ``mne_nodes.pipeline`` imports must switch to
 ``mne_nodes.backend``. The ``mne_nodes.gui`` module path and application
 entry point are unchanged.
 
+MNE port aliases
+----------------
+
+``development/_generate_mne_config.py`` derives accepted port names from MNE
+class names and documented parameter names. Add naming mismatches that cannot
+be inferred from classes to ``hard_aliases``, listing both directions (for
+example, ``surfs`` and ``surfaces``). These aliases are included for inputs,
+outputs and I/O matching. A matching container parameter is treated as a node
+input, but primitive parameters such as booleans remain editable parameters.
+Regenerate the plugin configs to apply alias changes to the application.
+
 Test isolation
 --------------
 
