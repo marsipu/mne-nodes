@@ -23,11 +23,7 @@ table_widgets = [("SimplePandasTable", "dataframe"), ("EditPandasTable", "datafr
 
 tree_widgets = [("TreeWidget", "tree_dict"), ("ShallowTreeWidget", "group_tree")]
 
-checklist_widgets = [
-    ("CheckList", "checklist"),
-    ("CheckDictList", "checkdict"),
-    ("CheckDictEditList", "checkdict"),
-]
+checklist_widgets = [("CheckList", "checklist"), ("CheckDictEditList", "checkdict")]
 
 
 # Test data for different widget types
@@ -317,18 +313,10 @@ def test_widget_selection(
 @pytest.mark.parametrize("widget_name, data_type", checklist_widgets)
 def test_checklist_functionality(qtbot, widget_name, data_type, test_data):
     """Test CheckList and related widgets with checking functionality."""
-    from mne_nodes.gui.widgets.list_widgets import (
-        CheckDictEditList,
-        CheckDictList,
-        CheckList,
-    )
+    from mne_nodes.gui.widgets.list_widgets import CheckDictEditList, CheckList
 
     # Get the widget class
-    widget_classes = {
-        "CheckList": CheckList,
-        "CheckDictList": CheckDictList,
-        "CheckDictEditList": CheckDictEditList,
-    }
+    widget_classes = {"CheckList": CheckList, "CheckDictEditList": CheckDictEditList}
     widget_class = widget_classes[widget_name]
 
     # Create test data
@@ -366,7 +354,7 @@ def test_checklist_functionality(qtbot, widget_name, data_type, test_data):
         widget.replace_checked(new_checked)
         assert widget.model._checked is new_checked
 
-    elif widget_name in ["CheckDictList", "CheckDictEditList"]:
+    elif widget_name == "CheckDictEditList":
         # For CheckDict widgets, we need a check_dict parameter
         check_dict = {"item1": "value1", "item3": "value3"}
         widget = widget_class(data=original_data, check_dict=check_dict)

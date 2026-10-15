@@ -5,9 +5,18 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from ast import literal_eval
+from collections.abc import Hashable
 
 import qtawesome as qta
-from qtpy.QtCore import QAbstractItemModel, QAbstractListModel, Qt
+from qtpy.QtCore import (
+    QAbstractItemModel,
+    QAbstractListModel,
+    QModelIndex,
+    QPersistentModelIndex,
+    Qt,
+)
+from qtpy.QtGui import QIcon
+from qtpy.QtWidgets import QApplication, QStyle
 
 from mne_nodes.logger import logger
 
@@ -200,6 +209,81 @@ class CheckListModel(BaseListModel):
 
     def flags(self, index):
         return QAbstractItemModel.flags(self, index) | Qt.ItemFlag.ItemIsUserCheckable
+
+
+class MarkListModel(QAbstractListModel):
+    """Display dictionary keys with icons determined by their mark values."""
+
+    def __init__(
+        self,
+        data: dict[Hashable, str | bool] | None,
+        mark_icons: dict[str | bool, QIcon | str],
+        show_index: bool = False,
+    ) -> None:
+        super().__init__()
+        self.show_index = show_index
+        self.set_data({} if data is None else data)
+        if not isinstance(mark_icons, dict):
+            raise TypeError("Mark icons must be configured with a dictionary")
+        self.mark_icons: dict[str | bool, QIcon] = {}
+        for mark, icon in mark_icons.items():
+            if not isinstance(mark, (str, bool)):
+                raise TypeError("Mark icon keys must be strings or booleans")
+            if isinstance(icon, str):
+                try:
+                    pixmap = getattr(QStyle.StandardPixmap, icon)
+                except AttributeError as error:
+                    raise ValueError(f"Unknown Qt standard icon: {icon}") from error
+                if not isinstance(pixmap, QStyle.StandardPixmap):
+                    raise TypeError(f"Not a Qt standard icon: {icon}")
+                icon = QApplication.style().standardIcon(pixmap)
+            elif not isinstance(icon, QIcon):
+                raise TypeError(
+                    "Mark icons must be QIcon objects or standard icon names"
+                )
+            self.mark_icons[mark] = icon
+
+    @staticmethod
+    def validate_data(data: dict[Hashable, str | bool]) -> None:
+        """Reject non-dictionaries and unsupported mark values."""
+        if not isinstance(data, dict):
+            raise TypeError("MarkList data must be a dictionary")
+        if any(not isinstance(mark, (str, bool)) for mark in data.values()):
+            raise TypeError("MarkList values must be strings or booleans")
+
+    def set_data(self, data: dict[Hashable, str | bool]) -> None:
+        """Replace the data reference after validating its mark values."""
+        self.validate_data(data)
+        self._data = data
+
+    def getData(self, index: QModelIndex | QPersistentModelIndex) -> Hashable | None:
+        """Return the item key at an index, rather than its marking."""
+        if not index.isValid() or not 0 <= index.row() < len(self._data):
+            return None
+        return list(self._data)[index.row()]
+
+    def rowCount(
+        self, parent: QModelIndex | QPersistentModelIndex | None = None
+    ) -> int:
+        """Return the number of items in this flat model."""
+        return 0 if parent is not None and parent.isValid() else len(self._data)
+
+    def data(
+        self,
+        index: QModelIndex | QPersistentModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> str | QIcon | None:
+        """Return an item's label or its configured marking icon."""
+        if not index.isValid() or not 0 <= index.row() < len(self._data):
+            return None
+        item = self.getData(index)
+        if role == Qt.ItemDataRole.DisplayRole:
+            return f"{index.row()}: {item}" if self.show_index else str(item)
+        if role == Qt.ItemDataRole.EditRole:
+            return str(item)
+        if role == Qt.ItemDataRole.DecorationRole:
+            return self.mark_icons.get(self._data[item])
+        return None
 
 
 class CheckDictModel(BaseListModel):

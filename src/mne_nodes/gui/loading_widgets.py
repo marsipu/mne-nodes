@@ -37,7 +37,7 @@ from mne_nodes.gui.parameter import ComboGui
 from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.user_interaction import warning_message
 from mne_nodes.gui.widgets.dict_widgets import EditDict
-from mne_nodes.gui.widgets.list_widgets import CheckDictList, CheckList, SimpleList
+from mne_nodes.gui.widgets.list_widgets import CheckList, MarkList, SimpleList
 from mne_nodes.gui.widgets.misc_widgets import AssignWidget
 from mne_nodes.logger import logger
 
@@ -421,8 +421,9 @@ class SubBadsWidget(QWidget):
         self.layout = QGridLayout()
 
         file_list = self.pr.all_meeg
-        self.files_widget = CheckDictList(
-            file_list, self.pr.meeg_bad_channels, title="Files"
+        self.files_widget = MarkList(
+            {name: name in self.pr.meeg_bad_channels for name in file_list},
+            title="Files",
         )
         self.files_widget.currentChanged.connect(self.bad_dict_selected)
         self.files_widget.setSizePolicy(
@@ -456,6 +457,9 @@ class SubBadsWidget(QWidget):
         self.setLayout(self.layout)
 
     def update_selection(self):
+        self.files_widget.replace_data(
+            {name: name in self.pr.meeg_bad_channels for name in self.pr.all_meeg}
+        )
         # Clear entries
         for bt in self.bad_chkbts:
             self.bad_chkbts[bt].setChecked(False)
@@ -537,6 +541,9 @@ class SubBadsWidget(QWidget):
     def bad_ckbx_assigned(self):
         bad_channels = [ch for ch in self.bad_chkbts if self.bad_chkbts[ch].isChecked()]
         self.current_obj.set_bad_channels(bad_channels)
+        self.files_widget.replace_data(
+            {name: name in self.pr.meeg_bad_channels for name in self.pr.all_meeg}
+        )
 
     def set_chkbx_enable(self, enable):
         for chkbx in self.bad_chkbts:
@@ -640,8 +647,9 @@ class EventIDGui(QDialog):
     def init_ui(self):
         list_layout = QHBoxLayout()
 
-        self.files = CheckDictList(
-            self.pr.all_meeg, self.pr.meeg_event_id, title="Files"
+        self.files = MarkList(
+            {name: name in self.pr.meeg_event_id for name in self.pr.all_meeg},
+            title="Files",
         )
         self.files.currentChanged.connect(self.file_selected)
 
@@ -742,6 +750,9 @@ class EventIDGui(QDialog):
                 else:
                     sel_event_id[label] = None
             self.pr.sel_event_id[self.name] = sel_event_id
+            self.files.replace_data(
+                {name: name in self.pr.meeg_event_id for name in self.pr.all_meeg}
+            )
 
     def file_selected(self, current, _):
         """Called when File from file_widget is selected."""
@@ -850,6 +861,9 @@ class EvIDApply(QDialog):
             # for all afterwards (same reference)
             self.p.pr.meeg_event_id[file] = self.p.pr.meeg_event_id[self.p.name].copy()
             self.p.pr.sel_event_id[file] = self.p.pr.sel_event_id[self.p.name].copy()
+        self.p.files.replace_data(
+            {name: name in self.p.pr.meeg_event_id for name in self.p.pr.all_meeg}
+        )
 
 
 class CopyTrans(QDialog):
@@ -955,7 +969,9 @@ class ICASelect(QDialog):
         self.main_layout = QVBoxLayout()
         list_layout = QHBoxLayout()
 
-        self.file_list = CheckDictList(self.pr.all_meeg, self.pr.meeg_ica_exclude)
+        self.file_list = MarkList(
+            {name: name in self.pr.meeg_ica_exclude for name in self.pr.all_meeg}
+        )
         self.file_list.currentChanged.connect(self.obj_selected)
         list_layout.addWidget(self.file_list)
 
@@ -1062,7 +1078,9 @@ class ICASelect(QDialog):
             self.pr.meeg_ica_exclude[self.current_obj.name] = [
                 idx for idx in self.chkbxs if self.chkbxs[idx].isChecked()
             ]
-        self.file_list.content_changed()
+        self.file_list.replace_data(
+            {name: name in self.pr.meeg_ica_exclude for name in self.pr.all_meeg}
+        )
 
     def set_chkbx_enable(self, enable):
         for chkbx in self.chkbxs:
@@ -1072,7 +1090,9 @@ class ICASelect(QDialog):
         self.set_chkbx_enable(True)
         meeg.set_ica_exclude(ica.exclude)
         self.update_chkbxs()
-        self.file_list.content_changed()
+        self.file_list.replace_data(
+            {name: name in self.pr.meeg_ica_exclude for name in self.pr.all_meeg}
+        )
 
     def plot_components(self):
         if self.current_obj:

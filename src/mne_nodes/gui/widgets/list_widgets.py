@@ -4,8 +4,11 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+from collections.abc import Hashable
+from typing import ClassVar
+
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtGui import QColor, QFont
+from qtpy.QtGui import QColor, QFont, QIcon
 from qtpy.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -20,10 +23,10 @@ from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.widget_models.list_models import (
     BaseListModel,
     CheckDictEditModel,
-    CheckDictModel,
     CheckListModel,
     CheckListProgressModel,
     EditListModel,
+    MarkListModel,
 )
 from mne_nodes.gui.widgets.base import BaseList
 from mne_nodes.logger import logger
@@ -308,24 +311,22 @@ class CheckList(BaseList):
         self._checked_changed()
 
 
-class CheckDictList(BaseList):
-    """A List-Widget to display the items of a list and mark them depending on
-    their appearance in check_dict.
+class MarkList(BaseList):
+    """Display dictionary keys and mark them with configurable icons.
 
     Parameters
     ----------
-    data : list[str] | None
-        A list with items to display.
-    check_dict : dict | None
-        A dictionary that may contain items from data as keys.
+    data : dict[Hashable, str | bool] | None
+        Items to display as keys, with string or boolean marks as values.
+        Dictionary insertion order determines the display order.
+    mark_icons : dict[str | bool, QIcon | str] | None
+        Map marks to QIcon objects or QStyle.StandardPixmap names, such as
+        "SP_DialogApplyButton". Defaults to the class-level mark_icons mapping.
+        Values without a configured icon are displayed without a marking.
+    extended_selection : bool
+        Allow selecting multiple items.
     show_index: bool
         Set True if you want to display the list-index in front of each value.
-    yes_bt: str
-        Supply the name for a qt-standard-icon to mark the items existing in
-         check_dict.
-    no_bt: str
-        Supply the name for a qt-standard-icon to mark the items
-         not existing in check_dict.
     parent : QWidget | None
         Parent Widget (QWidget or inherited) or None if there is no parent.
     title : str | None
@@ -336,36 +337,42 @@ class CheckDictList(BaseList):
     If you change the contents of data outside of this class,
      call content_changed to update this widget.
     If you change the reference to data, call replace_data.
-    If you change the reference to check_dict, call replace_check_dict.
-
-    Names for QT standard-icons:
-    https://doc.qt.io/qt-5/qstyle.html#StandardPixmap-enum
+    Boolean marks default to apply/cancel icons. Override mark_icons on a
+    subclass or pass an instance-specific mapping to configure other marks.
     """
+
+    mark_icons: ClassVar[dict[str | bool, QIcon | str]] = {
+        True: "SP_DialogApplyButton",
+        False: "SP_DialogCancelButton",
+    }
 
     def __init__(
         self,
-        data=None,
-        check_dict=None,
-        extended_selection=False,
-        show_index=False,
-        yes_bt=None,
-        no_bt=None,
+        data: dict[Hashable, str | bool] | None = None,
+        mark_icons: dict[str | bool, QIcon | str] | None = None,
+        extended_selection: bool = False,
+        show_index: bool = False,
         parent=None,
-        title=None,
-    ):
+        title: str | None = None,
+    ) -> None:
+        icons = self.mark_icons if mark_icons is None else mark_icons
         super().__init__(
-            model=CheckDictModel(data, check_dict, show_index, yes_bt, no_bt),
+            model=MarkListModel(data, icons, show_index),
             view=QListView(),
             extended_selection=extended_selection,
             parent=parent,
             title=title,
         )
 
-    def replace_check_dict(self, new_check_dict=None):
-        """Replaces model.check_dict with new check_dict."""
-        if new_check_dict:
-            self.model._check_dict = new_check_dict
+    def replace_data(self, new_data: dict[Hashable, str | bool]) -> None:
+        """Replace the item-to-mark dictionary, retaining its reference."""
+        self.model.set_data(new_data)
         self.content_changed()
+
+    def content_changed(self) -> None:
+        """Validate and refresh externally changed items or markings."""
+        self.model.validate_data(self.model._data)
+        super().content_changed()
 
 
 class CheckDictEditList(EditList):
