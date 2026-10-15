@@ -59,7 +59,7 @@ class InputWidget(QWidget):
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        for dt, data in self.ct.get_datatype_items().items():
+        for dt, data in self.ct.get_all_datatype_items().items():
             if dt not in self.selected_inputs:
                 self.selected_inputs[dt] = []
             dt_list = CheckListProgress(
@@ -112,7 +112,7 @@ class InputWidget(QWidget):
             self.ct.set("selected_inputs", selected_inputs)
         if group_by == "custom":
             self.group_tree = CustomGroupTreeWidget(
-                self.ct.get_datatype_items(),
+                self.ct.get_all_datatype_items(),
                 data=data,
                 checked=selected_inputs[group_by],
                 headers=["Group Name", "Subjects"],

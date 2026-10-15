@@ -1116,16 +1116,14 @@ class Controller:
 
         return data
 
-    def get_fsmri_subjects(self):
-        fsmri_subjects = []
-        for subj_folder in os.listdir(self.subjects_dir):
-            if all(
-                isdir(self.subjects_dir / subj_folder / tf)
-                for tf in ["mri", "surf", "label"]
-            ):
-                fsmri_subjects.append(subj_folder)
-
-        return fsmri_subjects
+    def check_trans_exists(self):
+        fsmri_subjects = self.get_datatype_items("subject")
+        trans_exists = {}
+        for subj in fsmri_subjects:
+            trans_exists[subj] = (
+                self.subjects_dir / subj / "mri" / "transforms"
+            ).exists()
+        return trans_exists
 
     def get_datatypes(self):
         bids_root = self.ensure_bids_root(interactive=False)
@@ -1140,41 +1138,73 @@ class Controller:
             bids_dt += ["subject"]
         return bids_dt
 
-    def get_datatype_items(self):
+    def _get_datatype_candidates(self, data_type: str) -> list[BIDSPath]:
+        bp_kwargs = {"root": self.bids_root, "check": False}
+        if data_type in self.raw_types:
+            bp_kwargs.update({"suffix": data_type})
+        else:
+            bp_kwargs.update({"datatype": data_type})
+        return [
+            f
+            for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+            if f.acquisition not in ["calibration", "crosstalk"]
+        ]
+
+    def get_datatype_items(self, data_type: str) -> list[str]:
+        """Get the available input items for one data type."""
+        if data_type == "event_id":
+            return []
+        if data_type == "subject":
+            subjects = []
+            for subj_folder in os.listdir(self.subjects_dir):
+                if all(
+                    isdir(self.subjects_dir / subj_folder / folder)
+                    for folder in ["mri", "surf", "label"]
+                ):
+                    subjects.append(subj_folder)
+            return subjects
+        if data_type == "emptyroom":
+            empty_room_items = []
+            for raw_type in self.raw_types:
+                candidates = self._get_datatype_candidates(raw_type)
+                for candidate in candidates:
+                    try:
+                        empty_room = candidate.find_empty_room()
+                        if (
+                            empty_room is not None
+                            and empty_room in candidates
+                            and empty_room.basename not in empty_room_items
+                        ):
+                            empty_room_items.append(empty_room.basename)
+                    except (RuntimeError, ValueError):
+                        pass
+            return empty_room_items
+
+        file_candidates = self._get_datatype_candidates(data_type)
+        for f in file_candidates.copy():
+            try:
+                er_bp = f.find_empty_room()
+                if er_bp is not None and er_bp in file_candidates:
+                    file_candidates.remove(er_bp)
+            except (RuntimeError, ValueError):
+                pass
+        return [f.basename for f in file_candidates]
+
+    def get_all_datatype_items(self) -> dict[str, list[str]]:
         items = {}
         data_types = self.get_datatypes()
         # Raw should be first
         data_types = [dt for dt in data_types if dt in self.raw_types] + [
             dt for dt in data_types if dt not in self.raw_types
         ]
-        empty_room_items = []
         for dt in data_types:
-            if dt == "event_id":
-                pass
-            elif dt == "subject":
-                items[dt] = self.get_fsmri_subjects()
-            else:
-                bp_kwargs = {"root": self.bids_root, "check": False}
-                if dt in self.raw_types:
-                    bp_kwargs.update({"suffix": dt})
-                else:
-                    bp_kwargs.update({"datatype": dt})
-                file_candidates = [
-                    f
-                    for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
-                    if f.acquisition not in ["calibration", "crosstalk"]
-                ]
-                for f in file_candidates.copy():
-                    try:
-                        er_bp = f.find_empty_room()
-                        if er_bp is not None and er_bp in file_candidates:
-                            file_candidates.remove(er_bp)
-                            empty_room_items.append(er_bp.basename)
-                    except (RuntimeError, ValueError):
-                        pass
-                items[dt] = [f.basename for f in file_candidates]
-        if empty_room_items:
-            items["emptyroom"] = empty_room_items
+            datatype_items = self.get_datatype_items(dt)
+            if dt != "event_id":
+                items[dt] = datatype_items
+        if any(dt in self.raw_types for dt in data_types):
+            empty_room_items = self.get_datatype_items("emptyroom")
+            if empty_room_items:
+                items["emptyroom"] = empty_room_items
         return items
 
     def input_selection_changed(self, selected, data_type):
@@ -1250,7 +1280,7 @@ class Controller:
         return _load(items)
 
     def load_subject(self, subject):
-        result = subject in self.get_fsmri_subjects()
+        result = subject in self.get_datatype_items("subject")
         if not result:
             logger.warning(
                 f"Subject {subject} not found in FreeSurfer subjects directory!"

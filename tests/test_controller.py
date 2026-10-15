@@ -34,6 +34,68 @@ def test_init(ct):
     )
 
 
+def test_get_datatype_items_for_type(ct, monkeypatch):
+    class FakeBIDSPath:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def match(self, ignore_json):
+            if self.kwargs.get("suffix") == "eeg":
+                return [recording, empty_room]
+            return []
+
+    class FakeCandidate:
+        def __init__(self, basename, empty_room=None):
+            self.basename = basename
+            self.acquisition = None
+            self.empty_room = empty_room
+
+        def find_empty_room(self):
+            return self.empty_room
+
+    empty_room = FakeCandidate("sub-emptyroom_task-noise_eeg.vhdr")
+    recording = FakeCandidate("sub-01_task-test_eeg.vhdr", empty_room)
+    bids_path_calls = []
+
+    def fake_bids_path(**kwargs):
+        bids_path_calls.append(kwargs)
+        return FakeBIDSPath(**kwargs)
+
+    monkeypatch.setattr("mne_nodes.backend.controller.BIDSPath", fake_bids_path)
+
+    assert ct.get_datatype_items("event_id") == []
+    assert ct.get_datatype_items("eeg") == ["sub-01_task-test_eeg.vhdr"]
+    assert bids_path_calls == [{"root": ct.bids_root, "check": False, "suffix": "eeg"}]
+
+    assert ct.get_datatype_items("emptyroom") == ["sub-emptyroom_task-noise_eeg.vhdr"]
+    assert [call["suffix"] for call in bids_path_calls[1:]] == ["eeg", "meg", "ieeg"]
+
+
+def test_get_all_datatype_items_uses_per_type_method(ct, monkeypatch):
+    data_types = ["anat", "eeg", "event_id", "meg"]
+    monkeypatch.setattr(ct, "get_datatypes", lambda: data_types)
+    calls = []
+
+    def get_items(data_type):
+        calls.append(data_type)
+        if data_type == "event_id":
+            return []
+        if data_type == "emptyroom":
+            return ["emptyroom_eeg.set", "emptyroom_meg.set"]
+        suffix = "set" if data_type in ("eeg", "meg") else "nii"
+        return [f"{data_type}.{suffix}"]
+
+    monkeypatch.setattr(ct, "get_datatype_items", get_items)
+
+    assert ct.get_all_datatype_items() == {
+        "eeg": ["eeg.set"],
+        "meg": ["meg.set"],
+        "anat": ["anat.nii"],
+        "emptyroom": ["emptyroom_eeg.set", "emptyroom_meg.set"],
+    }
+    assert calls == ["eeg", "meg", "anat", "event_id", "emptyroom"]
+
+
 def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic plugins are imported
@@ -337,7 +399,7 @@ def test_bids_root_change_preserves_subject_selection_with_subjects_dir(
     assert ct.get("selected_inputs") == {"subject": ["old-subject"]}
     assert ct.get("custom_groups") == {}
     assert ct.get("bids_dataset_name") == "New dataset"
-    assert ct.get_datatype_items()["subject"] == ["old-subject"]
+    assert ct.get_all_datatype_items()["subject"] == ["old-subject"]
 
 
 @pytest.mark.parametrize("directory", ["bids_root", "subjects_dir"])
@@ -428,7 +490,7 @@ def test_gui_config_actions_initialize_output_roots(
     from mne_nodes.backend.controller import default_config
     from mne_nodes.gui.main_window import MainWindow
 
-    monkeypatch.setattr(ct, "get_datatype_items", dict)
+    monkeypatch.setattr(ct, "get_all_datatype_items", dict)
     window = MainWindow(ct)
     qtbot.addWidget(window)
     ct.deriv_root = tmp_path

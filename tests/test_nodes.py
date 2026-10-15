@@ -31,7 +31,7 @@ def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, directory, ac
     ct.set("selected_inputs", selections.copy())
     monkeypatch.setattr(
         ct,
-        "get_datatype_items",
+        "get_all_datatype_items",
         lambda: {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]},
     )
     monkeypatch.setattr(ct, "get_group_by_strings", lambda group_by: {})
