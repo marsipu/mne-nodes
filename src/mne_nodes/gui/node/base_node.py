@@ -149,8 +149,8 @@ class BaseNode(QGraphicsItem):
         des, _ = self.get_description()
         return (
             f"{des['name']} ({des['class']}), "
-            f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
-            f"outputs: {len(des['outputs'])} ({[p for p in des['outputs']]}), "
+            f"inputs: {len(des['inputs'])} ({[*des['inputs']]}), "
+            f"outputs: {len(des['outputs'])} ({[*des['outputs']]}), "
         )
 
     @property
