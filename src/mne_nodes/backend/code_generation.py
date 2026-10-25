@@ -329,6 +329,11 @@ class CodeGenerator:
                                     f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                     1,
                                 )
+                                body += self._indent(
+                                    "data_path.parent.mkdir(parents=True, "
+                                    "exist_ok=True)\n",
+                                    1,
+                                )
                             else:
                                 body += self._indent(
                                     f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"

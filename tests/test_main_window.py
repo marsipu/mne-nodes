@@ -36,14 +36,20 @@ def welcome_tour_enabled(ct):
     ct.settings.set("first_start", True)
 
 
-def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
+def test_main_window_defers_viewer_load_until_controller_ready(
+    settings, qtbot, tmp_path
+):
     """The main window should not load viewer nodes before the controller setup is finalized."""
 
     from mne_nodes.backend.controller import Controller
     from mne_nodes.gui.main_window import MainWindow
 
     controller = Controller(settings=settings)
-    settings.set("bids_root", Path(__file__).parent / "tiny_bids")
+    from shutil import copytree
+
+    bids_root = tmp_path / "bids"
+    copytree(Path(__file__).parent / "tiny_bids", bids_root)
+    settings.set("bids_root", bids_root)
     main_window = MainWindow(controller)
     qtbot.addWidget(main_window)
 
@@ -58,6 +64,98 @@ def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
     assert main_window.viewer.nodes == nodes
     assert all(node.scene() is main_window.viewer.scene() for node in nodes.values())
     main_window.close()
+
+
+def test_coregistration_menu_action(main_window, monkeypatch):
+    """The BIDS menu opens and initializes the coregistration manager."""
+    from unittest.mock import Mock
+
+    dialog = Mock()
+    factory = Mock(return_value=dialog)
+    monkeypatch.setattr("mne_nodes.gui.main_window.CoregDialog", factory)
+    bids_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&BIDS"
+    )
+    action = next(
+        action
+        for action in bids_menu.actions()
+        if action.text() == "&Coregistration..."
+    )
+    action.trigger()
+    factory.assert_called_once_with(main_window.controller, main_window)
+    dialog.open.assert_called_once_with()
+    dialog.update_widgets.assert_called_once_with()
+
+
+@pytest.mark.parametrize("local", [True, False])
+def test_derivative_storage_menu_action(main_window, monkeypatch, tmp_path, local):
+    """The BIDS menu selects local or separate processing derivative storage."""
+    ct = main_window.controller
+    external = tmp_path / "separate-derivatives"
+    external.mkdir()
+    ct.ensure_deriv_root(False)
+    if local:
+        ct.deriv_root = external
+    subjects_dir = ct.ensure_subjects_dir(False)
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.ask_user_custom", lambda *a, **k: local
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *a, **k: external
+    )
+    bids_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&BIDS"
+    )
+    action = next(
+        action
+        for action in bids_menu.actions()
+        if action.text() == "&Derivative storage..."
+    )
+    action.trigger()
+    expected = ct.bids_root / "derivatives" / "mne-nodes" if local else external
+    assert ct.ensure_deriv_root(False) == expected
+    assert str(expected) in main_window.statusBar().currentMessage()
+    assert ct.subjects_dir == subjects_dir
+
+
+@pytest.mark.parametrize("choice", [None, False])
+def test_derivative_storage_cancel_preserves_root(main_window, monkeypatch, choice):
+    """Canceling either storage selection or the folder picker changes nothing."""
+    ct = main_window.controller
+    previous = ct.ensure_deriv_root(False)
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.ask_user_custom", lambda *a, **k: choice
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *a, **k: None
+    )
+    main_window.change_deriv_root()
+    assert ct.deriv_root == previous
+
+
+def test_derivative_storage_error_is_displayed(main_window, monkeypatch, tmp_path):
+    """An invalid output directory produces an error dialog, not a success."""
+    from unittest.mock import Mock
+
+    previous = main_window.controller.ensure_deriv_root(False)
+    status = main_window.statusBar().currentMessage()
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.ask_user_custom", lambda *a, **k: False
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *a, **k: tmp_path / "missing"
+    )
+    factory = Mock()
+    monkeypatch.setattr("mne_nodes.gui.main_window.ErrorDialog", factory)
+    main_window.change_deriv_root()
+    factory.assert_called_once()
+    factory.return_value.open.assert_called_once_with()
+    assert main_window.controller.deriv_root == previous
+    assert main_window.statusBar().currentMessage() == status
 
 
 def test_replacing_input_node_removes_previous_dataset(main_window):
@@ -233,8 +331,8 @@ def test_welcome_tour_initializes_demo_and_tracks_input_node(
         assert tour.steps[0]["widget"] is main_window.viewer
         ct.ensure_ready()
         assert ct.name == "Welcome"
-        assert ct.deriv_root == tmp_path / "Welcome_derivatives"
-        assert ct.plot_path == tmp_path / "Welcome_plots"
+        assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+        assert ct.plot_root is None
         if relocate_sample:
             assert conversions == [sample_root]
             assert ct.bids_root == sample_root
@@ -328,8 +426,9 @@ def test_bids_root_switch_replaces_input_dataset_information(
     assert node.input_widget is widget
     assert node.name == "sample-dataset"
     assert ct.get("bids_dataset_name") == "sample-dataset"
-    assert [widget.tab_widget.tabText(index) for index in range(2)] == ["meg", "Groups"]
-    assert widget.tab_widget.count() == 2
+    assert [
+        widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())
+    ] == ["meg", "info", "Groups"]
     model = widget.tab_widget.widget(0).model
     assert model.rowCount() == 1
     assert model.index(0, 0).data() == filename

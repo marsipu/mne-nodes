@@ -17,7 +17,9 @@ from mne_nodes.backend.data_import import load_sample_bids
 from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
 from mne_nodes.gui.console import ConsoleDock
+from mne_nodes.gui.coreg_widgets import CoregDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
+from mne_nodes.gui.freesurfer_widgets import FreeSurferImportDialog
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
@@ -25,6 +27,7 @@ from mne_nodes.gui.node.node_viewer import NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.gui.user_interaction import (
     ask_user,
+    ask_user_custom,
     get_user_input,
     information_message,
     raise_user_attention,
@@ -115,6 +118,23 @@ class MainWindow(QMainWindow):
         sample_action.triggered.connect(self.add_sample_bids)
         bids_menu = self.menuBar().addMenu("&BIDS")
         bids_menu.addAction(sample_action)
+        import_subjects_action = QAction("&Import FreeSurfer subjects...", parent=self)
+        import_subjects_action.triggered.connect(self.import_freesurfer_subjects)
+        bids_menu.addAction(import_subjects_action)
+        coreg_action = QAction(
+            "&Coregistration...",
+            parent=self,
+            statusTip="Manage head-to-MRI transformations for raw recordings.",
+        )
+        coreg_action.triggered.connect(self.show_coregistration)
+        bids_menu.addAction(coreg_action)
+        derivatives_action = QAction(
+            "&Derivative storage...",
+            parent=self,
+            statusTip="Choose dataset-local or separate derivative storage.",
+        )
+        derivatives_action.triggered.connect(self.change_deriv_root)
+        bids_menu.addAction(derivatives_action)
         bids_menu.addSeparator()
 
         # Plugin Menu
@@ -198,6 +218,55 @@ class MainWindow(QMainWindow):
                 if screen.name() == screen_name:
                     self.windowHandle().setScreen(screen)
                     break
+
+    def import_freesurfer_subjects(self):
+        """Open the dataset-local FreeSurfer subject importer."""
+        dialog = FreeSurferImportDialog(self.controller, self)
+        dialog.subjects_imported.connect(self._refresh_dataset_inputs)
+        dialog.open()
+
+    def _refresh_dataset_inputs(self):
+        if self.viewer.input_node is not None:
+            self.viewer.input_node.update_widgets()
+
+    def show_coregistration(self):
+        """Open the recording coregistration manager."""
+        dialog = CoregDialog(self.controller, self)
+        dialog.open()
+        dialog.update_widgets()
+
+    def change_deriv_root(self) -> None:
+        """Choose dataset-local or separate storage for processing derivatives."""
+        local = ask_user_custom(
+            "Where should processing derivatives be stored? "
+            "Existing files will not be moved. FreeSurfer subjects remain in "
+            "<BIDS root>/derivatives/freesurfer.",
+            buttons=["Inside BIDS dataset", "Separate derivatives root"],
+            parent=self,
+        )
+        if local is None:
+            return
+        root = None
+        if not local:
+            root = get_user_input(
+                "Select/create a separate derivatives root.",
+                "folder",
+                parent=self,
+                cancel_allowed=True,
+            )
+            if root is None:
+                return
+        try:
+            self.controller.deriv_root = root
+        except (OSError, ValueError, RuntimeError):
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not set derivative storage."
+            ).open()
+            return
+        self.statusBar().showMessage(
+            f"Derivatives: {self.controller.deriv_root}. "
+            "Existing files have not been moved."
+        )
 
     def finalize_controller_setup(self):
         """Load startup nodes unless controller setup has already populated the viewer."""

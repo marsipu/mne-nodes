@@ -36,9 +36,6 @@ class InputWidget(QWidget):
         self.root_bt = QPushButton("Set BIDS Root")
         self.root_bt.clicked.connect(self.set_root)
         hbox.addWidget(self.root_bt)
-        self.subdir_bt = QPushButton("Set SUBJECTS_DIR")
-        self.subdir_bt.clicked.connect(self.set_subdir)
-        hbox.addWidget(self.subdir_bt)
 
         # Datatype Tab Widget
         self.tab_widget = QTabWidget()
@@ -85,15 +82,6 @@ class InputWidget(QWidget):
         )
         if new_root is not None:
             self.ct.bids_root = new_root
-        # Update widgets
-        self.update_widgets()
-
-    def set_subdir(self):
-        new_subdir = get_user_input(
-            "Select SUBJECTS_DIR directory", "folder", cancel_allowed=True
-        )
-        if new_subdir is not None:
-            self.ct.subjects_dir = new_subdir
         # Update widgets
         self.update_widgets()
 

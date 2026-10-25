@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from os import mkdir
 from os.path import isdir
 from pathlib import Path
+from shutil import copytree
 from tempfile import TemporaryDirectory
 
 import numpy as np
@@ -148,7 +149,9 @@ def create_test_controller(settings, tmp_path, monkeypatch):
         lambda *args, **kwargs: None,
     )
     # add bids_root to settings
-    settings.set("bids_root", tiny_bids_root)
+    bids_root = tmp_path / "bids"
+    copytree(tiny_bids_root, bids_root, dirs_exist_ok=True)
+    settings.set("bids_root", bids_root)
 
     # Create Controller
     faulthandler.enable()

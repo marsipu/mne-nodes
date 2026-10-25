@@ -205,7 +205,7 @@ def test_config_switch_confirms_bids_and_resets_outputs(
 ):
     dataset_name = ct.get_dataset_name()
     root = ct.bids_root
-    ct.deriv_root = tmp_path
+    ct.ensure_deriv_root()
     ct.plot_root = tmp_path
     new_config = tmp_path / "other_pipeline.json"
     new_config.write_text(
@@ -234,7 +234,7 @@ def test_config_switch_confirms_bids_and_resets_outputs(
     assert len(confirmations) == 1
     assert str(root) in confirmations[0]
     assert ct.bids_root == root
-    assert ct.deriv_root is None
+    assert ct.deriv_root == root / "derivatives" / "mne-nodes"
     assert ct.plot_root is None
     if action == "load":
         assert ct.get("selected_inputs") == {"subject": ["01"]}
@@ -276,46 +276,46 @@ def test_config_switch_reselects_bids_root(ct, tmp_path, monkeypatch):
     assert len(confirmations) == 1
     assert ct.bids_root == new_root
     assert ct.get("bids_dataset_name") == "Other dataset"
-    assert ct.get("selected_inputs") == {"subject": ["01"]}
+    assert ct.get("selected_inputs") == {}
     assert ct.get("custom_groups") == {}
     ct.flush()
     ct.load()
     assert ct.get("bids_dataset_name") == "Other dataset"
 
 
-def test_config_output_roots_share_parent(ct, tmp_path, monkeypatch):
+def test_dataset_output_roots_and_optional_plots(ct, tmp_path, monkeypatch):
     ct.set("name", "first")
     prompts = []
     monkeypatch.setattr(
         "mne_nodes.backend.controller.get_user_input",
         lambda message, *args, **kwargs: prompts.append(message) or tmp_path,
     )
-    ct.ensure_ready(required=("deriv_root", "plot_root"))
-    assert len(prompts) == 1
-    assert ct.deriv_root == tmp_path / "first_derivatives"
-    assert ct.plot_root == tmp_path / "first_plots"
-    assert ct.plot_path == ct.plot_root
+    ct.ensure_ready()
+    assert prompts == []
+    assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+    assert ct.plot_root is None
     assert ct.deriv_root.is_dir()
-    assert ct.plot_root.is_dir()
+    with pytest.raises(RuntimeError, match="Optional plot"):
+        ct.ensure_plot_root()
+    assert prompts == []
 
     ct.flush()
     reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
-    assert reloaded.plot_path == ct.plot_root
-    assert len(prompts) == 1
+    assert reloaded.deriv_root == ct.deriv_root
+    assert reloaded.plot_root is None
+    assert prompts == []
 
     new_config = tmp_path / "second_pipeline.json"
     new_config.write_text(json.dumps({"name": "second"}), encoding="utf-8")
     ct.load_config(new_config)
-    with pytest.raises(RuntimeError):
-        ct.ensure_deriv_root(interactive=False)
-    ct.ensure_ready(required=("deriv_root", "plot_root"))
-    assert len(prompts) == 2
-    assert ct.deriv_root == tmp_path / "second_derivatives"
-    assert ct.plot_path == tmp_path / "second_plots"
+    ct.ensure_ready()
+    assert prompts == []
+    assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+    assert ct.plot_root is None
 
 
 def test_startup_config_switch_defers_confirmation(ct, tmp_path, monkeypatch):
-    ct.deriv_root = tmp_path
+    ct.ensure_deriv_root()
     ct.plot_root = tmp_path
     config_path = tmp_path / "startup_pipeline.json"
     config_path.write_text(json.dumps({"name": "startup"}), encoding="utf-8")
@@ -327,7 +327,7 @@ def test_startup_config_switch_defers_confirmation(ct, tmp_path, monkeypatch):
     controller = Controller(config_path=config_path, settings=ct.settings)
 
     assert confirmations == []
-    assert controller.deriv_root is None
+    assert controller.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
     assert controller.plot_root is None
     with pytest.raises(RuntimeError, match="must be confirmed"):
         controller.ensure_bids_root(interactive=False)
@@ -361,19 +361,18 @@ def test_config_switch_keeps_root_with_dataset_mismatch(ct, tmp_path, monkeypatc
     assert ct.bids_root == root
     assert len(warnings) == 1
     assert "different dataset" in warnings[0]
-    assert ct.get("selected_inputs") == {"subject": ["01"]}
+    assert ct.get("selected_inputs") == {}
     assert ct.get("custom_groups") == {}
     assert ct.get("bids_dataset_name") == ct._read_bids_dataset_name(root)
 
 
-def test_bids_root_change_preserves_subject_selection_with_subjects_dir(
+def test_bids_root_mismatch_clears_dataset_local_subject_selections(
     ct, tmp_path, monkeypatch
 ):
     old_dataset_name = ct.get_dataset_name()
-    subjects_dir = tmp_path / "subjects"
+    subjects_dir = ct.ensure_subjects_dir()
     for folder in ("mri", "surf", "label"):
         (subjects_dir / "old-subject" / folder).mkdir(parents=True)
-    ct.subjects_dir = subjects_dir
     ct.set("selected_inputs", {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]})
     ct.set("custom_groups", {"old-group": ["old_file.vhdr"]})
     ct.flush()
@@ -395,29 +394,24 @@ def test_bids_root_change_preserves_subject_selection_with_subjects_dir(
     assert len(warnings) == 1
     assert old_dataset_name in warnings[0]
     assert "New dataset" in warnings[0]
-    assert ct.subjects_dir == tmp_path / "subjects"
-    assert ct.get("selected_inputs") == {"subject": ["old-subject"]}
+    assert ct.subjects_dir is None
+    assert ct.get("selected_inputs") == {}
     assert ct.get("custom_groups") == {}
     assert ct.get("bids_dataset_name") == "New dataset"
-    assert ct.get_all_datatype_items()["subject"] == ["old-subject"]
+    assert ct.get_datatype_items("subject") == []
 
 
-@pytest.mark.parametrize("directory", ["bids_root", "subjects_dir"])
 @pytest.mark.parametrize("action", ["accept", "reject", "unchanged"])
 @pytest.mark.parametrize("prompt_for_path", [False, True])
-def test_input_directory_change(
-    ct, tmp_path, monkeypatch, directory, action, prompt_for_path
-):
-    old_subjects_dir = tmp_path / "subjects"
-    old_subjects_dir.mkdir()
-    ct.subjects_dir = old_subjects_dir
+def test_input_directory_change(ct, tmp_path, monkeypatch, action, prompt_for_path):
+    old_subjects_dir = ct.ensure_subjects_dir()
     old_bids_root = ct.bids_root
-    old_directory = getattr(ct, directory)
+    old_directory = ct.bids_root
     new_directory = tmp_path / "new_input"
     new_directory.mkdir()
     if action == "unchanged":
         new_directory = old_directory
-    ct.deriv_root = tmp_path
+    old_derivatives = ct.ensure_deriv_root()
     ct.plot_root = tmp_path
     selections = {
         "subject": ["old-subject"],
@@ -427,6 +421,7 @@ def test_input_directory_change(
     groups = {"old-group": ["old_file.vhdr"]}
     ct.set("selected_inputs", selections.copy())
     ct.set("custom_groups", groups.copy())
+    ct.set("coreg_subjects", {"old_file.vhdr": "old-subject"})
     confirmations = []
     monkeypatch.setattr(
         "mne_nodes.backend.controller.ask_user",
@@ -437,18 +432,15 @@ def test_input_directory_change(
         lambda *args, **kwargs: new_directory,
     )
 
-    setattr(ct, directory, None if prompt_for_path else new_directory)
+    ct.bids_root = None if prompt_for_path else new_directory
 
     assert len(confirmations) == (0 if action == "unchanged" else 1)
     if action == "accept":
-        expected_selections = (
-            {"subject": ["old-subject"]}
-            if directory == "bids_root"
-            else {"eeg": ["old_file.vhdr"], "session": ["01"]}
-        )
-        assert getattr(ct, directory) == new_directory
+        expected_selections = {}
+        assert ct.bids_root == new_directory
         assert ct.get("selected_inputs") == expected_selections
         assert ct.get("custom_groups") == {}
+        assert ct.get("coreg_subjects") == {}
         assert ct.deriv_root is None
         assert ct.plot_root is None
         assert "subject" in confirmations[0]
@@ -456,24 +448,128 @@ def test_input_directory_change(
         ct.load()
         assert ct.get("selected_inputs") == expected_selections
     else:
-        assert getattr(ct, directory) == old_directory
+        assert ct.bids_root == old_directory
         assert ct.get("selected_inputs") == selections
         assert ct.get("custom_groups") == groups
-        assert ct.deriv_root == tmp_path
+        assert ct.get("coreg_subjects") == {"old_file.vhdr": "old-subject"}
+        assert ct.deriv_root == old_derivatives
         assert ct.plot_root == tmp_path
-    if directory == "bids_root":
-        assert ct.subjects_dir == old_subjects_dir
+    if action == "accept":
+        assert ct.subjects_dir is None
+        assert ct.ensure_subjects_dir(False) == (
+            new_directory / "derivatives" / "freesurfer"
+        )
     else:
         assert ct.bids_root == old_bids_root
+        assert ct.subjects_dir == old_subjects_dir
 
 
 def test_explicit_output_roots_keep_legacy_layout(ct, tmp_path):
-    ct.deriv_root = tmp_path
+    derivative = ct.ensure_deriv_root() / "custom"
+    derivative.mkdir()
+    ct.deriv_root = derivative
     ct.plot_root = tmp_path
 
-    assert ct.ensure_deriv_root(interactive=False) == tmp_path
+    assert ct.ensure_deriv_root(interactive=False) == derivative
     assert ct.ensure_plot_root(interactive=False) == tmp_path
     assert ct.plot_path == tmp_path / ct.name
+
+
+def test_external_derivatives_are_preserved_and_can_be_reset(ct, tmp_path):
+    """Use an explicit root directly without moving existing output files."""
+    external = tmp_path / "old-derivatives"
+    external.mkdir()
+    marker = external / "existing.txt"
+    marker.write_text("unchanged", encoding="utf-8")
+    ct.deriv_root = external
+    assert ct.deriv_root == external
+    assert ct.ensure_deriv_root(False) == external
+    assert ct.settings.get("deriv_root") == ct.deriv_root
+    ct.flush()
+    reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
+    assert reloaded.ensure_deriv_root(False) == external
+    assert marker.read_text(encoding="utf-8") == "unchanged"
+    ct.deriv_root = None
+    assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+    assert not (ct.deriv_root / marker.name).exists()
+    assert marker.read_text(encoding="utf-8") == "unchanged"
+
+
+def test_missing_explicit_derivatives_root_is_not_silently_replaced(ct, tmp_path):
+    """A missing explicit location must fail rather than redirect output."""
+    missing = tmp_path / "missing-derivatives"
+    with pytest.raises(ValueError, match="deriv_root"):
+        ct.deriv_root = missing
+    ct.ensure_deriv_root(False)
+    ct.settings.set("deriv_root", missing)
+    assert ct.deriv_root is None
+    with pytest.raises(ValueError, match="deriv_root"):
+        ct.ensure_deriv_root(False)
+    assert ct.settings.get("deriv_root") == missing
+    assert not missing.exists()
+
+
+def test_derivative_storage_failure_preserves_root(ct, tmp_path, monkeypatch):
+    """A failed switch to local storage must not discard the explicit root."""
+    ct.deriv_root = tmp_path
+
+    def fail(*args, **kwargs):
+        raise OSError("Read-only dataset")
+
+    monkeypatch.setattr(ct, "ensure_deriv_root", fail)
+    with pytest.raises(OSError, match="Read-only"):
+        ct.deriv_root = None
+    assert ct.deriv_root == tmp_path
+
+
+def test_freesurfer_directory_is_dataset_local(ct, tmp_path, monkeypatch):
+    """Ignore device/global subjects settings and derive the folder from the dataset."""
+    external = tmp_path / "global-subjects"
+    external.mkdir()
+    ct.settings.set("subjects_dir", external)
+    monkeypatch.setenv("SUBJECTS_DIR", str(external))
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.mne.set_config",
+        lambda *args, **kwargs: pytest.fail("Do not modify global MNE settings."),
+    )
+    assert ct.subjects_dir is None
+    assert ct.get_datatype_items("subject") == []
+    expected = ct.bids_root / "derivatives" / "freesurfer"
+    assert ct.ensure_subjects_dir(False) == expected
+    assert ct.subjects_dir == expected
+    assert os.environ["SUBJECTS_DIR"] == str(external)
+    assert ct.settings.get("subjects_dir") == external
+    custom = ct.deriv_root / "custom"
+    custom.mkdir()
+    ct.deriv_root = custom
+    assert ct.subjects_dir == expected
+    ct.deriv_root = external
+    assert ct.ensure_subjects_dir(False) == expected
+    assert not (external / "freesurfer").exists()
+    for folder in ("mri", "surf", "label"):
+        (expected / "sub-01" / folder).mkdir(parents=True)
+    assert ct.get_datatype_items("subject") == ["sub-01"]
+    with pytest.raises(AttributeError):
+        ct.subjects_dir = external
+
+
+def test_plots_optional_without_prompts(ct, tmp_path, monkeypatch):
+    """No output-folder prompt occurs until plot-node support is implemented."""
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.get_user_input",
+        lambda *args, **kwargs: pytest.fail("Unexpected folder prompt."),
+    )
+    ct.ensure_ready()
+    assert ct.plot_root is None
+    with pytest.raises(RuntimeError, match="Optional plot"):
+        ct.ensure_plot_root()
+    with pytest.raises(RuntimeError, match="Optional plot"):
+        _ = ct.plot_path
+    ct.plot_root = tmp_path
+    assert ct.ensure_plot_root(False) == tmp_path
+    assert ct.plot_path == tmp_path / ct.name
+    ct.plot_root = None
+    assert ct.plot_root is None
 
 
 @pytest.mark.parametrize(
@@ -493,7 +589,7 @@ def test_gui_config_actions_initialize_output_roots(
     monkeypatch.setattr(ct, "get_all_datatype_items", dict)
     window = MainWindow(ct)
     qtbot.addWidget(window)
-    ct.deriv_root = tmp_path
+    ct.ensure_deriv_root()
     ct.plot_root = tmp_path
     config_path = tmp_path / "gui_pipeline.json"
     config_path.write_text(
@@ -510,22 +606,16 @@ def test_gui_config_actions_initialize_output_roots(
     getattr(window, action)()
 
     assert ct.config_path == config_path
-    assert len(prompts) == 1
-    assert ct.deriv_root == tmp_path / f"{ct.name}_derivatives"
-    assert ct.plot_path == tmp_path / f"{ct.name}_plots"
+    assert prompts == []
+    assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+    assert ct.plot_root is None
     ct.ensure_ready(interactive=False)
 
 
 def test_path_prompts(settings, tmp_path, monkeypatch):
     controller = Controller(settings=settings)
     controller.set("name", "test")
-    prompts = {
-        "Please select/create a folder for the bids-root.": tmp_path / "bids",
-        "Select the parent folder for 'test_derivatives' and 'test_plots'.": tmp_path
-        / "outputs",
-        "Please enter the path to the FreeSurfer subjects directory": tmp_path
-        / "subjects",
-    }
+    prompts = {"Please select/create a folder for the bids-root.": tmp_path / "bids"}
     for path in prompts.values():
         path.mkdir(parents=True, exist_ok=True)
 
@@ -538,18 +628,15 @@ def test_path_prompts(settings, tmp_path, monkeypatch):
     controller.bids_root = None
     controller.deriv_root = None
     controller.plot_root = None
-    controller.subjects_dir = None
+    subjects_dir = controller.ensure_subjects_dir()
 
     assert (
         controller.bids_root
         == prompts["Please select/create a folder for the bids-root."]
     )
-    assert controller.deriv_root == tmp_path / "outputs" / "test_derivatives"
-    assert controller.plot_root == tmp_path / "outputs" / "test_plots"
-    assert (
-        controller.subjects_dir
-        == prompts["Please enter the path to the FreeSurfer subjects directory"]
-    )
+    assert controller.deriv_root == tmp_path / "bids" / "derivatives" / "mne-nodes"
+    assert controller.plot_root is None
+    assert subjects_dir == tmp_path / "bids" / "derivatives" / "freesurfer"
 
 
 def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):
@@ -671,7 +758,8 @@ def test_pipeline_file_name_pattern(tmp_path, monkeypatch, settings):
 
 
 @pytest.mark.timeout(180)
-def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
+@pytest.mark.parametrize("storage", ["memory", "local", "external"])
+def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage):
     from mne_nodes.backend.code_generation import CodeGenerator
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from tests.conftest import _add_complex_nodes, create_test_controller
@@ -696,17 +784,18 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
             break
     assert len(eeg_files) > 0, "tiny_bids fixture should provide at least one EEG file"
 
-    deriv_root = tmp_path / "derivatives"
-    deriv_root.mkdir(parents=True, exist_ok=True)
-    ct.deriv_root = deriv_root
+    if storage == "external":
+        external = tmp_path / "separate-derivatives"
+        external.mkdir()
+        ct.deriv_root = external
+    derivative_root = ct.ensure_deriv_root()
     ct.set("selected_inputs", {"eeg": [eeg_files[0].name]})
     ct.flush()
 
     node_sequence = viewer.get_node_sequence(viewer.input_node)
-    # Keep all outputs in-memory to avoid filesystem format assumptions.
     for sequence in node_sequence.values():
         for node in sequence:
-            node["checked"] = False
+            node["checked"] = storage != "memory"
 
     generated_code = CodeGenerator(ct, node_sequence).code
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
@@ -741,6 +830,21 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings):
         f"STDOUT:\n{completed.stdout}\n"
         f"STDERR:\n{completed.stderr}"
     )
+    if storage != "memory":
+        import mne
+        from mne_bids import get_bids_path_from_fname
+
+        source = get_bids_path_from_fname(eeg_files[0])
+        epochs_path = (
+            source.copy().update(root=derivative_root, suffix="epo", check=False).fpath
+        )
+        evoked_path = (
+            source.copy().update(root=derivative_root, suffix="ave", check=False).fpath
+        )
+        assert epochs_path.is_file()
+        assert evoked_path.is_file()
+        assert len(mne.read_epochs(epochs_path)) > 0
+        assert len(mne.read_evokeds(evoked_path)) > 0
 
 
 # ToDo: add a test about accessing config-variables with .get from Base-Widgets with permanent reference

@@ -16,15 +16,11 @@ from mne_nodes.gui.node.ports import Port
 from tests.conftest import _add_complex_nodes
 
 
-@pytest.mark.parametrize("directory", ["bids_root", "subjects_dir"])
 @pytest.mark.parametrize("accept", [False, True])
-def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, directory, accept):
+def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, accept):
     from mne_nodes.gui.node.input_node import InputWidget
 
-    subjects_dir = tmp_path / "subjects"
-    subjects_dir.mkdir()
-    ct.subjects_dir = subjects_dir
-    old_directory = getattr(ct, directory)
+    old_directory = ct.bids_root
     new_directory = tmp_path / "new_input"
     new_directory.mkdir()
     selections = {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]}
@@ -47,15 +43,15 @@ def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, directory, ac
         lambda *args, **kwargs: new_directory,
     )
 
-    button = widget.root_bt if directory == "bids_root" else widget.subdir_bt
-    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+    assert not hasattr(widget, "subdir_bt")
+    qtbot.mouseClick(widget.root_bt, Qt.MouseButton.LeftButton)
 
     assert len(confirmations) == 1
-    assert getattr(ct, directory) == (new_directory if accept else old_directory)
+    assert ct.bids_root == (new_directory if accept else old_directory)
     for index in range(2):
         data_type = widget.tab_widget.tabText(index)
         expected = selections[data_type]
-        if accept and ((data_type == "subject") == (directory == "subjects_dir")):
+        if accept:
             expected = []
         assert widget.tab_widget.widget(index).model._checked == expected
         assert ct.get("selected_inputs")[data_type] == expected

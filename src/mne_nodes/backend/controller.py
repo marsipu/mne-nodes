@@ -35,6 +35,7 @@ from mne_bids import (
 
 from mne_nodes import gui_mode, ismac, iswin
 from mne_nodes.backend.code_generation import CodeGenerator
+from mne_nodes.backend.freesurfer import find_freesurfer_subjects
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
     get_name_from_github,
@@ -42,7 +43,6 @@ from mne_nodes.backend.package_utils import (
     install_github_package,
     install_pip_packages,
 )
-from mne_nodes.backend.pipeline_utils import is_test
 from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.user_interaction import (
     ask_user,
@@ -75,6 +75,7 @@ default_config = {
     "plugin_meta": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
+    "coreg_subjects": {},
 }
 
 
@@ -473,22 +474,6 @@ class Controller:
         self.settings.set(key, path_value)
         return path_value
 
-    def _get_subjects_dir_path(self) -> Path | None:
-        if is_test():
-            subjects_dir = self.settings.get("subjects_dir", None)
-        else:
-            subjects_dir = mne.get_config("SUBJECTS_DIR", None)
-        subjects_dir = self._as_path(subjects_dir)
-        if subjects_dir is not None and subjects_dir.is_dir():
-            return subjects_dir
-        return None
-
-    def _set_subjects_dir_path(self, value: Path) -> None:
-        if is_test():
-            self.settings.set("subjects_dir", value)
-        else:
-            mne.set_config("SUBJECTS_DIR", value)
-
     def _prompt_name(self) -> str:
         name = get_user_input(
             "Please enter a name for this pipeline", "string", cancel_allowed=False
@@ -541,9 +526,9 @@ class Controller:
             return
         if previous_root != new_root:
             ans = ask_user(
-                "When you change the BIDS-root, all selections except for data-type "
-                "'subject', custom groups, "
-                "derivatives-root and plot-root will be lost. Do you want to proceed?"
+                "When you change the BIDS-root, all input selections, FreeSurfer "
+                "subject mappings, custom groups and output-folder settings will "
+                "be reset. Existing files will not be moved. Do you want to proceed?"
             )
             if not ans:
                 self.settings.set("bids_root", previous_root)
@@ -557,18 +542,12 @@ class Controller:
         self.settings.set("bids_root", new_root)
         dataset_name = self._read_bids_dataset_name(new_root)
         self.set("bids_dataset_name", dataset_name)
-        self._reset_input_directory_state(subjects_only=False)
+        self._reset_input_directory_state()
 
-    def _reset_input_directory_state(self, *, subjects_only: bool) -> None:
-        selected_inputs = self.get("selected_inputs")
-        custom_groups = self.get("custom_groups")
-        for data_type in list(selected_inputs):
-            if (data_type == "subject") == subjects_only:
-                del selected_inputs[data_type]
-        custom_groups.clear()
-        self.set("selected_inputs", selected_inputs)
-        self.set("custom_groups", custom_groups)
-        # Outputs belonged to the previous input directory, force re-selection.
+    def _reset_input_directory_state(self) -> None:
+        self.set("selected_inputs", {})
+        self.set("custom_groups", deepcopy(default_config["custom_groups"]))
+        self.set("coreg_subjects", {})
         self.settings.set("deriv_root", None)
         self.settings.set("plot_root", None)
         # Update input widget when viewer is available.
@@ -578,47 +557,38 @@ class Controller:
 
     @property
     def deriv_root(self) -> Path | None:
-        """Configured derivatives root directory, if available."""
-        return self._setting_folder("deriv_root")
+        """Configured or default derivatives root, if it already exists."""
+        bids_root = self.bids_root
+        if bids_root is None:
+            return None
+        if self.settings.get("deriv_root") is not None:
+            return self._setting_folder("deriv_root")
+        default = bids_root / "derivatives" / "mne-nodes"
+        return default if default.is_dir() else None
 
     @deriv_root.setter
     def deriv_root(self, value: Any) -> None:
         if value is None:
-            self._setup_output_roots()
+            previous = self.settings.get("deriv_root")
+            self.settings.set("deriv_root", None)
+            try:
+                self.ensure_deriv_root()
+            except (OSError, ValueError, RuntimeError):
+                self.settings.set("deriv_root", previous)
+                raise
             return
-        self._set_setting_path(
-            key="deriv_root",
-            value=value,
-            prompt="Please select/create a folder for the derivatives root.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select the correct folder for data derivatives."
-            ),
-            reprompt_on_none=True,
-        )
+        root = self._validate_existing_dir(value, key="deriv_root")
+        self.ensure_bids_root(interactive=False)
+        self.settings.set("deriv_root", root)
 
     @property
     def subjects_dir(self) -> Path | None:
-        """Configured FreeSurfer subjects directory, if available."""
-        return self._get_subjects_dir_path()
-
-    @subjects_dir.setter
-    def subjects_dir(self, value: Any) -> None:
-        if value is None:
-            value = self._prompt_path(
-                "Please enter the path to the FreeSurfer subjects directory"
-            )
-        selected_path = self._validate_existing_dir(value, key="subjects_dir")
-        if selected_path == self.subjects_dir:
-            return
-        if not ask_user(
-            "When you change the FreeSurfer subjects directory, data-type 'subject' "
-            "selections, custom groups, derivatives-root and plot-root will be lost. "
-            "Do you want to proceed?"
-        ):
-            return
-        self._set_subjects_dir_path(selected_path)
-        self._reset_input_directory_state(subjects_only=True)
+        """Dataset-local FreeSurfer directory, if it already exists."""
+        bids_root = self.bids_root
+        if bids_root is None:
+            return None
+        subjects_dir = bids_root / "derivatives" / "freesurfer"
+        return subjects_dir if subjects_dir.is_dir() else None
 
     @property
     def plot_root(self) -> Path | None:
@@ -628,7 +598,8 @@ class Controller:
     @plot_root.setter
     def plot_root(self, value):
         if value is None:
-            self._setup_output_roots()
+            self.settings.set("plot_root", None)
+            self.settings.set("plot_root_is_config_specific", False)
             return
         self._set_setting_path(
             key="plot_root",
@@ -641,40 +612,6 @@ class Controller:
             reprompt_on_none=True,
         )
         self.settings.set("plot_root_is_config_specific", False)
-
-    def _setup_output_roots(self) -> None:
-        """Create config-specific derivatives and plots under one selected parent."""
-        name = self.ensure_name()
-        parent = self._validate_existing_dir(
-            self._prompt_path(
-                f"Select the parent folder for '{name}_derivatives' and '{name}_plots'."
-            ),
-            key="output_parent",
-        )
-        deriv_root = parent / f"{name}_derivatives"
-        plot_root = parent / f"{name}_plots"
-        deriv_root.mkdir(exist_ok=True)
-        plot_root.mkdir(exist_ok=True)
-        self.settings.set("deriv_root", deriv_root)
-        self.settings.set("plot_root", plot_root)
-        self.settings.set("plot_root_is_config_specific", True)
-
-    def _ensure_output_root(self, key: str, *, interactive: bool) -> Path:
-        root = self._setting_folder(key)
-        if root is not None:
-            return root
-        configured_root = self.settings.get(key)
-        if configured_root is not None:
-            message = f"Output folder {configured_root} does not exist."
-            logger.warning(message)
-            if interactive:
-                raise_user_attention(message)
-        if not interactive:
-            raise RuntimeError(
-                f"Required path '{key}' is not configured. Call ensure_{key}() first."
-            )
-        self._setup_output_roots()
-        return self._validate_existing_dir(self.settings.get(key), key=key)
 
     @property
     def plot_path(self) -> Path:
@@ -762,26 +699,40 @@ class Controller:
             self.ensure_bids_root()
 
     def ensure_deriv_root(self, interactive: bool = True) -> Path:
-        return self._ensure_output_root("deriv_root", interactive=interactive)
+        """Use an explicit root or create the dataset-local default."""
+        bids_root = self.ensure_bids_root(interactive=interactive)
+        configured = self.settings.get("deriv_root")
+        if configured is not None:
+            return self._validate_existing_dir(configured, key="deriv_root")
+        default = bids_root / "derivatives" / "mne-nodes"
+        if not default.resolve().is_relative_to(bids_root.resolve()):
+            raise ValueError(
+                f"Derivatives directory points outside the dataset: {default}"
+            )
+        default.mkdir(parents=True, exist_ok=True)
+        self.settings.set("deriv_root", default)
+        return default
 
     def ensure_plot_root(self, interactive: bool = True) -> Path:
-        return self._ensure_output_root("plot_root", interactive=interactive)
+        """Require an explicitly configured optional plot root without prompting."""
+        root = self.plot_root
+        if root is None:
+            raise RuntimeError(
+                "Optional plot output folder is not configured. "
+                "Set plot_root explicitly when plot exports are needed."
+            )
+        return root
 
     def ensure_subjects_dir(self, interactive: bool = True) -> Path:
-        subjects_dir = self.subjects_dir
-        if subjects_dir is not None:
-            return subjects_dir
-        if not interactive:
-            raise RuntimeError(
-                "FreeSurfer subjects directory is not configured. Call ensure_subjects_dir() first."
+        """Create the dataset's FreeSurfer folder without global MNE settings."""
+        bids_root = self.ensure_bids_root(interactive=interactive)
+        self.ensure_deriv_root(interactive=False)
+        subjects_dir = bids_root / "derivatives" / "freesurfer"
+        if not subjects_dir.resolve().is_relative_to(bids_root.resolve()):
+            raise ValueError(
+                f"FreeSurfer directory points outside the dataset: {subjects_dir}"
             )
-        selected_path = self._prompt_path(
-            "Please enter the path to the FreeSurfer subjects directory"
-        )
-        self.subjects_dir = selected_path
-        subjects_dir = self.subjects_dir
-        if subjects_dir is None:
-            raise RuntimeError("FreeSurfer subjects directory initialization canceled.")
+        subjects_dir.mkdir(parents=True, exist_ok=True)
         return subjects_dir
 
     def run_freesurfer_subprocess(self, command: list[str]) -> None:
@@ -893,7 +844,7 @@ class Controller:
         configured ``bids_root`` points to a different dataset than the one this
         project was last used with (recorded as ``bids_dataset_name``), the
         BIDS input selections and custom groups are stale and must be re-selected.
-        FreeSurfer data-type ``subject`` selections remain valid.
+        FreeSurfer subject selections and coregistration mappings are dataset-local.
         """
         cached_name = config.get("bids_dataset_name")
         if not cached_name:
@@ -907,14 +858,11 @@ class Controller:
         raise_user_attention(
             f"The configured BIDS-root '{bids_root}' belongs to dataset "
             f"'{actual_name}', but this project was last used with dataset "
-            f"'{cached_name}'. Selected inputs except for data-type 'subject' and "
-            "all custom groups will be considered stale and removed."
+            f"'{cached_name}'. All input selections, FreeSurfer subject mappings "
+            "and custom groups will be considered stale and removed."
         )
-        config["selected_inputs"] = {
-            key: value
-            for key, value in config.get("selected_inputs", {}).items()
-            if key == "subject"
-        }
+        config["selected_inputs"] = {}
+        config["coreg_subjects"] = {}
         config["custom_groups"] = deepcopy(default_config["custom_groups"])
         config["bids_dataset_name"] = actual_name
 
@@ -1118,11 +1066,12 @@ class Controller:
 
     def check_trans_exists(self):
         fsmri_subjects = self.get_datatype_items("subject")
+        subjects_dir = self.subjects_dir
+        if subjects_dir is None:
+            return {}
         trans_exists = {}
         for subj in fsmri_subjects:
-            trans_exists[subj] = (
-                self.subjects_dir / subj / "mri" / "transforms"
-            ).exists()
+            trans_exists[subj] = (subjects_dir / subj / "mri" / "transforms").exists()
         return trans_exists
 
     def get_datatypes(self):
@@ -1155,14 +1104,10 @@ class Controller:
         if data_type == "event_id":
             return []
         if data_type == "subject":
-            subjects = []
-            for subj_folder in os.listdir(self.subjects_dir):
-                if all(
-                    isdir(self.subjects_dir / subj_folder / folder)
-                    for folder in ["mri", "surf", "label"]
-                ):
-                    subjects.append(subj_folder)
-            return subjects
+            subjects_dir = self.subjects_dir
+            if subjects_dir is None:
+                return []
+            return [path.name for path in find_freesurfer_subjects(subjects_dir)]
         if data_type == "emptyroom":
             empty_room_items = []
             for raw_type in self.raw_types:
