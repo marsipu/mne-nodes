@@ -6,19 +6,84 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
+from qtpy.QtCore import QRectF
+from qtpy.QtGui import QColor, QPainter, QPen
 from qtpy.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QPushButton,
+    QStyle,
+    QStyleOptionTabWidgetFrame,
+    QTabBar,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from mne_nodes.gui.colors import (
+    ACCENT_OPACITY,
+    ACTIVE_ACCENT_OPACITY,
+    CATEGORY_DATATYPES,
+    datatype_color,
+)
+from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.user_interaction import get_user_input
 from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 from mne_nodes.gui.widgets.tree_widgets import CustomGroupTreeWidget, ShallowTreeWidget
+
+
+class DatatypeTabBar(QTabBar):
+    """Native-looking tabs with restrained datatype-color underline accents."""
+
+    def paintEvent(self, event) -> None:
+        """Keep native tab styling and overlay only a thin semantic accent."""
+        super().paintEvent(event)
+        painter = QPainter(self)
+        for index in range(self.count()):
+            datatype = self.tabData(index)
+            color = datatype_color(datatype) if isinstance(datatype, str) else None
+            if color is None:
+                continue
+            accent = QColor(color)
+            opacity = (
+                ACTIVE_ACCENT_OPACITY
+                if index == self.currentIndex() and self.isTabEnabled(index)
+                else ACCENT_OPACITY
+            )
+            accent.setAlphaF(opacity)
+            rect = self.tabRect(index).adjusted(8, 0, -8, -3)
+            rect.setTop(rect.bottom() - 1)
+            painter.fillRect(rect, accent)
+        painter.end()
+
+
+class DatatypeTabWidget(QTabWidget):
+    """Datatype tabs with a subtle matching border around the active page."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setTabBar(DatatypeTabBar(self))
+        self.currentChanged.connect(self.update)
+
+    def paintEvent(self, event) -> None:
+        """Tint only the native page frame, leaving page contents unchanged."""
+        super().paintEvent(event)
+        datatype = self.tabBar().tabData(self.currentIndex())
+        color = datatype_color(datatype) if isinstance(datatype, str) else None
+        if color is None:
+            return
+        option = QStyleOptionTabWidgetFrame()
+        self.initStyleOption(option)
+        frame = self.style().subElementRect(
+            QStyle.SubElement.SE_TabWidgetTabPane, option, self
+        )
+        accent = QColor(color)
+        accent.setAlphaF(ACCENT_OPACITY)
+        painter = QPainter(self)
+        painter.setPen(QPen(accent, 1))
+        painter.drawRect(QRectF(frame).adjusted(0.5, 0.5, -0.5, -0.5))
+        painter.end()
 
 
 class InputWidget(QWidget):
@@ -36,9 +101,12 @@ class InputWidget(QWidget):
         self.root_bt = QPushButton("Set BIDS Root")
         self.root_bt.clicked.connect(self.set_root)
         hbox.addWidget(self.root_bt)
+        self.overview_bt = QPushButton("Data overview")
+        self.overview_bt.clicked.connect(self.show_data_overview)
+        hbox.addWidget(self.overview_bt)
 
         # Datatype Tab Widget
-        self.tab_widget = QTabWidget()
+        self.tab_widget = DatatypeTabWidget()
         layout.addWidget(self.tab_widget)
         # Group Widget
         self.group_widget = QWidget()
@@ -52,20 +120,19 @@ class InputWidget(QWidget):
         self.update_widgets()
 
     def update_widgets(self):
+        self.ct.discard_legacy_segmentation_checks()
         self.selected_inputs = self.ct.get("selected_inputs")
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
         for dt, data in self.ct.get_all_datatype_items().items():
-            if dt not in self.selected_inputs:
-                self.selected_inputs[dt] = []
-            dt_list = CheckListProgress(
-                data, checked=self.selected_inputs[dt], ui_button_pos="bottom"
-            )
+            checked = self.selected_inputs.setdefault(dt, [])
+            dt_list = CheckListProgress(data, checked=checked, ui_button_pos="bottom")
             dt_list.checkedChanged.connect(
                 lambda slct, dt=dt: self.ct.input_selection_changed(slct, data_type=dt)
             )
-            self.tab_widget.addTab(dt_list, dt)
+            index = self.tab_widget.addTab(dt_list, dt)
+            self.tab_widget.tabBar().setTabData(index, dt)
         # Initialize group widget via combobox
         self.tab_widget.addTab(self.group_widget, "Groups")
         gb = self.ct.get("group_by")
@@ -117,6 +184,7 @@ class InputWidget(QWidget):
             )
         # Always save to the config the latest input selection
         self.group_tree.dataChanged.connect(self.ct.flush)
+        self.group_tree.dataChanged.connect(self.ct.refresh_input_outputs)
         self.group_tree.checkedChanged.connect(
             lambda checked, group_by=group_by: self.ct.input_selection_changed(
                 checked, data_type=group_by
@@ -125,11 +193,18 @@ class InputWidget(QWidget):
         self.group_layout.addWidget(self.group_tree)
         self.group_widget.update()
 
+    def show_data_overview(self) -> None:
+        """Show availability in a native dialog outside the node's graphics proxy."""
+        dialog = DataOverviewDialog(self.ct, self.ct.viewer)
+        dialog.open()
+        dialog.update_widgets()
+
 
 class InputNode(BaseNode):
     def __init__(self, **kwargs):
         super().__init__(startable=True, deletable=False, **kwargs)
         self.input_widget = None
+        self._empty_rooms: list[str] | None = None
         self.update_widgets()
 
     def update_widgets(self):
@@ -156,19 +231,23 @@ class InputNode(BaseNode):
         else:
             self.input_widget.update_widgets()
 
-        # Clear existing ports
-        self.clear_ports()
         # Add data-types as outputs
         data_types = self.ct.get_datatypes()
+        for port in list(self.outputs):
+            if port.name not in data_types:
+                self.remove_port(port)
         for dt in data_types:
-            if dt in self.outputs:
-                continue
             port_kwargs = existing_outputs.get(dt, {})
             accepted = port_kwargs.get("accepted_ports") or [dt]
-            if dt in self.ct.raw_types and "raw" not in accepted:
+            if dt in self.ct.raw_types + ["raw_er"] and "raw" not in accepted:
                 accepted.append("raw")
             if dt not in accepted:
                 accepted.append(dt)
+            existing = next((p for p in self.outputs if p.name == dt), None)
+            if existing is not None:
+                existing.accepted_ports = accepted
+                existing.update_datatype_color()
+                continue
             self.add_output(
                 dt,
                 multi_connection=port_kwargs.get("multi_connection", True),
@@ -176,3 +255,49 @@ class InputNode(BaseNode):
                 old_id=port_kwargs.get("old_id"),
                 warn_existing=False,
             )
+        # Use the palette's category and datatype order; keep unknown types last.
+        order = {
+            datatype: index
+            for index, datatype in enumerate(
+                datatype
+                for datatypes in CATEGORY_DATATYPES.values()
+                for datatype in datatypes
+            )
+        }
+        ordered = sorted(
+            self.outputs,
+            key=lambda port: (order.get(port.name.lower(), len(order)), port.name),
+        )
+        for port in ordered:
+            self._outputs.move_to_end(port.id)
+        self.update_output_availability()
+        if self.scene() is not None:
+            self.draw_node()
+
+    def update_output_availability(self, *, selection_only: bool = False) -> None:
+        """Disable unavailable outputs while retaining their existing connections."""
+        empty_rooms = (
+            self._empty_rooms
+            if selection_only and self._empty_rooms is not None
+            else self.ct.get_datatype_items("emptyroom")
+        )
+        self._empty_rooms = empty_rooms
+        subjects = self.ct.get_datatype_items("subject")
+        inventory = {port.name: [] for port in self.outputs}
+        inventory.update(subject=subjects, raw_er=empty_rooms)
+        unavailable = self.ct.input_output_availability(inventory=inventory)
+        associated = {"subject": bool(subjects), "raw_er": bool(empty_rooms)}
+        visibility_changed = False
+        for port in self.outputs:
+            reason = unavailable.get(port.name, "")
+            if port.name in associated:
+                visible = associated[port.name]
+                visibility_changed |= port.isVisible() != visible
+                port.setVisible(visible)
+                if not visible:
+                    reason = f"No {port.name} data in this dataset."
+            port.setEnabled(not reason)
+            port.setOpacity(0.35 if reason else 1.0)
+            port.setToolTip(reason)
+        if visibility_changed and self.scene() is not None:
+            self.draw_node()

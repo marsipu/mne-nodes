@@ -1095,12 +1095,13 @@ def build_welcome_steps(
         },
         {
             "widget": input_port,
-            "text": "Add a node. To add a new node, either right-click on the "
-            "background or on a port of an existing node. Select example_filter "
-            "from the example_plugin plugin.",
+            "text": "Add a node by right-clicking the background and choosing "
+            "example_filter from example_plugin. You can also select an input "
+            "file to enable its output port, then right-click that port.",
             "is_complete": lambda: function_node() is not None,
             "interactive_views": [viewer],
-            "interactive_items": input_ports,
+            "interactive_items": lambda: input_ports() + proxies(input_widget),
+            "interactive_widgets": lambda: as_list(input_widget),
         },
         {
             "widget": function_node,
@@ -1109,11 +1110,13 @@ def build_welcome_steps(
         },
         {
             "widget": function_node,
-            "text": "Connect the input node to your function node by dragging "
-            "between compatible output and input ports.",
+            "text": "Select an input file to enable its output port, then connect "
+            "the input node to your function node by dragging between compatible "
+            "output and input ports.",
             "is_complete": node_is_connected,
             "interactive_views": [viewer],
-            "interactive_items": connection_ports,
+            "interactive_items": lambda: connection_ports() + proxies(input_widget),
+            "interactive_widgets": lambda: as_list(input_widget),
         },
         {
             "widget": parameter_box,

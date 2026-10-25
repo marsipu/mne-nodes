@@ -1,5 +1,6 @@
 """Discovery, fitting and persistence of head-to-MRI coregistrations."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -7,6 +8,7 @@ from typing import TYPE_CHECKING
 import mne
 import numpy as np
 from mne_bids import BIDSPath, get_bids_path_from_fname, read_raw_bids
+from mne_bids.config import ALLOWED_DATATYPES
 
 from mne_nodes.backend.execution import WorkerSignals
 from mne_nodes.logger import logger
@@ -62,34 +64,91 @@ class CoregGroup:
         return info
 
 
-def find_trans(recording: BIDSPath, deriv_root: Path) -> Path | None:
-    """Find a canonical or unambiguous less-specific session transformation."""
-    canonical = trans_path(recording, deriv_root)
-    if canonical.is_file():
-        return canonical
-    candidates = BIDSPath(
-        root=deriv_root,
-        subject=recording.subject,
-        session=recording.session,
-        suffix="trans",
-        extension=".fif",
-        check=False,
-    ).match()
-    matches = []
-    for candidate in candidates:
-        if candidate.session != recording.session:
+_TRANS_ENTITIES = {
+    "sub": "subject",
+    "ses": "session",
+    "task": "task",
+    "acq": "acquisition",
+    "run": "run",
+    "proc": "processing",
+    "rec": "recording",
+    "space": "space",
+}
+# Entities that label a file without restricting the recordings it applies to.
+_IGNORED_TRANS_ENTITIES = {"split", "desc"}
+
+
+def _same_entity(key: str, candidate: str, value: object) -> bool:
+    if value is None:
+        return False
+    value = str(value)
+    if key == "run" and candidate.isdigit() and value.isdigit():
+        return int(candidate) == int(value)
+    return candidate == value
+
+
+def _trans_matches(recording: BIDSPath, path: Path) -> bool:
+    """Check whether a ``_trans.fif`` or legacy ``-trans.fif`` file applies."""
+    stem = path.name.removesuffix(".fif")
+    if not stem.endswith(("_trans", "-trans")):
+        return False
+    entities: dict[str, str] = {}
+    for part in stem[: -len("_trans")].split("_"):
+        key, sep, value = part.partition("-")
+        if not sep or not value or key in entities:
+            return False
+        entities[key] = value
+    if path.parent.name in ALLOWED_DATATYPES and (
+        path.parent.name != recording.datatype
+    ):
+        return False
+    if entities.get("ses") != recording.session:
+        return False
+    for key, value in entities.items():
+        if key in _IGNORED_TRANS_ENTITIES:
             continue
-        if candidate.datatype not in (None, recording.datatype):
-            continue
-        entities = ("task", "acquisition", "run", "processing", "recording", "space")
-        if all(
-            getattr(candidate, key) in (None, getattr(recording, key))
-            for key in entities
+        attribute = _TRANS_ENTITIES.get(key)
+        if attribute is None or not _same_entity(
+            key, value, getattr(recording, attribute)
         ):
-            matches.append(candidate.fpath)
+            return False
+    return "sub" in entities
+
+
+def _trans_candidates(recording: BIDSPath, root: Path) -> list[Path]:
+    """List matching transformations with bounded globs below one subject."""
+    base = root / f"sub-{recording.subject}"
+    if recording.session is not None:
+        base = base / f"ses-{recording.session}"
+    if not base.is_dir():
+        return []
+    files = [*base.glob("*trans.fif"), *base.glob("*/*trans.fif")]
+    return sorted(path for path in files if _trans_matches(recording, path))
+
+
+def find_trans(
+    recording: BIDSPath, deriv_root: Path | None, other_roots: Sequence[Path] = ()
+) -> Path | None:
+    """Find a canonical or unambiguous less-specific session transformation.
+
+    The configured derivatives root is searched first and takes priority. If it
+    contains no match, the other derivative pipeline folders in ``other_roots``
+    are searched; files from preceding software may use the legacy
+    ``-trans.fif`` naming. Multiple applicable files raise ``ValueError``.
+    """
+    matches: list[Path] = []
+    if deriv_root is not None:
+        canonical = trans_path(recording, deriv_root)
+        if canonical.is_file():
+            return canonical
+        matches = _trans_candidates(recording, deriv_root)
+    if not matches:
+        for root in other_roots:
+            matches += _trans_candidates(recording, root)
     if len(matches) > 1:
         raise ValueError(
-            f"Ambiguous transformations for {recording.basename}: {matches}"
+            f"Ambiguous transformations for {recording.basename}: "
+            f"{[str(path) for path in matches]}"
         )
     return matches[0] if matches else None
 
@@ -100,6 +159,7 @@ def discover_coreg_groups(
     """Read raw headers without preloading and group verified digitizations."""
     bids_root = controller.ensure_bids_root(interactive=False)
     deriv_root = controller.ensure_deriv_root(interactive=False)
+    other_roots = controller.other_derivative_roots()
     paths = [
         get_bids_path_from_fname(name).update(root=bids_root)
         for datatype in controller.raw_types
@@ -113,7 +173,7 @@ def discover_coreg_groups(
         worker_signals.pgbar_text.emit(f"Reading digitization: {path.basename}")
         info, error, existing = None, None, None
         try:
-            existing = find_trans(path, deriv_root)
+            existing = find_trans(path, deriv_root, other_roots)
             with read_raw_bids(path, extra_params={"preload": False}) as raw:
                 info = raw.info.copy()
             if not info["dig"]:

@@ -10,6 +10,7 @@ from qtpy.QtCore import QRectF
 from qtpy.QtGui import QColor, QPen
 from qtpy.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
+from mne_nodes.gui.colors import datatype_color
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.pipes import Pipe
@@ -95,6 +96,27 @@ class Port(QGraphicsItem):
         self._text_color = defaults["nodes"]["text_color"]
         self._hovered = False
         self._connection_highlight: bool | None = None
+        self.update_datatype_color()
+
+    def update_datatype_color(self) -> None:
+        """Apply the shared semantic palette to typed output ports."""
+        if self.port_type != "out":
+            return
+        semantic_color = datatype_color(self.name, self.accepted_ports)
+        for attribute in (
+            "color",
+            "border_color",
+            "active_color",
+            "active_border_color",
+            "hover_color",
+            "hover_border_color",
+        ):
+            color = defaults["ports"][attribute]
+            if semantic_color is not None:
+                color = format_color(semantic_color)
+                if "border" in attribute:
+                    color = QColor(semantic_color).darker(140).getRgb()
+            setattr(self, attribute, color)
 
     # --------------------------------------------------------------------------------------
     # Properties
@@ -107,6 +129,7 @@ class Port(QGraphicsItem):
     def name(self, value):
         self._name = value
         self.text.setPlainText(value)
+        self.update_datatype_color()
 
     @property
     def port_type(self):
@@ -345,6 +368,7 @@ class Port(QGraphicsItem):
             self.accepted_ports.append(ports)
         else:
             raise TypeError("Invalid port type")
+        self.update_datatype_color()
 
     def set_connection_highlight(self, accepted: bool | None = None):
         """Set the temporary live-connection highlight state for this port."""

@@ -234,6 +234,7 @@ class CoregDialog(QDialog):
             mapping = self.ct.get("coreg_subjects", {}).copy()
             mapping.update({r.bids_path.basename: subject for r in group.recordings})
             self.ct.set("coreg_subjects", mapping)
+            self.ct.refresh_input_outputs()
         self._update_buttons()
 
     def _update_buttons(self) -> None:
@@ -290,6 +291,7 @@ class CoregDialog(QDialog):
     def _fit_finished(self, message: str) -> None:
         self._refresh_marks()
         self.status.setText(message)
+        self.ct.refresh_input_outputs()
 
     def _reuse(self) -> None:
         group, source = self._current_group(), self._selected_trans()

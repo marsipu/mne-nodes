@@ -954,6 +954,12 @@ class NodeViewer(QGraphicsView):
 
     def _show_port_context_menu(self, port: Port, event) -> None:
         """Show context menu with actions specific to a single port."""
+        if not port.isEnabled():
+            raise_user_attention(
+                port.toolTip() or "This output is unavailable.", message_type="info"
+            )
+            event.accept()
+            return
         menu = QMenu(self)
         menus = {}
 
@@ -1532,7 +1538,7 @@ class NodeViewer(QGraphicsView):
         selected_port : Port
             The port to start the connection from.
         """
-        if not selected_port:
+        if not selected_port or not selected_port.isEnabled():
             return
         start_port = selected_port
         self._start_port = start_port
@@ -1570,6 +1576,8 @@ class NodeViewer(QGraphicsView):
     def _ports_can_connect(
         self, start_port: Port, end_port: Port, verbose=False
     ) -> bool:
+        if not start_port.isEnabled() or not end_port.isEnabled():
+            return False
         if start_port is end_port:
             return False
         if start_port.node is end_port.node:

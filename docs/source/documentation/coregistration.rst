@@ -5,8 +5,9 @@ Open **BIDS > Coregistration...** to manage head-to-MRI transformations for raw
 MEG, EEG and intracranial EEG recordings in the configured BIDS dataset.
 Derivatives default to ``<BIDS-root>/derivatives/mne-nodes`` (or a separate root
 selected with **BIDS > Derivative storage...**) and FreeSurfer segmentations
-are discovered in ``<BIDS-root>/derivatives/freesurfer``. Neither location
-requires a folder picker, and a plot folder is not needed.
+are discovered in ``<BIDS-root>/derivatives/freesurfer/subjects`` when present,
+otherwise directly in ``<BIDS-root>/derivatives/freesurfer``. Neither default
+location requires a folder picker, and a plot folder is not needed.
 Use **Import FreeSurfer subjects...** to copy a single existing reconstruction
 or selected subjects from an external subjects directory into the dataset.
 See :doc:`datasets` for the expected layout, import behavior and prerequisites.
@@ -51,6 +52,15 @@ less-specific transformation (for example a session-wide file) is also recognize
 ambiguous alternatives are reported as errors. Existing recording-specific
 outputs require confirmation before replacement. Session-wide source files are
 not overwritten.
+
+If the configured derivatives root has no matching transformation, every other
+pipeline folder in ``<BIDS-root>/derivatives`` (except FreeSurfer) is searched,
+so transformations created by preceding software are reused. Files may be
+stored directly in the subject or session folder or in a datatype folder, and
+the legacy ``-trans.fif`` naming (for example
+``sub-01_ses-01_task-rest_run-1-trans.fif``) is recognized. Matches in more than
+one folder are reported as ambiguous; saving a transformation in the configured
+derivatives root resolves this, because that root takes priority.
 
 Automatic fitting requires usable measured fiducials and a FreeSurfer head
 surface. Its quality depends on the MRI and digitization; always inspect the

@@ -31,8 +31,9 @@ class FreeSurferImportDialog(QDialog):
         self.resize(650, 450)
         layout = QVBoxLayout(self)
         description = QLabel(
-            "Copy existing reconstructions into this dataset's "
-            "derivatives/freesurfer folder. Original folders and subject names are "
+            "Copy existing reconstructions into this dataset's FreeSurfer subjects "
+            "directory (derivatives/freesurfer/subjects when present, otherwise "
+            "derivatives/freesurfer). Original folders and subject names are "
             "preserved. Existing destination subjects are never overwritten."
         )
         description.setWordWrap(True)

@@ -98,7 +98,11 @@ class CodeGenerator:
         suffix_meta = output_meta.get("suffix")
         accepted_ports = output_meta.get("accepted_ports") or []
         connected_ports = node_info.get("output_ports", {}).get(output_name) or []
-        input_types = [v for v in func_inputs.values() if isinstance(v, str)]
+        input_types = [
+            "raw" if value in ("_recording_raw", "raw_er") else value
+            for value in func_inputs.values()
+            if isinstance(value, str)
+        ]
 
         candidates = (
             [output_name] + input_types + connected_ports
@@ -180,10 +184,11 @@ class CodeGenerator:
 
     def generate_code(self):
         """Convert a list of instructions to a Python code string."""
+        self.ct.discard_legacy_segmentation_checks()
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         import_function_names = set()
-        body = ""
+        body = "from copy import deepcopy\n\n_subject_cache = {}\n\n"
         # Iterate nodes
         for target, nodes in self.node_sequence.items():
             if len(nodes) == 0:
@@ -192,13 +197,16 @@ class CodeGenerator:
             for selection_type in [
                 key
                 for key, items in self.ct.get("selected_inputs").items()
-                if len(items) > 0
+                if len(items) > 0 and key not in self.ct.non_selectable_datatypes
             ]:
                 if (selection_type in self.ct.scopes and target == "file") or (
-                    selection_type in data_types and target == "group"
+                    selection_type in data_types
+                    and selection_type not in self.ct.scopes
+                    and target == "group"
                 ):
                     continue
                 loaded_data = set()
+                subject_data = set()
                 body += f"# Selection-Type: {selection_type}\n"
                 if target == "group":
                     body += f"group = ct.get_group_by('{selection_type}')\n"
@@ -213,25 +221,61 @@ class CodeGenerator:
                     name = n["name"]
                     func_meta = n["function_meta"]
                     base_name = self.base_func_name(name)
+                    source = "bp" if target == "file" else "members"
                     # Only add functions that are not methods of a class
                     if func_meta["class_name"] is None:
                         import_function_names.add(base_name)
                     # Check which inputs are already satisfied (incl. via accepted_ports)
                     # before deciding what still needs to be loaded from disk.
                     func_inputs, loading_needed = self.ct.func_inputs(name, loaded_data)
+                    empty_room_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if "raw_er" in ports
+                    }
+                    recording_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if any(port in self.ct.raw_types for port in ports)
+                    }
+                    for param in empty_room_inputs | recording_inputs:
+                        func_inputs.pop(param, None)
+                        if param not in loading_needed:
+                            loading_needed.append(param)
                     # Only load inputs that are actually connected to something.
                     # Unconnected (optional) inputs are simply omitted from the call.
                     # A connected-but-unloaded input means the pipeline is being
                     # started from a subsequent node, so it must be read from disk.
                     inputs = [ip for ip in loading_needed if n["inputs"].get(ip)]
                     # Bids-path(s) to pass to the controller loading-methods
-                    source = "bp" if target == "file" else "members"
                     for ip in inputs:
+                        if ip == "raw_er" or ip in empty_room_inputs:
+                            if "raw_er" not in loaded_data:
+                                body += self._indent(
+                                    f"raw_er = ct.load_raw_er({source})\n", 1
+                                )
+                                loaded_data.add("raw_er")
+                            func_inputs[ip] = "raw_er"
+                            continue
+                        if ip in recording_inputs:
+                            if "_recording_raw" not in loaded_data:
+                                body += self._indent(
+                                    f"_recording_raw, event_id = ct.load_raw({source})\n",
+                                    1,
+                                )
+                                loaded_data.update({"_recording_raw", "event_id"})
+                            func_inputs[ip] = "_recording_raw"
+                            continue
+                        if ip in loaded_data:
+                            func_inputs[ip] = ip
+                            continue
                         # Load selected data-types (if not already loaded)
-                        if ip == "raw":
+                        if ip in ("raw", "event_id"):
                             body += self._indent(
                                 f"raw, event_id = ct.load_raw({source})\n", 1
                             )
+                            body += self._indent("_recording_raw = raw\n", 1)
+                            loaded_data.add("_recording_raw")
                             loaded_data.update({"raw", "event_id"})
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
@@ -240,15 +284,16 @@ class CodeGenerator:
                             )
                             loaded_data.add("info")
                         elif ip == "subject":
-                            # Load (freesurfer) subject if available
-                            subject_source = "bp" if target == "file" else "members[0]"
                             body += self._indent(
-                                f"subject = ct.load_subject({subject_source}.subject)\n",
-                                1,
+                                f"subject = ct.load_recording_subject({source})\n", 1
                             )
-                            body += self._indent("if not subject:\n", 1)
-                            body += self._indent("continue", 2)
                             loaded_data.add("subject")
+                            subject_data.add("subject")
+                        elif ip == "trans":
+                            body += self._indent(
+                                f"trans = ct.load_trans({source})\n", 1
+                            )
+                            loaded_data.add("trans")
                         else:
                             # Load data from derivatives
                             read_func, suffix, load_name = self._resolve_read(
@@ -290,12 +335,14 @@ class CodeGenerator:
                     body += self._indent(f"# Execute function {name}\n", 1)
                     outputs = ", ".join([op for op in n["outputs"]])
                     func_line = ""
+                    supplied_values = set(func_inputs.values())
                     if len(outputs) > 0:
                         func_line += f"{outputs} = "
                     # Inject (lowercase) class-name if the function is a method of a class
                     # This assumes, that instance references of a class always have the same name as the class but lowercase
                     if func_meta["class_name"] is not None:
                         lower_class = func_meta["class_name"].lower()
+                        supplied_values.add(lower_class)
                         func_line += f"{lower_class}."
                         func_name = base_name.split(".")[-1]
                         func_inputs.pop(lower_class, None)
@@ -312,7 +359,41 @@ class CodeGenerator:
                         func_line += f"{inputs}, **ct.func_parameters('{name}'))"
                     else:
                         func_line += f"**ct.func_parameters('{name}'))"
-                    body += self._indent(func_line, 1)
+                    subject_only = (
+                        bool(n["outputs"])
+                        and func_meta["class_name"] is None
+                        and bool(func_inputs)
+                        and all(value in subject_data for value in func_inputs.values())
+                    )
+                    if subject_only:
+                        cached_values = ", ".join(
+                            dict.fromkeys([*n["outputs"], *sorted(subject_data)])
+                        )
+                        body += self._indent(
+                            f"_subject_key = ({target!r}, {name!r}, "
+                            f"ct.load_recording_subject({source}))\n"
+                            "if _subject_key not in _subject_cache:\n",
+                            1,
+                        )
+                        body += self._indent(func_line, 2)
+                        body += self._indent(
+                            f"_subject_cache[_subject_key] = "
+                            f"deepcopy(({cached_values},))\n",
+                            2,
+                        )
+                        body += self._indent(
+                            "else:\n"
+                            f"    {cached_values}, = "
+                            "deepcopy(_subject_cache[_subject_key])\n",
+                            1,
+                        )
+                        subject_data.update(n["outputs"])
+                    else:
+                        body += self._indent(func_line, 1)
+                        # Other live values may alias inputs mutated by this call.
+                        if supplied_values & (subject_data - {"subject"}):
+                            subject_data.intersection_update({"subject"})
+                        subject_data.difference_update(n["outputs"])
                     # Save outputs (if enabled)
                     if n["checked"]:
                         for op in n["outputs"]:

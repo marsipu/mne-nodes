@@ -16,6 +16,255 @@ from mne_nodes.gui.node.ports import Port
 from tests.conftest import _add_complex_nodes
 
 
+def test_input_metadata_outputs_are_not_selectable(nodeviewer):
+    """BIDS metadata has connectable ports but no independent selection tabs."""
+    node = nodeviewer.input_node
+    assert node is not None
+    tabs = {
+        node.input_widget.tab_widget.tabText(index)
+        for index in range(node.input_widget.tab_widget.count())
+    }
+    for data_type in ("event_id", "info", "trans", "subject"):
+        assert node.output(port_name=data_type).accepted_ports == [data_type]
+        assert data_type not in tabs
+        if data_type != "subject":
+            assert data_type not in node.ct.get("selected_inputs")
+    assert "eeg" in tabs
+    assert "Groups" in tabs
+
+
+def test_recording_and_anatomy_outputs_require_selection(nodeviewer):
+    """A datatype being present in the dataset does not enable its output."""
+    from mne_bids import get_bids_path_from_fname
+
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    eeg = get_bids_path_from_fname(next(ct.bids_root.rglob("*_eeg.vhdr")))
+    meg = eeg.copy().update(datatype="meg", suffix="meg", extension=".fif")
+    meg.directory.mkdir(parents=True, exist_ok=True)
+    meg.fpath.touch()
+    anat = eeg.copy().update(
+        datatype="anat", task=None, suffix="T1w", extension=".nii.gz"
+    )
+    anat.directory.mkdir(parents=True, exist_ok=True)
+    anat.fpath.touch()
+    node.update_widgets()
+    ct.set("selected_inputs", {})
+    ct.refresh_input_outputs()
+    for datatype in ("eeg", "meg", "anat", "info", "event_id", "trans", "subject"):
+        port = node.output(port_name=datatype)
+        assert not port.isEnabled()
+        assert port.toolTip()
+
+    ct.input_selection_changed([eeg.basename], "eeg")
+    assert node.output(port_name="eeg").isEnabled()
+    assert not node.output(port_name="meg").isEnabled()
+    assert not node.output(port_name="anat").isEnabled()
+    ct.input_selection_changed([anat.basename], "anat")
+    assert node.output(port_name="anat").isEnabled()
+    assert not node.output(port_name="meg").isEnabled()
+    ct.input_selection_changed([meg.basename], "meg")
+    assert node.output(port_name="meg").isEnabled()
+    ct.input_selection_changed([], "eeg")
+    assert not node.output(port_name="eeg").isEnabled()
+    assert node.output(port_name="meg").isEnabled()
+    ct.input_selection_changed([], "meg")
+    assert not node.output(port_name="meg").isEnabled()
+    assert node.output(port_name="anat").isEnabled()
+    assert not node.output(port_name="info").isEnabled()
+    anat.fpath.unlink()
+    ct.refresh_input_outputs()
+    assert not node.output(port_name="anat").isEnabled()
+    assert "missing" in node.output(port_name="anat").toolTip()
+
+
+def test_input_output_availability_tracks_all_selected_recordings(nodeviewer):
+    """Mixed selections disable MRI outputs without destroying graph connections."""
+    import mne
+    from mne_bids import get_bids_path_from_fname
+
+    from mne_nodes.backend.coregistration import trans_path
+
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    first = get_bids_path_from_fname(next(ct.bids_root.rglob("*_eeg.vhdr")))
+    second = first.copy().update(task="other", run="99")
+    second.fpath.touch()
+    subject = f"sub-{first.subject}"
+    for folder in ("mri", "surf", "label"):
+        (ct.ensure_subjects_dir(False) / subject / folder).mkdir(parents=True)
+    root = ct.ensure_deriv_root(False)
+    destination = trans_path(first, root)
+    destination.parent.mkdir(parents=True)
+    mne.write_trans(destination, mne.transforms.Transform("head", "mri"))
+    eeg = node.output(port_name="eeg")
+    connected = list(eeg.connected_ports)
+    trans = node.output(port_name="trans")
+    mri = node.output(port_name="subject")
+
+    ct.input_selection_changed([first.basename], "eeg")
+    assert trans.isEnabled()
+    assert mri.isEnabled()
+    assert node.output(port_name="info").isEnabled()
+    assert node.output(port_name="event_id").isEnabled()
+
+    ct.input_selection_changed([first.basename, second.basename], "eeg")
+    assert not trans.isEnabled()
+    assert second.basename in trans.toolTip()
+    assert mri.isEnabled()
+    destination = trans_path(second, root)
+    mne.write_trans(destination, mne.transforms.Transform("head", "mri"))
+    ct.refresh_input_outputs()
+    assert trans.isEnabled()
+    ct.set("coreg_subjects", {second.basename: "absent-mri"})
+    ct.refresh_input_outputs()
+    assert not mri.isEnabled()
+    assert "FreeSurfer" in mri.toolTip()
+    assert node.output(port_name="eeg") is eeg
+    assert eeg.connected_ports == connected
+    node.update_widgets()
+    assert node.output(port_name="eeg") is eeg
+    assert eeg.connected_ports == connected
+
+    ct.input_selection_changed([], "eeg")
+    assert not trans.isEnabled()
+    assert not mri.isEnabled()
+    assert not node.output(port_name="info").isEnabled()
+
+
+def test_checking_recording_does_not_rescan_dataset(
+    nodeviewer, monkeypatch, record_property
+):
+    """Checkbox changes reuse dataset inventory, but explicit refresh rescans it."""
+    from time import perf_counter
+    from unittest.mock import Mock
+
+    from mne_nodes.gui.widgets.list_widgets import CheckListProgress
+
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    tabs = node.input_widget.tab_widget
+    widget = next(
+        tabs.widget(index)
+        for index in range(tabs.count())
+        if tabs.tabText(index) == "eeg"
+    )
+    assert isinstance(widget, CheckListProgress)
+    index = widget.model.index(0, 0)
+    widget.model.setData(index, Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+    candidates = Mock(wraps=ct._get_datatype_candidates)
+    datatypes = Mock(wraps=ct.get_datatypes)
+    items = Mock(wraps=ct.get_datatype_items)
+    monkeypatch.setattr(ct, "_get_datatype_candidates", candidates)
+    monkeypatch.setattr(ct, "get_datatypes", datatypes)
+    monkeypatch.setattr(ct, "get_datatype_items", items)
+    start = perf_counter()
+    for _ in range(20):
+        widget.model.setData(
+            index, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole
+        )
+        assert node.output(port_name="eeg").isEnabled()
+        widget.model.setData(
+            index, Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole
+        )
+        assert not node.output(port_name="eeg").isEnabled()
+    elapsed = perf_counter() - start
+    record_property("forty_checkbox_changes_seconds", elapsed)
+    assert elapsed < 1.0
+    candidates.assert_not_called()
+    datatypes.assert_not_called()
+    assert all(call.args == ("subject",) for call in items.call_args_list)
+    items.reset_mock()
+    ct.refresh_input_outputs()
+    assert [call.args for call in items.call_args_list].count(("emptyroom",)) == 1
+
+
+def test_unavailable_auxiliary_checks_short_circuit(nodeviewer, monkeypatch):
+    """A missing association disables its output without repeating failing scans."""
+    from unittest.mock import Mock
+
+    from mne_bids import get_bids_path_from_fname
+
+    ct = nodeviewer.ct
+    first = get_bids_path_from_fname(ct.get_datatype_items("eeg")[0]).update(
+        root=ct.bids_root
+    )
+    second = first.copy().update(run="99")
+    second.fpath.touch()
+    ct.ensure_deriv_root(False)
+    missing_trans = Mock(return_value=None)
+    monkeypatch.setattr("mne_nodes.backend.controller.find_trans", missing_trans)
+    ct.set("selected_inputs", {"eeg": [first.basename, second.basename]})
+    ct.input_output_availability()
+    missing_trans.assert_called_once()
+
+
+def test_subject_output_uses_recordings_without_segmentation_tab(nodeviewer):
+    """MRI reconstructions are resolved from files and genuine recording groups."""
+    from mne_bids import get_bids_path_from_fname
+
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    recording = get_bids_path_from_fname(next(ct.bids_root.rglob("*_eeg.vhdr")))
+    subject = f"sub-{recording.subject}"
+    for folder in ("mri", "surf", "label"):
+        (ct.ensure_subjects_dir(False) / subject / folder).mkdir(parents=True)
+    node.update_widgets()
+    tabs = node.input_widget.tab_widget
+    assert "subject" not in {tabs.tabText(index) for index in range(tabs.count())}
+    output = node.output(port_name="subject")
+    for grouped, enabled in ((False, False), (False, True), (True, True)):
+        ct.set("selected_inputs", {})
+        if enabled:
+            if grouped:
+                ct.input_selection_changed([recording.subject], "subject")
+            else:
+                ct.input_selection_changed([recording.basename], "eeg")
+        else:
+            ct.refresh_input_outputs()
+        assert output.isEnabled() is enabled
+        assert ct.selected_recordings() == ([recording] if enabled else [])
+
+
+def test_unavailable_input_connections_survive_save_load(nodeviewer):
+    """A missing transformation blocks UI connections but preserves saved wiring."""
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    function = nodeviewer.node(node_name="test_filter")
+    ct.function_meta["test_filter"]["inputs"]["trans"] = {
+        "accepted_ports": ["trans"],
+        "optional": False,
+    }
+    target = function.add_input("trans", accepted_ports=["trans"])
+    trans = node.output(port_name="trans")
+    # Restore-style connections remain possible without allowing interactive drags.
+    trans.connect_to(target)
+    assert trans.connected(target)
+    assert not nodeviewer._ports_can_connect(trans, target)
+    config = nodeviewer.to_dict()
+    nodeviewer.load_nodes(config)
+    trans = nodeviewer.input_node.output(port_name="trans")
+    assert not trans.isEnabled()
+    assert len(trans.connected_ports) == 1
+
+
+def test_disabled_output_cannot_create_connections_from_context_menu(
+    nodeviewer, monkeypatch
+):
+    """The context menu must not bypass selection-dependent output availability."""
+    from unittest.mock import Mock
+
+    trans = nodeviewer.input_node.output(port_name="trans")
+    attention = Mock()
+    monkeypatch.setattr(
+        "mne_nodes.gui.node.node_viewer.raise_user_attention", attention
+    )
+    event = Mock()
+    nodeviewer._show_port_context_menu(trans, event)
+    attention.assert_called_once_with(trans.toolTip(), message_type="info")
+    event.accept.assert_called_once_with()
+
+
 @pytest.mark.parametrize("accept", [False, True])
 def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, accept):
     from mne_nodes.gui.node.input_node import InputWidget
@@ -23,12 +272,10 @@ def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, accept):
     old_directory = ct.bids_root
     new_directory = tmp_path / "new_input"
     new_directory.mkdir()
-    selections = {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]}
+    selections = {"eeg": ["old_file.vhdr"]}
     ct.set("selected_inputs", selections.copy())
     monkeypatch.setattr(
-        ct,
-        "get_all_datatype_items",
-        lambda: {"subject": ["old-subject"], "eeg": ["old_file.vhdr"]},
+        ct, "get_all_datatype_items", lambda: {"eeg": ["old_file.vhdr"]}
     )
     monkeypatch.setattr(ct, "get_group_by_strings", lambda group_by: {})
     widget = InputWidget(ct)
@@ -48,7 +295,7 @@ def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, accept):
 
     assert len(confirmations) == 1
     assert ct.bids_root == (new_directory if accept else old_directory)
-    for index in range(2):
+    for index in range(1):
         data_type = widget.tab_widget.tabText(index)
         expected = selections[data_type]
         if accept:
@@ -58,6 +305,8 @@ def test_input_directory_buttons(ct, qtbot, tmp_path, monkeypatch, accept):
 
 
 def test_nodes_basic_interaction(nodeviewer):
+    ct = nodeviewer.ct
+    ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
     node1 = nodeviewer.input_node
     node2 = nodeviewer.node(node_name="test_filter")
     port1 = node1.output(port_idx=0)
@@ -109,6 +358,8 @@ def test_nodes_basic_interaction(nodeviewer):
 
 
 def test_nodes_click_to_click_connection(nodeviewer, qtbot):
+    ct = nodeviewer.ct
+    ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
     node1 = nodeviewer.input_node
     node2 = nodeviewer.node(node_name="test_filter")
     out_port = node1.output(port_idx=0)
@@ -148,6 +399,8 @@ def test_port_highlight_api(nodeviewer):
 
 
 def test_port_highlight_during_mouse_drag(nodeviewer):
+    ct = nodeviewer.ct
+    ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
     input_node = nodeviewer.input_node
     filter_node = nodeviewer.node(node_name="test_filter")
     evokeds_node = nodeviewer.add_function_node("test_evokeds")
@@ -270,6 +523,8 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
 
 
 def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
+    ct = nodeviewer.ct
+    ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
     calls = []
     action_texts = []
 

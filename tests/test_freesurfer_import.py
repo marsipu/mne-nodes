@@ -33,10 +33,16 @@ def test_subject_discovery(tmp_path):
         freesurfer.find_freesurfer_subjects(tmp_path / "absent")
 
 
-def test_copy_preserves_source_and_all_contents(ct, tmp_path):
+@pytest.mark.parametrize("nested", [False, True])
+def test_copy_preserves_source_and_all_contents(ct, tmp_path, nested):
     """Copies become discoverable dataset subjects without changing originals."""
     sources = [make_subject(tmp_path / "external", name) for name in ("01", "02")]
+    expected = ct.bids_root / "derivatives" / "freesurfer"
+    if nested:
+        expected /= "subjects"
+        expected.mkdir(parents=True)
     destination = ct.ensure_subjects_dir()
+    assert destination == expected
     signals = WorkerSignals()
     progress = Mock()
     signals.pgbar_n.connect(progress)
@@ -52,6 +58,48 @@ def test_copy_preserves_source_and_all_contents(ct, tmp_path):
         (target / "mri" / "test.txt").write_text("changed", encoding="utf-8")
         assert (source / "mri" / "test.txt").read_text(encoding="utf-8") == "mri"
     assert not list(destination.glob(".mne-nodes-import-*"))
+
+
+def test_nested_subjects_directory_is_used_consistently(ct):
+    """Discover nested reconstructions and pass their parent to MNE functions."""
+    root = ct.bids_root / "derivatives" / "freesurfer"
+    nested = root / "subjects"
+    make_subject(nested)
+    make_subject(nested, "fsaverage")
+    (nested / "morph-maps").mkdir()
+
+    assert ct.subjects_dir == nested
+    assert ct.ensure_subjects_dir(False) == nested
+    assert ct.get_datatype_items("subject") == ["fsaverage", "sub-01"]
+    assert ct.load_subject("sub-01") == "sub-01"
+    assert ct.parameter("subjects_dir", "unused") == nested
+    assert "subject" in ct.get_datatypes()
+    assert "subject" not in ct.get_all_datatype_items()
+    assert not (root / "sub-01").exists()
+
+
+def test_nested_subjects_directory_takes_precedence(ct):
+    """Do not mix roots when both direct and nested layouts are present."""
+    root = ct.bids_root / "derivatives" / "freesurfer"
+    make_subject(root, "direct")
+    nested = root / "subjects"
+    make_subject(nested, "nested")
+    assert ct.subjects_dir == nested
+    assert ct.get_datatype_items("subject") == ["nested"]
+
+
+def test_coregistration_lists_nested_subjects(ct, qtbot, monkeypatch):
+    """Coregistration displays the same nested subjects as the input selector."""
+    from mne_nodes.gui.coreg_widgets import CoregDialog
+
+    nested = ct.bids_root / "derivatives" / "freesurfer" / "subjects"
+    make_subject(nested)
+    dialog = CoregDialog(ct)
+    qtbot.addWidget(dialog)
+    monkeypatch.setattr(dialog, "_start_worker", Mock())
+    dialog.update_widgets()
+    assert dialog.mri_subject.findText("sub-01") >= 0
+    assert str(nested) in dialog.status.text()
 
 
 def test_collision_preflight_copies_nothing(tmp_path):
@@ -135,13 +183,18 @@ def test_failed_copy_keeps_only_completed_subjects(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("single", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
 def test_dialog_source_options_and_real_worker(
-    ct, qtbot, tmp_path, monkeypatch, single
+    ct, qtbot, tmp_path, monkeypatch, single, nested
 ):
     """Both source options dispatch actual copies through the progress dialog."""
     source_root = tmp_path / "external"
     subject = make_subject(source_root)
     make_subject(source_root, "sub-02")
+    expected = ct.bids_root / "derivatives" / "freesurfer"
+    if nested:
+        expected /= "subjects"
+        expected.mkdir(parents=True)
     monkeypatch.setattr(
         "mne_nodes.gui.freesurfer_widgets.get_user_input",
         lambda *args, **kwargs: subject if single else source_root,
@@ -161,6 +214,8 @@ def test_dialog_source_options_and_real_worker(
     with qtbot.waitSignal(dialog.subjects_imported, timeout=10000):
         qtbot.mouseClick(dialog.import_button, Qt.MouseButton.LeftButton)
     assert ct.get_datatype_items("subject") == (["sub-01"] if single else ["sub-02"])
+    assert ct.subjects_dir == expected
+    assert str(expected) in dialog.status.text()
     assert not dialog.import_button.isEnabled()
     assert "Imported 1 of 1" in dialog.status.text()
 

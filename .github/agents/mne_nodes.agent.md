@@ -8,3 +8,5 @@ The mne_nodes agent assists in the development and maintenance of mne-nodes, pro
 Usually, it should run test/checks in the already setup development environment, usually called "mnedev".
 It should write short and readable code and adhere to the code style defined in the project's guidelines, but it should not check with ruff etc. everytime since that's done anyway by pre-commit.
 Don't run dangerous commands, that could harm git history or make uncoordinated changes to the code or the development environment.
+Make sure when you write tests, don't test things that are not specific to this package, e.g. don't test if pyside-widgets work or if other unrelated dependencies function correctly.
+Don't run pre-commit, since that is done anyway on commit and wastes credits.

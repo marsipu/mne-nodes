@@ -68,6 +68,7 @@ def make_controller(tmp_path):
         raw_types=["eeg", "meg", "ieeg"],
         ensure_bids_root=Mock(return_value=tmp_path / "bids"),
         ensure_deriv_root=Mock(return_value=tmp_path / "derivatives"),
+        other_derivative_roots=Mock(return_value=[]),
         ensure_subjects_dir=Mock(return_value=subjects_dir),
         get_datatype_items=Mock(
             side_effect=lambda dt: ["sub-01"] if dt == "subject" else []
@@ -191,6 +192,45 @@ def test_trans_paths_and_shared_session_file(tmp_path):
     mne.write_trans(canonical, mne.transforms.Transform("head", "mri"))
     assert backend.find_trans(path, root) == canonical
     assert backend.find_trans(make_path(tmp_path, session="02"), root) is None
+
+
+def write_trans_file(path: Path) -> Path:
+    """Write an identity head-to-MRI transformation to ``path``."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mne.write_trans(path, mne.transforms.Transform("head", "mri"), overwrite=True)
+    return path
+
+
+def test_find_trans_in_other_derivative_pipelines(tmp_path):
+    """Find legacy transformations from preceding software in other folders."""
+    path = make_path(tmp_path, run="1", datatype="meg")
+    own = tmp_path / "derivatives" / "mne-nodes"
+    legacy_root = tmp_path / "derivatives" / "mne-pipeline-hd"
+    session = legacy_root / "sub-01" / "ses-01"
+    legacy = write_trans_file(session / "sub-01_ses-01_task-test_run-01-trans.fif")
+    write_trans_file(session / "sub-01_ses-01_task-other_run-01-trans.fif")
+    write_trans_file(session / "eeg" / "sub-01_ses-01_trans.fif")
+    assert backend.find_trans(path, None, [legacy_root]) == legacy
+    assert backend.find_trans(path, own, [legacy_root]) == legacy
+    other_root = tmp_path / "derivatives" / "other-software"
+    write_trans_file(other_root / "sub-01" / "ses-01" / "sub-01_ses-01_trans.fif")
+    with pytest.raises(ValueError, match="Ambiguous"):
+        backend.find_trans(path, own, [legacy_root, other_root])
+    preferred = write_trans_file(backend.trans_path(path, own))
+    assert backend.find_trans(path, own, [legacy_root, other_root]) == preferred
+
+
+def test_other_derivative_roots_skip_freesurfer_and_own_root(ct):
+    """Search every derivative pipeline except FreeSurfer and the own root."""
+    derivatives = ct.bids_root / "derivatives"
+    own = ct.ensure_deriv_root(False)
+    for name in ("freesurfer", "mne-pipeline-hd", "mne-bids-pipeline"):
+        (derivatives / name).mkdir(parents=True, exist_ok=True)
+    roots = ct.other_derivative_roots()
+    assert derivatives / "mne-pipeline-hd" in roots
+    assert derivatives / "mne-bids-pipeline" in roots
+    assert own not in roots
+    assert derivatives / "freesurfer" not in roots
 
 
 def test_ambiguous_transforms(tmp_path):

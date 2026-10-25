@@ -32,9 +32,11 @@ from mne_bids import (
     get_entity_vals,
     read_raw_bids,
 )
+from mne_bids.config import ALLOWED_DATATYPE_EXTENSIONS
 
 from mne_nodes import gui_mode, ismac, iswin
 from mne_nodes.backend.code_generation import CodeGenerator
+from mne_nodes.backend.coregistration import find_trans
 from mne_nodes.backend.freesurfer import find_freesurfer_subjects
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
@@ -109,6 +111,7 @@ class Controller:
         self.disk_interval = 10  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
+        self.non_selectable_datatypes = ["event_id", "info", "trans", "raw_er"]
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
@@ -583,12 +586,40 @@ class Controller:
 
     @property
     def subjects_dir(self) -> Path | None:
-        """Dataset-local FreeSurfer directory, if it already exists."""
+        """Dataset-local FreeSurfer subjects directory, preferring nested layouts."""
         bids_root = self.bids_root
         if bids_root is None:
             return None
         subjects_dir = bids_root / "derivatives" / "freesurfer"
+        nested = subjects_dir / "subjects"
+        if nested.is_dir():
+            return nested
         return subjects_dir if subjects_dir.is_dir() else None
+
+    def other_derivative_roots(self) -> list[Path]:
+        """Return derivative pipeline folders besides the configured root.
+
+        FreeSurfer folders and the configured derivatives root are excluded.
+        """
+        bids_root = self.bids_root
+        derivatives = None if bids_root is None else bids_root / "derivatives"
+        if derivatives is None or not derivatives.is_dir():
+            return []
+        excluded = {
+            path.resolve()
+            for path in (self.deriv_root, self.subjects_dir)
+            if path is not None
+        }
+        excluded.add((derivatives / "freesurfer").resolve())
+        return sorted(
+            path
+            for path in derivatives.iterdir()
+            if path.is_dir() and path.resolve() not in excluded
+        )
+
+    def find_recording_trans(self, recording: BIDSPath) -> Path | None:
+        """Find a recording's transformation across all derivative pipelines."""
+        return find_trans(recording, self.deriv_root, self.other_derivative_roots())
 
     @property
     def plot_root(self) -> Path | None:
@@ -727,7 +758,7 @@ class Controller:
         """Create the dataset's FreeSurfer folder without global MNE settings."""
         bids_root = self.ensure_bids_root(interactive=interactive)
         self.ensure_deriv_root(interactive=False)
-        subjects_dir = bids_root / "derivatives" / "freesurfer"
+        subjects_dir = self.subjects_dir or bids_root / "derivatives" / "freesurfer"
         if not subjects_dir.resolve().is_relative_to(bids_root.resolve()):
             raise ValueError(
                 f"FreeSurfer directory points outside the dataset: {subjects_dir}"
@@ -1037,7 +1068,11 @@ class Controller:
     def get_group_by(self, group_by):
         if group_by == "custom":
             data = {
-                k: [get_bids_path_from_fname(i) for i in v]
+                k: [
+                    path
+                    for i in v
+                    if not self.is_empty_room(path := get_bids_path_from_fname(i))
+                ]
                 for k, v in self.get("custom_groups").items()
             }
         else:
@@ -1049,7 +1084,10 @@ class Controller:
                     for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match(
                         ignore_json=True, ignore_nosub=True
                     )
-                    if bp.datatype in self.raw_types and bp.extension != ".tsv"
+                    if bp.datatype in self.raw_types
+                    and bp.suffix == bp.datatype
+                    and bp.extension in ALLOWED_DATATYPE_EXTENSIONS[bp.datatype]
+                    and not self.is_empty_room(bp)
                 ]
                 for v in vals
             }
@@ -1080,11 +1118,9 @@ class Controller:
         bids_dt = [
             dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes
         ]
-        # Add event_id and info, since they can be loaded with raw
-        bids_dt += ["event_id", "info"]
-        # Add subject from freesurfer if subjects_dir is set
-        if self.subjects_dir is not None:
-            bids_dt += ["subject"]
+        bids_dt += self.non_selectable_datatypes
+        # Optional associated outputs retain their identity and saved connections.
+        bids_dt += ["subject"]
         return bids_dt
 
     def _get_datatype_candidates(self, data_type: str) -> list[BIDSPath]:
@@ -1101,7 +1137,7 @@ class Controller:
 
     def get_datatype_items(self, data_type: str) -> list[str]:
         """Get the available input items for one data type."""
-        if data_type == "event_id":
+        if data_type in self.non_selectable_datatypes:
             return []
         if data_type == "subject":
             subjects_dir = self.subjects_dir
@@ -1109,31 +1145,47 @@ class Controller:
                 return []
             return [path.name for path in find_freesurfer_subjects(subjects_dir)]
         if data_type == "emptyroom":
-            empty_room_items = []
-            for raw_type in self.raw_types:
-                candidates = self._get_datatype_candidates(raw_type)
-                for candidate in candidates:
-                    try:
-                        empty_room = candidate.find_empty_room()
-                        if (
-                            empty_room is not None
-                            and empty_room in candidates
-                            and empty_room.basename not in empty_room_items
-                        ):
-                            empty_room_items.append(empty_room.basename)
-                    except (RuntimeError, ValueError):
-                        pass
-            return empty_room_items
+            return [
+                path.basename
+                for path in self._get_datatype_candidates("meg")
+                if self.is_empty_room(path)
+            ]
+        return [
+            path.basename
+            for path in self._get_datatype_candidates(data_type)
+            if not self.is_empty_room(path)
+        ]
 
-        file_candidates = self._get_datatype_candidates(data_type)
-        for f in file_candidates.copy():
-            try:
-                er_bp = f.find_empty_room()
-                if er_bp is not None and er_bp in file_candidates:
-                    file_candidates.remove(er_bp)
-            except (RuntimeError, ValueError):
-                pass
-        return [f.basename for f in file_candidates]
+    @staticmethod
+    def is_empty_room(path: BIDSPath) -> bool:
+        """Identify BIDS MEG noise recordings, including same-subject noise tasks."""
+        return path.datatype == "meg" and (
+            path.subject == "emptyroom" or path.task == "noise"
+        )
+
+    def resolve_empty_room(self, recording: BIDSPath) -> BIDSPath:
+        """Find a recording's empty-room data using the MNE-BIDS association lookup."""
+        recording = recording.copy().update(root=self.bids_root)
+        if recording.datatype != "meg" or self.is_empty_room(recording):
+            raise FileNotFoundError(
+                f"No empty-room association for {recording.basename}: "
+                "select a participant MEG recording."
+            )
+        empty_room = recording.find_empty_room()
+        if empty_room is None:
+            raise FileNotFoundError(
+                f"No associated empty-room recording for {recording.basename}."
+            )
+        if not empty_room.fpath.exists():
+            raise FileNotFoundError(
+                f"Associated empty-room recording is missing: {empty_room.fpath}."
+            )
+        if empty_room.fpath == recording.fpath:
+            raise ValueError(
+                f"Empty-room association points to the recording itself: "
+                f"{recording.basename}."
+            )
+        return empty_room
 
     def get_all_datatype_items(self) -> dict[str, list[str]]:
         items = {}
@@ -1143,13 +1195,10 @@ class Controller:
             dt for dt in data_types if dt not in self.raw_types
         ]
         for dt in data_types:
-            datatype_items = self.get_datatype_items(dt)
-            if dt != "event_id":
-                items[dt] = datatype_items
-        if any(dt in self.raw_types for dt in data_types):
-            empty_room_items = self.get_datatype_items("emptyroom")
-            if empty_room_items:
-                items["emptyroom"] = empty_room_items
+            if dt == "subject":
+                continue
+            if dt not in self.non_selectable_datatypes:
+                items[dt] = self.get_datatype_items(dt)
         return items
 
     def input_selection_changed(self, selected, data_type):
@@ -1157,10 +1206,182 @@ class Controller:
         selected_inputs[data_type] = selected
         self.set("selected_inputs", selected_inputs)
         self.check_selection_enable()
+        self.refresh_input_outputs(selection_only=True)
+
+    def discard_legacy_segmentation_checks(self) -> None:
+        """Discard legacy auxiliary selections without removing recording groups."""
+        inputs = self.get("selected_inputs")
+        if "emptyroom" in inputs:
+            inputs.pop("emptyroom")
+            self.set("selected_inputs", inputs)
+        legacy = inputs.get("subject", [])
+        if legacy:
+            subjects = set(self.get_datatype_items("subject"))
+            groups = self.get_group_by("subject")
+            migrated = [
+                name for name in legacy if name in subjects and name not in groups
+            ]
+            if migrated:
+                inputs["subject"] = [name for name in legacy if name not in migrated]
+                self.set("selected_inputs", inputs)
+
+    def refresh_input_outputs(self, *, selection_only: bool = False) -> None:
+        """Refresh availability without rebuilding ports or removing connections."""
+        viewer = self.viewer
+        if viewer is not None and viewer.input_node is not None:
+            viewer.input_node.update_output_availability(selection_only=selection_only)
+
+    def selected_recordings(self) -> list[BIDSPath]:
+        """Return the raw recordings selected directly or through groups."""
+        recordings: dict[str, BIDSPath] = {}
+        for datatype, selected in self.get("selected_inputs").items():
+            if not selected:
+                continue
+            if datatype in self.raw_types:
+                paths = [get_bids_path_from_fname(name) for name in selected]
+            elif datatype in self.scopes:
+                groups = self.get_group_by(datatype)
+                paths = [path for name in selected for path in groups.get(name, [])]
+            else:
+                continue
+            for path in paths:
+                if (
+                    path.datatype in self.raw_types
+                    and path.suffix == path.datatype
+                    and not self.is_empty_room(path)
+                ):
+                    path = path.copy().update(root=self.bids_root)
+                    recordings[str(path.fpath)] = path
+        return list(recordings.values())
+
+    def resolve_recording_subject(
+        self, recording: BIDSPath, *, available: list[str] | None = None
+    ) -> str:
+        """Resolve the saved or conventional FreeSurfer subject for a recording."""
+        if available is None:
+            available = self.get_datatype_items("subject")
+        saved = self.get("coreg_subjects", {}).get(recording.basename)
+        candidates = (
+            (saved,) if saved else (f"sub-{recording.subject}", recording.subject)
+        )
+        for subject in candidates:
+            if subject in available:
+                return subject
+        raise FileNotFoundError(
+            f"No matching FreeSurfer subject for {recording.basename}."
+        )
+
+    def input_output_availability(
+        self, *, inventory: dict[str, list[str]] | None = None
+    ) -> dict[str, str]:
+        """Map unavailable input-node outputs to explanatory messages."""
+        recordings = self.selected_recordings()
+        unavailable = {}
+        selected_types = {recording.datatype for recording in recordings}
+        for datatype in self.raw_types:
+            if datatype not in selected_types:
+                unavailable[datatype] = f"No selected {datatype.upper()} recordings."
+        selections = self.get("selected_inputs")
+        data_types = self.get_datatypes() if inventory is None else inventory
+        for datatype in data_types:
+            if datatype in self.raw_types + self.non_selectable_datatypes + ["subject"]:
+                continue
+            selected = selections.get(datatype, [])
+            if not selected:
+                unavailable[datatype] = f"No selected {datatype} files."
+                continue
+            for name in selected:
+                path = get_bids_path_from_fname(name).update(
+                    root=self.bids_root, datatype=datatype
+                )
+                if not path.fpath.exists():
+                    unavailable[datatype] = f"Selected file is missing: {path.fpath}."
+        for datatype in self.non_selectable_datatypes + ["subject"]:
+            if not recordings:
+                unavailable[datatype] = "Select raw recordings or a recording group."
+        if not recordings:
+            return unavailable
+        subjects = (
+            self.get_datatype_items("subject")
+            if inventory is None
+            else inventory["subject"]
+        )
+        has_empty_room = bool(
+            self.get_datatype_items("emptyroom")
+            if inventory is None
+            else inventory["raw_er"]
+        )
+        resolved_subjects: dict[str, str] = {}
+
+        def resolve_subject(recording: BIDSPath) -> str:
+            name = recording.basename
+            if name not in resolved_subjects:
+                resolved_subjects[name] = self.resolve_recording_subject(
+                    recording, available=subjects
+                )
+            return resolved_subjects[name]
+
+        for recording in recordings:
+            if not recording.fpath.exists():
+                affected = self.non_selectable_datatypes + ["subject"]
+                if recording.datatype is not None:
+                    affected.append(recording.datatype)
+                for datatype in affected:
+                    unavailable[datatype] = (
+                        f"Selected recording is missing: {recording.fpath}."
+                    )
+            if "subject" not in unavailable:
+                try:
+                    resolve_subject(recording)
+                except FileNotFoundError as error:
+                    unavailable["subject"] = str(error)
+            if not has_empty_room:
+                unavailable["raw_er"] = "No empty-room data in this dataset."
+            elif recording.datatype != "meg":
+                unavailable["raw_er"] = (
+                    f"No empty-room association for {recording.basename}: "
+                    "select a participant MEG recording."
+                )
+            elif "raw_er" not in unavailable:
+                try:
+                    self.resolve_empty_room(recording)
+                except (OSError, ValueError, RuntimeError) as error:
+                    unavailable["raw_er"] = str(error)
+            if "trans" not in unavailable:
+                try:
+                    if self.find_recording_trans(recording) is None:
+                        unavailable["trans"] = (
+                            f"No transformation for {recording.basename}."
+                        )
+                except (OSError, ValueError, RuntimeError) as error:
+                    unavailable["trans"] = str(error)
+        for scope, selected in self.get("selected_inputs").items():
+            if scope not in self.scopes or not selected:
+                continue
+            groups = self.get_group_by(scope)
+            for name in selected:
+                if "subject" in unavailable:
+                    break
+                try:
+                    subjects_in_group = {
+                        resolve_subject(path) for path in groups.get(name, [])
+                    }
+                except FileNotFoundError as error:
+                    unavailable["subject"] = str(error)
+                    break
+                if len(subjects_in_group) != 1:
+                    unavailable["subject"] = (
+                        "A group must resolve to exactly one FreeSurfer subject."
+                    )
+        return unavailable
 
     def check_selection_enable(self):
         # Enable/Disable start buttons based on whether any inputs are selected
-        any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
+        any_selected = any(
+            values
+            for datatype, values in self.get("selected_inputs").items()
+            if datatype not in self.non_selectable_datatypes
+        )
         if self.viewer is not None:
             self.viewer.enable_start_buttons(any_selected)
 
@@ -1192,6 +1413,12 @@ class Controller:
             return [r for r, _ in loaded], [e for _, e in loaded]
         return _load(items, preload=True)
 
+    def load_raw_er(self, items: BIDSPath | list[BIDSPath]):
+        """Load associated empty-room raw data, preserving file/group input shape."""
+        if isinstance(items, list):
+            return [self.load_raw(self.resolve_empty_room(path))[0] for path in items]
+        return self.load_raw(self.resolve_empty_room(items))[0]
+
     def load_info(self, items, raw=None):
         """Load measurement info for one or multiple bids-paths.
 
@@ -1214,7 +1441,8 @@ class Controller:
 
         def _load(bp):
             bp = bp.copy().update(root=self.bids_root)
-            return mne.io.read_info(bp.fpath)
+            with read_raw_bids(bp, extra_params={"preload": False}) as recording:
+                return recording.info
 
         if isinstance(items, list):
             if raw is not None:
@@ -1232,6 +1460,32 @@ class Controller:
             )
             return False
         return subject
+
+    def load_recording_subject(self, items: BIDSPath | list[BIDSPath]) -> str:
+        """Load the MRI subject for a recording or a single-subject group."""
+        recordings = items if isinstance(items, list) else [items]
+        subjects = {self.resolve_recording_subject(path) for path in recordings}
+        if len(subjects) != 1:
+            raise ValueError("A group must resolve to exactly one FreeSurfer subject.")
+        return subjects.pop()
+
+    def load_trans(self, items: BIDSPath | list[BIDSPath]):
+        """Load head-to-MRI transformations using the coregistration lookup rules."""
+        root = self.ensure_deriv_root(interactive=False)
+        other_roots = self.other_derivative_roots()
+
+        def load(recording: BIDSPath):
+            path = find_trans(recording, root, other_roots)
+            if path is None:
+                raise FileNotFoundError(
+                    f"No transformation for {recording.basename} in the "
+                    "derivatives folders."
+                )
+            return mne.read_trans(path)
+
+        if isinstance(items, list):
+            return [load(path) for path in items]
+        return load(items)
 
     ####################################################################################
     # Parameters

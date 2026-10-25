@@ -89,6 +89,33 @@ def test_coregistration_menu_action(main_window, monkeypatch):
     dialog.update_widgets.assert_called_once_with()
 
 
+@pytest.mark.parametrize("cancel", [False, True])
+def test_set_bids_root_menu_action(main_window, monkeypatch, tmp_path, cancel):
+    """The menu and node button share dataset switching and cancellation behavior."""
+    from shutil import copytree
+
+    ct = main_window.controller
+    previous = ct.bids_root
+    root = tmp_path / "menu-bids"
+    copytree(Path(__file__).parent / "tiny_bids", root)
+    monkeypatch.setattr(
+        "mne_nodes.gui.node.input_node.get_user_input",
+        lambda *args, **kwargs: None if cancel else root,
+    )
+    bids_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&BIDS"
+    )
+    action = next(
+        action for action in bids_menu.actions() if action.text() == "&Set BIDS root..."
+    )
+    action.trigger()
+    assert ct.bids_root == (previous if cancel else root)
+    assert main_window.viewer.input_node.input_widget.ct is ct
+    assert any("Data overview" in action.text() for action in bids_menu.actions())
+
+
 @pytest.mark.parametrize("local", [True, False])
 def test_derivative_storage_menu_action(main_window, monkeypatch, tmp_path, local):
     """The BIDS menu selects local or separate processing derivative storage."""
@@ -428,7 +455,7 @@ def test_bids_root_switch_replaces_input_dataset_information(
     assert ct.get("bids_dataset_name") == "sample-dataset"
     assert [
         widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())
-    ] == ["meg", "info", "Groups"]
+    ] == ["meg", "Groups"]
     model = widget.tab_widget.widget(0).model
     assert model.rowCount() == 1
     assert model.index(0, 0).data() == filename
@@ -691,6 +718,7 @@ def test_welcome_tour_adds_node_from_context_menu(
         tour.show_step(2)
         assert not tour.widget.next_btn.isEnabled()
         if on_port:
+            ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
             port = viewer.input_node.output(port_name="eeg")
             pos = viewer.mapFromScene(port.sceneBoundingRect().center())
         else:

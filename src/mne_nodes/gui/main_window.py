@@ -18,6 +18,7 @@ from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.coreg_widgets import CoregDialog
+from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
 from mne_nodes.gui.freesurfer_widgets import FreeSurferImportDialog
 from mne_nodes.gui.function_widgets import FunctionImporter
@@ -117,7 +118,17 @@ class MainWindow(QMainWindow):
         )
         sample_action.triggered.connect(self.add_sample_bids)
         bids_menu = self.menuBar().addMenu("&BIDS")
+        root_action = QAction(
+            "&Set BIDS root...",
+            parent=self,
+            statusTip="Select the BIDS dataset used by the input node.",
+        )
+        root_action.triggered.connect(self.change_bids_root)
+        bids_menu.addAction(root_action)
         bids_menu.addAction(sample_action)
+        overview_action = QAction("&Data overview...", parent=self)
+        overview_action.triggered.connect(self.show_data_overview)
+        bids_menu.addAction(overview_action)
         import_subjects_action = QAction("&Import FreeSurfer subjects...", parent=self)
         import_subjects_action.triggered.connect(self.import_freesurfer_subjects)
         bids_menu.addAction(import_subjects_action)
@@ -235,12 +246,18 @@ class MainWindow(QMainWindow):
         dialog.open()
         dialog.update_widgets()
 
+    def show_data_overview(self) -> None:
+        """Open the dataset-wide recording and auxiliary-data overview."""
+        dialog = DataOverviewDialog(self.controller, self)
+        dialog.open()
+        dialog.update_widgets()
+
     def change_deriv_root(self) -> None:
         """Choose dataset-local or separate storage for processing derivatives."""
         local = ask_user_custom(
             "Where should processing derivatives be stored? "
-            "Existing files will not be moved. FreeSurfer subjects remain in "
-            "<BIDS root>/derivatives/freesurfer.",
+            "Existing files will not be moved. FreeSurfer subjects remain "
+            "in the dataset's FreeSurfer subjects directory.",
             buttons=["Inside BIDS dataset", "Separate derivatives root"],
             parent=self,
         )
@@ -267,6 +284,7 @@ class MainWindow(QMainWindow):
             f"Derivatives: {self.controller.deriv_root}. "
             "Existing files have not been moved."
         )
+        self.controller.refresh_input_outputs()
 
     def finalize_controller_setup(self):
         """Load startup nodes unless controller setup has already populated the viewer."""
@@ -391,7 +409,7 @@ class MainWindow(QMainWindow):
     def load_plugin_module(self):
         plugin_name = get_user_input(
             "Enter the name of the plugin module to load.",
-            input_type="text",
+            input_type="string",
             parent=self,
         )
         if plugin_name is None:
@@ -429,7 +447,16 @@ class MainWindow(QMainWindow):
             self.controller.bids_root = sample_root
 
     def change_bids_root(self):
-        self.controller.bids_root = None
+        """Choose a dataset using the same cancelable action as the input node."""
+        node = self.viewer.input_node
+        if node is not None:
+            node.input_widget.set_root()
+            return
+        root = get_user_input(
+            "Select BIDS root directory", "folder", parent=self, cancel_allowed=True
+        )
+        if root is not None:
+            self.controller.bids_root = root
 
     def restart(self):
         self.close()

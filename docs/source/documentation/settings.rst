@@ -24,11 +24,15 @@ subfolder. Existing files are not moved or deleted when changing roots.
 Explicit roots from older settings are retained. A missing explicit root causes
 an error rather than silently redirecting outputs.
 
-FreeSurfer subjects are stored in ``<BIDS-root>/derivatives/freesurfer``.
+FreeSurfer subjects are stored in
+``<BIDS-root>/derivatives/freesurfer/subjects`` when that directory exists;
+otherwise ``<BIDS-root>/derivatives/freesurfer`` is used directly.
+The nested layout takes precedence if both exist; roots are not merged.
 This location is independent of the processing derivative root and cannot be
 selected separately. MNE-Nodes neither reads nor modifies the global MNE
 ``SUBJECTS_DIR`` setting for this purpose. The directory is created when a
-FreeSurfer operation needs it; existing segmentations are discovered there.
+FreeSurfer operation needs it (using the direct layout for a new dataset);
+existing segmentations and new imports use the same resolved directory.
 
 Changing the BIDS root asks for confirmation and resets all input selections,
 including FreeSurfer subjects, coregistration subject mappings, custom groups,
