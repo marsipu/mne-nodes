@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         node_picker_action.triggered.connect(self.show_node_picker)
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(node_picker_action)
+        view_menu.addAction(autolayout_action)
 
         welcome_tour_action = QAction(
             "&Restart Welcome Tour",

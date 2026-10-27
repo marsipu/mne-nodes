@@ -66,6 +66,35 @@ def test_main_window_defers_viewer_load_until_controller_ready(
     main_window.close()
 
 
+def test_auto_layout_menu_action(main_window):
+    """The View menu exposes auto-layout without changing the viewport."""
+    viewer = main_window.viewer
+    view_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&View"
+    )
+    action = next(
+        action
+        for action in view_menu.actions()
+        if action.text() == "&Auto-Layout Nodes"
+    )
+    assert action.shortcut().toString() == "Ctrl+L"
+    source = viewer.input_node
+    target = viewer.node(node_name="test_filter")
+    target.setPos(source.x() - 1000, source.y() + 1000)
+    rect = viewer.scene_rect()
+    transform = viewer.transform()
+
+    action.trigger()
+
+    assert (
+        target.sceneBoundingRect().left() - source.sceneBoundingRect().right()
+    ) == pytest.approx(viewer.default_x_distance)
+    assert viewer.scene_rect() == rect
+    assert viewer.transform() == transform
+
+
 def test_coregistration_menu_action(main_window, monkeypatch):
     """The BIDS menu opens and initializes the coregistration manager."""
     from unittest.mock import Mock
@@ -797,12 +826,18 @@ def test_welcome_tour_input_checkbox_is_clickable(
         tour.finish()
 
 
-def test_new_function_node_is_fitted_into_view(ct, main_window):
-    """Adding a node outside the current view refits all graph nodes."""
+def test_new_function_node_does_not_refit_view(ct, main_window):
+    """Off-screen placement preserves the view until explicitly fitted."""
     viewer = main_window.viewer
-    node = viewer.add_function_node("test_filter", pos=QPointF(5000, 5000))
     visible_rect = viewer.mapToScene(viewer.viewport().rect()).boundingRect()
+    transform = viewer.transform()
+    node = viewer.add_function_node("test_filter", pos=QPointF(5000, 5000))
 
+    assert viewer.mapToScene(viewer.viewport().rect()).boundingRect() == visible_rect
+    assert viewer.transform() == transform
+    assert not visible_rect.contains(node.sceneBoundingRect())
+    viewer.zoom_to_nodes()
+    visible_rect = viewer.mapToScene(viewer.viewport().rect()).boundingRect()
     assert visible_rect.contains(node.sceneBoundingRect())
 
 
