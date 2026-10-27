@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+from copy import deepcopy
 from pprint import pprint
 
 import pytest
@@ -636,6 +637,70 @@ def test_exec_order(qtbot, ct):
     pprint(eo)
 
     viewer.show()
+
+
+def test_exec_order_diamond(qtbot, ct):
+    """Multi-input nodes must run after all of their upstream chains."""
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    combine_meta = deepcopy(ct.get_function_meta("test_evokeds"))
+    combine_meta["inputs"]["raw"] = deepcopy(
+        ct.get_function_meta("test_filter")["inputs"]["raw"]
+    )
+    combine_meta["outputs"] = {}
+    ct.function_meta["test_combine"] = combine_meta
+    in_node = viewer.add_input_node()
+    combine_node = viewer.add_function_node("test_combine")
+    filter_node = viewer.add_function_node("test_filter")
+    epochs_node = viewer.add_function_node("test_epochs")
+    evokeds_node = viewer.add_function_node("test_evokeds")
+    # The short path to test_combine is connected (and thus discovered) first
+    in_port = in_node.output(port_idx=0)
+    in_port.connect_to(combine_node.input(port_name="raw"))
+    in_port.connect_to(filter_node.input(port_name="raw"))
+    filter_node.output(port_name="raw").connect_to(epochs_node.input(port_name="raw"))
+    epochs_out = epochs_node.output(port_name="epochs")
+    epochs_out.connect_to(combine_node.input(port_name="epochs"))
+    epochs_out.connect_to(evokeds_node.input(port_name="epochs"))
+    assert epochs_out.connected(combine_node.input(port_name="epochs"))
+
+    def names(start):
+        return [d["name"] for d in viewer.get_node_sequence(start)["file"]]
+
+    order = names(in_node)
+    assert sorted(order) == sorted(
+        ["test_combine", "test_filter", "test_epochs", "test_evokeds"]
+    )
+    assert order.index("test_filter") < order.index("test_epochs")
+    assert order.index("test_epochs") < order.index("test_combine")
+    assert order.index("test_epochs") < order.index("test_evokeds")
+
+    # Starting from an intermediate node includes the missing upstream chains
+    # of downstream nodes, but not the upstream nodes of the start node.
+    assert names(epochs_node) == ["test_epochs", "test_combine", "test_evokeds"]
+    assert names(combine_node) == ["test_combine"]
+
+
+def test_exec_order_cycle(qtbot, ct):
+    """Cyclic connections raise an error instead of a wrong order."""
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    in_node = viewer.add_input_node()
+    filter_node = viewer.add_function_node("test_filter")
+    filter_node2 = viewer.add_function_node("test_filter")
+    in_node.output(port_idx=0).connect_to(filter_node.input(port_name="raw"))
+    filter_node.output(port_name="raw").connect_to(filter_node2.input(port_name="raw"))
+    filter_node2.output(port_name="raw").connect_to(filter_node.input(port_name="raw"))
+    if not filter_node2.output(port_name="raw").connected(
+        filter_node.input(port_name="raw")
+    ):
+        pytest.skip("Cyclic connections are prevented by the viewer.")
+    with pytest.raises(RuntimeError, match="cycle"):
+        viewer.get_node_sequence(in_node)
 
 
 def test_multiple_func_nodes(nodeviewer):

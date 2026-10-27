@@ -15,6 +15,14 @@ MNE-Python.
 - The full test suite can download large MNE datasets; allow it to finish.
 - Pre-commit handles formatting and linting. Do not run Ruff separately unless
   the task specifically requires it.
+- If possible, use computer-use to check on a running mne-nodes application
+  instance that changes have the desired effect and do not break existing
+  functionality. Keep in mind that dialogs may open from the mne-nodes window.
+
+## Safety
+
+- Do not run dangerous commands that could harm the git history.
+- Do not make uncoordinated changes to the code or the development environment.
 
 ## Project Layout
 
@@ -26,6 +34,7 @@ MNE-Python.
 
 ## Code Conventions
 
+- Write short and readable code.
 - Use double-quoted strings, type hints, f-strings, and `pathlib` for paths.
 - Keep lines within 88 characters and avoid wildcard imports.
 - Do not use `except Exception` without re-raising, except when displaying a
@@ -33,3 +42,5 @@ MNE-Python.
 - Add docstrings for public functions and classes.
 - Preserve existing UI patterns and test GUI behavior with pytest-qt when
   changing widgets.
+- Only test behavior specific to this package; do not test whether unrelated
+  dependencies (e.g. PySide widgets) work.

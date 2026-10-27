@@ -788,64 +788,137 @@ class NodeViewer(QGraphicsView):
         new_model = FunctionPickerModel(self.ct.function_meta)
         self.node_picker.functions_view.setModel(new_model)
 
-    def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
-        if visited is None:
-            visited = set()
-        for port_id, port_info in node_dict.items():
-            port = self.port(port_id=port_id)
-            if not isinstance(port, Port):
-                continue
-            # If the port has no connected ports, skip it
-            if len(port.connected_ports) == 0:
-                continue
-            previous_node = port.node
-            for node_id, node_info in port_info.items():
-                if node_id in visited:
+    @staticmethod
+    def _neighbor_nodes(node, direction):
+        """Return unique connected nodes upstream ("in") or downstream ("out").
+
+        Neighbors are returned in port order (and connection order within a
+        port) so that the resulting execution order is deterministic.
+        """
+        ports = node.inputs if direction == "in" else node.outputs
+        neighbors = []
+        seen = set()
+        for port in ports:
+            for cp in port.connected_ports:
+                if cp.node is node or cp.node.id in seen:
                     continue
-                visited.add(node_id)
-                node = self.node(node_id=node_id)
-                if node is None:
-                    continue
-                if len(node.inputs) > 1:
-                    # If the node has multiple inputs, we need to ensure
-                    # that all inputs are processed before this node.
-                    other_ports = [
-                        p for p in node.inputs if p not in port.connected_ports
-                    ]
-                    for oport in other_ports:
-                        reverse_exec_order = {"file": [], "group": []}
-                        up_nodes = node.upstream_node_dict(port_id=oport.id)
-                        self._iterate_node_sequence(
-                            reverse_exec_order, up_nodes, visited
+                seen.add(cp.node.id)
+                neighbors.append(cp.node)
+        return neighbors
+
+    def _collect_nodes(self, start_nodes, direction, include_start=True):
+        """Collect all nodes reachable from start_nodes in discovery order."""
+        collected = OrderedDict()
+        stack = list(reversed(start_nodes))
+        while stack:
+            node = stack.pop()
+            if node.id in collected:
+                continue
+            collected[node.id] = node
+            # Reverse so that the first neighbor is visited first (DFS order).
+            stack.extend(reversed(self._neighbor_nodes(node, direction)))
+        if not include_start:
+            for node in start_nodes:
+                collected.pop(node.id, None)
+        return collected
+
+    def resolve_execution_order(self, node):
+        """Resolve the nodes to execute when starting from ``node``.
+
+        The selection includes ``node`` itself, every node downstream of it
+        and every upstream dependency of those downstream nodes, which is
+        not already an upstream dependency of ``node`` (data from those is
+        loaded from disk, as it is for ``node`` itself).
+
+        The selected nodes are ordered topologically, which guarantees that
+        a node is only executed after all of its connected (and selected)
+        upstream nodes. Among independent branches, the order follows the
+        depth-first discovery order downstream from ``node``, so that
+        processing chains stay together.
+
+        Parameters
+        ----------
+        node : BaseNode
+            The node to start the execution from.
+
+        Returns
+        -------
+        list of BaseNode
+            The nodes in execution order (including nodes without a
+            function target, like the input node).
+
+        Raises
+        ------
+        RuntimeError
+            If the connections between the selected nodes contain a cycle.
+        """
+        downstream = self._collect_nodes([node], "out")
+        start_ancestors = self._collect_nodes([node], "in", include_start=False)
+        dependencies = self._collect_nodes(list(downstream.values()), "in")
+        selected = OrderedDict(downstream)
+        for node_id, dep_node in dependencies.items():
+            if node_id not in selected and node_id not in start_ancestors:
+                selected[node_id] = dep_node
+
+        # Depth-first topological sort (upstream nodes first) with cycle check.
+        order = []
+        state = {}  # node_id -> "visiting" | "done"
+        for root in selected.values():
+            if root.id in state:
+                continue
+            stack = [(root, iter(self._neighbor_nodes(root, "in")))]
+            state[root.id] = "visiting"
+            while stack:
+                current, upstream_iter = stack[-1]
+                for up_node in upstream_iter:
+                    if up_node.id not in selected:
+                        continue
+                    up_state = state.get(up_node.id)
+                    if up_state == "visiting":
+                        raise RuntimeError(
+                            "The node connections contain a cycle involving "
+                            f"'{up_node.name}' and '{current.name}', "
+                            "the execution order can not be resolved."
                         )
-                        for key, sequence in reverse_exec_order.items():
-                            sequence.reverse()
-                            node_sequence[key].extend(sequence)
-                description, target = node.get_description()
-                _, previous_target = previous_node.get_description()
-                if previous_target == "group":
-                    target = "group"
-                if target:
-                    node_sequence[target].append(description)
-                self._iterate_node_sequence(node_sequence, node_info, visited)
+                    if up_state is None:
+                        state[up_node.id] = "visiting"
+                        stack.append(
+                            (up_node, iter(self._neighbor_nodes(up_node, "in")))
+                        )
+                        break
+                else:
+                    state[current.id] = "done"
+                    order.append(current)
+                    stack.pop()
+
+        return order
 
     def get_node_sequence(self, node):
         """Start from a node and create an execution order.
 
-        The execution goes downstream from the selected node. Multiple
-        output paths are executed sequentially. If downstream there are
-        multiple inputs, the upstream nodes are executed first. Handling
-        of different node types and activated/deactivated nodes should
-        be done in Controller.
+        See :meth:`resolve_execution_order` for which nodes are executed in
+        which order. The nodes are split by their target ("file" or
+        "group"). A node gets the "group" target if its own target is
+        "group" or if any of its upstream nodes is executed on group-level.
+        Since group-level nodes can only depend on file-level nodes (and
+        not vice versa), all file-level nodes can be executed before the
+        group-level nodes. Handling of different node types and
+        activated/deactivated nodes should be done in Controller.
         """
         node_sequence = {"file": [], "group": []}
-        visited = set()
-        # Add the starting node
-        description, target = node.get_description()
-        if target:
-            node_sequence[target].append(description)
-        visited.add(node.id)
-        self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
+        effective_targets = {}
+        for exec_node in self.resolve_execution_order(node):
+            description, target = exec_node.get_description()
+            upstream_group = any(
+                effective_targets.get(up_node.id) == "group"
+                or up_node.get_description()[1] == "group"
+                for up_node in self._neighbor_nodes(exec_node, "in")
+            )
+            if target and upstream_group:
+                target = "group"
+            effective_targets[exec_node.id] = target
+            if target:
+                node_sequence[target].append(description)
 
         return node_sequence
 
