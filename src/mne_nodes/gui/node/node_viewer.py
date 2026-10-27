@@ -6,12 +6,22 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import math
 import re
-from collections import OrderedDict, deque
+from collections import OrderedDict
 from typing import TypeGuard
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
-from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath, QPainterPathStroker
+from qtpy.QtCore import (
+    QMimeData,
+    QPoint,
+    QPointF,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
+from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
     QGraphicsPathItem,
@@ -26,13 +36,23 @@ from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.function_node import FunctionNode
 from mne_nodes.gui.node.input_node import InputNode
+from mne_nodes.gui.node.layout import LayoutEdge, LayoutNode, layered_layout
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
+from mne_nodes.gui.node.routing import separate_overlaps
 from mne_nodes.gui.user_interaction import raise_user_attention
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
+
+# Available pipe layouts with their display names.
+PIPE_LAYOUTS = {
+    "curved": "Curved",
+    "straight": "Straight",
+    "angle": "Angled",
+    "routed": "Routed Around Nodes",
+}
 
 
 class NodeViewer(QGraphicsView):
@@ -73,6 +93,13 @@ class NodeViewer(QGraphicsView):
         self._function_nodes: dict[str, FunctionNode] = {}
         self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
+        self._pipe_redraw_pending = False
+        self._nodes_moving = False
+        settings = getattr(ct, "settings", None)
+        if settings is not None:
+            layout = settings.get("pipe_layout", self._pipe_layout)
+            if layout in PIPE_LAYOUTS:
+                self._pipe_layout = layout
         self._last_size = self.size()
         self._detached_port: Port | None = None
         self._start_port: Port | None = None
@@ -238,25 +265,79 @@ class NodeViewer(QGraphicsView):
         Returns
         -------
         str
-            Pipe layout mode (either 'straight', 'curved', or 'angle').
+            Pipe layout mode (one of ``PIPE_LAYOUTS``).
         """
         return self._pipe_layout
 
     @pipe_layout.setter
     def pipe_layout(self, layout):
-        """Set the pipe layout mode.
+        """Set the pipe layout mode and redraw all pipes.
 
         Parameters
         ----------
         layout : str
-            Pipe layout mode (either 'straight', 'curved', or 'angle').
+            Pipe layout mode (one of ``PIPE_LAYOUTS``).
         """
-        if layout not in ["straight", "curved", "angle"]:
+        if layout not in PIPE_LAYOUTS:
             logger.warning(
                 f"{layout} is not a valid pipe layout, defaulting to 'curved'."
             )
             layout = "curved"
         self._pipe_layout = layout
+        self.redraw_pipes()
+
+    @property
+    def nodes_moving(self):
+        """Return True while nodes are dragged with the mouse."""
+        return self._nodes_moving
+
+    def redraw_pipes(self):
+        """Redraw all connected pipes, e.g. after the pipe layout changed.
+
+        Routed pipes are routed together, so that overlapping parallel
+        segments can be spread apart by ``defaults["pipes"]["padding"]``.
+        """
+        self._pipe_redraw_pending = False
+        pipes = [
+            pipe
+            for pipe in self.all_pipes()
+            if pipe.input_port is not None and pipe.output_port is not None
+        ]
+        if self._pipe_layout != "routed" or self._nodes_moving:
+            for pipe in pipes:
+                pipe.draw_path(pipe.input_port, pipe.output_port)
+            return
+        routed, routes = [], []
+        for pipe in pipes:
+            route = pipe.compute_route() if pipe.isVisible() else None
+            if route is None:
+                pipe.draw_path(pipe.input_port, pipe.output_port)
+            else:
+                routed.append(pipe)
+                routes.append(route)
+        routes = separate_overlaps(
+            routes,
+            defaults["pipes"]["padding"],
+            max_offset=defaults["pipes"]["route_margin"] * 0.8,
+        )
+        for pipe, route in zip(routed, routes, strict=True):
+            pipe.set_route(route)
+
+    def schedule_pipe_redraw(self):
+        """Redraw all pipes once control returns to the event loop.
+
+        Routed pipes depend on the position of all nodes, not only on
+        the nodes they connect. While nodes are dragged, re-routing is
+        postponed until the mouse is released.
+        """
+        if (
+            self._pipe_layout != "routed"
+            or self._pipe_redraw_pending
+            or self._nodes_moving
+        ):
+            return
+        self._pipe_redraw_pending = True
+        QTimer.singleShot(0, self.redraw_pipes)
 
     ####################################################################################
     # Backend
@@ -1069,6 +1150,12 @@ class NodeViewer(QGraphicsView):
 
         if len(nodes) > 0:
             self.MMB_state = False
+            if self.LMB_state:
+                # Pipes are re-routed once the drag ends (see mouseReleaseEvent).
+                self._nodes_moving = True
+                self._press_node_positions = {
+                    node: node.pos() for node in self.nodes.values()
+                }
 
         # update the recorded node positions.
         selection = set()
@@ -1086,9 +1173,19 @@ class NodeViewer(QGraphicsView):
 
         super().mousePressEvent(event)
 
+    def _finish_node_move(self):
+        """Re-route pipes after nodes were dragged."""
+        if not self._nodes_moving:
+            return
+        self._nodes_moving = False
+        positions, self._press_node_positions = self._press_node_positions, {}
+        if any(node.pos() != pos for node, pos in positions.items()):
+            self.schedule_pipe_redraw()
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.LMB_state = False
+            self._finish_node_move()
         elif event.button() == Qt.MouseButton.RightButton:
             self.RMB_state = False
         elif event.button() == Qt.MouseButton.MiddleButton:
@@ -1147,6 +1244,8 @@ class NodeViewer(QGraphicsView):
         self.LMB_state = bool(buttons & Qt.MouseButton.LeftButton)
         self.RMB_state = bool(buttons & Qt.MouseButton.RightButton)
         self.MMB_state = bool(buttons & Qt.MouseButton.MiddleButton)
+        if not self.LMB_state:
+            self._finish_node_move()
 
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
         origin_pos = self._origin_pos or event.pos()
@@ -1998,75 +2097,23 @@ class NodeViewer(QGraphicsView):
     # AutoLayout
     # --------------------------------------------------------------------------------------
 
-    @staticmethod
-    def _compute_node_rank(nodes, down_stream=True):
-        """Rank only the supplied nodes, in stable topological order."""
-        selected = set(nodes)
-        successors = {}
-        incoming = dict.fromkeys(nodes, 0)
-        for node in nodes:
-            ports = node.outputs if down_stream else node.inputs
-            successors[node] = list(
-                dict.fromkeys(
-                    other.node
-                    for port in ports
-                    for other in port.connected_ports
-                    if other.node in selected
-                )
-            )
-            for other in successors[node]:
-                incoming[other] += 1
-        ready = deque(node for node in nodes if incoming[node] == 0)
-        ranks = dict.fromkeys(nodes, 0)
-        visited = 0
-        while ready:
-            node = ready.popleft()
-            visited += 1
-            for other in successors[node]:
-                ranks[other] = max(ranks[other], ranks[node] + 1)
-                incoming[other] -= 1
-                if incoming[other] == 0:
-                    ready.append(other)
-        if visited != len(nodes):
-            raise ValueError("Cannot auto-layout a graph containing a cycle.")
-        return ranks
-
-    @staticmethod
-    def _layout_score(nodes: list[BaseNode], pipes: list[Pipe]) -> tuple[int, float]:
-        """Prefer unobstructed rendered paths, then shorter total pipe length."""
-        rects = {node: node.sceneBoundingRect() for node in nodes}
-        obstructions = 0
-        length = 0.0
-        stroker = QPainterPathStroker()
-        for pipe in pipes:
-            source, target = pipe.output_port, pipe.input_port
-            assert source is not None and target is not None
-            path = pipe.path()
-            stroker.setWidth(pipe.pen().widthF())
-            stroke = stroker.createStroke(path)
-            obstructions += sum(
-                stroke.intersects(rect)
-                for node, rect in rects.items()
-                if node not in (source.node, target.node)
-            )
-            length += path.length()
-        return obstructions, round(length, 6)
-
     def auto_layout_nodes(self, nodes=None, down_stream=True, start_nodes=None):
-        """Lay out nodes in compact layers, reducing pipe obstruction and length.
+        """Lay out nodes in left-to-right layers with short, straight pipes.
 
-        Node order and vertical alignment are refined using the rendered pipes.
-        Horizontal layers and vertically adjacent nodes retain default gaps.
+        Layers are chosen to keep the horizontal span of pipes small. Pipes
+        spanning several layers reserve a channel through the layers in
+        between. Within each layer, nodes are ordered to reduce crossings and
+        placed vertically to minimize the (squared) vertical pipe distances.
         The graph center and the current view are preserved.
 
         Parameters
         ----------
         nodes : list of BaseNode, optional
-            List of nodes to auto layout. If None, all nodes are laid out.
+            List of nodes to auto layout, by default all nodes.
         down_stream : bool, optional
-            False to layout upstream, by default True.
+            False to rank the layers starting from the last nodes.
         start_nodes : list of BaseNode, optional
-            Preferred starting nodes within the nodes being laid out.
+            Nodes placed first (top) within their layer.
         """
         nodes = list(nodes or self.nodes.values())
         if not nodes:
@@ -2074,114 +2121,57 @@ class NodeViewer(QGraphicsView):
         preferred = [node for node in (start_nodes or []) if node in nodes]
         nodes = list(dict.fromkeys([*preferred, *nodes]))
         nodes_center_0 = self.nodes_rect_center(nodes)
-        nodes_rank = self._compute_node_rank(nodes, down_stream)
-        rank_map: dict[int, list[BaseNode]] = {}
-        for node, rank in nodes_rank.items():
-            rank_map.setdefault(rank, []).append(node)
-        layers = [rank_map[rank] for rank in sorted(rank_map, reverse=not down_stream)]
-        selected = set(nodes)
-        pipes = [
-            pipe
-            for pipe in self.all_pipes()
-            if pipe.input_port is not None
-            and pipe.output_port is not None
-            and pipe.input_port.node in selected
-            and pipe.output_port.node in selected
-        ]
-        neighbors: dict[BaseNode, list[tuple[Port, Port]]] = {
-            node: [] for node in nodes
-        }
-        for pipe in pipes:
-            source, target = pipe.output_port, pipe.input_port
-            assert source is not None and target is not None
-            neighbors[source.node].append((source, target))
-            neighbors[target.node].append((target, source))
-        offsets = [0.0] * len(layers)
-        columns = []
-        current_x = 0
-        for layer in layers:
-            columns.append(current_x)
-            current_x += (
-                max(node.boundingRect().width() for node in layer)
-                + self.default_x_distance
+
+        layout_nodes = {}
+        for index, node in enumerate(nodes):
+            rect = node.sceneBoundingRect()
+            # Preferred nodes sort first in the initial order.
+            y = rect.top() if node not in preferred else -1e9 + index
+            layout_nodes[node] = LayoutNode(
+                key=node, width=rect.width(), height=rect.height(), y=y
             )
+        edges = []
+        for pipe in self.all_pipes():
+            source, target = pipe.output_port, pipe.input_port
+            if source is None or target is None:
+                continue
+            if source.node not in layout_nodes or target.node not in layout_nodes:
+                continue
+            source_node, target_node = (
+                layout_nodes[source.node],
+                layout_nodes[target.node],
+            )
+            edges.append(
+                LayoutEdge(
+                    source_node,
+                    target_node,
+                    source.sceneBoundingRect().center().y()
+                    - source.node.sceneBoundingRect().top(),
+                    target.sceneBoundingRect().center().y()
+                    - target.node.sceneBoundingRect().top(),
+                )
+            )
+        # Restore real positions after using them to encode the start nodes.
+        for node in preferred:
+            layout_nodes[node].y = node.sceneBoundingRect().top()
 
-        def place_layer(index: int) -> float:
-            layer = layers[index]
-            height = sum(node.boundingRect().height() for node in layer)
-            height += (len(layer) - 1) * self.default_y_distance
-            y = -height / 2 + offsets[index]
-            for node in layer:
-                rect = node.boundingRect()
-                node.setPos(columns[index] - rect.left(), y - rect.top())
-                y += rect.height() + self.default_y_distance
-            return height
-
-        for index in range(len(layers)):
-            place_layer(index)
-        best_score = self._layout_score(nodes, pipes)
-        # Alternating bounded sweeps avoid dependence on edge/set iteration order.
-        for sweep in range(4):
-            improved = False
-            indices = range(len(layers))
-            if sweep % 2:
-                indices = reversed(indices)
-            for index in indices:
-                original_order = layers[index][:]
-                original_offset = offsets[index]
-                best_order = original_order
-                best_offset = original_offset
-
-                def neighbor_y(node: BaseNode) -> float:
-                    ports = neighbors[node]
-                    if not ports:
-                        return node.sceneBoundingRect().center().y()
-                    return sum(
-                        other.sceneBoundingRect().center().y() for _, other in ports
-                    ) / len(ports)
-
-                orders = [original_order, sorted(original_order, key=neighbor_y)]
-                for position in range(len(original_order) - 1):
-                    order = original_order[:]
-                    order[position : position + 2] = reversed(
-                        order[position : position + 2]
-                    )
-                    orders.append(order)
-                for order in orders:
-                    layers[index] = order
-                    offsets[index] = original_offset
-                    height = place_layer(index)
-                    alignments = [
-                        other.sceneBoundingRect().center().y()
-                        - port.sceneBoundingRect().center().y()
-                        for node in order
-                        for port, other in neighbors[node]
-                    ]
-                    shifts = [0.0, height + self.default_y_distance]
-                    shifts.append(-shifts[-1])
-                    if alignments:
-                        shifts.extend(alignments)
-                        shifts.append(sum(alignments) / len(alignments))
-                    for shift in dict.fromkeys(shifts):
-                        offsets[index] = original_offset + shift
-                        place_layer(index)
-                        score = self._layout_score(nodes, pipes)
-                        if score < best_score:
-                            best_score = score
-                            best_order = order[:]
-                            best_offset = offsets[index]
-                            improved = True
-                layers[index] = best_order
-                offsets[index] = best_offset
-                place_layer(index)
-            if not improved:
-                break
+        positions = layered_layout(
+            list(layout_nodes.values()),
+            edges,
+            self.default_x_distance,
+            self.default_y_distance,
+            down_stream=down_stream,
+        )
+        for node, (left, top) in positions.items():
+            rect = node.sceneBoundingRect()
+            node.setPos(node.x() + left - rect.left(), node.y() + top - rect.top())
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]
         dy = nodes_center_0[1] - nodes_center_1[1]
         for node in nodes:
             node.setPos(node.x() + dx, node.y() + dy)
+        self.schedule_pipe_redraw()
 
     def _update_coord_axes(self):
         """Update the debug coordinate system (grid + axes) in the scene."""

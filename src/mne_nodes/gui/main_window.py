@@ -9,7 +9,7 @@ from pathlib import Path
 
 import mne
 from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
-from qtpy.QtGui import QAction, QKeySequence
+from qtpy.QtGui import QAction, QActionGroup, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
 from mne_nodes import iswin
@@ -24,7 +24,7 @@ from mne_nodes.gui.freesurfer_widgets import FreeSurferImportDialog
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
-from mne_nodes.gui.node.node_viewer import NodeViewer
+from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.gui.user_interaction import (
     ask_user,
@@ -207,6 +207,16 @@ class MainWindow(QMainWindow):
         view_menu = self.menuBar().addMenu("&View")
         view_menu.addAction(node_picker_action)
         view_menu.addAction(autolayout_action)
+        pipe_style_menu = view_menu.addMenu("&Pipe Style")
+        self.pipe_style_group = QActionGroup(self)
+        self.pipe_style_group.setExclusive(True)
+        for layout, name in PIPE_LAYOUTS.items():
+            action = QAction(name, parent=self, checkable=True)
+            action.setData(layout)
+            action.setChecked(layout == self.viewer.pipe_layout)
+            self.pipe_style_group.addAction(action)
+            pipe_style_menu.addAction(action)
+        self.pipe_style_group.triggered.connect(self.set_pipe_layout)
 
         welcome_tour_action = QAction(
             "&Restart Welcome Tour",
@@ -312,6 +322,12 @@ class MainWindow(QMainWindow):
     def restart_welcome_tour(self) -> None:
         """Start the welcome tour again without restarting the application."""
         self.controller.initialize_welcome_tour(force=True)
+
+    def set_pipe_layout(self, action):
+        """Apply and persist the pipe style chosen in the View menu."""
+        layout = action.data()
+        self.viewer.pipe_layout = layout
+        self.settings.set("pipe_layout", layout)
 
     def show_node_picker(self):
         """Show the categorized node picker dialog."""

@@ -38,6 +38,9 @@ defaults = {
         "active_color": (70, 255, 220, 255),
         "highlight_color": (232, 184, 13, 255),
         "style": Qt.PenStyle.SolidLine,
+        "route_margin": 20,
+        # Distance between parallel routed pipes sharing a channel.
+        "padding": 8,
     },
     "viewer": {
         "background_color": (35, 35, 35),

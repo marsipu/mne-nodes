@@ -25,6 +25,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.gui.gui_utils import format_color
 from mne_nodes.gui.node.node_defaults import defaults
+from mne_nodes.gui.node.routing import route_orthogonal
 
 
 class Pipe(QGraphicsPathItem):
@@ -54,6 +55,8 @@ class Pipe(QGraphicsPathItem):
         # Hidden attributes
         self._input_port = input_port
         self._output_port = output_port
+        # Last orthogonal route (output to input port) for the routed layout.
+        self._route = None
         self._color = defaults["pipes"]["color"]
         self._style = defaults["pipes"]["style"]
         self._active = False
@@ -254,6 +257,25 @@ class Pipe(QGraphicsPathItem):
         else:
             layout = "straight"
 
+        if layout == "routed":
+            points = None
+            if end_port is not None and cursor_pos is None:
+                if self.scene().viewer().nodes_moving:
+                    # Routing during a drag is costly and jumpy, so only move
+                    # the existing route or draw a simple preview.
+                    points = self._translated_route()
+                    if points is None:
+                        layout = "angle"
+                else:
+                    points = self.compute_route()
+                    self._route = points
+            if points is not None:
+                if start_port.port_type != "out":
+                    points = points[::-1]
+                self._add_rounded_polyline(path, [QPointF(*p) for p in points])
+            elif layout == "routed":
+                layout = "curved"
+
         if layout == "straight":
             path.lineTo(pos2)
         elif layout == "curved":
@@ -290,6 +312,84 @@ class Pipe(QGraphicsPathItem):
         self.setPath(path)
 
         self._draw_direction_pointer()
+
+    @staticmethod
+    def _port_center(port):
+        rect = port.boundingRect()
+        pos = port.scenePos()
+        return pos.x() + rect.width() / 2, pos.y() + rect.height() / 2
+
+    def compute_route(self):
+        """Route this pipe around all other visible nodes.
+
+        Returns
+        -------
+        list of tuple | None
+            Orthogonal path points from the output to the input port or None
+            if the pipe is not connected or no route was found.
+        """
+        out_port, in_port = self.output_port, self.input_port
+        if out_port is None or in_port is None or self.scene() is None:
+            return None
+        viewer = self.scene().viewer()
+
+        def rect_tuple(rect):
+            return rect.left(), rect.top(), rect.right(), rect.bottom()
+
+        obstacles = [
+            rect_tuple(node.sceneBoundingRect())
+            for node in viewer.nodes.values()
+            if node.isVisible() and node not in (out_port.node, in_port.node)
+        ]
+        return route_orthogonal(
+            self._port_center(out_port),
+            self._port_center(in_port),
+            obstacles,
+            rect_tuple(out_port.node.sceneBoundingRect()),
+            rect_tuple(in_port.node.sceneBoundingRect()),
+            margin=defaults["pipes"]["route_margin"],
+        )
+
+    def set_route(self, points):
+        """Draw the pipe along the given route (from output to input port)."""
+        self._route = [tuple(point) for point in points]
+        path = QPainterPath()
+        self._add_rounded_polyline(path, [QPointF(*p) for p in self._route])
+        self.setPath(path)
+        self._draw_direction_pointer()
+
+    def _translated_route(self):
+        """Return the last route moved along with its ports.
+
+        Returns None if the ports moved by different amounts (only one of the
+        connected nodes is dragged).
+        """
+        route = self._route
+        if not route:
+            return None
+        out_x, out_y = self._port_center(self.output_port)
+        in_x, in_y = self._port_center(self.input_port)
+        dx, dy = out_x - route[0][0], out_y - route[0][1]
+        if abs(in_x - route[-1][0] - dx) > 1e-6 or abs(in_y - route[-1][1] - dy) > 1e-6:
+            return None
+        return [(x + dx, y + dy) for x, y in route]
+
+    @staticmethod
+    def _add_rounded_polyline(path, points, radius=10.0):
+        """Add an orthogonal polyline with rounded corners to the path."""
+        path.moveTo(points[0])
+        for previous, corner, following in zip(points, points[1:], points[2:]):
+            in_line = QLineF(corner, previous)
+            out_line = QLineF(corner, following)
+            r = min(radius, in_line.length() / 2, out_line.length() / 2)
+            if r <= 0:
+                path.lineTo(corner)
+                continue
+            in_line.setLength(r)
+            out_line.setLength(r)
+            path.lineTo(in_line.p2())
+            path.quadTo(corner, out_line.p2())
+        path.lineTo(points[-1])
 
     def reset_path(self):
         """Reset the pipe initial path position."""

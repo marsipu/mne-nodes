@@ -339,6 +339,10 @@ class Port(QGraphicsItem):
     def itemChange(self, change, value):
         if change == self.GraphicsItemChange.ItemScenePositionHasChanged:
             self.redraw_connected_pipes()
+            scene = self.scene()
+            viewer = scene.viewer() if scene is not None else None
+            if viewer is not None and hasattr(viewer, "schedule_pipe_redraw"):
+                viewer.schedule_pipe_redraw()
         return super().itemChange(change, value)
 
     def hoverEnterEvent(self, event):

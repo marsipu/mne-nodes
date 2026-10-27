@@ -16,11 +16,22 @@ when you want to frame the graph.
 Choose **View > Auto-Layout Nodes** (``Ctrl+L``) to arrange the graph.
 The same action is available by right-clicking the viewer background.
 Auto-layout arranges nodes from left to right with the default horizontal and
-vertical gaps, using the actual node sizes. It refines the order and vertical
-alignment of each layer to favor pipes that do not pass through unrelated nodes,
-then shorter total pipe length. This is a bounded heuristic, not a guarantee of
-a globally optimal or obstruction-free layout. Auto-layout preserves the graph
-center and does not change the view; laying out a subset leaves other nodes fixed.
+vertical gaps, using the actual node sizes. Nodes are placed in the layer that
+keeps their pipes short, and pipes spanning several layers reserve a channel
+through the layers in between. Within each layer, nodes are ordered to reduce
+pipe crossings and then placed vertically to minimize the vertical distance
+between connected ports. This is a heuristic, not a guarantee of a globally
+optimal or obstruction-free layout. Auto-layout preserves the graph center and
+does not change the view; laying out a subset leaves other nodes fixed.
+
+Choose the pipe style under **View > Pipe Style**: *Curved*, *Straight*,
+*Angled*, or *Routed Around Nodes*. Routed pipes use horizontal and vertical
+segments that go around other nodes instead of behind them. Parallel routed pipes
+that share a channel are spread apart by a small pipe padding
+(``defaults["pipes"]["padding"]`` in ``node_defaults.py``), so each pipe stays
+distinguishable and clickable. While nodes are dragged, routed pipes keep their
+shape (or show a simple angled preview) and are re-routed when the mouse is
+released. The chosen style is remembered between sessions.
 
 Parameters
 ==========

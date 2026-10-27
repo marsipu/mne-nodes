@@ -9,6 +9,7 @@ from qtpy.QtWidgets import QLabel
 
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.node_viewer import NodeViewer
+from mne_nodes.gui.node.routing import separate_overlaps
 
 
 @pytest.fixture
@@ -253,7 +254,7 @@ def test_layout_subset_does_not_move_other_nodes(viewer, down_stream):
     )
 
 
-@pytest.mark.parametrize("pipe_layout", ["straight", "curved", "angle"])
+@pytest.mark.parametrize("pipe_layout", ["straight", "curved", "angle", "routed"])
 def test_layout_clears_shortcut_pipes(viewer, pipe_layout):
     viewer.pipe_layout = pipe_layout
     source, middle, sink = (_node(viewer, name) for name in ("a", "b", "c"))
@@ -261,6 +262,7 @@ def test_layout_clears_shortcut_pipes(viewer, pipe_layout):
     _connect(middle, sink)
     _connect(source, sink)
     viewer.auto_layout_nodes()
+    viewer.redraw_pipes()
     assert _obstructions(viewer) == 0
     for left, right in ((source, middle), (middle, sink)):
         assert right.sceneBoundingRect().left() - left.sceneBoundingRect().right() == (
@@ -315,4 +317,147 @@ def test_layout_uses_actual_sizes_and_preserves_center_and_view(viewer):
     assert nodes[2].sceneBoundingRect().left() - max(
         node.sceneBoundingRect().right() for node in layer
     ) == pytest.approx(viewer.default_x_distance)
+    assert _obstructions(viewer) == 0
+
+
+def test_routed_pipes_avoid_nodes(viewer, qtbot):
+    source, blocker, sink = (_node(viewer, name) for name in ("a", "blocker", "c"))
+    _connect(source, sink)
+    source.setPos(0, 0)
+    sink.setPos(source.width + 400, 0)
+    blocker.setPos(source.width + 150, source.y() - 20)
+    viewer.pipe_layout = "curved"
+    assert _obstructions(viewer) > 0
+    viewer.pipe_layout = "routed"
+    assert _obstructions(viewer) == 0
+    # Moving the blocker away re-routes the pipe once events are processed.
+    blocker.setPos(0, 1000)
+    qtbot.wait(10)
+    pipe = next(iter(source.output(port_name="raw").connected_pipes.values()))
+    assert pipe.path().boundingRect().height() < 5
+
+
+def test_invalid_pipe_layout_falls_back(viewer):
+    viewer.pipe_layout = "zigzag"
+    assert viewer.pipe_layout == "curved"
+
+
+def test_layout_minimizes_pipe_lengths(viewer):
+    """A chain with side branches stays compact and mostly straight."""
+    names = ["raw", "filter", "epochs", "evoked", "fwd", "inv", "stc", "src", "bem"]
+    nodes = {name: _node(viewer, name) for name in names}
+    for source, target in [
+        ("raw", "filter"),
+        ("filter", "epochs"),
+        ("epochs", "evoked"),
+        ("src", "fwd"),
+        ("bem", "fwd"),
+        ("fwd", "inv"),
+        ("epochs", "inv"),
+        ("inv", "stc"),
+        ("evoked", "stc"),
+    ]:
+        _connect(nodes[source], nodes[target])
+    for index, node in enumerate(nodes.values()):
+        node.setPos(index * 37 % 500, index * 613 % 1700)
+    viewer.auto_layout_nodes()
+    lengths = []
+    for pipe in viewer.all_pipes():
+        if pipe.input_port is None or pipe.output_port is None:
+            continue
+        out_pos = pipe.output_port.sceneBoundingRect().center()
+        in_pos = pipe.input_port.sceneBoundingRect().center()
+        assert in_pos.x() > out_pos.x()
+        lengths.append(abs(in_pos.y() - out_pos.y()))
+    # Vertical offsets stay within roughly one node height per pipe.
+    max_height = max(node.sceneBoundingRect().height() for node in nodes.values())
+    assert sum(lengths) <= len(lengths) * max_height
+
+
+def _collinear_overlaps(routes, tol=0.5):
+    """Count overlapping collinear segment pairs of different routes."""
+    segments = []
+    for index, route in enumerate(routes):
+        for a, b in pairwise(route):
+            axis = 0 if abs(a[0] - b[0]) <= tol else 1
+            low, high = sorted((a[1 - axis], b[1 - axis]))
+            segments.append((index, axis, a[axis], low, high))
+    return sum(
+        1
+        for i, (ri, axis_i, c_i, lo_i, hi_i) in enumerate(segments)
+        for rj, axis_j, c_j, lo_j, hi_j in segments[i + 1 :]
+        if ri != rj
+        and axis_i == axis_j
+        and abs(c_i - c_j) <= tol
+        and min(hi_i, hi_j) - max(lo_i, lo_j) > tol
+    )
+
+
+def test_separate_overlaps_spreads_lanes():
+    routes = [
+        [(0, 0), (50, 0), (50, 100), (100, 100)],
+        [(0, 20), (50, 20), (50, 200), (100, 200)],
+        [(0, 300), (50, 300), (50, 400), (100, 400)],
+    ]
+    assert _collinear_overlaps(routes) == 1
+    separated = separate_overlaps(routes, padding=8)
+    assert _collinear_overlaps(separated) == 0
+    xs = sorted(separated[i][1][0] for i in (0, 1))
+    assert xs == pytest.approx([46, 54])
+    # Port stubs keep their start and end points, the lone route is unchanged.
+    for old, new in zip(routes, separated, strict=True):
+        assert new[0] == old[0]
+        assert new[-1] == old[-1]
+    assert separated[2] == routes[2]
+    limited = separate_overlaps(routes, padding=8, max_offset=2)
+    assert sorted(limited[i][1][0] for i in (0, 1)) == pytest.approx([48, 52])
+
+
+def test_routed_pipes_do_not_overlap(viewer):
+    viewer.pipe_layout = "routed"
+    sources = [_node(viewer, f"source {i}") for i in range(3)]
+    sinks = [_node(viewer, f"sink {i}") for i in range(3)]
+    blocker = _node(viewer, "blocker", (60, 400))
+    for index, (source, sink) in enumerate(zip(sources, sinks, strict=True)):
+        source.setPos(0, index * 120)
+        sink.setPos(600, 300 - index * 120)
+        _connect(source, sink)
+    blocker.setPos(300, -50)
+    viewer.redraw_pipes()
+    pipes = [
+        pipe
+        for pipe in viewer.all_pipes()
+        if pipe.input_port is not None and pipe.output_port is not None
+    ]
+    routes = [pipe._route for pipe in pipes]
+    assert all(routes)
+    assert _collinear_overlaps(routes) == 0
+    assert _obstructions(viewer) == 0
+
+
+def test_routed_pipes_reroute_after_drag(viewer, qtbot):
+    source, blocker, sink = (_node(viewer, name) for name in ("a", "blocker", "c"))
+    _connect(source, sink)
+    sink.setPos(source.width + 400, 0)
+    blocker.setPos(0, 1000)
+    viewer.pipe_layout = "routed"
+    pipe = next(iter(source.output(port_name="raw").connected_pipes.values()))
+    straight = list(pipe._route)
+    # Dragging the blocker into the pipe does not re-route until release.
+    viewer._nodes_moving = True
+    viewer._press_node_positions = {n: n.pos() for n in viewer.nodes.values()}
+    blocker.setPos(source.width + 150, -20)
+    qtbot.wait(10)
+    assert pipe._route == straight
+    assert _obstructions(viewer) > 0
+    # Moving both connected nodes together translates the route.
+    for node in (source, sink):
+        node.setPos(node.x(), node.y() + 500)
+    qtbot.wait(10)
+    assert pipe.path().boundingRect().top() == pytest.approx(
+        min(y for _, y in straight) + 500
+    )
+    viewer._finish_node_move()
+    qtbot.wait(10)
+    assert not viewer.nodes_moving
     assert _obstructions(viewer) == 0

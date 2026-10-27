@@ -95,6 +95,22 @@ def test_auto_layout_menu_action(main_window):
     assert viewer.transform() == transform
 
 
+def test_pipe_style_menu(main_window):
+    """The View menu switches and persists the pipe style."""
+    actions = {
+        action.data(): action for action in main_window.pipe_style_group.actions()
+    }
+    assert set(actions) == {"curved", "straight", "angle", "routed"}
+    assert actions[main_window.viewer.pipe_layout].isChecked()
+    actions["routed"].trigger()
+    assert actions["routed"].isChecked()
+    assert main_window.viewer.pipe_layout == "routed"
+    assert main_window.settings.get("pipe_layout") == "routed"
+    actions["curved"].trigger()
+    assert main_window.viewer.pipe_layout == "curved"
+    assert main_window.settings.get("pipe_layout") == "curved"
+
+
 def test_coregistration_menu_action(main_window, monkeypatch):
     """The BIDS menu opens and initializes the coregistration manager."""
     from unittest.mock import Mock

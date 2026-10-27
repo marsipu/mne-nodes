@@ -39,6 +39,7 @@ default_device_settings = {
     "app_style": "fusion",  # Qt style
     "app_font": "Calibri",  # Default application font family
     "app_font_size": 12,  # Default application font size
+    "pipe_layout": "curved",  # Node-viewer pipe style (curved/straight/angle/routed)
     "first_start": True,  # Flag indicating if this is the first start of the application
 }
 
