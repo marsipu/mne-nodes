@@ -42,7 +42,7 @@ from mne_nodes.backend.package_utils import (
     install_github_package,
     install_pip_packages,
 )
-from mne_nodes.backend.pipeline_utils import is_test
+from mne_nodes.backend.pipeline_utils import is_test, wait_for_plots
 from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.user_interaction import (
     ask_user,
@@ -1975,6 +1975,11 @@ class Controller:
     def export_pipeline(self, export_path=None):
         """Backward-compatible alias for configuration save-as behavior."""
         return self.save_config_as(export_path)
+
+    def wait_for_plots(self) -> None:
+        """Keep plot windows open until closed, if enabled in the settings."""
+        if self.settings.get("keep_plots_open"):
+            wait_for_plots()
 
     def start(self, node_sequence):
         # Generate code file

@@ -168,6 +168,65 @@ def _get_func_param_kwargs(func, params):
     return kwargs
 
 
+def init_plotting() -> None:
+    """Show Matplotlib figures without blocking the pipeline execution."""
+    import matplotlib.pyplot as plt
+
+    plt.ion()
+
+
+def open_plot_windows() -> list:
+    """Return the visible top-level Qt windows of the current process.
+
+    This includes MNE's Qt raw browser, PyVista/MNE 3D figures and Matplotlib
+    figures using a Qt backend.
+    """
+    if "qtpy" not in sys.modules:
+        return []
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return []
+    window_types = (Qt.WindowType.Window, Qt.WindowType.Dialog)
+    return [
+        widget
+        for widget in app.topLevelWidgets()
+        if widget.isVisible() and widget.windowType() in window_types
+    ]
+
+
+def wait_for_plots(poll_interval: int = 200) -> None:
+    """Block until the user closed all plot windows opened by this process.
+
+    Parameters
+    ----------
+    poll_interval : int
+        Interval in milliseconds to check for remaining open windows.
+    """
+    plt = sys.modules.get("matplotlib.pyplot")
+    if plt is not None and plt.get_fignums():
+        # Matplotlib figures of non-Qt GUI backends need their own event loop.
+        if plt.get_backend().lower().startswith(("gtk", "macosx", "tk", "wx")):
+            print("Waiting for Matplotlib figures to be closed...", flush=True)
+            plt.show(block=True)
+    windows = open_plot_windows()
+    if len(windows) == 0:
+        return
+    from qtpy.QtCore import QEventLoop, QTimer
+
+    print(f"Waiting for {len(windows)} plot window(s) to be closed...", flush=True)
+    loop = QEventLoop()
+    timer = QTimer()
+    timer.setInterval(poll_interval)
+    timer.timeout.connect(lambda: None if open_plot_windows() else loop.quit())
+    timer.start()
+    loop.exec()
+    timer.stop()
+    print("All plot windows closed.", flush=True)
+
+
 def is_test():
     return "PYTEST_CURRENT_TEST" in os.environ
 
