@@ -25,3 +25,12 @@ If a different BIDS root is selected when starting the tour, the sample BIDS
 dataset is prepared in that destination before the tour's input node is loaded.
 Explicitly assigned output roots remain supported; legacy plot roots still use
 their config-name subfolder.
+
+Plot windows
+------------
+Pipelines run in a separate process. Plot windows opened by a pipeline, such as
+the Qt raw browser, Matplotlib figures or PyVista 3D figures, would close as
+soon as this process finishes. With **Settings > Keep Plots Open** enabled
+(device setting ``keep_plots_open``, enabled by default), the process instead
+waits after the pipeline finished until all of its plot windows were closed.
+Disable it to let pipeline processes exit right away.
