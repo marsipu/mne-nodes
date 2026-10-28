@@ -86,9 +86,7 @@ PLOT_PLUGIN_CONFIG = {
     "make_evokeds": _func_config(["epochs"], ["evokeds"]),
     "plot_evoked_figure": _func_config(["evokeds"]),
     "make_stc": _func_config(
-        ["evokeds"],
-        ["stc"],
-        {"inverse_fname": {"default": "", "gui": "PathGui"}},
+        ["evokeds"], ["stc"], {"inverse_fname": {"default": "", "gui": "PathGui"}}
     ),
     "plot_stc_brain": _func_config(
         ["stc"], parameters={"fs_dir": {"default": "", "gui": "PathGui"}}
