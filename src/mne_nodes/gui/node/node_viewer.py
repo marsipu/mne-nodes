@@ -833,8 +833,8 @@ class NodeViewer(QGraphicsView):
         The selected nodes are ordered topologically, which guarantees that
         a node is only executed after all of its connected (and selected)
         upstream nodes. Among independent branches, the order follows the
-        depth-first discovery order downstream from ``node``, so that
-        processing chains stay together.
+        depth-first discovery order downstream from ``node``, with nodes
+        without output ports preferred so side-effect-only branches run first.
 
         Parameters
         ----------
@@ -863,7 +863,8 @@ class NodeViewer(QGraphicsView):
         # Depth-first topological sort (upstream nodes first) with cycle check.
         order = []
         state = {}  # node_id -> "visiting" | "done"
-        for root in selected.values():
+        roots = sorted(selected.values(), key=lambda candidate: bool(candidate.outputs))
+        for root in roots:
             if root.id in state:
                 continue
             stack = [(root, iter(self._neighbor_nodes(root, "in")))]

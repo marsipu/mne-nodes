@@ -683,6 +683,29 @@ def test_exec_order_diamond(qtbot, ct):
     assert names(combine_node) == ["test_combine"]
 
 
+def test_exec_order_runs_outputless_branches_first(qtbot, ct):
+    """Side-effect-only nodes run before output-producing sibling branches."""
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    side_effect_meta = deepcopy(ct.get_function_meta("test_filter"))
+    side_effect_meta["outputs"] = {}
+    ct.function_meta["test_side_effect"] = side_effect_meta
+
+    in_node = viewer.add_input_node()
+    filter_node = viewer.add_function_node("test_filter")
+    side_effect_node = viewer.add_function_node("test_side_effect")
+    source = in_node.output(port_idx=0)
+    source.connect_to(filter_node.input(port_name="raw"))
+    source.connect_to(side_effect_node.input(port_name="raw"))
+
+    order = [
+        description["name"] for description in viewer.get_node_sequence(in_node)["file"]
+    ]
+    assert order.index("test_side_effect") < order.index("test_filter")
+
+
 def test_exec_order_cycle(qtbot, ct):
     """Cyclic connections raise an error instead of a wrong order."""
     from mne_nodes.gui.node.node_viewer import NodeViewer

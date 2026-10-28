@@ -34,6 +34,12 @@ files remain available for correction and retry.
 
 The configuration file (JSON) is expected to be in the same directory as the module.
 
+Functions provided by a plugin or its implementation script take precedence.
+For configured functions that are not exposed there, the loader uses the
+``module_name`` metadata to import them from their declared module. For example,
+``make_watershed_bem`` is resolved from ``mne.bem``, not the top-level ``mne``
+namespace. Class methods continue to be called on their instances.
+
 Inputs
 ------
 The inputs are expected to be all arguments from the function without a default value (args).

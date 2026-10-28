@@ -1115,6 +1115,116 @@ def test_import_plugin_from_config_file(ct, tmp_path):
     }
 
 
+@pytest.mark.parametrize("with_script", [False, True])
+def test_expose_plugin_submodule_functions(tmp_path, with_script):
+    """Module metadata exposes functions missing from a top-level re-export."""
+    from types import ModuleType
+
+    import mne
+
+    plugin = ModuleType("submodule_plugin")
+    script_path = None
+    if with_script:
+        script_path = tmp_path / "submodule_plugin.py"
+        script_path.write_text("from mne import *\n", encoding="utf-8")
+        plugin.__file__ = str(script_path)
+        exec(  # noqa: S102
+            compile(script_path.read_text(), str(script_path), "exec"), plugin.__dict__
+        )
+    assert not hasattr(plugin, "make_watershed_bem")
+    functions = {
+        "make_watershed_bem": {"module_name": "mne.bem", "class_name": None},
+        "read_bem_surfaces": {"module_name": "mne", "class_name": None},
+        "Raw.filter": {"module_name": "mne.io", "class_name": "Raw"},
+    }
+
+    Controller._expose_plugin_functions(plugin, functions, script_path)
+
+    assert plugin.make_watershed_bem is mne.bem.make_watershed_bem
+    assert plugin.read_bem_surfaces is mne.read_bem_surfaces
+    assert not hasattr(plugin, "Raw.filter")
+
+
+@pytest.mark.parametrize("from_script", [False, True])
+def test_expose_plugin_functions_preserves_overrides(
+    tmp_path, monkeypatch, from_script
+):
+    """Plugin and implementation-script overrides precede metadata imports."""
+    from types import ModuleType
+
+    from mne.bem import make_watershed_bem
+
+    plugin = ModuleType("override_plugin")
+    script_path = tmp_path / "override_plugin.py"
+    script_path.write_text("", encoding="utf-8")
+    plugin.__file__ = str(script_path)
+    functions = {"make_watershed_bem": {"module_name": "mne.bem", "class_name": None}}
+
+    def wrapper():
+        return "plugin override"
+
+    if from_script:
+        plugin.__path__ = [str(tmp_path)]
+        script_module = ModuleType("override_plugin.override_plugin")
+        script_module.make_watershed_bem = wrapper
+        monkeypatch.setitem(sys.modules, script_module.__name__, script_module)
+    else:
+        plugin.make_watershed_bem = wrapper
+    Controller._expose_plugin_functions(plugin, functions, script_path)
+
+    assert plugin.make_watershed_bem is wrapper
+    assert plugin.make_watershed_bem is not make_watershed_bem
+
+
+def test_codegen_submodule_function_executes(ct, monkeypatch):
+    """Generated plugin calls resolve to the configured submodule function."""
+    from types import ModuleType
+    from unittest.mock import Mock
+
+    from mne.bem import make_watershed_bem
+
+    import mne_nodes
+    from mne_nodes.backend.code_generation import CodeGenerator
+
+    plugin = ModuleType("bem_plugin")
+    func_meta = {
+        "inputs": {"subject": {"accepted_ports": ["subject"], "optional": False}},
+        "outputs": {},
+        "parameters": {},
+        "target": "file",
+        "module_name": "mne.bem",
+        "class_name": None,
+    }
+    ct.load_plugin(
+        plugin, "bem_plugin", {"config_path": {"make_watershed_bem": func_meta}}
+    )
+    assert plugin.make_watershed_bem is make_watershed_bem
+    ct.set("selected_inputs", {"eeg": [ct.get_datatype_items("eeg")[0]]})
+    node_sequence = {
+        "file": [
+            {
+                "name": "make_watershed_bem",
+                "class": "FunctionNode",
+                "inputs": {"subject": ["Input-0"]},
+                "outputs": {},
+                "checked": False,
+                "function_meta": ct.get_function_meta("make_watershed_bem"),
+            }
+        ],
+        "group": [],
+    }
+    code = CodeGenerator(ct, node_sequence).code
+    watershed = Mock()
+    monkeypatch.setattr(plugin, "make_watershed_bem", watershed)
+    monkeypatch.setattr(ct, "load_recording_subject", lambda bp: "fsaverage")
+    monkeypatch.setattr("mne_nodes.backend.controller.Controller", lambda **kwargs: ct)
+    monkeypatch.setattr(mne_nodes, "gui_mode", False)
+
+    exec(compile(code, "<generated-pipeline>", "exec"), {})  # noqa: S102
+
+    watershed.assert_called_once_with(subject="fsaverage")
+
+
 @pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
 def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
     """New, save, save-as/export and load preserve the complete pipeline state."""

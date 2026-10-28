@@ -1650,32 +1650,35 @@ class Controller:
     ####################################################################################
     @staticmethod
     def _expose_plugin_functions(plugin, functions, script_path):
-        """Expose configured functions from a plugin's implementation script."""
+        """Expose configured functions from the script or their declared modules."""
         missing_functions = [
             function_name
             for function_name in functions
             if not hasattr(plugin, function_name)
         ]
-        if not missing_functions or script_path is None:
-            return
-
-        script_path = Path(script_path)
-        if not script_path.is_file():
-            return
-
-        if hasattr(plugin, "__path__"):
-            module_name = f"{plugin.__name__}.{script_path.stem}"
-            script_module = import_module(module_name)
-        elif Path(getattr(plugin, "__file__", "")).resolve() == script_path.resolve():
-            script_module = plugin
-        else:
-            raise ValueError(
-                f"Cannot expose functions from '{script_path}' for plugin "
-                f"'{plugin.__name__}'."
-            )
-
+        script_module = None
+        if missing_functions and script_path is not None:
+            script_path = Path(script_path)
+            if script_path.is_file():
+                if hasattr(plugin, "__path__"):
+                    module_name = f"{plugin.__name__}.{script_path.stem}"
+                    script_module = import_module(module_name)
+                elif (
+                    Path(getattr(plugin, "__file__", "")).resolve()
+                    == script_path.resolve()
+                ):
+                    script_module = plugin
+                else:
+                    raise ValueError(
+                        f"Cannot expose functions from '{script_path}' for plugin "
+                        f"'{plugin.__name__}'."
+                    )
         for function_name in missing_functions:
             function = getattr(script_module, function_name, None)
+            func_meta = functions[function_name]
+            module_name = func_meta.get("module_name")
+            if function is None and module_name and not func_meta.get("class_name"):
+                function = getattr(import_module(module_name), function_name)
             if function is not None:
                 setattr(plugin, function_name, function)
 
