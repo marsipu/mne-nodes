@@ -1427,9 +1427,9 @@ def test_load_recent_plugins_uses_settings_override(
     loaded_paths = []
     original = ct.load_plugin_path
 
-    def capture_load(config_path):
+    def capture_load(config_path, **kwargs):
         loaded_paths.append(Path(config_path))
-        return original(config_path)
+        return original(config_path, **kwargs)
 
     monkeypatch.setattr(ct, "load_plugin_path", capture_load)
     ct.load_recent_plugins()
@@ -1440,6 +1440,59 @@ def test_load_recent_plugins_uses_settings_override(
     assert stale_path not in loaded_paths, (
         "load_recent_plugins should not use the stale config path"
     )
+
+
+@pytest.mark.parametrize("already_relocated", [False, True])
+def test_relocated_plugin_identity_survives_restart(
+    ct, tmp_path, make_plugin, monkeypatch, already_relocated
+):
+    """A declared display name replaces its legacy path registration only once."""
+    config_path, script_path = make_plugin(tmp_path / "relocated", "legacy_plugin")
+    (config_path.parent / "__init__.py").write_text(
+        f'PLUGIN_NAME = "display-plugin"\nCONFIG_PATH = {str(config_path)!r}\n',
+        encoding="utf-8",
+    )
+    stale = tmp_path / "missing" / config_path.name
+    meta = {
+        "plugin_type": "path",
+        "config_path": stale,
+        "script_path": stale.with_name(script_path.name),
+    }
+    ct.set("plugin_meta", {"legacy_plugin": meta})
+    if already_relocated:
+        ct.set_dict_value(
+            "plugin_meta", "display-plugin", {**meta, "config_path": config_path}
+        )
+        ct.settings.set(
+            "plugin_config",
+            {
+                "display-plugin": {
+                    "config_path": config_path,
+                    "script_path": script_path,
+                }
+            },
+        )
+    prompts = []
+
+    def relocate(*args, **kwargs):
+        prompts.append(True)
+        return config_path
+
+    monkeypatch.setattr("mne_nodes.backend.controller.get_user_input", relocate)
+    ct.load_recent_plugins()
+    assert prompts == ([] if already_relocated else [True])
+    assert set(ct.get("plugin_meta")) == {"display-plugin"}
+    assert set(ct.plugins) >= {"display-plugin"}
+    assert "legacy_plugin" not in ct.plugins
+
+    from mne_nodes.backend.controller import Controller
+    from mne_nodes.backend.settings import Settings
+
+    ct.flush()  # MainWindow flushes the project when closing.
+    restarted = Controller(config_path=ct.config_path, settings=Settings())
+    assert set(restarted.get("plugin_meta")) == {"display-plugin"}
+    assert set(restarted.plugins) == {"display-plugin"}
+    assert prompts == ([] if already_relocated else [True])
 
 
 def test_bids_root_syncs_and_caches_dataset_name(ct, tmp_path):

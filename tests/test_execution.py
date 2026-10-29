@@ -100,6 +100,27 @@ def test_process_dialog(qtbot):
     assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
 
 
+def test_process_dialog_waits_for_all_commands(qtbot):
+    """Only the final command completes the dialog and sets its exit code."""
+    dialog = ProcessDialog(
+        commands=[
+            (sys.executable, "-c", "pass"),
+            (sys.executable, "-c", "import sys; sys.exit(7)"),
+        ],
+        blocking=False,
+        show_console=False,
+    )
+    qtbot.addWidget(dialog)
+    completions = []
+    dialog.process.finished.connect(
+        lambda code, status: completions.append((code, dialog.is_finished))
+    )
+    with qtbot.waitSignal(dialog.process.destroyed, timeout=5000):
+        assert not dialog.is_finished
+    assert completions == [(0, False), (7, True)]
+    assert dialog.exit_code == 7
+
+
 @pytest.mark.timeout(10)
 def test_worker_dialog(qtbot):
     """Test WorkerDialog execution and emitted return value on close."""

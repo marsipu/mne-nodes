@@ -614,6 +614,57 @@ class NodeViewer(QGraphicsView):
             raise KeyError(f"Function '{name}' not found in project.")
         return func_nodes
 
+    def refresh_function_nodes(self, old_functions: dict[str, dict]) -> None:
+        """Refresh function nodes after their plugin metadata was reloaded.
+
+        Nodes of functions that no longer exist are removed. Nodes whose
+        metadata changed are rebuilt in place, keeping position, checked state
+        and every connection that is still compatible with the new ports.
+
+        Parameters
+        ----------
+        old_functions : dict
+            Function metadata before the reload, keyed by function name.
+        """
+
+        def _strip(meta):
+            return {k: v for k, v in meta.items() if k != "plugin"}
+
+        for name, node in list(self.function_nodes.items()):
+            base_name = name
+            if base_name not in old_functions:
+                match = re.fullmatch(r"([\w\.]+)-\d+", name)
+                if match is None or match.group(1) not in old_functions:
+                    continue
+                base_name = match.group(1)
+            new_meta = self.ct.function_meta.get(base_name)
+            if new_meta is None:
+                self.remove_node(node, force=True)
+                continue
+            if _strip(new_meta) == _strip(old_functions[base_name]):
+                continue
+            new_node = FunctionNode(self.ct, name=name)
+            connections = [
+                (port.port_type, port.name, connected_port)
+                for port in node.ports
+                for connected_port in port.connected_ports
+            ]
+            pos, checked = node.pos(), node.isChecked()
+            self.remove_node(node, force=True)
+            self.add_function_node(node=new_node, pos=pos)
+            new_node.setChecked(checked)
+            for port_type, port_name, connected_port in connections:
+                port = new_node.port(
+                    port_type=port_type, port_name=port_name, ignore_warnings=True
+                )
+                if port is not None and port.compatible(connected_port, False):
+                    port.connect_to(connected_port)
+                else:
+                    logger.info(
+                        f"Removed invalid connection {name}/{port_name} -> "
+                        f"{connected_port.node.name}/{connected_port.name}."
+                    )
+
     def enable_start_buttons(self, enable=True):
         """Enable or disable the start buttons of all nodes in the node graph.
 

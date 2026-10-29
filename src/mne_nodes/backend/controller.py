@@ -15,7 +15,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from importlib.util import cache_from_source, module_from_spec, spec_from_file_location
+from importlib.util import module_from_spec, spec_from_file_location
 from inspect import getsource
 from os.path import isdir, isfile, join
 from pathlib import Path
@@ -40,10 +40,12 @@ from mne_nodes.backend.coregistration import find_trans
 from mne_nodes.backend.freesurfer import find_freesurfer_subjects
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
+    find_plugin_entry_point,
     get_name_from_github,
     import_distribution,
     install_github_package,
     install_pip_packages,
+    unload_plugin_modules,
 )
 from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.user_interaction import (
@@ -1715,29 +1717,59 @@ class Controller:
                 "warning",
             )
         self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
-        self._unload_plugin_session(plugin_name)
+        old_functions = {
+            fn: deepcopy(meta)
+            for fn, meta in self.function_meta.items()
+            if meta.get("plugin") == plugin_name
+        }
+        self._unload_plugin_session(plugin_name, remove_nodes=False)
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
+        if self.viewer is not None:
+            self.viewer.refresh_function_nodes(old_functions)
 
-    def load_plugin_module(self, plugin):
+    def load_plugin_module(self, plugin, *, source: dict | None = None):
+        """Load a package, preserving its actual activation source."""
         plugin_name = getattr(plugin, "PLUGIN_NAME", None) or plugin.__name__
         config_path = getattr(plugin, "CONFIG_PATH", None)
         if config_path is None:
             raise ValueError(
                 "CONFIG_PATH must be defined in __init__.py of the plugin!"
             )
-        plugin_meta = {"config_path": config_path}
+        plugin_meta = {
+            "config_path": config_path,
+            "plugin_type": "module",
+            "module_name": plugin.__name__,
+        }
         script_path = getattr(plugin, "SCRIPT_PATH", None)
         if script_path is not None:
             plugin_meta["script_path"] = script_path
         plugin_github = getattr(plugin, "PLUGIN_GITHUB", None)
         if plugin_github is not None:
             plugin_meta["plugin_github"] = plugin_github
-            plugin_meta["plugin_type"] = "github"
-        else:
-            plugin_meta["plugin_type"] = "module"
+        if source is not None:
+            plugin_meta.update(source)
         self.load_plugin(plugin, plugin_name, plugin_meta)
+
+    def load_plugin_entry_point(
+        self, distribution_name: str, entry_point_name: str
+    ) -> None:
+        """Activate one explicitly selected installed plugin in this project."""
+        entry = find_plugin_entry_point(distribution_name, entry_point_name)
+        plugin = entry.load()
+        if not isinstance(plugin, ModuleType):
+            raise TypeError(
+                f"Plugin entry point '{entry_point_name}' must reference a module."
+            )
+        self.load_plugin_module(
+            plugin,
+            source={
+                "plugin_type": "entry_point",
+                "distribution_name": distribution_name,
+                "entry_point_name": entry_point_name,
+            },
+        )
 
     def _import_with_install_prompt(
         self,
@@ -1796,10 +1828,15 @@ class Controller:
             ask_before_install=ask_before_install,
         )
         if plugin is not None:
-            self.load_plugin_module(plugin)
+            self.load_plugin_module(
+                plugin, source={"plugin_type": "github", "plugin_github": plugin_url}
+            )
 
-    def load_plugin_path(self, config_path: str | Path):
-        config_path = Path(config_path)
+    def load_plugin_path(
+        self, config_path: str | Path, *, previous_name: str | None = None
+    ):
+        """Load a local plugin, migrating legacy registrations after success."""
+        config_path = Path(config_path).resolve()
         path_was_missing = False
         if not config_path.is_file():
             path_was_missing = True
@@ -1809,13 +1846,13 @@ class Controller:
                 message_type="info",
             )
             config_path = get_user_input(
-                "Select a plugin configuration file to load.",
+                f"Set the current location of the plugin config file {config_path.name}.",
                 input_type="file",
                 file_filter="JSON files (*.json)",
             )  # type: ignore
             if config_path is None:
                 return
-            config_path = Path(config_path)
+            config_path = Path(config_path).resolve()
         pattern = r"([\w_]+)_config\.json$"
         match = re.search(pattern, str(config_path))
         if match:
@@ -1839,37 +1876,72 @@ class Controller:
             "script_path": script_path,
             "plugin_type": "path",
         }
-        if path_was_missing:
-            # Save the new device-specific path to settings so it is used
-            # automatically on the next session without prompting again.
-            plugin_config = self.settings.get("plugin_config", {})
-            plugin_config[plugin_name] = {
+        init_path = folder_path / "__init__.py"
+        # A standalone script may live in a non-plugin Python package.
+        is_package = init_path.is_file() and any(
+            isinstance(node, ast.Name)
+            and node.id == "CONFIG_PATH"
+            and isinstance(node.ctx, ast.Store)
+            for node in ast.walk(ast.parse(init_path.read_text(encoding="utf-8")))
+        )
+        module_name = folder_path.name if is_package else plugin_name
+        if not module_name.isidentifier() or keyword.iskeyword(module_name):
+            raise ValueError(f"Invalid plugin package name '{module_name}'.")
+        import_root = folder_path.parent if is_package else folder_path
+        added_import_root = str(import_root) not in sys.path
+        if added_import_root:
+            sys.path.append(str(import_root))
+        source_paths = {script_path}
+        if is_package:
+            source_paths.add(init_path)
+        previous_modules = unload_plugin_modules(module_name, source_paths)
+        try:
+            spec = spec_from_file_location(
+                module_name, init_path if is_package else script_path
+            )
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not load plugin module from '{script_path}'.")
+            plugin = module_from_spec(spec)
+            sys.modules[module_name] = plugin
+            spec.loader.exec_module(plugin)
+            registered_name = getattr(plugin, "PLUGIN_NAME", None) or plugin_name
+            self.load_plugin(plugin, registered_name, plugin_meta)
+        except BaseException:
+            for name in list(sys.modules):
+                if name == module_name or name.startswith(f"{module_name}."):
+                    sys.modules.pop(name)
+            sys.modules.update(previous_modules)
+            if added_import_root:
+                sys.path.remove(str(import_root))
+            raise
+        aliases = {plugin_name, previous_name} - {None, registered_name}
+        registrations = self.get("plugin_meta", {})
+        plugin_config = self.settings.get("plugin_config", {})
+        migrated_override = False
+        for alias in aliases:
+            meta = registrations.get(alias, {})
+            if meta.get("plugin_type") != "path":
+                continue
+            if Path(meta["config_path"]).name != config_path.name:
+                continue
+            old_functions = {
+                fn: deepcopy(meta)
+                for fn, meta in self.function_meta.items()
+                if meta.get("plugin") == alias
+            }
+            self._unload_plugin_session(alias, remove_nodes=False)
+            if self.viewer is not None:
+                self.viewer.refresh_function_nodes(old_functions)
+            registrations.pop(alias)
+            migrated_override |= plugin_config.pop(alias, None) is not None
+        self.set("plugin_meta", registrations)
+        if path_was_missing or migrated_override:
+            # Keep device-specific paths separate from shared project metadata.
+            plugin_config[registered_name] = {
                 "config_path": config_path,
                 "script_path": script_path,
             }
-            self.settings.set("plugin_config", plugin_config)
-        if str(folder_path) not in sys.path:
-            sys.path.append(str(folder_path))
-        previous_module = sys.modules.get(plugin_name)
-        bytecode_file = cache_from_source(str(script_path))
-        try:
-            os.remove(bytecode_file)
-        except FileNotFoundError:
-            pass
-        spec = spec_from_file_location(plugin_name, script_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load plugin module from '{script_path}'.")
-        plugin = module_from_spec(spec)
-        sys.modules[plugin_name] = plugin
-        try:
-            spec.loader.exec_module(plugin)
-            self.load_plugin(plugin, plugin_name, plugin_meta)
-        except BaseException:
-            if previous_module is None:
-                sys.modules.pop(plugin_name, None)
-            else:
-                sys.modules[plugin_name] = previous_module
-            raise
+        self.settings.set("plugin_config", plugin_config)
 
     def load_plugin_code(self, code: str):
         # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
@@ -1895,6 +1967,8 @@ class Controller:
             return
 
         for pname in plugin_names:
+            if pname not in self.get("plugin_meta", {}):
+                continue
             plugin_meta = plugin_meta_all[pname]
             if pname in disabled_plugins:
                 logger.debug(f"Skipping disabled plugin '{pname}'.")
@@ -1908,11 +1982,29 @@ class Controller:
                     config_path = device_override.get(
                         "config_path", plugin_meta["config_path"]
                     )
-                    self.load_plugin_path(config_path)
+                    if not Path(config_path).is_file() and not device_override:
+                        # Older versions saved relocations under PLUGIN_NAME but
+                        # left the filename-based registration in the project.
+                        relocated = [
+                            override["config_path"]
+                            for override in device_plugin_config.values()
+                            if override.get("config_path") is not None
+                            and Path(override["config_path"]).name
+                            == Path(config_path).name
+                            and Path(override["config_path"]).is_file()
+                        ]
+                        if len(relocated) == 1:
+                            config_path = relocated[0]
+                    self.load_plugin_path(config_path, previous_name=pname)
                 case "github":
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":
-                    self.load_plugin_module_name(pname)
+                    self.load_plugin_module_name(plugin_meta.get("module_name", pname))
+                case "entry_point":
+                    self.load_plugin_entry_point(
+                        plugin_meta["distribution_name"],
+                        plugin_meta["entry_point_name"],
+                    )
                 case _:
                     logger.warning(
                         f"Unknown plugin type '{plugin_type}' for plugin '{pname}'. Skipping."
@@ -1928,7 +2020,9 @@ class Controller:
             )
         return plugin_name
 
-    def _unload_plugin_session(self, plugin_name: str) -> list[str]:
+    def _unload_plugin_session(
+        self, plugin_name: str, remove_nodes: bool = True
+    ) -> list[str]:
         """Remove a plugin and its functions from the current in-memory session.
 
         Removes the plugin from ``self.plugins``, clears the associated entries
@@ -1939,6 +2033,9 @@ class Controller:
         ----------
         plugin_name : str
             Name of the plugin to unload.
+        remove_nodes : bool
+            Whether to remove the plugin's nodes from the node-viewer. Reloads
+            keep the nodes and refresh them afterwards.
 
         Returns
         -------
@@ -1956,13 +2053,14 @@ class Controller:
 
         # Remove matching nodes from the viewer if it is available
         if self.viewer is not None:
-            nodes_to_remove = [
-                node
-                for node in list(self.viewer.nodes.values())
-                if getattr(node, "name", None) in functions_to_remove
-            ]
-            for node in nodes_to_remove:
-                self.viewer.remove_node(node, force=True)
+            if remove_nodes:
+                nodes_to_remove = [
+                    node
+                    for node in list(self.viewer.nodes.values())
+                    if getattr(node, "name", None) in functions_to_remove
+                ]
+                for node in nodes_to_remove:
+                    self.viewer.remove_node(node, force=True)
             self.viewer.refresh_node_picker()
 
         return functions_to_remove
@@ -2059,27 +2157,23 @@ class Controller:
         >>> new_func = controller.plugins["plugin_name"].some_func
         """
 
-        if plugin_name is None:
-            plugins_to_reload = self.plugins
-        else:
-            plugin = sys.modules[plugin_name]
-            plugins_to_reload = {plugin_name: plugin}
-
-        for loaded_plugin_name, plugin in plugins_to_reload.items():
-            # Remove the plugin from sys.modules
-            del sys.modules[loaded_plugin_name]
-
-            # Clear bytecode cache if possible
-            bytecode_file = cache_from_source(str(plugin.__file__))
+        names = list(self.plugins) if plugin_name is None else [plugin_name]
+        for name in names:
+            plugin = self.plugins[name]
+            if self.get("plugin_meta")[name]["plugin_type"] == "path":
+                self.load_recent_plugins(name)
+                continue
+            previous_modules = unload_plugin_modules(plugin.__name__)
             try:
-                os.remove(bytecode_file)
-            except OSError as e:
-                logger.warning(f"Error clearing bytecode cache: {e}")
-
-            # Import the plugin again
-            reloaded_plugin = import_module(loaded_plugin_name)
-            # Update the plugin in the controller
-            self.plugins[loaded_plugin_name] = reloaded_plugin
+                self.load_recent_plugins(name)
+            except BaseException:
+                for module_name in list(sys.modules):
+                    if module_name == plugin.__name__ or module_name.startswith(
+                        f"{plugin.__name__}."
+                    ):
+                        sys.modules.pop(module_name)
+                sys.modules.update(previous_modules)
+                raise
 
     def get_function_meta(self, function_name: str) -> dict[str, Any]:
         """Get the metadata for a specific function."""

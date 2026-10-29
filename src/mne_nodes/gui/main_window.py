@@ -10,12 +10,14 @@ from pathlib import Path
 import mne
 from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
 from qtpy.QtGui import QAction, QActionGroup, QKeySequence
-from qtpy.QtWidgets import QApplication, QMainWindow
+from qtpy.QtWidgets import QApplication, QDialog, QMainWindow
 
 from mne_nodes import iswin
 from mne_nodes.backend.data_import import load_sample_bids
 from mne_nodes.backend.exception_handling import get_exception_tuple
+from mne_nodes.backend.package_utils import install_local_plugin
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
+from mne_nodes.backend.plugin_package import find_plugin_project
 from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.coreg_widgets import CoregDialog
 from mne_nodes.gui.data_overview import DataOverviewDialog
@@ -25,6 +27,7 @@ from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
+from mne_nodes.gui.plugin_package import InstalledPluginDialog, LocalPluginInstallDialog
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.gui.user_interaction import (
     ask_user,
@@ -186,6 +189,8 @@ class MainWindow(QMainWindow):
         plugin_menu.addSeparator()
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
+        installed_plugin_action = plugin_menu.addAction("Load Installed Plugin...")
+        installed_plugin_action.triggered.connect(self.load_installed_plugin)
         plugin_menu.addAction(load_plugin_github_action)
         plugin_menu.addSeparator()
         plugin_menu.addAction(manage_plugins_action)
@@ -378,7 +383,25 @@ class MainWindow(QMainWindow):
         )
         if plugin_path is None:
             return
-        self.controller.load_plugin_path(plugin_path)
+        try:
+            project = find_plugin_project(Path(plugin_path))
+            if project is not None:
+                dialog = LocalPluginInstallDialog(project, self)
+                if dialog.exec() != QDialog.DialogCode.Accepted:
+                    return
+                if dialog.install_package.isChecked():
+                    install_local_plugin(
+                        project,
+                        editable=dialog.editable_install.isChecked(),
+                        parent=self,
+                    )
+            self.controller.load_plugin_path(plugin_path)
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not load the local plugin."
+            ).open()
+            return
+        self.viewer.refresh_node_picker()
         self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
     def import_functions(
@@ -433,6 +456,24 @@ class MainWindow(QMainWindow):
             return
         self.controller.load_plugin_module_name(plugin_name, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
+
+    def load_installed_plugin(self) -> None:
+        """Activate a selected entry point, reporting discovery or import errors."""
+        try:
+            dialog = InstalledPluginDialog(self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            distribution_name, entry_point_name = dialog.selected_registration()
+            self.controller.load_plugin_entry_point(distribution_name, entry_point_name)
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not load the installed plugin."
+            ).open()
+            return
+        self.viewer.refresh_node_picker()
+        self.statusBar().showMessage(
+            f"Plugin '{entry_point_name}' loaded from '{distribution_name}'."
+        )
 
     def load_plugin_github(self):
         plugin_url = get_user_input(

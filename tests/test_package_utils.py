@@ -1,7 +1,57 @@
 import subprocess
 import sys
 
-from mne_nodes.backend.package_utils import get_import_name, install_pip_packages
+import pytest
+
+from mne_nodes.backend.package_utils import (
+    get_import_name,
+    install_github_package,
+    install_local_plugin,
+    install_pip_packages,
+)
+from mne_nodes.gui.run_widgets import ProcessDialog
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+@pytest.mark.parametrize("source", ["pip", "github", "local"])
+def test_install_result_after_process_cleanup(
+    qtbot, monkeypatch, tmp_path, source, exit_code
+):
+    """Installation results remain available after Qt deletes the process."""
+
+    def run_test_command(**kwargs):
+        kwargs["commands"] = [
+            (sys.executable, "-c", f"import sys; sys.exit({exit_code})")
+        ]
+        kwargs["blocking"] = False
+        dialog = ProcessDialog(**kwargs)
+        qtbot.addWidget(dialog)
+        with qtbot.waitSignal(dialog.process.destroyed, timeout=5000):
+            pass
+        dialog.close()
+        return dialog
+
+    monkeypatch.setattr(
+        "mne_nodes.backend.package_utils.ProcessDialog", run_test_command
+    )
+    if source == "local":
+        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+
+    def install():
+        if source == "github":
+            return install_github_package("https://github.com/owner/plugin")
+        if source == "local":
+            return install_local_plugin(tmp_path)
+        return install_pip_packages(["example-plugin"])
+
+    if exit_code:
+        with pytest.raises(
+            RuntimeError, match=f"installation failed with exit code {exit_code}"
+        ):
+            install()
+    else:
+        dialog = install()
+        assert dialog.exit_code == 0
 
 
 def test_install_and_import_package_at_runtime(tmp_path, qtbot, monkeypatch):

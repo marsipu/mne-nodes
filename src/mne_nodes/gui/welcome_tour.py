@@ -45,6 +45,7 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.backend.data_import import load_sample_bids
 from mne_nodes.backend.exception_handling import ExceptionTuple
+from mne_nodes.backend.plugin_package import PluginPackageMetadata, plugin_module_name
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
 from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.user_interaction import ask_user
@@ -961,6 +962,12 @@ def build_welcome_steps(
             plugin_name=plugin_name,
             destination_dir=plugin_directory,
             on_saved=load_saved_plugin,
+            package_metadata=PluginPackageMetadata(
+                distribution_name=f"mne-nodes_{plugin_name.replace('_', '-')}",
+                description="Disposable crop example for the mne-nodes welcome tour.",
+                author="mne-nodes contributors",
+                license_expression="BSD-3-Clause",
+            ),
         )
         # A modal importer would block the tour's Back/Cancel/Next controls.
         importer.setWindowModality(Qt.WindowModality.NonModal)
@@ -971,13 +978,19 @@ def build_welcome_steps(
             importer.func_config.clear()
             importer.close()
             importer.deleteLater()
-        module = sys.modules.get(plugin_name)
-        if module is not None and plugin_directory is not None:
-            module_file = getattr(module, "__file__", None)
-            if module_file is not None and Path(module_file).parent == plugin_directory:
-                sys.modules.pop(plugin_name, None)
-        if plugin_directory is not None and str(plugin_directory) in sys.path:
-            sys.path.remove(str(plugin_directory))
+        if plugin_directory is not None:
+            module_name = plugin_module_name(plugin_name)
+            for name, module in list(sys.modules.items()):
+                module_file = getattr(module, "__file__", None)
+                if (
+                    (name == module_name or name.startswith(f"{module_name}."))
+                    and module_file is not None
+                    and Path(module_file).is_relative_to(plugin_directory)
+                ):
+                    sys.modules.pop(name, None)
+            import_root = str(plugin_directory / "src")
+            if import_root in sys.path:
+                sys.path.remove(import_root)
 
     def crop_node():
         return next(

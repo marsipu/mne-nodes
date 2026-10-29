@@ -131,7 +131,8 @@ def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_aft
             qtbot.waitUntil(lambda: tour.index == 12)
             qtbot.waitUntil(lambda: not importer.isVisible())
             assert plugin_name in ct.plugins
-            assert (directory / f"{plugin_name}_config.json").is_file()
+            package_dir = directory / "src" / f"mne_nodes_{plugin_name}"
+            assert (package_dir / f"{plugin_name}_config.json").is_file()
             assert not tour.widget.next_btn.isEnabled()
         if stop_after == "connect":
             crop = main_window.viewer.add_function_node("crop_raw")
@@ -152,7 +153,10 @@ def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_aft
     assert ct.plugins == previous_plugins
     assert ct.function_meta == previous_functions
     assert plugin_name not in sys.modules
+    assert f"mne_nodes_{plugin_name}" not in sys.modules
+    assert f"mne_nodes_{plugin_name}.{plugin_name}" not in sys.modules
     assert str(directory) not in sys.path
+    assert str(directory / "src") not in sys.path
     assert not any(
         node.name is not None and node.name.startswith("crop_raw")
         for node in main_window.viewer.function_nodes.values()

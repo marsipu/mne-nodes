@@ -7,8 +7,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 import ast
 import inspect
 import json
-import keyword
 import tokenize
+import tomllib
 from collections.abc import Callable
 from functools import partial
 from os import PathLike
@@ -43,6 +43,16 @@ from mne_nodes.backend.function_parser import (
     split_type_hint,
 )
 from mne_nodes.backend.io import TypedJSONEncoder, type_json_hook
+from mne_nodes.backend.package_utils import install_local_plugin
+from mne_nodes.backend.plugin_package import (
+    PluginPackageMetadata,
+    PluginSource,
+    create_plugin_package,
+    initialize_plugin_repository,
+    normalize_source_encoding,
+    plugin_source_is_installed,
+    validate_plugin_name,
+)
 from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.gui_utils import edit_font
@@ -69,6 +79,7 @@ from mne_nodes.gui.parameter import (
     StringGui,
     TupleGui,
 )
+from mne_nodes.gui.plugin_package import request_package_metadata
 from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
@@ -298,12 +309,15 @@ class ParameterConfiguration(QDialog):
 
 # ToDo: Function Categories
 class FunctionImporter(QDialog):
-    """Analyze Python functions and save their plugin configuration.
+    """Analyze Python functions and save distributable plugin projects.
 
     ``on_saved`` receives the saved configuration path, allowing the application
     to load the plugin. Standalone importers only write files by default.
     ``plugin_name`` and ``destination_dir`` can preselect the save destination,
-    for example when importing disposable code in the welcome tour.
+    while ``package_metadata`` can supply metadata for trusted generated examples
+    such as the disposable welcome-tour plugin.
+    ``source`` opens an existing local plugin in place, exposing its full module,
+    structured function configuration and existing package metadata files.
     """
 
     def __init__(
@@ -316,12 +330,25 @@ class FunctionImporter(QDialog):
         on_saved: Callable[[Path], None] | None = None,
         plugin_name: str | None = None,
         destination_dir: Path | None = None,
+        package_metadata: PluginPackageMetadata | None = None,
+        source: PluginSource | None = None,
+        register_on_save: bool = False,
     ):
         super().__init__(parent)
+        self.source = source
+        self._original: dict[Path, str] = {}
+        self.package_editors: dict[Path, QPlainTextEdit] = {}
+        self.source_editor: QPlainTextEdit | None = None
+        self._imported_functions: set[str] = set()
+        self._reload_pending = register_on_save
         # Check code parameter
         # Attributes
-        self._file_path = None
+        self._file_path: Path | None = None
         self._created_file = False
+        self._git_pending = False
+        self._install_pending = False
+        self._package_metadata = package_metadata
+        self._destination_dir = destination_dir
         self._pkg_dir = destination_dir
         self._plugin_name = plugin_name
         self._source_code = ""
@@ -338,9 +365,18 @@ class FunctionImporter(QDialog):
         self.setWindowTitle("Import Function")
         # Init code editor tabs
         tab_layout = QVBoxLayout()
+        if source is not None:
+            tab_layout.addWidget(
+                QLabel(
+                    "Edits overwrite the local files shown below. Saving reloads "
+                    "enabled plugins and executes their module code; disabled "
+                    "plugins stay disabled."
+                )
+            )
         # Load button
         load_bt = QPushButton(qta.icon("fa6s.file-import"), "Load File")
         load_bt.clicked.connect(self._load_file_clicked)
+        load_bt.setEnabled(source is None)
         tab_layout.addWidget(load_bt)
         # Tab widget
         self.tab_widget = QTabWidget()
@@ -371,6 +407,11 @@ class FunctionImporter(QDialog):
             QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
         )
         layout.addLayout(config_layout)
+        self.function_cmbx = QComboBox()
+        self.function_cmbx.currentIndexChanged.connect(self.update_config)
+        self.function_cmbx.setVisible(source is not None)
+        if source is not None:
+            config_layout.addRow("Function", self.function_cmbx)
         # Add target combobox
         self.target_cmbx = QComboBox()
         self.target_cmbx.addItems(["file", "group"])
@@ -396,13 +437,15 @@ class FunctionImporter(QDialog):
         config_layout.addRow("Parameters", self.parameter_layout)
 
         # Analyze the code if given and populate the UI
-        if code is not None:
+        if source is not None:
+            self._load_plugin_source()
+        elif code is not None:
             self.analyze_code(code)
         elif file_path is not None:
             self.load_file(file_path)
 
     @property
-    def plugin_name(self):
+    def plugin_name(self) -> str:
         if self.file_path is not None:
             plugin_name = Path(self.file_path).stem
         else:
@@ -413,23 +456,24 @@ class FunctionImporter(QDialog):
                     parent=self,
                 )
             plugin_name = self._plugin_name
+        if not isinstance(plugin_name, str):
+            raise TypeError("A plugin name must be a string.")
         return plugin_name
 
     @property
-    def file_path(self):
+    def file_path(self) -> Path | None:
         return self._file_path
 
     @file_path.setter
     def file_path(self, value):
         if value is not None and isfile(value):
-            self._file_path = value
-            self._pkg_dir = Path(value).parent
+            self._file_path = Path(value)
 
     def pkg_dir(self) -> Path:
         """Get the destination directory for the plugin."""
         if self._pkg_dir is None:
             directory = get_user_input(
-                "In which directory should the plugin be saved?",
+                "Select the project root for the new plugin package.",
                 input_type="folder",
                 cancel_allowed=False,
                 parent=self,
@@ -456,6 +500,10 @@ class FunctionImporter(QDialog):
         self._parse_functions(code)
         self.file_path = file_path
         self._created_file = False
+        self._git_pending = False
+        self._install_pending = False
+        self._package_metadata = None
+        self._pkg_dir = self._destination_dir
         # Reset state from any previously loaded file, otherwise stale
         # function/parameter configs can leak into the newly loaded file.
         self.plugin_config = {}
@@ -479,19 +527,23 @@ class FunctionImporter(QDialog):
             ).open()
 
     @staticmethod
-    def _parse_functions(code: str) -> list[ast.FunctionDef]:
+    def _parse_functions(
+        code: str, *, allow_empty: bool = False
+    ) -> list[ast.FunctionDef]:
         tree = ast.parse(code)
         function_defs = [
             node for node in tree.body if isinstance(node, ast.FunctionDef)
         ]
-        if not function_defs:
+        if not function_defs and not allow_empty:
             raise ValueError("The code contains no top-level Python functions.")
         return function_defs
 
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
-        function_defs = self._parse_functions(code)
-        function_names = {func.name for func in function_defs}
+        function_defs = self._parse_functions(code, allow_empty=self.source is not None)
+        function_names = {
+            func.name for func in function_defs
+        } | self._imported_functions
         self.func_config = {
             name: config
             for name, config in self.func_config.items()
@@ -532,10 +584,11 @@ class FunctionImporter(QDialog):
             func_code = "\n".join(code.splitlines()[start_line:end_line])
 
             # Create a new tab with an editor for the function code
-            editor = Editor()
-            self.editors[func.name] = editor
-            editor.setPlainText(func_code)
-            self.tab_widget.addTab(editor, func.name)
+            if self.source is None:
+                editor = Editor()
+                self.editors[func.name] = editor
+                editor.setPlainText(func_code)
+                self.tab_widget.addTab(editor, func.name)
 
             # Extract inputs and parameters from function arguments
             args = func.args.args
@@ -590,7 +643,7 @@ class FunctionImporter(QDialog):
             docstring = ast.get_docstring(func)
             doc = docstring_parser.parse(docstring) if docstring else None
             doc_params = {dp.arg_name: dp for dp in doc.params} if doc else {}
-            if doc is not None and not self.func_config[func.name]["description"]:
+            if doc is not None and not self.func_config[func.name].get("description"):
                 self.func_config[func.name]["description"] = (
                     doc.long_description or doc.short_description or ""
                 )
@@ -600,7 +653,7 @@ class FunctionImporter(QDialog):
                 if p not in param_config:
                     param_config[p] = {"description": ""}
                 doc_param = doc_params.get(p)
-                if not param_config[p]["description"] and doc_param is not None:
+                if not param_config[p].get("description") and doc_param is not None:
                     param_config[p]["description"] = doc_param.description or ""
 
                 gui_name = None
@@ -690,7 +743,10 @@ class FunctionImporter(QDialog):
                     self.func_config[func.name]["outputs"].pop(op_config)
 
         # Update parameter configuration
-        self.update_config(self.tab_widget.currentIndex())
+        if self.source is not None:
+            self._refresh_functions()
+        else:
+            self.update_config(self.tab_widget.currentIndex())
 
     def clear_editor_tabs(self):
         # Clear editor tabs
@@ -712,8 +768,9 @@ class FunctionImporter(QDialog):
         # Get code from editors
         code = self.get_code()
         try:
-            self._parse_functions(code)
-            self.clear_editor_tabs()
+            self._parse_functions(code, allow_empty=self.source is not None)
+            if self.source is None:
+                self.clear_editor_tabs()
             self.analyze_code(code)
         except Exception:  # noqa: BLE001
             ErrorDialog(
@@ -744,9 +801,15 @@ class FunctionImporter(QDialog):
             layout.addRow(item, bt_layout)
 
     def update_config(self, idx):
-        if idx < 0 or idx >= self.tab_widget.count():
+        if self.source is not None:
+            function_name = self.function_cmbx.currentText()
+        elif 0 <= idx < self.tab_widget.count():
+            function_name = self.tab_widget.tabText(idx)
+        else:
             return
-        self.current_func = self.tab_widget.tabText(idx)
+        if function_name not in self.func_config:
+            return
+        self.current_func = function_name
         # Update target
         target = self.func_config[self.current_func].get("target", "file")
         self.target_cmbx.setCurrentText(target)
@@ -772,6 +835,8 @@ class FunctionImporter(QDialog):
         )
 
     def get_code(self):
+        if self.source_editor is not None:
+            return self.source_editor.toPlainText()
         lines = self._source_code.splitlines(keepends=True)
         for name, (start, end) in sorted(
             self._function_lines.items(), key=lambda item: item[1][0], reverse=True
@@ -812,7 +877,8 @@ class FunctionImporter(QDialog):
         self.update_config(self.tab_widget.currentIndex())
 
     def target_cmbx_changed(self, text):
-        self.func_config[self.current_func]["target"] = text
+        if self.current_func in self.func_config:
+            self.func_config[self.current_func]["target"] = text
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]
@@ -829,15 +895,140 @@ class FunctionImporter(QDialog):
         ParameterConfiguration(param_name, config, parent=self).open()
 
     def _get_config_path(self):
-        if self._pkg_dir is not None:
-            return Path(self._pkg_dir) / f"{self.plugin_name}_config.json"
+        if self.source is not None:
+            return self.source.config_path
+        if self.file_path is not None:
+            return Path(self.file_path).with_name(f"{self.plugin_name}_config.json")
+
+    def _refresh_functions(self) -> None:
+        selected = self.current_func
+        self.function_cmbx.blockSignals(True)
+        self.function_cmbx.clear()
+        self.function_cmbx.addItems(self.func_config)
+        if selected in self.func_config:
+            self.function_cmbx.setCurrentText(selected)
+        self.function_cmbx.blockSignals(False)
+        self.update_config(self.function_cmbx.currentIndex())
+
+    def _load_plugin_source(self) -> None:
+        source = self.source
+        if source is None:
+            raise ValueError("An existing plugin source is required.")
+        if source.installed:
+            raise ValueError("Copy the installed plugin to a local project first.")
+        self.setWindowTitle(f"Edit Plugin: {source.script_path.stem}")
+        self.file_path = source.script_path
+        paths = [source.script_path, source.config_path]
+        if source.project_root is not None:
+            paths.extend(
+                source.project_root / name
+                for name in ("pyproject.toml", "README.md", "LICENSE")
+                if (source.project_root / name).is_file()
+            )
+        for path in paths:
+            if plugin_source_is_installed(path):
+                raise ValueError(f"Cannot edit installed environment file '{path}'.")
+            if path == source.script_path:
+                with tokenize.open(path) as stream:
+                    text = stream.read()
+            else:
+                text = path.read_text(encoding="utf-8")
+            self._original[path] = text
+            if path == source.config_path:
+                self.func_config = json.loads(text, object_hook=type_json_hook)
+                if not isinstance(self.func_config, dict) or not all(
+                    isinstance(value, dict) for value in self.func_config.values()
+                ):
+                    raise ValueError(
+                        "Plugin configuration must map function names to objects."
+                    )
+                continue
+            editor = Editor() if path == source.script_path else QPlainTextEdit()
+            editor.setPlainText(text)
+            editor.setToolTip(str(path))
+            self.package_editors[path] = editor
+            self.tab_widget.addTab(editor, path.name)
+            if path == source.script_path:
+                self.source_editor = editor
+        definitions = self._parse_functions(self.get_code(), allow_empty=True)
+        self._imported_functions = set(self.func_config) - {
+            func.name for func in definitions
+        }
+        self._saved_config = json.dumps(
+            self.func_config, sort_keys=True, cls=TypedJSONEncoder
+        )
+        self._refresh_functions()
+
+    def _existing_plugin_contents(self) -> dict[Path, str]:
+        if self.source is None:
+            raise ValueError("An existing plugin source is required.")
+        contents = {
+            path: editor.toPlainText() for path, editor in self.package_editors.items()
+        }
+        config = json.dumps(self.func_config, sort_keys=True, cls=TypedJSONEncoder)
+        contents[self.source.config_path] = (
+            self._original[self.source.config_path]
+            if config == self._saved_config
+            else json.dumps(self.func_config, indent=4, cls=TypedJSONEncoder)
+        )
+        return contents
+
+    def _existing_plugin_dirty(self) -> bool:
+        return self._reload_pending or any(
+            text != self._original[path]
+            for path, text in self._existing_plugin_contents().items()
+        )
+
+    def _save_existing_plugin(self) -> Path:
+        source = self.source
+        if source is None:
+            raise ValueError("An existing plugin source is required.")
+        contents = self._existing_plugin_contents()
+        ast.parse(contents[source.script_path])
+        contents[source.script_path] = normalize_source_encoding(
+            contents[source.script_path]
+        )
+        if not isinstance(self.func_config, dict) or not all(
+            isinstance(value, dict) for value in self.func_config.values()
+        ):
+            raise ValueError("Plugin configuration must map function names to objects.")
+        for path, text in contents.items():
+            if path.name == "pyproject.toml":
+                tomllib.loads(text)
+        changed = {
+            path: text
+            for path, text in contents.items()
+            if text != self._original[path]
+        }
+        for path in changed:
+            if plugin_source_is_installed(path):
+                raise ValueError(f"Cannot edit installed environment file '{path}'.")
+            if path == source.script_path:
+                with tokenize.open(path) as stream:
+                    current = stream.read()
+            else:
+                current = path.read_text(encoding="utf-8")
+            if current != self._original[path]:
+                raise RuntimeError(
+                    f"'{path}' changed outside this editor. Reopen it before saving."
+                )
+        for path, text in changed.items():
+            path.write_text(text, encoding="utf-8")
+            self._original[path] = text
+            if path in self.package_editors:
+                self.package_editors[path].setPlainText(text)
+            self._reload_pending = True
+        self._saved_config = json.dumps(
+            self.func_config, sort_keys=True, cls=TypedJSONEncoder
+        )
+        return source.config_path
 
     def save_config(self) -> Path:
         """Write the plugin configuration and return its path."""
         save_path = self._get_config_path()
         if save_path is None:
             raise ValueError("A plugin destination directory is required.")
-        with open(save_path, "w") as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             json.dump(self.func_config, f, indent=4, cls=TypedJSONEncoder)
             logger.info(f"Saved config to {save_path}")
         return save_path
@@ -845,49 +1036,88 @@ class FunctionImporter(QDialog):
     def save(self) -> bool:
         """Save the plugin, displaying errors and reporting whether it succeeded."""
         try:
-            if not self.func_config:
+            if self.source is not None:
+                config_path = self._save_existing_plugin()
+            elif not self.func_config:
                 raise ValueError("Load Python functions before saving a plugin.")
-            plugin_name = self.plugin_name
-            if (
-                not isinstance(plugin_name, str)
-                or not plugin_name.isidentifier()
-                or keyword.iskeyword(plugin_name)
-            ):
-                raise ValueError(
-                    "Plugin names must be valid Python module names containing "
-                    "only letters, digits, and underscores, and cannot be keywords."
+            else:
+                plugin_name = self.plugin_name
+                validate_plugin_name(plugin_name)
+                code = normalize_source_encoding(self.get_code())
+                ast.parse(code)
+            if self.source is None and not self._created_file:
+                metadata = self._package_metadata or request_package_metadata(
+                    plugin_name, self
                 )
-            if self.file_path is None:
-                save_path = Path(self.pkg_dir()) / f"{plugin_name}.py"
-                code = self.get_code()
-                ast.parse(code)
-                with save_path.open("x", encoding="utf-8") as stream:
-                    stream.write(code)
-                self.file_path = save_path
+                if metadata is None:
+                    return False
+                config_path = create_plugin_package(
+                    self.pkg_dir(), plugin_name, code, self.func_config, metadata
+                )
+                self.file_path = config_path.with_name(f"{plugin_name}.py")
+                self._package_metadata = metadata
                 self._created_file = True
-            elif self._created_file:
-                code = self.get_code()
-                ast.parse(code)
-                self.file_path.write_text(code, encoding="utf-8")
-            config_path = self.save_config()
+                self._git_pending = metadata.initialize_git
+                self._install_pending = metadata.install_package
+            elif self.source is None:
+                file_path = self.file_path
+                if file_path is None:
+                    raise ValueError("The saved plugin source path is missing.")
+                file_path.write_text(code, encoding="utf-8")
+                config_path = self.save_config()
+            if self._git_pending:
+                if self._package_metadata is None:
+                    raise ValueError("Missing package metadata for Git initialization.")
+                initialize_plugin_repository(
+                    self.pkg_dir(), self._package_metadata.initial_branch
+                )
+                self._git_pending = False
+            if self._install_pending:
+                if self._package_metadata is None:
+                    raise ValueError("Missing package metadata for installation.")
+                install_local_plugin(
+                    self.pkg_dir(),
+                    editable=self._package_metadata.editable_install,
+                    parent=self,
+                )
+                self._install_pending = False
         except Exception:  # noqa: BLE001
             ErrorDialog(
-                get_exception_tuple(), self, "Could not save the plugin."
+                get_exception_tuple(),
+                self,
+                "Could not save plugin changes."
+                if self.source is not None
+                else "Could not save the plugin.",
             ).open()
             return False
-        if self._on_saved is not None:
+        if self._on_saved is not None and (self.source is None or self._reload_pending):
             try:
                 self._on_saved(config_path)
             except Exception:  # noqa: BLE001
                 ErrorDialog(
                     get_exception_tuple(),
                     self,
-                    "The plugin was saved, but could not be loaded.",
+                    "Plugin files were saved, but could not be reloaded."
+                    if self.source is not None
+                    else "The plugin was saved, but could not be loaded.",
                 ).open()
                 return False
+        self._reload_pending = False
         return True
 
     def closeEvent(self, event):
+        if self.source is not None:
+            if self._existing_plugin_dirty():
+                answer = ask_user_custom(
+                    "Save plugin changes before closing?",
+                    buttons=["Save and Close", "Discard Changes"],
+                    parent=self,
+                )
+                if answer is None or (answer and not self.save()):
+                    event.ignore()
+                    return
+            event.accept()
+            return
         if not self.func_config:
             event.accept()
             return

@@ -28,9 +28,11 @@ from mne_nodes.gui.parameter import DualTupleGui
 # and mne_io_functions plugins, which live in their own sibling repositories
 # checked out next to this one (mne-nodes).
 REPOS_DIR = Path(__file__).resolve().parents[2]
-MNE_FUNCTIONS_PKG = REPOS_DIR / "mne-nodes_mne-functions" / "mne_nodes_mne_functions"
+MNE_FUNCTIONS_PKG = (
+    REPOS_DIR / "mne-nodes_mne-functions" / "src" / "mne_nodes_mne_functions"
+)
 MNE_IO_FUNCTIONS_PKG = (
-    REPOS_DIR / "mne-nodes_mne-io-functions" / "mne_nodes_mne_io_functions"
+    REPOS_DIR / "mne-nodes_mne-io-functions" / "src" / "mne_nodes_mne_io_functions"
 )
 
 group_functions = {"mne.grand_average"}

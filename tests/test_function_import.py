@@ -7,6 +7,7 @@ from qtpy.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from qtpy.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
 from qtpy.QtWidgets import QApplication, QLineEdit, QMenu
 
+from mne_nodes.backend.plugin_package import PluginPackageMetadata
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import is_function_import_mime
 
@@ -23,7 +24,20 @@ def importer_input(monkeypatch, tmp_path):
         return tmp_path if input_type == "folder" else "custom_functions"
 
     monkeypatch.setattr("mne_nodes.gui.function_widgets.get_user_input", user_input)
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.request_package_metadata",
+        lambda *args: PluginPackageMetadata(
+            distribution_name="mne-nodes_custom-functions",
+            description="Test plugin",
+            author="Test contributors",
+            license_expression="BSD-3-Clause",
+        ),
+    )
     return calls
+
+
+def _package_dir(root, plugin_name="custom_functions"):
+    return root / "src" / f"mne_nodes_{plugin_name}"
 
 
 def _importers(main_window):
@@ -191,8 +205,8 @@ def test_text_plugin_save_preserves_module(qtbot, importer_input, tmp_path):
     importer.reanalyze()
     assert importer.func_config["transform"]["parameters"]["scale"]["default"] == 3
     importer.save()
-    script_path = tmp_path / "custom_functions.py"
-    config_path = tmp_path / "custom_functions_config.json"
+    script_path = _package_dir(tmp_path) / "custom_functions.py"
+    config_path = _package_dir(tmp_path) / "custom_functions_config.json"
     assert importer.file_path == script_path
     assert script_path.read_text(encoding="utf-8") == code.replace("scale=2", "scale=3")
     assert "transform" in json.loads(config_path.read_text(encoding="utf-8"))
@@ -201,13 +215,19 @@ def test_text_plugin_save_preserves_module(qtbot, importer_input, tmp_path):
     importer.close()
 
 
-def test_file_import_uses_python_encoding(qtbot, tmp_path):
+def test_file_import_uses_python_encoding(qtbot, tmp_path, importer_input):
     script = tmp_path / "encoded.py"
     script.write_bytes(("# coding: latin-1\n# caf\xe9\n" + CODE).encode("latin-1"))
     importer = FunctionImporter(file_path=script)
     qtbot.addWidget(importer)
     importer.save()
-    assert (tmp_path / "encoded_config.json").is_file()
+    assert (_package_dir(tmp_path, "encoded") / "encoded_config.json").is_file()
+    assert script.read_bytes() == ("# coding: latin-1\n# caf\xe9\n" + CODE).encode(
+        "latin-1"
+    )
+    saved_code = importer.file_path.read_text(encoding="utf-8")
+    assert "# coding: utf-8" in saved_code
+    assert "caf\xe9" in saved_code
     assert "caf\xe9" in importer.get_code()
     importer.close()
 
@@ -281,7 +301,7 @@ def test_resaving_text_plugin_reloads_updated_code(
     updated_plugin = main_window.controller.plugins["custom_functions"]
     assert updated_plugin is not old_plugin
     assert updated_plugin.transform(2) == 6
-    assert "scale=3" in (tmp_path / "custom_functions.py").read_text(encoding="utf-8")
+    assert "scale=3" in importer.file_path.read_text(encoding="utf-8")
     importer.func_config.clear()
     importer.close()
 
@@ -312,7 +332,7 @@ def test_saved_plugin_load_failure_is_reported(
     main_window.import_functions(code=CODE)
     (importer,) = _importers(main_window)
     assert not importer.save()
-    assert (tmp_path / "custom_functions_config.json").is_file()
+    assert (_package_dir(tmp_path) / "custom_functions_config.json").is_file()
     assert errors == ["The plugin was saved, but could not be loaded."]
     assert "transform" not in main_window.controller.function_meta
     assert "saved and loaded" not in main_window.statusBar().currentMessage()
@@ -347,7 +367,7 @@ def test_new_text_plugin_does_not_overwrite_existing_file(
     monkeypatch.setattr(
         function_widgets.ErrorDialog, "open", lambda self: errors.append(self)
     )
-    path = tmp_path / "custom_functions.py"
+    path = tmp_path / "pyproject.toml"
     path.write_text("original content", encoding="utf-8")
     saved_paths = []
     importer = FunctionImporter(code=CODE, on_saved=saved_paths.append)
@@ -357,4 +377,68 @@ def test_new_text_plugin_does_not_overwrite_existing_file(
     assert path.read_text(encoding="utf-8") == "original content"
     assert saved_paths == []
     importer.func_config.clear()
+    importer.close()
+
+
+def test_file_import_saves_editor_changes_without_modifying_source(
+    qtbot, importer_input, tmp_path
+):
+    source = tmp_path / "original.py"
+    source.write_text(CODE, encoding="utf-8")
+    importer = FunctionImporter(file_path=source)
+    qtbot.addWidget(importer)
+    importer.editors["transform"].setPlainText(
+        importer.editors["transform"].toPlainText().replace("scale=2", "scale=7")
+    )
+    importer.reanalyze()
+    assert importer.save()
+    assert source.read_text(encoding="utf-8") == CODE
+    assert "scale=7" in importer.file_path.read_text(encoding="utf-8")
+    assert importer.func_config["transform"]["parameters"]["scale"]["default"] == 7
+    metadata_file = tmp_path / "pyproject.toml"
+    metadata_file.write_text("# manually customized metadata\n", encoding="utf-8")
+    assert importer.save()
+    assert (
+        metadata_file.read_text(encoding="utf-8") == "# manually customized metadata\n"
+    )
+    importer.close()
+
+
+def test_package_metadata_cancel_creates_no_files(
+    qtbot, importer_input, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.request_package_metadata", lambda *args: None
+    )
+    importer = FunctionImporter(code=CODE)
+    qtbot.addWidget(importer)
+    before = set(tmp_path.iterdir())
+    assert not importer.save()
+    assert set(tmp_path.iterdir()) == before
+    assert importer_input == ["string"]
+    importer.func_config.clear()
+    importer.close()
+
+
+def test_loading_another_file_chooses_a_new_package_destination(
+    qtbot, importer_input, tmp_path, monkeypatch
+):
+    sources = [tmp_path / "first.py", tmp_path / "second.py"]
+    destinations = [tmp_path / "first_package", tmp_path / "second_package"]
+    for source in sources:
+        source.write_text(CODE, encoding="utf-8")
+    choices = iter(destinations)
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.get_user_input",
+        lambda *args, **kwargs: next(choices),
+    )
+    importer = FunctionImporter(file_path=sources[0])
+    qtbot.addWidget(importer)
+    assert importer.save()
+    importer.load_file(sources[1])
+    assert importer.save()
+    for source, destination in zip(sources, destinations, strict=True):
+        config = _package_dir(destination, source.stem) / f"{source.stem}_config.json"
+        assert config.is_file()
+        assert source.read_text(encoding="utf-8") == CODE
     importer.close()

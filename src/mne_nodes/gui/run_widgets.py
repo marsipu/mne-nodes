@@ -213,6 +213,11 @@ class WorkerDialog(_RunDialog):
 
 
 class ProcessDialog(_RunDialog):
+    """Run commands and retain their final exit code after process cleanup.
+
+    ``exit_code`` is None until all commands have finished.
+    """
+
     def __init__(
         self,
         commands: list[tuple[str, ...]],
@@ -225,6 +230,7 @@ class ProcessDialog(_RunDialog):
     ):
         self.commands = commands
         self.console = None
+        self.exit_code: int | None = None
 
         super().__init__(
             parent, show_buttons, show_console, close_directly, title, blocking, 0.5
@@ -236,7 +242,7 @@ class ProcessDialog(_RunDialog):
             layout.addWidget(self.console)
 
         self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.process.finished.connect(self.process_finished)
+        self.process.allFinished.connect(self.process_finished)
 
     def start_operation(self):
         self.process.start()
@@ -244,5 +250,6 @@ class ProcessDialog(_RunDialog):
     def cancel(self):
         self.process.kill()
 
-    def process_finished(self):
+    def process_finished(self, exit_code: int):
+        self.exit_code = exit_code
         self.mark_finished()
