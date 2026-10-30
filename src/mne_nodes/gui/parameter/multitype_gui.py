@@ -133,10 +133,23 @@ class MultiTypeGui(Param):
             self.gui_class_map[self.gui_types[t]].data_type for t in self.types
         ]
         self.data_type = reduce(lambda a, b: a | b, param_types)
+        self.read_param()
+        self._previous_value = self.value
 
         self.param_type = type(self.value).__name__
         if self.param_type == "NoneType":
             self.param_type = self.types[0]
+        elif self.param_type not in self.types:
+            self.param_type = next(
+                (
+                    name
+                    for name in self.types
+                    if isinstance(
+                        self.value, self.gui_class_map[self.gui_types[name]].data_type
+                    )
+                ),
+                self.types[0],
+            )
 
         self.param_widget = None
         self.type_cmbx = QComboBox()
@@ -198,13 +211,7 @@ class MultiTypeGui(Param):
         self.param_type = self.types[type_idx]
         self.param_widget = self.gui_widgets[self.param_type]
         self.stack_layout.setCurrentWidget(self.param_widget)
-        if not isinstance(self._load_from_data(self.name), self.param_widget.data_type):
-            if isinstance(self.default, self.param_widget.data_type):
-                self._save_to_data(self.name, self.default)
-            else:
-                self._save_to_data(self.name, self.type_defaults[self.param_type])
-        if isinstance(self.value, self.param_widget.data_type):
-            self.param_widget.value = self.value
+        self.value = self.param_widget._load_from_data(self.name)
 
     def _set_widget_value(self, value):
         if not isinstance(value, self.param_widget.data_type):

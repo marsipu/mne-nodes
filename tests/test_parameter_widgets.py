@@ -5,6 +5,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 import inspect
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -51,6 +52,158 @@ gui_kwargs = {
     "keys": "DictGui",
     "editable": True,
 }
+
+
+@pytest.mark.parametrize(
+    ("data_type", "loaded", "expected"),
+    [
+        (float, 3, 3.0),
+        (int, 3.0, 3),
+        (int, -3.0, -3),
+        (tuple, [1, "a"], (1, "a")),
+        (list, (1, "a"), [1, "a"]),
+        (tuple, [], ()),
+        (list, (), []),
+        (Path, "data", Path("data")),
+        (str, Path("data"), "data"),
+        (float | str, 3, 3.0),
+        (tuple | dict, [1, "a"], (1, "a")),
+        (int | float, 3, 3),
+        (tuple | list, [1, "a"], [1, "a"]),
+        (Path | str, "data", "data"),
+    ],
+)
+def test_param_load_neighboring_types(qtbot, data_type, loaded, expected):
+    """Loading and reloading preserve values by converting neighboring types."""
+    data = {"value": loaded}
+    gui = Param(data=data, name="value")
+    qtbot.addWidget(gui)
+    gui.data_type = data_type
+    gui.read_param()
+
+    assert gui.value == expected
+    assert type(gui.value) is type(expected)
+
+
+@pytest.mark.parametrize(
+    ("data_type", "loaded", "default"),
+    [
+        (int, 3.5, 7),
+        (int, float("nan"), 7),
+        (int, float("inf"), 7),
+        (int, float("-inf"), 7),
+        (float, 10**400, 7.0),
+        (float, True, 7.0),
+        (bool, 1, False),
+        (float, "3", 7.0),
+        (list, "abc", []),
+        (dict, [("key", "value")], {}),
+        (Path, 3, Path("default")),
+        (float, None, 7.0),
+    ],
+)
+def test_param_load_incompatible_types(qtbot, caplog, data_type, loaded, default):
+    """Unsafe or unrelated conversions still fall back with a warning."""
+    gui = Param(data={"value": loaded}, name="value", default=default)
+    qtbot.addWidget(gui)
+    gui.data_type = data_type
+    gui.read_param()
+
+    assert gui.value == default
+    assert type(gui.value) is type(default)
+    assert "Using default value" in caplog.text
+
+
+def test_param_load_optional_neighboring_type(qtbot):
+    """Optional parameters retain None and convert non-None values."""
+    gui = parameter.FloatGui(
+        data={"value": None}, name="value", default=7.0, none_select=True
+    )
+    qtbot.addWidget(gui)
+    assert gui.value is None
+
+    gui.data["value"] = 3
+    gui.read_param()
+    assert gui.value == 3.0
+    assert type(gui.value) is float
+
+
+@pytest.mark.parametrize(
+    ("gui_class", "loaded", "expected", "kwargs"),
+    [
+        (parameter.FloatGui, 3, 3.0, {}),
+        (parameter.IntGui, 3.0, 3, {}),
+        (parameter.ListGui, (1, 2), [1, 2], {}),
+        (parameter.TupleGui, [1, 2], (1, 2), {}),
+        (parameter.DualTupleGui, [1, 2], (1, 2), {}),
+        (parameter.PathGui, "data", Path("data"), {}),
+        (parameter.StringGui, Path("data"), "data", {}),
+        (parameter.MultiTypeGui, 3, 3.0, {"types": ["float", "str"]}),
+        (parameter.MultiTypeGui, [1, 2], (1, 2), {"types": ["tuple"]}),
+        (parameter.MultiTypeGui, "data", Path("data"), {"types": ["float", "path"]}),
+        (
+            parameter.MultiTypeGui,
+            Path("data"),
+            Path("data"),
+            {"types": ["str", "path"]},
+        ),
+    ],
+)
+def test_widget_load_neighboring_types(qtbot, gui_class, loaded, expected, kwargs):
+    """Concrete widgets display and save converted values rather than defaults."""
+    data = {"value": loaded}
+    gui = gui_class(data=data, name="value", **kwargs)
+    qtbot.addWidget(gui)
+
+    assert gui.value == expected
+    assert type(gui.value) is type(expected)
+    gui._set_param()
+    assert data["value"] == expected
+    assert type(data["value"]) is type(expected)
+
+
+@pytest.mark.parametrize(
+    ("types", "loaded", "expected"),
+    [
+        (["int", "float"], 3, 3.0),
+        (["float", "int"], 3.0, 3),
+        (["list", "tuple"], [1, 2], (1, 2)),
+        (["tuple", "list"], (1, 2), [1, 2]),
+        (["str", "path"], "data", Path("data")),
+        (["path", "str"], Path("data"), "data"),
+        (["float", "int"], 3.5, 0),
+    ],
+)
+def test_multitype_switch_neighboring_types(qtbot, types, loaded, expected):
+    """Switching neighboring types converts the current value and persists it."""
+    data = {"value": loaded}
+    gui = parameter.MultiTypeGui(data=data, name="value", types=types)
+    qtbot.addWidget(gui)
+    gui.change_type(1)
+
+    assert gui.value == expected
+    assert type(gui.value) is type(expected)
+    assert data["value"] == expected
+    assert type(data["value"]) is type(expected)
+
+
+@pytest.mark.parametrize("groupbox_layout", [True, False])
+def test_multitype_restore_converted_value(qtbot, groupbox_layout):
+    """Re-enabling an optional multi-type widget restores its converted value."""
+    gui = parameter.MultiTypeGui(
+        data={"value": 3},
+        name="value",
+        types=["float", "str"],
+        none_select=True,
+        groupbox_layout=groupbox_layout,
+    )
+    qtbot.addWidget(gui)
+    checkbox = gui.group_box if groupbox_layout else gui.none_chkbx
+    checkbox.setChecked(False)
+    assert gui.value is None
+    checkbox.setChecked(True)
+    assert gui.value == 3.0
+    assert type(gui.value) is float
 
 
 @pytest.mark.parametrize(
