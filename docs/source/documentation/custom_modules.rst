@@ -1,5 +1,8 @@
 Custom Modules/Functions
 ========================
+For executable command nodes and FreeSurfer-dependent functions, see
+:doc:`freesurfer`.
+
 To extend the functionality of **mne-nodes**, you can add custom modules.
 The welcome tour (also available under **Help > Restart Welcome Tour**) explains
 the import and plugin-loading options and guides you through importing a
@@ -108,17 +111,24 @@ package layout.
 
 Installed plugin discovery
 --------------------------
-**Plugins > Load Installed Plugin...** lists registrations from
-``importlib.metadata.entry_points(group="mne_nodes.plugins")`` without importing
-their code. Select a registration to activate it and refresh the node picker.
+**Plugins > Manage Plugins** lists registered plugins and installed registrations
+from ``importlib.metadata.entry_points(group="mne_nodes.plugins")``.
+Newly discovered installed plugins are imported and enabled automatically at
+startup and when opening the manager. Only install plugin code you trust.
+Use **Refresh installed plugins** to detect packages installed externally while
+MNE-Nodes is running. Enabled/disabled status is color-coded and each plugin
+shows its number of available node definitions, including while disabled.
+Failed plugins remain visible with an error instead of appearing enabled.
 The project stores both the distribution name and the entry-point name, so
 plugin display names need not match Python import names and identically named
 registrations from different distributions remain distinguishable.
 
-Plugins are not automatically activated simply because they are installed.
-Only the project's explicitly registered, enabled plugins load on subsequent
-sessions. **Manage Plugins** can disable or remove these registrations without
-uninstalling packages or deleting files. A missing or broken selected entry
+Explicitly disabled plugins stay disabled across discovery, restarts and
+project changes on this device. Existing path-based registrations are preserved
+instead of being replaced by installed versions. **Manage Plugins** can disable
+plugins without uninstalling packages or deleting files. Installed plugins remain
+discoverable, so use Disable rather than Remove; Remove is available for other
+registrations. A missing or broken selected entry
 point is reported, not silently skipped. A repository URL in package metadata
 does not cause an installed plugin to be reloaded from GitHub.
 

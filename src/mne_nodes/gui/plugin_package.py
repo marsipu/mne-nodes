@@ -1,6 +1,5 @@
 """Metadata editor for newly saved plugin distributions."""
 
-from importlib.metadata import EntryPoint
 from shutil import which
 
 from qtpy.QtWidgets import (
@@ -17,7 +16,6 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.backend.exception_handling import get_exception_tuple
-from mne_nodes.backend.package_utils import get_plugin_entry_points
 from mne_nodes.backend.plugin_package import LICENSE_TEMPLATES, PluginPackageMetadata
 from mne_nodes.gui.dialogs import ErrorDialog
 
@@ -165,52 +163,6 @@ def request_package_metadata(
     if dialog.exec() == QDialog.DialogCode.Accepted:
         return dialog.metadata
     return None
-
-
-class InstalledPluginDialog(QDialog):
-    """Choose one installed registration without importing any plugin."""
-
-    def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.setWindowTitle("Load Installed Plugin")
-        layout = QVBoxLayout(self)
-        layout.addWidget(
-            QLabel(
-                "Select a plugin to activate in this project. Only load code you trust."
-            )
-        )
-        self.plugins = QComboBox()
-        self._entries: list[EntryPoint] = []
-        for entry in get_plugin_entry_points():
-            distribution = entry.dist
-            if distribution is None:
-                continue
-            self._entries.append(entry)
-            self.plugins.addItem(
-                f"{entry.name} - {distribution.name} {distribution.version} "
-                f"({entry.value})"
-            )
-        layout.addWidget(self.plugins)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
-        load_button = buttons.addButton("Load", QDialogButtonBox.ButtonRole.AcceptRole)
-        load_button.setEnabled(self.plugins.count() > 0)
-        if self.plugins.count() == 0:
-            layout.addWidget(
-                QLabel("No installed plugins found. Install a plugin package first.")
-            )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def selected_registration(self) -> tuple[str, str]:
-        """Return the distribution and entry-point name selected for activation."""
-        index = self.plugins.currentIndex()
-        if not 0 <= index < len(self._entries):
-            raise ValueError("Select an installed plugin first.")
-        entry = self._entries[index]
-        if entry.dist is None:
-            raise ValueError("The selected entry point has no distribution metadata.")
-        return entry.dist.name, entry.name
 
 
 class LocalPluginInstallDialog(QDialog):

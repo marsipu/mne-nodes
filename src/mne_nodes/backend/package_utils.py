@@ -177,7 +177,7 @@ def get_import_name(distribution_name: str) -> str:
     if registered_modules:
         raise ImportError(
             f"Distribution '{distribution_name}' registers multiple plugins. "
-            "Select one using Load Installed Plugin."
+            "Manage them using Plugins > Manage Plugins."
         )
     normalized_name = distribution_name.replace("-", "_").lower()
     distribution_map = metadata.packages_distributions()

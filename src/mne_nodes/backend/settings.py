@@ -28,8 +28,7 @@ default_device_settings = {
     "deriv_root": None,  # BIDS derivatives root directory
     "plot_root": None,  # Plot export root directory
     "plot_root_is_config_specific": False,  # Root already includes the config name
-    "fs_path": None,  # FREESURFER_HOME (legacy / optional)
-    "wls_mne_path": None,  # Legacy WSL MNE path
+    "wsl_distribution": None,  # None uses the default WSL distribution
     "use_qthread": 1,  # Kept for backwards compatibility
     "save_ram": 1,  # Memory optimization flag
     "enable_cuda": 0,  # GPU usage flag

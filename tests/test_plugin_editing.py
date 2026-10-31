@@ -255,7 +255,8 @@ def test_edit_local_plugin_reloads_and_preserves_metadata(main_window, source, q
     group = next(
         group
         for group in manager.findChildren(QPushButton)
-        if group.text() == "Edit..." and group.parent().title() == "edit_fixture"
+        if group.text() == "Edit..."
+        and group.parent().property("plugin_name") == "edit_fixture"
     )
     qtbot.mouseClick(group, Qt.MouseButton.LeftButton)
     (editor,) = _editors(manager)

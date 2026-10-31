@@ -364,7 +364,8 @@ SCRIPT_PATH = Path(__file__).parent / {quote(script_name)}
 ## Install and load
 
 Run `python -m pip install .` (or `python -m pip install -e .` for development).
-In mne-nodes choose **Plugins > Load Installed Plugin...** and select this plugin.
+MNE-Nodes discovers and enables newly installed plugins automatically.
+Use **Plugins > Manage Plugins** to refresh discovery or enable/disable plugins.
 Only explicitly selected plugins are activated in a project.
 Without installing, load `src/{module_name}/{config_name}` using
 **Plugins > Load Plugin from Path**.

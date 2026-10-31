@@ -21,6 +21,7 @@ import qtawesome as qta
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -417,6 +418,9 @@ class FunctionImporter(QDialog):
         self.target_cmbx.addItems(["file", "group"])
         self.target_cmbx.currentTextChanged.connect(self.target_cmbx_changed)
         config_layout.addRow("target", self.target_cmbx)
+        self.freesurfer_checkbox = QCheckBox("Run in FreeSurfer environment")
+        self.freesurfer_checkbox.toggled.connect(self._freesurfer_changed)
+        config_layout.addRow("FreeSurfer", self.freesurfer_checkbox)
         # Inputs Configuration
         self.inputs_layout = QFormLayout()
         self.inputs_layout.setFieldGrowthPolicy(
@@ -575,6 +579,7 @@ class FunctionImporter(QDialog):
                     "description": "",
                     "module_name": None,
                     "class_name": None,
+                    "uses_freesurfer": False,
                 }
             start_line = (
                 min([func.lineno] + [node.lineno for node in func.decorator_list]) - 1
@@ -813,6 +818,9 @@ class FunctionImporter(QDialog):
         # Update target
         target = self.func_config[self.current_func].get("target", "file")
         self.target_cmbx.setCurrentText(target)
+        self.freesurfer_checkbox.setChecked(
+            self.func_config[self.current_func].get("uses_freesurfer", False)
+        )
         # Update inputs
         self._populate_config(
             self.func_config[self.current_func]["inputs"],
@@ -879,6 +887,10 @@ class FunctionImporter(QDialog):
     def target_cmbx_changed(self, text):
         if self.current_func in self.func_config:
             self.func_config[self.current_func]["target"] = text
+
+    def _freesurfer_changed(self, checked: bool) -> None:
+        if self.current_func in self.func_config:
+            self.func_config[self.current_func]["uses_freesurfer"] = checked
 
     def input_configuration(self, input_name):
         config = self.func_config[self.current_func]["inputs"][input_name]

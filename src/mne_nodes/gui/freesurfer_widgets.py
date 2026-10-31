@@ -3,10 +3,23 @@
 from pathlib import Path
 
 from qtpy.QtCore import Signal
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from qtpy.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QTextBrowser,
+    QVBoxLayout,
+)
 
+from mne_nodes import iswin
 from mne_nodes.backend.exception_handling import ExceptionTuple, gui_error
+from mne_nodes.backend.execution import Worker
 from mne_nodes.backend.freesurfer import (
+    FreeSurferRuntime,
     find_freesurfer_subjects,
     import_freesurfer_subjects,
     is_freesurfer_subject,
@@ -15,6 +28,105 @@ from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.user_interaction import get_user_input, warning_message
 from mne_nodes.gui.widgets.list_widgets import CheckList
+
+
+class FreeSurferSetupDialog(QDialog):
+    """Discover FreeSurfer/WSL and explain installation without changing the OS."""
+
+    def __init__(self, controller, parent=None) -> None:
+        super().__init__(parent)
+        self.ct = controller
+        self.setWindowTitle("FreeSurfer setup")
+        self.resize(760, 650)
+        layout = QVBoxLayout(self)
+        help_text = QTextBrowser()
+        help_text.setOpenExternalLinks(True)
+        help_text.setHtml(
+            "<h3>FreeSurfer environment</h3>"
+            "<p>FreeSurfer and Python are discovered automatically, inside "
+            "WSL on Windows. Commands only need FreeSurfer; "
+            "Python functions also need MNE. Discovery never installs software.</p>"
+            + (
+                "<p>1. Install WSL/Ubuntu using Microsoft's instructions "
+                "(administrator access/restart may be needed): "
+                '<a href="https://learn.microsoft.com/windows/wsl/install">'
+                "Install WSL</a>.</p>"
+                "<p>2. Inside Ubuntu, install FreeSurfer for Linux and its license. "
+                "The Windows installation cannot be used.</p>"
+                "<p>3. Inside Ubuntu, install Miniforge/Miniconda, then run:</p>"
+                "<pre>conda create -n mne --override-channels -c conda-forge "
+                "mne-base nibabel\n"
+                'conda run -n mne python -c "import mne; print(mne.__version__)"'
+                "</pre><p>A full graphical MNE installation is not required "
+                "for watershed BEM.</p>"
+                if iswin
+                else "<p>Install FreeSurfer for your platform and register its license. "
+                "Python functions use the current MNE-Nodes Python interpreter.</p>"
+            )
+            + '<p><a href="https://surfer.nmr.mgh.harvard.edu/fswiki/DownloadAndInstall">'
+            "FreeSurfer installation/license</a> | "
+            '<a href="https://mne.tools/stable/install/manual_install.html">'
+            "MNE installation</a> | "
+            '<a href="https://conda-forge.org/download/">Miniforge</a></p>'
+            "<p>Discovery checks FREESURFER_HOME, recon-all on PATH and standard "
+            "FreeSurfer locations. Your interactive login shell is loaded first, "
+            "including .bashrc, Conda setup and FS_LICENSE. WSL Python discovery "
+            "checks PATH, Conda's "
+            "environment registry and standard Miniconda/Miniforge locations. "
+            "To prioritize an installation, configure FREESURFER_HOME and "
+            "activate the desired Python environment in your shell startup.</p>"
+        )
+        layout.addWidget(help_text)
+        form = QFormLayout()
+        self.distribution = QLineEdit(
+            str(controller.settings.get("wsl_distribution") or "")
+        )
+        self.distribution.setEnabled(iswin)
+        form.addRow("WSL distribution (empty = default)", self.distribution)
+        layout.addLayout(form)
+        self.status = QPlainTextEdit()
+        self.status.setReadOnly(True)
+        self.status.setPlainText("Click Discover to check the installation.")
+        layout.addWidget(self.status)
+        self.discover_button = QPushButton("Discover")
+        self.discover_button.clicked.connect(self.discover)
+        layout.addWidget(self.discover_button)
+        plugin_hint = QLabel(
+            "FreeSurfer nodes are provided by the mne-nodes_freesurfer plugin. "
+            "Manage it using Plugins > Manage Plugins or "
+            "Plugins > Load Plugin from Path."
+        )
+        plugin_hint.setWordWrap(True)
+        layout.addWidget(plugin_hint)
+        close = QPushButton("Close")
+        close.clicked.connect(self.close)
+        layout.addWidget(close)
+
+    def discover(self) -> None:
+        """Check installations in a worker so WSL startup cannot block Qt."""
+        if self.distribution.isEnabled():
+            self.ct.settings.set(
+                "wsl_distribution", self.distribution.text().strip() or None
+            )
+        self.discover_button.setEnabled(False)
+        self.status.setPlainText("Checking FreeSurfer and Python...")
+        self.worker = Worker(self.ct.freesurfer_runtime)
+        self.worker.signals.finished.connect(self._discovered)
+        self.worker.signals.error.connect(self._discovery_error)
+        self.worker.start()
+
+    def _discovered(self, runtime: FreeSurferRuntime) -> None:
+        self.discover_button.setEnabled(True)
+        self.status.setPlainText(
+            f"FreeSurfer: {runtime.fs_path}\n"
+            f"Python with MNE: {runtime.python or 'NOT FOUND - see instructions above'}\n"
+            f"WSL distribution: {runtime.distribution or 'default'}\n"
+            "A valid FreeSurfer license is also required for processing."
+        )
+
+    def _discovery_error(self, error: ExceptionTuple) -> None:
+        self.discover_button.setEnabled(True)
+        self.status.setPlainText(f"Discovery failed:\n{error}")
 
 
 class FreeSurferImportDialog(QDialog):

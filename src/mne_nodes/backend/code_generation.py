@@ -223,7 +223,10 @@ class CodeGenerator:
                     base_name = self.base_func_name(name)
                     source = "bp" if target == "file" else "members"
                     # Only add functions that are not methods of a class
-                    if func_meta["class_name"] is None:
+                    external = "command" in func_meta or func_meta.get(
+                        "uses_freesurfer"
+                    )
+                    if func_meta["class_name"] is None and not external:
                         import_function_names.add(base_name)
                     # Check which inputs are already satisfied (incl. via accepted_ports)
                     # before deciding what still needs to be loaded from disk.
@@ -277,6 +280,9 @@ class CodeGenerator:
                             body += self._indent("_recording_raw = raw\n", 1)
                             loaded_data.add("_recording_raw")
                             loaded_data.update({"raw", "event_id"})
+                        elif ip == "anat":
+                            body += self._indent(f"anat = ct.load_anat({source})\n", 1)
+                            loaded_data.add("anat")
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
                             body += self._indent(
@@ -340,7 +346,9 @@ class CodeGenerator:
                         func_line += f"{outputs} = "
                     # Inject (lowercase) class-name if the function is a method of a class
                     # This assumes, that instance references of a class always have the same name as the class but lowercase
-                    if func_meta["class_name"] is not None:
+                    if external:
+                        func_name = "ct.execute_external"
+                    elif func_meta["class_name"] is not None:
                         lower_class = func_meta["class_name"].lower()
                         supplied_values.add(lower_class)
                         func_line += f"{lower_class}."
@@ -352,6 +360,8 @@ class CodeGenerator:
                         import_function_names.add(name)
                         func_name = f"{self._plugin_namespace(plugin_name)}.{func_name}"
                     func_line += f"{func_name}("
+                    if external:
+                        func_line += f"{name!r}, "
                     if len(func_inputs) > 0:
                         inputs = ", ".join(
                             f"{param}={var}" for param, var in func_inputs.items()
@@ -360,7 +370,7 @@ class CodeGenerator:
                     else:
                         func_line += f"**ct.func_parameters('{name}'))"
                     subject_only = (
-                        bool(n["outputs"])
+                        (bool(n["outputs"]) or external)
                         and func_meta["class_name"] is None
                         and bool(func_inputs)
                         and all(value in subject_data for value in func_inputs.values())

@@ -1,5 +1,9 @@
 Settings
 ========
+FreeSurfer/WSL setup uses automatic environment discovery without installation-path
+settings. **BIDS > FreeSurfer setup...** provides a discovery check and an optional
+WSL distribution selector; see :doc:`freesurfer`.
+
 There are two different ways, application settings are stored in MNE-Nodes.
 It depends on whether the settings is device-specific or project-specific.
 For device-specific settings, such as the number of jobs or whether cuda is enabled, are stored either with *Settings* in a JSON file located in an OS-dependent directory.

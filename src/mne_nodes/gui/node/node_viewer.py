@@ -34,7 +34,7 @@ from qtpy.QtWidgets import (
 from mne_nodes import debug_mode
 from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.gui.node.function_node import FunctionNode
+from mne_nodes.gui.node.function_node import CommandNode, FunctionNode
 from mne_nodes.gui.node.input_node import InputNode
 from mne_nodes.gui.node.layout import LayoutEdge, LayoutNode, layered_layout
 from mne_nodes.gui.node.node_defaults import defaults
@@ -500,7 +500,12 @@ class NodeViewer(QGraphicsView):
                 logger.info(
                     f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
                 )
-            node = FunctionNode(self.ct, name=function_name, **kwargs or {})
+            node_class = (
+                CommandNode
+                if "command" in self.ct.get_function_meta(function_name)
+                else FunctionNode
+            )
+            node = node_class(self.ct, name=function_name, **kwargs or {})
         else:
             function_name = node.name
         if function_name is None:
@@ -633,7 +638,7 @@ class NodeViewer(QGraphicsView):
         for name, node in list(self.function_nodes.items()):
             base_name = name
             if base_name not in old_functions:
-                match = re.fullmatch(r"([\w\.]+)-\d+", name)
+                match = re.fullmatch(r"(.+)-\d+", name)
                 if match is None or match.group(1) not in old_functions:
                     continue
                 base_name = match.group(1)
@@ -643,7 +648,8 @@ class NodeViewer(QGraphicsView):
                 continue
             if _strip(new_meta) == _strip(old_functions[base_name]):
                 continue
-            new_node = FunctionNode(self.ct, name=name)
+            node_class = CommandNode if "command" in new_meta else FunctionNode
+            new_node = node_class(self.ct, name=name)
             connections = [
                 (port.port_type, port.name, connected_port)
                 for port in node.ports
@@ -743,7 +749,11 @@ class NodeViewer(QGraphicsView):
         self.clear()
         # Create nodes
         for node_info in viewer_dict["nodes"].values():
-            node_classes = {"InputNode": InputNode, "FunctionNode": FunctionNode}
+            node_classes = {
+                "InputNode": InputNode,
+                "FunctionNode": FunctionNode,
+                "CommandNode": CommandNode,
+            }
             node_class = node_classes.get(node_info["class"])
             if node_class is None:
                 logger.warning(
@@ -759,7 +769,7 @@ class NodeViewer(QGraphicsView):
                 continue
             if node_info["class"] == "InputNode":
                 self.add_input_node(node=node, pos=node.pos())
-            elif node_info["class"] == "FunctionNode":
+            elif node_info["class"] in ("FunctionNode", "CommandNode"):
                 self.add_function_node(node=node, pos=node.pos())
             else:
                 raise RuntimeError(f"Unknown node type '{node_class}'.")

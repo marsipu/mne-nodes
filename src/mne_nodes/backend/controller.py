@@ -9,7 +9,6 @@ import json
 import keyword
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Callable
 from copy import deepcopy
@@ -17,7 +16,7 @@ from functools import partial
 from importlib import import_module
 from importlib.util import module_from_spec, spec_from_file_location
 from inspect import getsource
-from os.path import isdir, isfile, join
+from os.path import isdir, isfile
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
@@ -33,15 +32,24 @@ from mne_bids import (
     read_raw_bids,
 )
 from mne_bids.config import ALLOWED_DATATYPE_EXTENSIONS
+from packaging.utils import canonicalize_name
 
-from mne_nodes import gui_mode, ismac, iswin
+from mne_nodes import gui_mode
 from mne_nodes.backend.code_generation import CodeGenerator
 from mne_nodes.backend.coregistration import find_trans
-from mne_nodes.backend.freesurfer import find_freesurfer_subjects
+from mne_nodes.backend.execution import build_command
+from mne_nodes.backend.freesurfer import (
+    discover_freesurfer,
+    find_freesurfer_subjects,
+    run_freesurfer_function,
+    run_freesurfer_subprocess,
+    stream_subprocess,
+)
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
     find_plugin_entry_point,
     get_name_from_github,
+    get_plugin_entry_points,
     import_distribution,
     install_github_package,
     install_pip_packages,
@@ -109,6 +117,7 @@ class Controller:
         self._local_set = False
         self.plugins = {}
         self.function_meta = {}
+        self.installed_plugins: dict[str, dict[str, Any]] = {}
         self.lock_timeout = 5  # seconds
         self.disk_interval = 10  # seconds
         # raw datatypes
@@ -768,76 +777,6 @@ class Controller:
         subjects_dir.mkdir(parents=True, exist_ok=True)
         return subjects_dir
 
-    def run_freesurfer_subprocess(self, command: list[str]) -> None:
-        """Run a FreeSurfer/MNE command using paths from controller settings."""
-        if len(command) == 0:
-            raise ValueError("Command must not be empty.")
-
-        fs_path_value = self.settings.get("fs_path", None)
-        if fs_path_value is None:
-            raise RuntimeError(
-                "Path to FREESURFER_HOME not set, can't run this function"
-            )
-        fs_path = str(fs_path_value)
-        subjects_dir = str(self.ensure_subjects_dir(interactive=False))
-        mne_path = self.settings.get("mne_path", None) or self.settings.get(
-            "wls_mne_path", None
-        )
-
-        environment = os.environ.copy()
-        environment["FREESURFER_HOME"] = fs_path
-        environment["SUBJECTS_DIR"] = subjects_dir
-
-        command_line = list(command)
-        if iswin:
-            command_line.insert(0, "wsl")
-            if mne_path is None:
-                raise RuntimeError(
-                    "Path to MNE environment in WSL not set, can't run this function"
-                )
-            environment["PATH"] = (
-                f"{fs_path}/bin:{mne_path}/bin:"
-                f"/usr/local/sbin:"
-                f"/usr/local/bin:"
-                f"/usr/sbin:"
-                f"/usr/bin:"
-                f"/sbin:"
-                f"/bin"
-            )
-            environment["WSLENV"] = "PATH/u:SUBJECTS_DIR/p:FREESURFER_HOME/u"
-        else:
-            environment["PATH"] = environment["PATH"] + f":{fs_path}/bin"
-
-        if ismac:
-            if isdir(join(fs_path, "lib/misc/lib")):
-                environment["PATH"] = environment["PATH"] + f":{fs_path}/lib/misc/bin"
-                environment["MISC_LIB"] = join(fs_path, "lib/misc/lib")
-                environment["LD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
-                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
-
-            if isdir(join(fs_path, "lib/gcc/lib")):
-                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/gcc/lib")
-
-        process = subprocess.Popen(
-            command_line,
-            env=environment,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            universal_newlines=True,
-        )
-
-        if process.stdout is not None:
-            for stdout_line in process.stdout:
-                if stdout_line:
-                    sys.stdout.write(stdout_line)
-
-        return_code = process.wait()
-        if return_code != 0:
-            raise RuntimeError(
-                f"FreeSurfer command failed with exit code {return_code}: {' '.join(command_line)}"
-            )
-
     def ensure_ready(
         self,
         *,
@@ -1454,6 +1393,19 @@ class Controller:
             return raw.info
         return _load(items)
 
+    def load_anat(self, items: BIDSPath | list[BIDSPath]) -> Path | list[Path]:
+        """Return selected BIDS anatomy image paths without loading image data."""
+
+        def _load(bp: BIDSPath) -> Path:
+            path = bp.copy().update(root=self.bids_root, datatype="anat").fpath
+            if not path.is_file():
+                raise FileNotFoundError(f"Anatomy image is missing: {path}.")
+            return path
+
+        if isinstance(items, list):
+            return [_load(bp) for bp in items]
+        return _load(items)
+
     def load_subject(self, subject):
         result = subject in self.get_datatype_items("subject")
         if not result:
@@ -1604,8 +1556,75 @@ class Controller:
         params = {
             pn: self.parameter(pn, function_name) for pn in func_meta["parameters"]
         }
-
         return params
+
+    def freesurfer_runtime(self):
+        """Discover the execution environment in the selected WSL distribution."""
+        return discover_freesurfer(distribution=self.settings.get("wsl_distribution"))
+
+    def execute_external(self, function_name: str, **kwargs: Any) -> Any:
+        """Execute a command node or FreeSurfer-dependent Python function."""
+        metadata = self.get_function_meta(function_name)
+        uses_freesurfer = metadata.get("uses_freesurfer", False)
+        if "command" in metadata:
+            subject_source = metadata.get("bids_subject_from")
+            if subject_source:
+                image = kwargs.get(subject_source)
+                if image is None:
+                    raise ValueError(f"{function_name} requires '{subject_source}'.")
+                if "subject" in kwargs:
+                    raise ValueError(
+                        f"{function_name} derives 'subject' from '{subject_source}'; "
+                        "do not supply it explicitly."
+                    )
+                subject = get_bids_path_from_fname(image).subject
+                if subject is None:
+                    raise ValueError(f"No BIDS subject found in {image}.")
+                kwargs["subject"] = f"sub-{subject}"
+            output_names = list(metadata.get("outputs", {}))
+            missing = [name for name in output_names if name not in kwargs]
+            if missing:
+                raise ValueError(
+                    f"Command outputs must name supplied arguments: {missing}."
+                )
+            argv = build_command(metadata, kwargs)
+            if uses_freesurfer:
+                run_freesurfer_subprocess(
+                    argv,
+                    self.ensure_subjects_dir(interactive=False),
+                    runtime=self.freesurfer_runtime(),
+                )
+            else:
+                stream_subprocess(argv)
+            outputs = tuple(kwargs[name] for name in output_names)
+            if len(outputs) == 1:
+                return outputs[0]
+            return outputs if outputs else None
+        if not uses_freesurfer:
+            raise ValueError(f"{function_name} is not an external-execution node.")
+        if metadata.get("class_name"):
+            raise ValueError("FreeSurfer subprocess calls cannot be instance methods.")
+        plugin = self.plugins[self.get_plugin_from_function(function_name)]
+        function = getattr(plugin, CodeGenerator.base_func_name(function_name))
+        subjects_dir = self.ensure_subjects_dir(interactive=False)
+        if "subjects_dir" in metadata.get("parameters", {}) or (
+            "subjects_dir" in metadata.get("inputs", {})
+        ):
+            kwargs["subjects_dir"] = subjects_dir
+        result = run_freesurfer_function(
+            function, kwargs, subjects_dir, runtime=self.freesurfer_runtime()
+        )
+        output_names = list(metadata.get("outputs", {}))
+        if result is not None or not output_names:
+            return result
+        # Functions like make_watershed_bem only modify files, so forward inputs.
+        missing = [name for name in output_names if name not in kwargs]
+        if missing:
+            raise ValueError(
+                f"{function_name} returned None and cannot provide outputs {missing}."
+            )
+        outputs = tuple(kwargs[name] for name in output_names)
+        return outputs[0] if len(outputs) == 1 else outputs
 
     def get_func_from_param(self, parameter_name: str) -> list:
         """Get the function name(s) associated with a specific parameter
@@ -1657,6 +1676,7 @@ class Controller:
             function_name
             for function_name in functions
             if not hasattr(plugin, function_name)
+            and "command" not in functions[function_name]
         ]
         script_module = None
         if missing_functions and script_path is not None:
@@ -1702,6 +1722,21 @@ class Controller:
                 raise TypeError(
                     f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
                 )
+            if not isinstance(func_meta.get("uses_freesurfer", False), bool):
+                raise TypeError(f"uses_freesurfer must be boolean for '{func}'.")
+            if "command" in func_meta:
+                build_command(func_meta, {})
+                if func_meta.get("class_name"):
+                    raise ValueError(f"Command '{func}' cannot have a class_name.")
+                missing_outputs = (
+                    func_meta.get("outputs", {}).keys()
+                    - func_meta.get("command_args", {}).keys()
+                )
+                if missing_outputs:
+                    raise ValueError(
+                        f"Command '{func}' outputs need command argument mappings: "
+                        f"{sorted(missing_outputs)}."
+                    )
             func_meta["plugin"] = plugin_name
         # Warn for collisions with other plugins, but let the newly loaded
         # plugin's functions win.
@@ -1943,10 +1978,6 @@ class Controller:
             }
         self.settings.set("plugin_config", plugin_config)
 
-    def load_plugin_code(self, code: str):
-        # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
-        pass
-
     def load_recent_plugins(self, plugin_name: str | None = None) -> None:
         """Load plugins registered in the project config.
 
@@ -2001,14 +2032,138 @@ class Controller:
                 case "module":
                     self.load_plugin_module_name(plugin_meta.get("module_name", pname))
                 case "entry_point":
-                    self.load_plugin_entry_point(
-                        plugin_meta["distribution_name"],
-                        plugin_meta["entry_point_name"],
-                    )
+                    try:
+                        self.load_plugin_entry_point(
+                            plugin_meta["distribution_name"],
+                            plugin_meta["entry_point_name"],
+                        )
+                    except Exception as error:
+                        if plugin_name is not None:
+                            raise
+                        distribution = plugin_meta["distribution_name"]
+                        entry_name = plugin_meta["entry_point_name"]
+                        identity = f"{canonicalize_name(distribution)}:{entry_name}"
+                        self.installed_plugins[identity] = {
+                            "distribution_name": distribution,
+                            "entry_point_name": entry_name,
+                            "version": "",
+                            "plugin_name": pname,
+                            "error": f"{type(error).__name__}: {error}",
+                        }
+                        logger.exception("Could not load installed plugin %s", pname)
                 case _:
                     logger.warning(
                         f"Unknown plugin type '{plugin_type}' for plugin '{pname}'. Skipping."
                     )
+        if plugin_name is None:
+            self.discover_installed_plugins()
+
+    def discover_installed_plugins(self) -> None:
+        """Enable new installed plugins without overriding saved registrations.
+
+        Run at startup and when refreshing the manager, including packages
+        installed externally since startup. Explicitly disabled plugins stay
+        disabled. Failed registrations remain visible in the manager with errors.
+        """
+        installed = {
+            identity: record
+            for identity, record in self.installed_plugins.items()
+            if "error" in record
+            and record.get("plugin_name") in self.get("plugin_meta", {})
+        }
+        changed = False
+        for entry in get_plugin_entry_points():
+            if entry.dist is None:
+                continue
+            distribution = entry.dist.name
+            identity = f"{canonicalize_name(distribution)}:{entry.name}"
+            record = {
+                "distribution_name": distribution,
+                "entry_point_name": entry.name,
+                "version": entry.dist.version,
+                "module_name": entry.module,
+            }
+            installed[identity] = record
+            try:
+                registered = self.get("plugin_meta", {})
+                name = next(
+                    (
+                        name
+                        for name, meta in registered.items()
+                        if (
+                            meta.get("entry_point_name") == entry.name
+                            and canonicalize_name(meta.get("distribution_name", ""))
+                            == canonicalize_name(distribution)
+                        )
+                        or (
+                            meta.get("plugin_type") in ("module", "github")
+                            and meta.get("module_name") == entry.module
+                            and entry.attr is None
+                        )
+                    ),
+                    None,
+                )
+                if name is None:
+                    plugin = entry.load()
+                    if not isinstance(plugin, ModuleType):
+                        raise TypeError("Plugin entry points must reference modules.")
+                    name = getattr(plugin, "PLUGIN_NAME", None) or plugin.__name__
+                    if name in registered:
+                        meta = registered[name]
+                        if meta.get("plugin_type") != "path":
+                            raise ValueError(
+                                f"Plugin name '{name}' is already registered from "
+                                "another source. Resolve the name conflict first."
+                            )
+                    else:
+                        source = {
+                            "plugin_type": "entry_point",
+                            "distribution_name": distribution,
+                            "entry_point_name": entry.name,
+                        }
+                        if name in self.settings.get("disabled_plugins", []):
+                            config = getattr(plugin, "CONFIG_PATH", None)
+                            if config is None:
+                                raise ValueError("Plugin must define CONFIG_PATH.")
+                            self.set_dict_value(
+                                "plugin_meta",
+                                name,
+                                {
+                                    **source,
+                                    "module_name": plugin.__name__,
+                                    "config_path": config,
+                                    "script_path": getattr(plugin, "SCRIPT_PATH", None),
+                                },
+                            )
+                        else:
+                            self.load_plugin_module(plugin, source=source)
+                            changed = True
+                record["plugin_name"] = name
+                if name not in self.plugins and name not in self.settings.get(
+                    "disabled_plugins", []
+                ):
+                    self.load_recent_plugins(name)
+                    changed = True
+            except Exception as error:  # noqa: BLE001
+                # The manager displays this error alongside the failed registration.
+                record["error"] = f"{type(error).__name__}: {error}"
+                logger.exception("Could not discover plugin %s", identity)
+        self.installed_plugins = installed
+        if changed and self.viewer is not None:
+            self.viewer.refresh_node_picker()
+
+    def plugin_node_count(self, plugin_name: str) -> int:
+        """Read a plugin's node count even while it is disabled."""
+        meta = self.get("plugin_meta")[plugin_name]
+        override = self.settings.get("plugin_config", {}).get(plugin_name, {})
+        config = override.get("config_path", meta["config_path"])
+        if isinstance(config, dict):
+            return len(config)
+        with Path(config).open(encoding="utf-8") as stream:
+            nodes = json.load(stream)
+        if not isinstance(nodes, dict):
+            raise TypeError("Plugin configuration must map node names to objects.")
+        return len(nodes)
 
     def get_plugin_from_function(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""
@@ -2099,7 +2254,12 @@ class Controller:
         disabled.discard(plugin_name)
         self.settings.set("disabled_plugins", list(disabled))
         # Reload the plugin immediately in the current session
-        self.load_recent_plugins(plugin_name)
+        try:
+            self.load_recent_plugins(plugin_name)
+        except BaseException:
+            disabled.add(plugin_name)
+            self.settings.set("disabled_plugins", list(disabled))
+            raise
         # Refresh the node picker in the viewer if available
         if self.viewer is not None:
             self.viewer.refresh_node_picker()
@@ -2179,7 +2339,7 @@ class Controller:
         """Get the metadata for a specific function."""
         function_meta = self.function_meta.get(function_name, None)
         if function_meta is None:
-            match = re.match(r"([\w\.]+)-\d+", function_name)
+            match = re.fullmatch(r"(.+)-\d+", function_name)
             if match:
                 function_meta = self.function_meta[match.group(1)]
             else:

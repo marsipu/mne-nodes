@@ -101,6 +101,7 @@ def isolated_settings(tmp_path, monkeypatch):
     from mne_nodes.backend.settings import Settings
 
     monkeypatch.setenv("MNENODES_SETTINGS_DIR", str(tmp_path))
+    monkeypatch.setattr("mne_nodes.backend.controller.get_plugin_entry_points", list)
     settings = Settings()
     settings.set("log_file_path", tmp_path / "mne_nodes.log")
     return settings

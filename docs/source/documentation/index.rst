@@ -6,4 +6,5 @@ Documentation
 
    datasets
    coregistration
+   freesurfer
    settings

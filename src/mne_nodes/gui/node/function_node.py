@@ -100,3 +100,17 @@ class FunctionNode(BaseNode):
                 message_type="info",
                 parent=self,
             )
+
+
+class CommandNode(FunctionNode):
+    """Node whose configured parameters form an executable argument vector."""
+
+    def mouseDoubleClickEvent(self, event):
+        metadata = self.ct.get_function_meta(self.name)
+        raise_user_attention(
+            "This node runs a command, not a Python function:\n"
+            + " ".join(metadata["command"])
+            + "\nEdit command/command_args in the plugin JSON configuration.",
+            message_type="info",
+            parent=self,
+        )

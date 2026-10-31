@@ -15,9 +15,10 @@ MNE-Python.
 - The full test suite can download large MNE datasets; allow it to finish.
 - Pre-commit handles formatting and linting. Do not run Ruff separately unless
   the task specifically requires it.
-- If possible, use computer-use to check on a running mne-nodes application
+- Only if necessary (e.g. for significant GUI changes), use computer-use to check on a running mne-nodes application
   instance that changes have the desired effect and do not break existing
   functionality. Keep in mind that dialogs may open from the mne-nodes window.
+- While this app is still in alpha, don't worry about backwards compatibility. As soon as it reaches a more stable state, consider addressing compatibility issues.
 
 ## Safety
 

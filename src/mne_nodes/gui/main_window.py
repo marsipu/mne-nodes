@@ -22,12 +22,15 @@ from mne_nodes.gui.console import ConsoleDock
 from mne_nodes.gui.coreg_widgets import CoregDialog
 from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
-from mne_nodes.gui.freesurfer_widgets import FreeSurferImportDialog
+from mne_nodes.gui.freesurfer_widgets import (
+    FreeSurferImportDialog,
+    FreeSurferSetupDialog,
+)
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
-from mne_nodes.gui.plugin_package import InstalledPluginDialog, LocalPluginInstallDialog
+from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
 from mne_nodes.gui.user_interaction import (
     ask_user,
@@ -135,6 +138,9 @@ class MainWindow(QMainWindow):
         import_subjects_action = QAction("&Import FreeSurfer subjects...", parent=self)
         import_subjects_action.triggered.connect(self.import_freesurfer_subjects)
         bids_menu.addAction(import_subjects_action)
+        setup_action = QAction("FreeSurfer &setup...", parent=self)
+        setup_action.triggered.connect(self.show_freesurfer_setup)
+        bids_menu.addAction(setup_action)
         coreg_action = QAction(
             "&Coregistration...",
             parent=self,
@@ -189,8 +195,6 @@ class MainWindow(QMainWindow):
         plugin_menu.addSeparator()
         plugin_menu.addAction(load_plugin_path_action)
         plugin_menu.addAction(load_plugin_module_action)
-        installed_plugin_action = plugin_menu.addAction("Load Installed Plugin...")
-        installed_plugin_action.triggered.connect(self.load_installed_plugin)
         plugin_menu.addAction(load_plugin_github_action)
         plugin_menu.addSeparator()
         plugin_menu.addAction(manage_plugins_action)
@@ -251,6 +255,10 @@ class MainWindow(QMainWindow):
         dialog = FreeSurferImportDialog(self.controller, self)
         dialog.subjects_imported.connect(self._refresh_dataset_inputs)
         dialog.open()
+
+    def show_freesurfer_setup(self) -> None:
+        """Open read-only installation discovery and optional node registration."""
+        FreeSurferSetupDialog(self.controller, self).open()
 
     def _refresh_dataset_inputs(self):
         if self.viewer.input_node is not None:
@@ -456,24 +464,6 @@ class MainWindow(QMainWindow):
             return
         self.controller.load_plugin_module_name(plugin_name, ask_before_install=False)
         self.statusBar().showMessage(f"Plugin loaded from module '{plugin_name}'.")
-
-    def load_installed_plugin(self) -> None:
-        """Activate a selected entry point, reporting discovery or import errors."""
-        try:
-            dialog = InstalledPluginDialog(self)
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
-            distribution_name, entry_point_name = dialog.selected_registration()
-            self.controller.load_plugin_entry_point(distribution_name, entry_point_name)
-        except Exception:  # noqa: BLE001
-            ErrorDialog(
-                get_exception_tuple(), self, "Could not load the installed plugin."
-            ).open()
-            return
-        self.viewer.refresh_node_picker()
-        self.statusBar().showMessage(
-            f"Plugin '{entry_point_name}' loaded from '{distribution_name}'."
-        )
 
     def load_plugin_github(self):
         plugin_url = get_user_input(
