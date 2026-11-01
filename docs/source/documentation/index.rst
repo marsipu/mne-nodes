@@ -11,8 +11,8 @@ not collected. System-information collection does not check for updates.
 
 Reports redact local usernames, hostnames, filesystem paths, email addresses,
 IPv4 addresses and URLs. Automatic redaction cannot recognize every private
-detail in exception messages or source code: review and edit the preview before
-sharing it.
+detail in exception messages or source code; relative filenames and other
+identifiers may remain. Review and edit the preview before sharing it.
 
 Confirming the preview opens a draft in the mne-nodes GitHub repository and
 copies the reviewed report to the clipboard. Nothing is submitted automatically.

@@ -174,6 +174,27 @@ def test_report_redacts_local_identity(monkeypatch):
     assert "example.org" not in report
 
 
+def test_redaction_failure_omits_private_text(qtbot, monkeypatch):
+    def fail():
+        raise OSError("Private identity lookup failure")
+
+    monkeypatch.setattr(issue_reporting.socket, "gethostname", fail)
+    report = issue_reporting.anonymize_report("Private original error")
+    assert "Report redaction failed (OSError)" in report
+    assert "Private" not in report
+    reports = []
+    monkeypatch.setattr(
+        error_dialog.IssueReportDialog,
+        "exec",
+        lambda self: reports.append(self.report_edit.toPlainText()),
+    )
+    dialog = ErrorDialog(("ValueError", "Private message", "Private traceback"))
+    qtbot.addWidget(dialog)
+    dialog.open_issue()
+    assert "Private" not in reports[0]
+    assert "Private traceback" in dialog.display.toPlainText()
+
+
 def test_diagnostics_are_minimal_and_do_not_reload(monkeypatch):
     def sys_info(*, fid, check_version):
         assert check_version is False

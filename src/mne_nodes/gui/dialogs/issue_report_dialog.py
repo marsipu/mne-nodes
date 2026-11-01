@@ -28,7 +28,8 @@ class IssueReportDialog(QDialog):
         layout = QVBoxLayout(self)
         warning = QLabel(
             "Review and remove any private information before sharing. "
-            "Automatic redaction cannot identify everything in error messages. "
+            "Automatic redaction cannot identify everything in error messages; "
+            "relative filenames and other identifiers may remain. "
             "Opening GitHub creates a draft, not a submitted issue. "
             "The reviewed report is also copied to the clipboard; paste it into "
             "the issue if the report is too long to prefill."

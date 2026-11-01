@@ -20,6 +20,16 @@ def anonymize_report(text: str) -> str:
     Free-form exception messages can still contain private information and must
     be reviewed by the user before sharing.
     """
+    try:
+        return _anonymize_report(text)
+    except Exception as error:  # noqa: BLE001
+        return (
+            f"Report redaction failed ({type(error).__name__}). "
+            "Original text omitted to protect private information."
+        )
+
+
+def _anonymize_report(text: str) -> str:
     text = re.sub(r"https?://[^\s\"'<>]+", "[url]", text)
     text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "[email]", text)
     text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[address]", text)
