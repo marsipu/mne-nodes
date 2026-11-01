@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import ast
 import json
 import os
 import subprocess
@@ -91,6 +92,14 @@ def test_export_project_bundles_path_plugins(
         assert "mne-nodes" in requirements
         assert "git+https://github.com/example/github-plugin.git" in requirements
         assert "module-plugin" in requirements
+        script = archive.read("pipeline.py").decode()
+        ast.parse(script)
+        assert "MNENODES_SETTINGS_DIR" in script
+        assert "MNENODES_BIDS_ROOT" in script
+        assert script.index("ct = Controller") < script.index(
+            "settings.set('deriv_root'"
+        )
+        assert "settings.set('plot_root_is_config_specific', True)" in script
         config = json.loads(archive.read("pipeline.json"))
         plugin = config["plugin_meta"]["test_module"]
         assert plugin["config_path"] == "plugins/test_module/test_module_config.json"
