@@ -430,12 +430,12 @@ def export_project(controller, node_sequence, archive_path, node_config):
                 ):
                     archive_name = Path("plugins", plugin_name, relative_path)
                     plugin_files.append((plugin_file, archive_name))
-            metadata["config_path"] = str(
-                Path("plugins", plugin_name, config_path.relative_to(plugin_root))
-            )
-            metadata["script_path"] = str(
-                Path("plugins", plugin_name, script_path.relative_to(plugin_root))
-            )
+            metadata["config_path"] = Path(
+                "plugins", plugin_name, config_path.relative_to(plugin_root)
+            ).as_posix()
+            metadata["script_path"] = Path(
+                "plugins", plugin_name, script_path.relative_to(plugin_root)
+            ).as_posix()
         elif plugin_type == "github":
             repository = metadata.get("plugin_github")
             if repository:
