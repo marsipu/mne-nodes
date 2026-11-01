@@ -57,8 +57,12 @@ jobs:
 
           wheels = list(Path("dist").glob("*.whl"))
           sdists = list(Path("dist").glob("*.tar.gz"))
-          if len(wheels) != 1 or len(sdists) != 1:
-              raise SystemExit("Expected exactly one wheel and one source distribution.")
+          if (
+              len(wheels) != 1
+              or len(sdists) != 1
+              or set(Path("dist").iterdir()) != set(wheels + sdists)
+          ):
+              raise SystemExit("Expected only one wheel and one source distribution.")
 
           with zipfile.ZipFile(wheels[0]) as archive:
               metadata_files = [
