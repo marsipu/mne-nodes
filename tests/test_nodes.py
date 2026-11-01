@@ -34,6 +34,41 @@ def test_input_metadata_outputs_are_not_selectable(nodeviewer):
     assert "Groups" in tabs
 
 
+def test_same_root_refresh_preserves_selections_connections_and_output_settings(
+    nodeviewer, monkeypatch
+):
+    """Rescanning the active dataset must not behave like switching datasets."""
+    from mne_bids import get_bids_path_from_fname
+
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    recording = get_bids_path_from_fname(next(ct.bids_root.rglob("*_eeg.vhdr")))
+    ct.input_selection_changed([recording.basename], "eeg")
+    ct.set("custom_groups", {"existing": [recording.basename]})
+    derivative = ct.ensure_deriv_root()
+    port = node.output(port_name="eeg")
+    connections = list(port.connected_ports)
+    assert connections
+    anatomy = recording.copy().update(
+        datatype="anat", task=None, suffix="T1w", extension=".nii.gz"
+    )
+    anatomy.directory.mkdir(parents=True, exist_ok=True)
+    anatomy.fpath.touch()
+
+    def unexpected_prompt(*args, **kwargs):
+        pytest.fail("Reselecting the active root must not request a state reset.")
+
+    monkeypatch.setattr("mne_nodes.backend.controller.ask_user", unexpected_prompt)
+    ct.bids_root = ct.bids_root
+    assert ct.get("selected_inputs")["eeg"] == [recording.basename]
+    assert ct.get("custom_groups") == {"existing": [recording.basename]}
+    assert ct.deriv_root == derivative
+    assert node.output(port_name="eeg") is port
+    assert port.connected_ports == connections
+    assert port.isEnabled()
+    assert node.output(port_name="anat") is not None
+
+
 def test_recording_and_anatomy_outputs_require_selection(nodeviewer):
     """A datatype being present in the dataset does not enable its output."""
     from mne_bids import get_bids_path_from_fname

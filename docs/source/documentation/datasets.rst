@@ -24,6 +24,29 @@ Raw data and metadata
   to be writable for dataset-local derivatives and FreeSurfer imports.
   The import and coregistration workflows do not modify raw recordings.
 
+Sample dataset import
+~~~~~~~~~~~~~~~~~~~~~
+
+**BIDS > Add Sample BIDS** and the welcome tour include the sample dataset's
+anatomy as well as its MEG recordings:
+
+* The T1 image is converted to
+  ``sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz``, with anatomical landmarks
+  in its JSON sidecar.
+* The complete sample FreeSurfer reconstruction, including segmentations,
+  surfaces and BEM files, is copied to ``derivatives/freesurfer/sub-01``.
+  An existing nested ``derivatives/freesurfer/subjects`` layout is respected.
+  Subject-prefixed BEM filenames are renamed to match ``sub-01``.
+* The recording's head-to-MRI transformation is copied to
+  ``derivatives/mne-nodes/sub-01/ses-01/meg/``, as
+  ``sub-01_ses-01_task-audiovisual_run-1_trans.fif``.
+
+Selecting the sample MEG recording therefore makes its ``subject`` and ``trans``
+outputs available. Select the T1 image separately to enable ``anat``.
+Re-importing preserves existing anatomy, reconstructions and transformations.
+The welcome tour detects older raw-only conversions and imports the missing
+auxiliary data.
+
 The input node exposes ``info`` (measurement metadata), ``event_id`` (the
 event-name-to-code mapping from the BIDS recording), and ``trans`` (a saved
 head-to-MRI transformation) as connectable outputs.
@@ -46,6 +69,10 @@ Associated auxiliary data and overview
 Use **BIDS > Set BIDS root...** or **Set BIDS Root** on the input node to select
 the dataset. Both entry points use the same folder chooser; canceling leaves
 the current dataset unchanged.
+Reselecting the active root or re-importing sample data refreshes both the
+input checklists and output ports, including newly added anatomical data.
+Valid selections and existing ports and connections are retained when refreshing
+the same dataset.
 
 Use **BIDS > Data overview...** or **Data overview** on the input node to inspect
 the dataset. The read-only, refreshable table has one row per participant

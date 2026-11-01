@@ -543,6 +543,9 @@ class Controller:
             self._bids_root_confirmation_pending = False
             dataset_name = self._read_bids_dataset_name(new_root)
             self.set("bids_dataset_name", dataset_name)
+            viewer = self.viewer
+            if viewer is not None and viewer.input_node is not None:
+                viewer.input_node.update_widgets()
             return
         if previous_root != new_root:
             ans = ask_user(

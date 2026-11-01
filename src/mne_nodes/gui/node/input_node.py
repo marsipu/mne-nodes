@@ -165,8 +165,6 @@ class InputWidget(QWidget):
         )
         if new_root is not None:
             self.ct.bids_root = new_root
-        # Update widgets
-        self.update_widgets()
 
     def cmbx_changed(self, group_by):
         # Remove old widget

@@ -370,6 +370,7 @@ def test_welcome_tour_initializes_demo_and_tracks_input_node(
                 json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
             )
             (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+            _write_sample_anatomy(bids_root)
 
         cached_root = tmp_path / "cached-sample"
         write_sample(cached_root)
@@ -492,6 +493,7 @@ def test_bids_root_switch_replaces_input_dataset_information(
         json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
     )
     if tour:
+        _write_sample_anatomy(root)
         ct.settings.set("sample_bids_root", root)
         welcome_sample_loader(ct, main_window)
     else:
@@ -506,7 +508,7 @@ def test_bids_root_switch_replaces_input_dataset_information(
     assert ct.get("bids_dataset_name") == "sample-dataset"
     assert [
         widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())
-    ] == ["meg", "Groups"]
+    ] == (["meg", "anat", "Groups"] if tour else ["meg", "Groups"])
     model = widget.tab_widget.widget(0).model
     assert model.rowCount() == 1
     assert model.index(0, 0).data() == filename
@@ -929,7 +931,22 @@ def test_welcome_tour_decline_does_not_load_example_plugin(
     assert "example_filter" not in ct.function_meta
 
 
-@pytest.mark.parametrize("available", ["current", "cached", "missing", "incomplete"])
+def _write_sample_anatomy(root):
+    """Add the auxiliary layout expected in a complete converted sample."""
+    subject = root / "derivatives" / "freesurfer" / "sub-01"
+    for name in ("mri", "surf", "label"):
+        (subject / name).mkdir(parents=True, exist_ok=True)
+    anatomy = root / "sub-01" / "ses-01" / "anat"
+    anatomy.mkdir(parents=True, exist_ok=True)
+    (anatomy / "sub-01_ses-01_T1w.nii.gz").touch()
+    transform = root / "derivatives" / "mne-nodes" / "sub-01" / "ses-01" / "meg"
+    transform.mkdir(parents=True, exist_ok=True)
+    (transform / "sub-01_ses-01_task-audiovisual_run-1_trans.fif").touch()
+
+
+@pytest.mark.parametrize(
+    "available", ["current", "cached", "missing", "incomplete", "raw-only"]
+)
 def test_welcome_sample_reuses_or_loads_data(
     ct, monkeypatch, tmp_path, welcome_sample_loader, available
 ):
@@ -953,9 +970,14 @@ def test_welcome_sample_reuses_or_loads_data(
             json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
         )
         (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+        _write_sample_anatomy(bids_root)
 
-    if available in ("current", "cached"):
+    if available in ("current", "cached", "raw-only"):
         write_sample(sample_root)
+        if available == "raw-only":
+            (
+                sample_root / "sub-01" / "ses-01" / "anat" / "sub-01_ses-01_T1w.nii.gz"
+            ).unlink()
     elif available == "incomplete":
         sample_root.mkdir()
         (sample_root / "dataset_description.json").write_text(
@@ -980,7 +1002,9 @@ def test_welcome_sample_reuses_or_loads_data(
         assert ct.settings.get("deriv_root") is None
         assert ct.settings.get("plot_root") is None
         assert ct.get("bids_dataset_name") == "sample-dataset"
-    assert len(calls) == (1 if available in ("missing", "incomplete") else 0)
+    assert len(calls) == (
+        1 if available in ("missing", "incomplete", "raw-only") else 0
+    )
     if calls:
         assert calls[0][0] is parent
         assert calls[0][2]["blocking"] is True

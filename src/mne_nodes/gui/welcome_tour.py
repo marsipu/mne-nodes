@@ -43,7 +43,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from mne_nodes.backend.data_import import load_sample_bids
+from mne_nodes.backend.data_import import load_sample_bids, sample_bids_has_anatomy
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.plugin_package import PluginPackageMetadata, plugin_module_name
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
@@ -1282,7 +1282,7 @@ def _ensure_welcome_sample(
                 "sample_bids_root", Path.home() / "mne_data" / "mne-nodes-sample-bids"
             )
         )
-    if not is_sample(root):
+    if not is_sample(root) or not sample_bids_has_anatomy(root):
         dialog = WorkerDialog(
             main_window,
             function=load_sample_bids,
@@ -1294,13 +1294,13 @@ def _ensure_welcome_sample(
         )
         if isinstance(dialog.return_value, ExceptionTuple):
             raise dialog.return_value[1]
-        if not is_sample(root):
+        if not is_sample(root) or not sample_bids_has_anatomy(root):
             raise RuntimeError("Sample BIDS data was not successfully written.")
     ct.settings.set("sample_bids_root", root)
     if ct.bids_root != root:
         ct._activate_bids_root(root)
     else:
-        ct.set("bids_dataset_name", ct._read_bids_dataset_name(root))
+        ct.bids_root = root
 
 
 def start_welcome_tour(
