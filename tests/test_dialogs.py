@@ -1,11 +1,13 @@
 """Test error reporting without contacting GitHub or sharing private data."""
 
+from threading import Event, get_ident
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from qtpy.QtCore import QObject, Qt, Signal
-from qtpy.QtWidgets import QApplication, QWidget
+from qtpy.QtCore import QObject, Qt, QTimer, Signal
+from qtpy.QtGui import QFontDatabase
+from qtpy.QtWidgets import QApplication, QTextEdit, QWidget
 
 from mne_nodes.backend import issue_reporting
 from mne_nodes.gui import dialogs
@@ -75,6 +77,7 @@ def test_issue_diagnostics_are_opt_in(qtbot, monkeypatch):
     )
     dialog.include_diagnostics.setChecked(True)
     qtbot.mouseClick(dialog.issue_bt, Qt.LeftButton)
+    qtbot.waitUntil(lambda: len(reports) == 2)
     assert "### Diagnostics\n\nopt-in summary" in reports[1]
 
 
@@ -95,6 +98,114 @@ def test_report_preview_and_browser(qtbot, monkeypatch):
     assert parsed.path == "/marsipu/mne-nodes/issues/new"
     assert parse_qs(parsed.query)["body"] == [QApplication.clipboard().text()]
     assert QApplication.clipboard().text() == dialog.report_edit.toPlainText()
+
+
+def test_error_dialog_layout(qtbot):
+    dialog = ErrorDialog((ValueError, "<literal error>", "Traceback"))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert dialog.error_summary.text() == "<literal error>"
+    assert dialog.error_summary.textFormat() == Qt.TextFormat.PlainText
+    assert dialog.display.isReadOnly()
+    assert dialog.display.lineWrapMode() == QTextEdit.LineWrapMode.NoWrap
+    fixed_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    assert dialog.display.font().family() == fixed_font.family()
+    assert dialog.close_bt.isDefault()
+    assert dialog.copy_bt.y() == dialog.issue_bt.y() == dialog.close_bt.y()
+    assert dialog.copy_bt.width() < dialog.width() / 2
+
+
+@pytest.mark.parametrize("dismiss_worker", [False, True])
+def test_diagnostics_worker_keeps_ui_responsive(qtbot, monkeypatch, dismiss_worker):
+    from mne_nodes.gui import run_widgets
+    from mne_nodes.gui.run_widgets import WorkerDialog
+
+    started = Event()
+    release = Event()
+    threads = []
+    reports = []
+    worker_titles = []
+    warnings = []
+    main_thread = get_ident()
+
+    def collect(controller):
+        threads.append(get_ident())
+        started.set()
+        if not release.wait(timeout=5):
+            raise TimeoutError("GUI did not respond during diagnostics collection")
+        return "Worker diagnostics"
+
+    dialog = ErrorDialog((ValueError, "Demo error", "Traceback"))
+    qtbot.addWidget(dialog)
+    dialog.include_diagnostics.setChecked(True)
+    monkeypatch.setattr(error_dialog, "collect_diagnostics", collect)
+    monkeypatch.setattr(
+        run_widgets, "warning_message", lambda *args, **kwargs: warnings.append(args)
+    )
+    monkeypatch.setattr(
+        IssueReportDialog,
+        "exec",
+        lambda self: reports.append(self.report_edit.toPlainText()),
+    )
+
+    def check_progress():
+        if not started.is_set():
+            return
+        workers = dialog.findChildren(WorkerDialog)
+        if not workers:
+            return
+        worker = workers[0]
+        worker_titles.append(worker.windowTitle())
+        assert worker.isVisible()
+        assert worker.progress_bar.isVisible()
+        assert worker.progress_bar.maximum() == 0
+        assert get_ident() == main_thread
+        if dismiss_worker:
+            worker.reject()
+            assert worker.isVisible()
+            assert warnings
+            assert not reports
+            assert not dialog.issue_bt.isEnabled()
+        release.set()
+        timer.stop()
+
+    timer = QTimer(dialog)
+    timer.setInterval(10)
+    timer.timeout.connect(check_progress)
+    timer.start()
+    dialog.open_issue()
+    assert not dialog.issue_bt.isEnabled()
+    qtbot.waitUntil(lambda: len(reports) == 1, timeout=6000)
+    timer.stop()
+    assert threads and threads[0] != main_thread
+    assert worker_titles == ["Collecting diagnostics"]
+    assert len(reports) == 1
+    assert reports[0].endswith("### Diagnostics\n\nWorker diagnostics")
+    assert dialog.issue_bt.isEnabled()
+
+
+def test_diagnostics_worker_failure_is_shown(qtbot, monkeypatch):
+    def fail(controller):
+        raise RuntimeError("Demo collection failure")
+
+    warnings = []
+    dialog = ErrorDialog((ValueError, "Original error", "Traceback"))
+    qtbot.addWidget(dialog)
+    dialog.include_diagnostics.setChecked(True)
+    monkeypatch.setattr(error_dialog, "collect_diagnostics", fail)
+    monkeypatch.setattr(
+        error_dialog.QMessageBox, "warning", lambda *args: warnings.append(args)
+    )
+    monkeypatch.setattr(
+        IssueReportDialog, "exec", lambda self: pytest.fail("No incomplete report")
+    )
+    dialog.open_issue()
+    qtbot.waitUntil(lambda: len(warnings) == 1)
+    assert len(warnings) == 1
+    assert warnings[0][1] == "Could not collect diagnostics"
+    assert "Demo collection failure" in warnings[0][2]
+    assert "Original error" in dialog.display.toPlainText()
+    assert dialog.issue_bt.isEnabled()
 
 
 def test_long_report_clipboard_fallback(qtbot, monkeypatch):

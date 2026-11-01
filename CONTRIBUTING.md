@@ -34,6 +34,18 @@ repository root. Pytest discovers only `tests/` and uses importlib import mode;
 it does not add `src/` to the import path. Configuration lives in `pyproject.toml`.
 CI tests a non-editable installation to catch missing modules and resources.
 
+To try the error dialog and its reporting flow, run
+`conda run -n mnedev python -m development.error_dialog_tester` (or
+`python -m development.error_dialog_tester` in your development environment).
+The helper raises an intentional error without reading any data. Try copying
+the traceback, optionally including real system diagnostics, and opening the
+editable, redacted report preview with **Open GitHub issue…**. No pipeline is
+loaded, so plugin and dataset summaries are unavailable. Diagnostics are collected
+in a worker dialog so the interface stays responsive while system info is gathered.
+**Copy report and open GitHub** opens a real issue draft in your browser; it does
+not submit an issue.
+Cancel the preview to avoid opening the browser, and do not submit demo reports.
+
 The module path has changed from `mne_nodes.pipeline` to `mne_nodes.backend`.
 Update external plugins and scripts that import this module. The
 `mne_nodes.gui` module path, package name and `mne_nodes` launch command

@@ -1,10 +1,19 @@
 """Error display, traceback copying and opt-in issue reporting."""
 
+from functools import partial
+
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QFontDatabase
 from qtpy.QtWidgets import (
     QApplication,
     QCheckBox,
     QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
     QPushButton,
+    QStyle,
     QTextEdit,
     QVBoxLayout,
 )
@@ -32,34 +41,80 @@ class ErrorDialog(QDialog):
         if not self.traceback_text.rstrip().endswith(error_line):
             self.traceback_text = f"{self.traceback_text.rstrip()}\n{error_line}\n"
 
-        set_ratio_geometry(0.6, self)
+        self.error_name = error_name
+        set_ratio_geometry((0.55, 0.6), self)
         self.init_ui()
 
     def init_ui(self) -> None:
         """Create the error display and reporting controls."""
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        icon = QLabel()
+        error_icon = self.style().standardIcon(
+            QStyle.StandardPixmap.SP_MessageBoxCritical
+        )
+        icon.setPixmap(error_icon.pixmap(32, 32))
+        header.addWidget(icon, alignment=Qt.AlignmentFlag.AlignTop)
+        summary = QVBoxLayout()
+        heading = QLabel(self.error_name)
+        heading.setTextFormat(Qt.TextFormat.PlainText)
+        font = heading.font()
+        font.setPointSize(font.pointSize() + 3)
+        font.setBold(True)
+        heading.setFont(font)
+        summary.addWidget(heading)
+        self.error_summary = QLabel(str(self.err[1]))
+        self.error_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.error_summary.setWordWrap(True)
+        self.error_summary.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        summary.addWidget(self.error_summary)
+        header.addLayout(summary, stretch=1)
+        layout.addLayout(header)
+
+        layout.addWidget(QLabel("Traceback"))
         self.display = QTextEdit()
-        self.display.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.display.setAccessibleName("Error traceback")
+        self.display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.display.setFont(
+            QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        )
         self.display.setReadOnly(True)
         self.display.setPlainText(self.traceback_text)
-        layout.addWidget(self.display)
+        layout.addWidget(self.display, stretch=1)
 
-        self.copy_bt = QPushButton("Copy traceback")
-        self.copy_bt.clicked.connect(self.copy_traceback)
-        layout.addWidget(self.copy_bt)
-
+        report_group = QGroupBox("Report this error")
+        report_layout = QVBoxLayout(report_group)
+        report_help = QLabel(
+            "Review and edit a redacted report before opening a GitHub issue draft. "
+            "Nothing is submitted automatically."
+        )
+        report_help.setWordWrap(True)
+        report_layout.addWidget(report_help)
         self.include_diagnostics = QCheckBox(
             "Include anonymized system info, loaded plugins and dataset summary"
         )
-        layout.addWidget(self.include_diagnostics)
+        report_layout.addWidget(self.include_diagnostics)
+        layout.addWidget(report_group)
+
+        actions = QHBoxLayout()
+        self.copy_bt = QPushButton("Copy traceback")
+        self.copy_bt.clicked.connect(self.copy_traceback)
+        actions.addWidget(self.copy_bt)
+        actions.addStretch()
         self.issue_bt = QPushButton("Open GitHub issue…")
         self.issue_bt.clicked.connect(self.open_issue)
-        layout.addWidget(self.issue_bt)
-
+        actions.addWidget(self.issue_bt)
         self.close_bt = QPushButton("Close")
         self.close_bt.clicked.connect(self.close)
-        layout.addWidget(self.close_bt)
-        self.setLayout(layout)
+        self.close_bt.setDefault(True)
+        actions.addWidget(self.close_bt)
+        layout.addLayout(actions)
 
     def copy_traceback(self) -> None:
         """Copy the original plain-text traceback, without redaction."""
@@ -72,10 +127,40 @@ class ErrorDialog(QDialog):
             text = f"{self.title}\n\n{text}"
         report = "### Error\n\n" + anonymize_report(text)
         if self.include_diagnostics.isChecked():
+            # Execution imports the error dialogs, so defer this import.
+            from mne_nodes.gui.run_widgets import WorkerDialog
+
             main_window = get_widget("main_window")
             controller = getattr(main_window, "controller", None)
-            report += "\n\n### Diagnostics\n\n" + collect_diagnostics(controller)
+            self.issue_bt.setEnabled(False)
+            worker = WorkerDialog(
+                self,
+                partial(collect_diagnostics, controller),
+                return_exception=True,
+                title="Collecting diagnostics…",
+            )
+            worker.setWindowTitle("Collecting diagnostics")
+            worker.progress_bar.setRange(0, 0)
+            worker.progress_bar.show()
+            worker.thread_finished.connect(partial(self._diagnostics_collected, report))
+            return
         IssueReportDialog(report, self).exec()
+
+    def _diagnostics_collected(self, report: str, diagnostics: object) -> None:
+        from mne_nodes.backend.exception_handling import ExceptionTuple
+
+        self.issue_bt.setEnabled(True)
+        if isinstance(diagnostics, ExceptionTuple):
+            QMessageBox.warning(
+                self,
+                "Could not collect diagnostics",
+                f"{diagnostics[0].__name__}: {diagnostics[1]}\n\n"
+                "Try again or uncheck diagnostics to report the original error.",
+            )
+            return
+        if not isinstance(diagnostics, str):
+            raise TypeError("Diagnostics collection must return report text.")
+        IssueReportDialog(report + "\n\n### Diagnostics\n\n" + diagnostics, self).exec()
 
 
 def show_error_dialog(exc_str):

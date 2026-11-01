@@ -207,6 +207,10 @@ class WorkerDialog(_RunDialog):
     def cancel(self):
         self.worker.cancel()
 
+    def reject(self):
+        """Apply the same running-worker close guard to Escape."""
+        self.close()
+
     def on_closed(self):
         self.thread_finished.emit(self.return_value)
         self.deleteLater()
