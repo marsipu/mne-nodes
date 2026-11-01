@@ -213,9 +213,16 @@ def wait_for_plots(poll_interval: int = 200) -> None:
         Interval in milliseconds to check for remaining open windows.
     """
     plt = sys.modules.get("matplotlib.pyplot")
-    if plt is not None and plt.get_fignums():
-        # Matplotlib figures of non-Qt GUI backends need their own event loop.
-        if plt.get_backend().lower().startswith(("gtk", "macosx", "tk", "wx")):
+    non_qt_matplotlib = (
+        plt is not None
+        and plt.get_fignums()
+        and plt.get_backend().lower().startswith(("gtk", "macosx", "tk", "wx"))
+    )
+    windows = open_plot_windows()
+    if non_qt_matplotlib:
+        if windows:
+            plt.show(block=False)
+        else:
             print("Waiting for Matplotlib figures to be closed...", flush=True)
             plt.show(block=True)
     windows = open_plot_windows()
@@ -227,10 +234,24 @@ def wait_for_plots(poll_interval: int = 200) -> None:
     loop = QEventLoop()
     timer = QTimer()
     timer.setInterval(poll_interval)
-    timer.timeout.connect(lambda: None if open_plot_windows() else loop.quit())
+    timer.timeout.connect(
+        lambda: None
+        if open_plot_windows() or (non_qt_matplotlib and plt.get_fignums())
+        else loop.quit()
+    )
     timer.start()
+    matplotlib_timer = None
+    if non_qt_matplotlib:
+        matplotlib_timer = QTimer()
+        matplotlib_timer.setInterval(10)
+        matplotlib_timer.timeout.connect(
+            lambda: plt.pause(0.001) if plt.get_fignums() else None
+        )
+        matplotlib_timer.start()
     loop.exec()
     timer.stop()
+    if matplotlib_timer is not None:
+        matplotlib_timer.stop()
     print("All plot windows closed.", flush=True)
 
 

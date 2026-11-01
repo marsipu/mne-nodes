@@ -127,6 +127,42 @@ def test_wait_for_plots_blocks_until_closed(qtbot):
     assert widget not in open_plot_windows()
 
 
+def test_wait_for_plots_pumps_non_qt_matplotlib_with_qt_windows(
+    qtbot, monkeypatch
+):
+    """Wait for non-Qt Matplotlib figures without blocking Qt windows."""
+    from types import SimpleNamespace
+
+    widget = QWidget()
+    qtbot.addWidget(widget)
+    widget.show()
+    figures = [1]
+    pauses = []
+    shows = []
+    matplotlib = SimpleNamespace(
+        get_backend=lambda: "TkAgg",
+        get_fignums=lambda: figures,
+        show=lambda block: shows.append(block),
+        pause=lambda interval: (
+            pauses.append(interval),
+            figures.clear(),
+            widget.close(),
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "matplotlib.pyplot", matplotlib)
+    monkeypatch.setattr(
+        "mne_nodes.backend.pipeline_utils.open_plot_windows",
+        lambda: [widget] if widget.isVisible() else [],
+    )
+
+    wait_for_plots(poll_interval=20)
+
+    assert shows == [False]
+    assert pauses
+    assert pauses[0] == 0.001
+    assert widget not in open_plot_windows()
+
+
 @pytest.mark.parametrize("keep_plots_open", [True, False])
 def test_controller_wait_for_plots_setting(ct, monkeypatch, keep_plots_open):
     """The controller only waits for plots if enabled in the settings."""
