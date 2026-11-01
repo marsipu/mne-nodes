@@ -127,9 +127,7 @@ def test_wait_for_plots_blocks_until_closed(qtbot):
     assert widget not in open_plot_windows()
 
 
-def test_wait_for_plots_pumps_non_qt_matplotlib_with_qt_windows(
-    qtbot, monkeypatch
-):
+def test_wait_for_plots_pumps_non_qt_matplotlib_with_qt_windows(qtbot, monkeypatch):
     """Wait for non-Qt Matplotlib figures without blocking Qt windows."""
     from types import SimpleNamespace
 

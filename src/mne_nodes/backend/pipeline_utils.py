@@ -235,9 +235,11 @@ def wait_for_plots(poll_interval: int = 200) -> None:
     timer = QTimer()
     timer.setInterval(poll_interval)
     timer.timeout.connect(
-        lambda: None
-        if open_plot_windows() or (non_qt_matplotlib and plt.get_fignums())
-        else loop.quit()
+        lambda: (
+            None
+            if open_plot_windows() or (non_qt_matplotlib and plt.get_fignums())
+            else loop.quit()
+        )
     )
     timer.start()
     matplotlib_timer = None
