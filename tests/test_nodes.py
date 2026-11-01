@@ -636,6 +636,74 @@ def test_right_drag_does_not_open_context_menu(nodeviewer, monkeypatch):
     assert not calls
 
 
+@pytest.mark.parametrize(
+    ("key", "modifier", "distance"),
+    [
+        (Qt.Key.Key_Right, Qt.KeyboardModifier.NoModifier, QPointF(50, 0)),
+        (Qt.Key.Key_Up, Qt.KeyboardModifier.ShiftModifier, QPointF(0, -200)),
+    ],
+)
+def test_arrow_keys_pan_view(nodeviewer, qtbot, key, modifier, distance):
+    """Arrow keys pan by viewport pixels; Shift pans further."""
+    nodeviewer.scale(2.0, 2.0)
+    before = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+    nodes = list(nodeviewer.nodes.values())
+    qtbot.keyClick(nodeviewer, key, modifier)
+    after = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+
+    scale = nodeviewer.transform().m11()
+    shift = after.center() - before.center()
+    assert shift.x() == pytest.approx(distance.x() / scale, rel=0.02, abs=0.5)
+    assert shift.y() == pytest.approx(distance.y() / scale, rel=0.02, abs=0.5)
+    assert list(nodeviewer.nodes.values()) == nodes
+
+
+def test_embedded_editor_keeps_edit_keys(nodeviewer, qtbot, monkeypatch):
+    """Backspace and arrows in a node's editor must not delete nodes or pan."""
+    node = nodeviewer.node(node_name="test_filter")
+    node.setSelected(True)
+    spin = next(
+        gui.param_widget
+        for gui in node.parameter_guis.values()
+        if hasattr(gui.param_widget, "lineEdit")
+    )
+    monkeypatch.setattr(nodeviewer, "embedded_focus_widget", lambda: spin)
+    visible = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+
+    qtbot.keyClick(nodeviewer, Qt.Key.Key_Backspace)
+    qtbot.keyClick(nodeviewer, Qt.Key.Key_Left)
+
+    assert nodeviewer.node(node_name="test_filter") is node
+    assert nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect() == visible
+
+
+def test_middle_press_on_port_does_not_start_connection(nodeviewer):
+    """The middle button pans, even when pressed on a port."""
+    pos = nodeviewer.port_position_view(port_type="in", port_idx=0, node_idx=1)
+    mousePress(
+        widget=nodeviewer.viewport(), pos=pos, button=Qt.MouseButton.MiddleButton
+    )
+    mouseRelease(
+        widget=nodeviewer.viewport(), pos=pos, button=Qt.MouseButton.MiddleButton
+    )
+
+    assert not nodeviewer._LIVE_PIPE.isVisible()
+
+
+def test_ensure_visible_pans_and_zooms_out(nodeviewer):
+    """A scene rectangle outside or larger than the view becomes visible."""
+    visible = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+    outside = visible.translated(visible.width() * 2, 0).adjusted(0, 0, -10, -10)
+    nodeviewer.ensure_visible(outside, margin=0)
+    visible = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+    assert visible.adjusted(-1, -1, 1, 1).contains(outside)
+
+    larger = visible.adjusted(-visible.width(), 0, visible.width(), 0)
+    nodeviewer.ensure_visible(larger, margin=0)
+    visible = nodeviewer.mapToScene(nodeviewer.viewport().rect()).boundingRect()
+    assert visible.adjusted(-1, -1, 1, 1).contains(larger)
+
+
 def test_right_click_port_opens_port_context_menu(nodeviewer, monkeypatch):
     ct = nodeviewer.ct
     ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")

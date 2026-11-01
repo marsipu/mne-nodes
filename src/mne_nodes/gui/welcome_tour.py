@@ -47,6 +47,7 @@ from mne_nodes.backend.data_import import load_sample_bids, sample_bids_has_anat
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.plugin_package import PluginPackageMetadata, plugin_module_name
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
+from mne_nodes.gui.node.node_viewer import ARROW_KEY_DIRECTIONS
 from mne_nodes.gui.run_widgets import WorkerDialog
 from mne_nodes.gui.user_interaction import ask_user
 
@@ -55,6 +56,21 @@ if TYPE_CHECKING:
     from mne_nodes.gui.main_window import MainWindow
 
 WELCOME_TOUR_PADDING = 10
+# Viewport input that is filtered for pannable views outside interactive steps.
+VIEW_INPUT_EVENTS = (
+    QEvent.Type.MouseButtonPress,
+    QEvent.Type.MouseButtonRelease,
+    QEvent.Type.MouseButtonDblClick,
+    QEvent.Type.MouseMove,
+    QEvent.Type.Wheel,
+    QEvent.Type.ContextMenu,
+    QEvent.Type.DragEnter,
+    QEvent.Type.DragMove,
+    QEvent.Type.Drop,
+    QEvent.Type.KeyPress,
+    QEvent.Type.KeyRelease,
+)
+PAN_BUTTONS = Qt.MouseButton.MiddleButton | Qt.MouseButton.RightButton
 WELCOME_CONFIG_PATH = Path(__file__).parents[1] / "resources" / "Welcome_pipeline.json"
 WELCOME_CROP_CODE = (
     "def crop_raw(raw, tmin=0.0, tmax=10.0):\n"
@@ -271,6 +287,12 @@ class WelcomeTour(QObject):
     Interactive widgets are disabled except for those explicitly listed in
     ``interactive_widgets`` for the active step. Descendant controls and menu
     actions belonging to those widgets remain available.
+    Views in ``pannable_views`` stay enabled in every step, but outside a step's
+    ``interactive_views`` they only receive navigation input: wheel zoom,
+    middle- or right-button and Alt+left drags, and arrow keys. Arrow keys
+    pressed on the tour's buttons pan the first pannable view. When a step
+    targets an item in such a view, the view is panned, and zoomed out if
+    necessary, until the target is fully visible.
     An optional ``action`` and ``action_text`` expose a step-specific button.
     Step ``cleanup`` callbacks run on completion or cancellation before the
     demo plugins and temporary directory are removed.
@@ -279,10 +301,16 @@ class WelcomeTour(QObject):
     finished = Signal()
     task_completed = Signal(int)
 
-    def __init__(self, main_window, steps: list[WelcomeTourStep]):
+    def __init__(
+        self,
+        main_window,
+        steps: list[WelcomeTourStep],
+        pannable_views: list[QGraphicsView] | None = None,
+    ):
         super().__init__()
         self.main_window = main_window
         self.steps = steps
+        self.pannable_views = list(pannable_views or [])
         self.index = 0
         self._observed_objects = []
         self._observed_scrollbars = []
@@ -296,6 +324,7 @@ class WelcomeTour(QObject):
         self._widget_enabled: dict[QWidget, bool] = {}
         self._interaction_policy_dirty = True
         self._active_graphics_view: QGraphicsView | None = None
+        self._navigation_drag_view: QGraphicsView | None = None
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(100)
         self._refresh_timer.timeout.connect(self.refresh)
@@ -545,6 +574,32 @@ class WelcomeTour(QObject):
                 )
             # Native window input must reach Qt's widget/proxy dispatch first.
             return False
+        if event.type() == QEvent.Type.KeyPress and self._forward_arrow_key(
+            watched, event
+        ):
+            return True
+        pan_view = next(
+            (
+                view
+                for view in self.pannable_views
+                if watched is view or watched is view.viewport()
+            ),
+            None,
+        )
+        if pan_view is not None and event.type() in VIEW_INPUT_EVENTS:
+            if self._navigation_drag_view is pan_view and event.type() in (
+                QEvent.Type.MouseMove,
+                QEvent.Type.MouseButtonRelease,
+            ):
+                if event.type() == QEvent.Type.MouseButtonRelease:
+                    self._navigation_drag_view = None
+                return False
+            if self._is_navigation_event(event):
+                if event.type() == QEvent.Type.MouseButtonPress:
+                    self._navigation_drag_view = pan_view
+                return False
+            if pan_view not in self.steps[self.index].get("interactive_views", []):
+                return True
         if event.type() in (
             QEvent.Type.MouseButtonPress,
             QEvent.Type.MouseButtonRelease,
@@ -601,11 +656,11 @@ class WelcomeTour(QObject):
             ):
                 return True
         if event.type() == QEvent.Type.KeyPress:
-            if isinstance(watched, QWidget):
-                allowed_roots, allowed_views = self._allowed_widgets()
-                if self._interaction_allowed(watched, allowed_roots, allowed_views):
-                    return False
-            return True
+            if not isinstance(watched, QWidget):
+                # Native window input is filtered again at its target widget.
+                return False
+            allowed_roots, allowed_views = self._allowed_widgets()
+            return not self._interaction_allowed(watched, allowed_roots, allowed_views)
         if event.type() in (
             QEvent.Type.Move,
             QEvent.Type.Resize,
@@ -722,8 +777,55 @@ class WelcomeTour(QObject):
         return (
             self._is_within(widget, roots)
             or self._is_view_menu(widget, views)
-            or any(widget is view or widget is view.viewport() for view in views)
+            or any(
+                widget is view or widget is view.viewport()
+                for view in (*views, *self.pannable_views)
+            )
         )
+
+    @staticmethod
+    def _is_navigation_event(event: QEvent) -> bool:
+        """Return whether view input only pans or zooms."""
+        event_type = event.type()
+        if event_type == QEvent.Type.Wheel:
+            return True
+        if event_type in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            return event.key() in ARROW_KEY_DIRECTIONS
+        if event_type == QEvent.Type.MouseMove:
+            buttons = event.buttons()
+            alt_drag = event.modifiers() == Qt.KeyboardModifier.AltModifier
+            return (
+                buttons == Qt.MouseButton.NoButton
+                or bool(buttons & PAN_BUTTONS)
+                or bool(buttons & Qt.MouseButton.LeftButton and alt_drag)
+            )
+        if event_type in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+            button = event.button()
+            alt_drag = event.modifiers() == Qt.KeyboardModifier.AltModifier
+            return bool(button & PAN_BUTTONS) or (
+                button == Qt.MouseButton.LeftButton and alt_drag
+            )
+        return False
+
+    def _forward_arrow_key(self, watched: QObject, event: QEvent) -> bool:
+        """Pan with arrow keys pressed while a tour button has keyboard focus."""
+        if (
+            not self.pannable_views
+            or not isinstance(watched, QAbstractButton)
+            or not self.widget.isAncestorOf(watched)
+        ):
+            return False
+        view = self.pannable_views[0]
+        pan_with_key = getattr(view, "pan_with_key", None)
+        return pan_with_key is not None and pan_with_key(event.key(), event.modifiers())
+
+    def _reveal_target(self, target: QWidget | QGraphicsItem | None) -> None:
+        """Pan a pannable view until the step's graphics item is visible."""
+        if not isinstance(target, QGraphicsItem) or target.scene() is None:
+            return
+        view = self._graphics_view(target)
+        if view in self.pannable_views and hasattr(view, "ensure_visible"):
+            view.ensure_visible(target.sceneBoundingRect())
 
     def _restore_interactions(self) -> None:
         for widget, enabled in self._widget_enabled.items():
@@ -763,6 +865,7 @@ class WelcomeTour(QObject):
             target = self._resolve_target()
             if target is not self._target:
                 self._target = target
+                self._reveal_target(target)
                 self._observe_target(target)
             check = step.get("is_complete")
             is_task = check is not None or step.get("requires_completion", False)
@@ -1033,7 +1136,19 @@ def build_welcome_steps(
 
     def input_port():
         node = viewer.input_node
-        return node.outputs[0] if node is not None and node.outputs else None
+        if node is None or not node.outputs:
+            return None
+        raw_ports = [port for port in node.outputs if port.name in ct.raw_types]
+        return next(
+            (port for port in raw_ports if port.isEnabled()),
+            raw_ports[0] if raw_ports else node.outputs[0],
+        )
+
+    def input_output(name: str):
+        node = viewer.input_node
+        if node is None:
+            return None
+        return next((port for port in node.outputs if port.name == name), node)
 
     def input_ports() -> list[QGraphicsItem]:
         port = input_port()
@@ -1059,16 +1174,8 @@ def build_welcome_steps(
         return node.input_widget if node is not None else None
 
     def input_files_selected() -> bool:
-        widget = input_widget()
-        if widget is None:
-            return False
         selected = ct.get("selected_inputs")
-        tabs = widget.tab_widget
-        return any(
-            selected.get(tabs.tabText(index))
-            for index in range(tabs.count())
-            if tabs.tabText(index) != "Groups"
-        )
+        return any(selected.get(datatype) for datatype in ct.raw_types)
 
     def start_button():
         node = viewer.input_node
@@ -1098,7 +1205,9 @@ def build_welcome_steps(
         {
             "widget": viewer,
             "text": "Welcome to mne-nodes!\nThis is the main viewer area where "
-            "you can see and interact with the nodes.",
+            "you can see and interact with the nodes.\nPan the view by dragging "
+            "with the middle or right mouse button, with Alt + left drag or with "
+            "the arrow keys (Shift for larger steps). Zoom with the mouse wheel.",
         },
         {
             "widget": lambda: viewer.input_node,
@@ -1107,10 +1216,20 @@ def build_welcome_steps(
             "here as an example.",
         },
         {
+            "widget": input_widget,
+            "text": "Select the sample recording by checking it in the input "
+            "node's file list. Selected recordings enable the matching output "
+            "ports of the input node.",
+            "is_complete": input_files_selected,
+            "interactive_views": [viewer],
+            "interactive_items": lambda: proxies(input_widget),
+            "interactive_widgets": lambda: as_list(input_widget),
+        },
+        {
             "widget": input_port,
-            "text": "Add a node by right-clicking the background and choosing "
-            "example_filter from example_plugin. You can also select an input "
-            "file to enable its output port, then right-click that port.",
+            "text": "Right-click the highlighted output port and choose "
+            "example_filter from example_plugin to add a connected node. "
+            "Right-clicking the background also lists all available functions.",
             "is_complete": lambda: function_node() is not None,
             "interactive_views": [viewer],
             "interactive_items": lambda: input_ports() + proxies(input_widget),
@@ -1123,9 +1242,9 @@ def build_welcome_steps(
         },
         {
             "widget": function_node,
-            "text": "Select an input file to enable its output port, then connect "
-            "the input node to your function node by dragging between compatible "
-            "output and input ports.",
+            "text": "Connect the input node to your function node by dragging "
+            "between compatible output and input ports. Nodes added from a "
+            "port's menu are already connected.",
             "is_complete": node_is_connected,
             "interactive_views": [viewer],
             "interactive_items": lambda: connection_ports() + proxies(input_widget),
@@ -1134,20 +1253,11 @@ def build_welcome_steps(
         {
             "widget": parameter_box,
             "text": "Change a parameter of the function node, for example "
-            "set lowpass to 40 instead of 30.",
+            "type 40 into lowpass instead of 30 and press Enter.",
             "is_complete": parameter_is_changed,
             "interactive_views": [viewer],
             "interactive_items": lambda: proxies(parameter_box),
             "interactive_widgets": lambda: as_list(parameter_box),
-        },
-        {
-            "widget": input_widget,
-            "text": "Select at least one input file by checking it in the "
-            "input node before starting the pipeline.",
-            "is_complete": input_files_selected,
-            "interactive_views": [viewer],
-            "interactive_items": lambda: proxies(input_widget),
-            "interactive_widgets": lambda: as_list(input_widget),
         },
         {
             "widget": start_button,
@@ -1155,12 +1265,30 @@ def build_welcome_steps(
             "input files through the connected pipeline.",
             "requires_completion": True,
             "interactive_views": [viewer],
-            "interactive_items": lambda: proxies(start_button),
-            "interactive_widgets": lambda: as_list(start_button),
+            "interactive_items": lambda: proxies(start_button) + proxies(input_widget),
+            "interactive_widgets": lambda: (
+                as_list(start_button) + as_list(input_widget)
+            ),
         },
         {
             "widget": main_window.console_dock,
             "text": "Here you can view the output of the processing steps.",
+        },
+        {
+            "widget": lambda: input_output("trans"),
+            "text": "Source-space analysis needs anatomy. The sample dataset "
+            "includes a FreeSurfer subject and a head-to-MRI transformation. "
+            "The input node provides them through its subject and trans outputs, "
+            "which become available for recordings with matching anatomy.",
+        },
+        {
+            "widget": main_window.menuBar(),
+            "text": "Source-space tools are in the BIDS menu: Data overview... "
+            "shows which recordings have anatomy and a transformation, Import "
+            "FreeSurfer subjects... and FreeSurfer setup... connect FreeSurfer "
+            "reconstructions, and Coregistration... opens the coregistration "
+            "helper to fit head-to-MRI transformations automatically or to "
+            "inspect and adjust them manually.",
         },
         {
             "widget": main_window.menuBar(),
@@ -1344,6 +1472,7 @@ def start_welcome_tour(
             build_welcome_steps(
                 ct, main_window, plugin_directory=Path(demo_directory.name)
             ),
+            pannable_views=[main_window.viewer],
         )
     except Exception:
         if cleanup_plugin is not None:
@@ -1352,9 +1481,14 @@ def start_welcome_tour(
         raise
     tour._cleanup_demo_plugin = cleanup_plugin
     tour.demo_directory = demo_directory
+    start_step = next(
+        index
+        for index, step in enumerate(tour.steps)
+        if step.get("requires_completion") and "is_complete" not in step
+    )
 
     def process_started() -> None:
-        tour.complete_task(7)
+        tour.complete_task(start_step)
 
     main_window.console_dock.process_started.connect(process_started)
 

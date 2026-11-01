@@ -25,6 +25,7 @@ from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
     QGraphicsPathItem,
+    QGraphicsProxyWidget,
     QGraphicsTextItem,
     QGraphicsView,
     QMenu,
@@ -52,6 +53,13 @@ PIPE_LAYOUTS = {
     "straight": "Straight",
     "angle": "Angled",
     "routed": "Routed Around Nodes",
+}
+# Viewport panning direction for each arrow key.
+ARROW_KEY_DIRECTIONS = {
+    Qt.Key.Key_Left: (-1, 0),
+    Qt.Key.Key_Right: (1, 0),
+    Qt.Key.Key_Up: (0, -1),
+    Qt.Key.Key_Down: (0, 1),
 }
 
 
@@ -1523,7 +1531,40 @@ class NodeViewer(QGraphicsView):
     def dragLeaveEvent(self, event):
         event.ignore()
 
+    def embedded_focus_widget(self):
+        """Return the enabled widget focused inside a node, if any."""
+        scene = self.scene()
+        item = scene.focusItem() if scene is not None else None
+        if not isinstance(item, QGraphicsProxyWidget) or item.widget() is None:
+            return None
+        widget = item.widget().focusWidget()
+        if widget is not None and widget.isEnabled() and widget.hasFocus():
+            return widget
+        return None
+
+    def pan_with_key(self, key, modifiers) -> bool:
+        """Pan with an arrow key; Shift pans further. Return whether it panned."""
+        direction = ARROW_KEY_DIRECTIONS.get(key)
+        modifiers &= ~Qt.KeyboardModifier.KeypadModifier
+        if direction is None or modifiers not in (
+            Qt.KeyboardModifier.NoModifier,
+            Qt.KeyboardModifier.ShiftModifier,
+        ):
+            return False
+        step = 200 if modifiers == Qt.KeyboardModifier.ShiftModifier else 50
+        self.pan_view(direction[0] * step, direction[1] * step)
+        return True
+
     def keyPressEvent(self, event):
+        # Editors embedded in nodes need Backspace, Delete and arrow keys.
+        if self.embedded_focus_widget() is not None:
+            super().keyPressEvent(event)
+            return
+
+        if self.pan_with_key(event.key(), event.modifiers()):
+            event.accept()
+            return
+
         if event.key() in [Qt.Key.Key_Delete, Qt.Key.Key_Backspace]:
             # delete selected nodes and pipes
             for node in self.selected_nodes():
@@ -1643,7 +1684,11 @@ class NodeViewer(QGraphicsView):
                 break
 
         if port:
-            if event.button() == Qt.MouseButton.RightButton:
+            # Right-click opens the port menu and the middle button pans.
+            if event.button() in (
+                Qt.MouseButton.RightButton,
+                Qt.MouseButton.MiddleButton,
+            ):
                 return
             if not port.multi_connection and len(port.connected_ports) > 0:
                 # ToDo: Might cause problems with multi-connections
@@ -2073,6 +2118,46 @@ class NodeViewer(QGraphicsView):
                 return
         value = value - zoom
         self._set_viewer_zoom(value, 0.0)
+
+    def pan_view(self, dx: float, dy: float) -> None:
+        """Pan the view by a distance in viewport pixels."""
+        scale = self.transform().m11() or 1.0
+        self._set_viewer_pan(dx / scale, dy / scale)
+
+    def ensure_visible(self, rect: QRectF, margin: int = 30) -> None:
+        """Pan, and zoom out if required, until a scene rectangle is visible.
+
+        Parameters
+        ----------
+        rect : QRectF
+            Scene rectangle which should be fully visible.
+        margin : int, optional
+            Free space in viewport pixels kept around ``rect``, by default 30.
+        """
+        visible = self.mapToScene(self.viewport().rect()).boundingRect()
+        if visible.isEmpty() or rect.isEmpty():
+            return
+        scene_margin = margin / (self.transform().m11() or 1.0)
+        target = rect.adjusted(-scene_margin, -scene_margin, scene_margin, scene_margin)
+        if visible.contains(target):
+            return
+        factor = max(
+            target.width() / visible.width(), target.height() / visible.height()
+        )
+        if factor > 1.0:
+            self.scale(1 / factor, 1 / factor, target.center())
+            visible = self.mapToScene(self.viewport().rect()).boundingRect()
+        dx = dy = 0.0
+        if target.width() > visible.width() or target.left() < visible.left():
+            dx = target.left() - visible.left()
+        elif target.right() > visible.right():
+            dx = target.right() - visible.right()
+        if target.height() > visible.height() or target.top() < visible.top():
+            dy = target.top() - visible.top()
+        elif target.bottom() > visible.bottom():
+            dy = target.bottom() - visible.bottom()
+        if dx or dy:
+            self._set_viewer_pan(dx, dy)
 
     def zoom_to_nodes(self, nodes=None):
         """Zoom to fit the specified nodes.

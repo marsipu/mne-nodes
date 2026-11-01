@@ -8,8 +8,8 @@ import json
 from pathlib import Path
 
 import pytest
-from qtpy.QtCore import QPointF, Qt
-from qtpy.QtGui import QContextMenuEvent
+from qtpy.QtCore import QEvent, QPoint, QPointF, QRectF, Qt
+from qtpy.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import QMenu, QStyle, QStyleOptionViewItem
 
@@ -629,36 +629,40 @@ def test_welcome_tour_creation_and_connection_tasks(
         assert not viewer.function_nodes
         tour.show_step(2)
         assert not tour.widget.next_btn.isEnabled()
-        node = viewer.add_function_node("example_filter")
+        assert tour._target is viewer.input_node.input_widget.graphicsProxyWidget()
+        assert viewer.input_node.input_widget.isEnabled()
+        assert viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
+        ct.input_selection_changed(["sub-01_task-test_eeg.fif"], "eeg")
         qtbot.waitUntil(lambda: tour.index == 3)
         assert completed == [2]
+        assert not tour.widget.next_btn.isEnabled()
+        node = viewer.add_function_node("example_filter")
+        qtbot.waitUntil(lambda: tour.index == 4)
+        assert completed == [2, 3]
         assert tour._target is node
         tour.next_step()
-        assert tour.index == 4
+        assert tour.index == 5
         assert not tour.widget.next_btn.isEnabled()
 
         output = viewer.input_node.output(port_name="eeg")
         input_port = node.input(port_name="raw")
         output.connect_to(input_port)
-        qtbot.waitUntil(lambda: tour.index == 5)
-        assert completed == [2, 4]
-        assert tour.index == 5
+        qtbot.waitUntil(lambda: tour.index == 6)
+        assert completed == [2, 3, 5]
         assert tour._target is node.param_box.graphicsProxyWidget()
         assert tour.overlay.highlight_path == tour.compute_highlight_path(tour._target)
         assert not tour.widget.next_btn.isEnabled()
         lowpass = node.parameter_guis["lowpass"].param_widget
         assert lowpass.isEnabled()
-        qtbot.keyClick(lowpass, Qt.Key.Key_Up)
-        qtbot.waitUntil(lambda: tour.index == 6)
-        assert ct.parameter("lowpass", node.name) == 31
+        lowpass.lineEdit().selectAll()
+        qtbot.keyClicks(lowpass.lineEdit(), "40")
+        qtbot.wait(10)
         assert tour.index == 6
-        assert tour._target is viewer.input_node.input_widget.graphicsProxyWidget()
-        assert viewer.input_node.input_widget.isEnabled()
-        assert viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
-        assert not tour.widget.next_btn.isEnabled()
-        ct.input_selection_changed(["sub-01_task-test_eeg.fif"], "eeg")
+        assert lowpass.isEnabled()
+        qtbot.keyClick(lowpass.lineEdit(), Qt.Key.Key_Return)
         qtbot.waitUntil(lambda: tour.index == 7)
-        assert completed == [2, 4, 5, 6]
+        assert ct.parameter("lowpass", node.name) == 40
+        assert completed == [2, 3, 5, 6]
         assert tour._target is viewer.input_node.start_button_proxy
         assert viewer.input_node.start_button.isEnabled()
         assert not node.start_button.isEnabled()
@@ -711,6 +715,11 @@ def test_welcome_tour_waits_for_pipeline_start(
         tour.next_step()
         assert tour.index == 9
         assert tour.overlay.isVisible()
+        assert tour._target is viewer.input_node.output(port_name="trans")
+        tour.next_step()
+        assert tour.index == 10
+        assert tour._target is main_window.menuBar()
+        assert "Coregistration" in tour.widget.label.text()
         tour.show_step(len(tour.steps) - 1)
         assert not tour.overlay.isVisible()
     finally:
@@ -770,9 +779,12 @@ def test_welcome_tour_adds_node_from_context_menu(
     try:
         tour.show_step(2)
         assert not tour.widget.next_btn.isEnabled()
+        ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
+        qtbot.waitUntil(lambda: tour.index == 3)
+        assert not tour.widget.next_btn.isEnabled()
         if on_port:
-            ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
             port = viewer.input_node.output(port_name="eeg")
+            assert tour._target is port
             pos = viewer.mapFromScene(port.sceneBoundingRect().center())
         else:
             pos = viewer.viewport().rect().topLeft()
@@ -781,7 +793,13 @@ def test_welcome_tour_adds_node_from_context_menu(
         )
         viewer.contextMenuEvent(event)
         assert len(viewer.function_nodes) == 1
-        qtbot.waitUntil(lambda: tour.index == 3)
+        qtbot.waitUntil(lambda: tour.index == 4)
+        tour.next_step()
+        if on_port:
+            # Nodes added from a port menu are connected automatically.
+            qtbot.waitUntil(lambda: tour.index == 6)
+        else:
+            assert tour.index == 5
     finally:
         tour.finish()
 
@@ -803,19 +821,10 @@ def test_welcome_tour_input_checkbox_is_clickable(
         assert not viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
         tour.next_step()
         tour.next_step()
-        node = viewer.add_function_node("example_filter")
-        qtbot.waitUntil(lambda: tour.index == 3)
-        tour.next_step()
-        viewer.input_node.output(port_name="eeg").connect_to(
-            node.input(port_name="raw")
-        )
-        qtbot.waitUntil(lambda: tour.index == 5)
+        assert tour.index == 2
         input_widget = viewer.input_node.input_widget
         if rebuild:
             input_widget.update_widgets()
-        node.parameter_guis["lowpass"].param_widget.setValue(40)
-        qtbot.waitUntil(lambda: tour.index == 6)
-        assert tour.index == 6
         qtbot.wait(20)
         checklist = input_widget.tab_widget.widget(0)
         list_view = checklist.view
@@ -834,7 +843,7 @@ def test_welcome_tour_input_checkbox_is_clickable(
         proxy = input_widget.graphicsProxyWidget()
         widget_pos = list_view.viewport().mapTo(input_widget, checkbox_rect.center())
         scene_pos = proxy.mapToScene(QPointF(widget_pos))
-        viewer.centerOn(scene_pos)
+        viewer.ensure_visible(QRectF(scene_pos, scene_pos))
         tour.refresh()
         receiver = main_window.windowHandle() if window_input else viewer.viewport()
         click_pos = viewer.mapFromScene(scene_pos)
@@ -844,8 +853,150 @@ def test_welcome_tour_input_checkbox_is_clickable(
         qtbot.wait(150)
         QTest.mouseRelease(receiver, Qt.MouseButton.LeftButton, pos=click_pos)
         assert index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
-        qtbot.waitUntil(lambda: tour.index == 7)
+        qtbot.waitUntil(lambda: tour.index == 3)
         assert ct.get("selected_inputs")[input_widget.tab_widget.tabText(0)]
+    finally:
+        tour.finish()
+
+
+def test_welcome_tour_keeps_view_pannable(
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
+):
+    """Informational steps allow navigation but block editing in the viewer."""
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
+    )
+    main_window.show()
+    ct.initialize_welcome_tour()
+    tour = ct.welcome_tour
+    viewer = main_window.viewer
+    viewport = viewer.viewport()
+    try:
+        tour.show_step(1)
+        assert viewer.isEnabled()
+        assert viewport.isEnabled()
+        pos = QPointF(viewport.rect().center())
+        global_pos = QPointF(viewport.mapToGlobal(viewport.rect().center()))
+
+        def mouse_event(event_type, button, modifiers=Qt.KeyboardModifier.NoModifier):
+            buttons = Qt.MouseButton.NoButton
+            if event_type != QEvent.Type.MouseButtonRelease:
+                buttons = button
+            return QMouseEvent(event_type, pos, global_pos, button, buttons, modifiers)
+
+        middle = mouse_event(QEvent.Type.MouseButtonPress, Qt.MouseButton.MiddleButton)
+        assert not tour.eventFilter(viewport, middle)
+        alt_left = mouse_event(
+            QEvent.Type.MouseButtonPress,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.AltModifier,
+        )
+        assert not tour.eventFilter(viewport, alt_left)
+        left = mouse_event(QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton)
+        assert tour.eventFilter(viewport, left)
+        menu = QContextMenuEvent(
+            QContextMenuEvent.Reason.Mouse,
+            viewport.rect().center(),
+            viewport.mapToGlobal(viewport.rect().center()),
+        )
+        assert tour.eventFilter(viewport, menu)
+        arrow = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.KeyboardModifier.NoModifier
+        )
+        assert not tour.eventFilter(viewer, arrow)
+        delete = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
+        )
+        assert tour.eventFilter(viewer, delete)
+
+        before = viewer.mapToScene(viewport.rect()).boundingRect()
+        qtbot.keyClick(tour.widget.next_btn, Qt.Key.Key_Right)
+        after = viewer.mapToScene(viewport.rect()).boundingRect()
+        assert after.center().x() > before.center().x()
+        assert tour.index == 1
+    finally:
+        tour.finish()
+
+
+def test_welcome_tour_reveals_offscreen_target(
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
+):
+    """Graphics targets are panned into view when their step is shown."""
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
+    )
+    main_window.show()
+    ct.initialize_welcome_tour()
+    tour = ct.welcome_tour
+    viewer = main_window.viewer
+    try:
+        ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
+        node = viewer.add_function_node("example_filter", pos=QPointF(5000, 5000))
+        viewer.input_node.output(port_name="eeg").connect_to(
+            node.input(port_name="raw")
+        )
+        visible = viewer.mapToScene(viewer.viewport().rect()).boundingRect()
+        param_rect = node.param_box.graphicsProxyWidget().sceneBoundingRect()
+        assert not visible.contains(param_rect)
+        tour.show_step(6)
+        assert tour._target is node.param_box.graphicsProxyWidget()
+        visible = viewer.mapToScene(viewer.viewport().rect()).boundingRect()
+        assert visible.adjusted(-1, -1, 1, 1).contains(param_rect)
+    finally:
+        tour.finish()
+
+
+def test_welcome_tour_native_window_input(
+    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
+):
+    """Real window input pans the view and types into embedded spin boxes."""
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
+    )
+    main_window.show()
+    qtbot.waitExposed(main_window)
+    ct.initialize_welcome_tour()
+    tour = ct.welcome_tour
+    viewer = main_window.viewer
+    window = main_window.windowHandle()
+
+    def visible_center():
+        return viewer.mapToScene(viewer.viewport().rect()).boundingRect().center()
+
+    try:
+        tour.show_step(1)
+        start = viewer.viewport().mapTo(main_window, viewer.viewport().rect().center())
+        for button in (Qt.MouseButton.MiddleButton, Qt.MouseButton.RightButton):
+            before = visible_center()
+            QTest.mousePress(window, button, pos=start)
+            for step in range(1, 6):
+                QTest.mouseMove(window, start + QPoint(20 * step, 0))
+            QTest.mouseRelease(window, button, pos=start + QPoint(100, 0))
+            assert visible_center().x() < before.x()
+        before = visible_center()
+        QTest.keyClick(window, Qt.Key.Key_Right)
+        assert visible_center().x() > before.x()
+        assert tour.index == 1
+
+        ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
+        node = viewer.add_function_node("example_filter")
+        viewer.input_node.output(port_name="eeg").connect_to(
+            node.input(port_name="raw")
+        )
+        tour.show_step(6)
+        editor = node.parameter_guis["lowpass"].param_widget.lineEdit()
+        widget_pos = editor.mapTo(node.param_box, editor.rect().center())
+        scene_pos = node.param_box.graphicsProxyWidget().mapToScene(QPointF(widget_pos))
+        click_pos = viewer.viewport().mapTo(main_window, viewer.mapFromScene(scene_pos))
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=click_pos)
+        editor.selectAll()
+        for key in (Qt.Key.Key_4, Qt.Key.Key_0):
+            QTest.keyClick(window, key)
+        assert editor.text() == "40"
+        assert tour.index == 6
+        QTest.keyClick(window, Qt.Key.Key_Return)
+        qtbot.waitUntil(lambda: tour.index == 7)
+        assert ct.parameter("lowpass", node.name) == 40
     finally:
         tour.finish()
 

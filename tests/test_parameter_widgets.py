@@ -129,6 +129,25 @@ def test_param_load_optional_neighboring_type(qtbot):
 
 
 @pytest.mark.parametrize(
+    ("gui_class", "typed", "expected"),
+    [(parameter.IntGui, "40", 40), (parameter.FloatGui, "41", 41.0)],
+)
+def test_spinbox_commits_typed_number_on_enter(qtbot, gui_class, typed, expected):
+    """Typed numbers are stored once editing finishes, not per keystroke."""
+    data = {"value": 30}
+    gui = gui_class(data=data, name="value", default=30)
+    qtbot.addWidget(gui)
+    editor = gui.param_widget.lineEdit()
+    editor.selectAll()
+    qtbot.keyClicks(editor, typed)
+
+    assert gui.param_widget.text() == typed
+    assert data["value"] == 30
+    qtbot.keyClick(editor, Qt.Key.Key_Return)
+    assert data["value"] == expected
+
+
+@pytest.mark.parametrize(
     ("gui_class", "loaded", "expected", "kwargs"),
     [
         (parameter.FloatGui, 3, 3.0, {}),

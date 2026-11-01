@@ -163,8 +163,14 @@ class InputWidget(QWidget):
         new_root = get_user_input(
             "Select BIDS root directory", "folder", cancel_allowed=True
         )
-        if new_root is not None:
-            self.ct.bids_root = new_root
+        if new_root is None:
+            return
+        self.ct.bids_root = new_root
+        # The controller refreshes only the viewer's input node.
+        viewer = self.ct.viewer
+        input_node = getattr(viewer, "input_node", None)
+        if getattr(input_node, "input_widget", None) is not self:
+            self.update_widgets()
 
     def cmbx_changed(self, group_by):
         # Remove old widget

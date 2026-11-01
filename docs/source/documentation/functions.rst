@@ -11,7 +11,9 @@ and overlapping nodes are moved down. Nodes added without a position or a
 connection are placed at the center of the current view.
 
 Adding nodes does not pan or zoom the view. Use the view's fit or center actions
-when you want to frame the graph.
+when you want to frame the graph. Pan by dragging with the middle or right mouse
+button, with Alt + left drag, or with the arrow keys (hold Shift for larger
+steps); zoom with the mouse wheel.
 
 Choose **View > Auto-Layout Nodes** (``Ctrl+L``) to arrange the graph.
 The same action is available by right-clicking the viewer background.

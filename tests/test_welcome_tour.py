@@ -36,8 +36,8 @@ from mne_nodes.gui.welcome_tour import (
 def test_code_plugin_steps_are_tasks(main_window, qtbot):
     """The crop workflow cannot advance until each real action is complete."""
     steps = build_welcome_steps(main_window.controller, main_window)
-    assert len(steps) == 16
-    guidance = steps[9:-1]
+    assert len(steps) == 18
+    guidance = steps[11:-1]
     text = "\n".join(step["text"] for step in guidance)
     for entry in (
         "Import Functions...",
@@ -58,7 +58,7 @@ def test_code_plugin_steps_are_tasks(main_window, qtbot):
     assert WELCOME_CROP_CODE.strip() in document.toPlainText()
     tour = WelcomeTour(main_window, steps)
     try:
-        for index in range(10, 14):
+        for index in range(12, 16):
             step = steps[index]
             assert "is_complete" in step
             tour.show_step(index)
@@ -100,9 +100,9 @@ def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_aft
     plugin_name = directory.name.replace("-", "_") + "_crop"
     try:
         filter_node = main_window.viewer.add_function_node("example_filter")
-        tour.show_step(10)
+        tour.show_step(12)
         qtbot.mouseClick(tour.widget.action_btn, Qt.MouseButton.LeftButton)
-        qtbot.waitUntil(lambda: tour.index == 11)
+        qtbot.waitUntil(lambda: tour.index == 13)
         (importer,) = main_window.findChildren(FunctionImporter)
         assert importer.isVisible()
         assert importer.windowModality() == Qt.WindowModality.NonModal
@@ -125,10 +125,10 @@ def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_aft
                     qtbot.mouseClick(importer.save_button, Qt.MouseButton.LeftButton)
                     tour.refresh()
                     assert errors
-                    assert tour.index == 11
+                    assert tour.index == 13
                     assert not tour.widget.next_btn.isEnabled()
             qtbot.mouseClick(importer.save_button, Qt.MouseButton.LeftButton)
-            qtbot.waitUntil(lambda: tour.index == 12)
+            qtbot.waitUntil(lambda: tour.index == 14)
             qtbot.waitUntil(lambda: not importer.isVisible())
             assert plugin_name in ct.plugins
             package_dir = directory / "src" / f"mne_nodes_{plugin_name}"
@@ -136,10 +136,10 @@ def test_hands_on_crop_plugin_workflow(main_window, qtbot, monkeypatch, stop_aft
             assert not tour.widget.next_btn.isEnabled()
         if stop_after == "connect":
             crop = main_window.viewer.add_function_node("crop_raw")
-            qtbot.waitUntil(lambda: tour.index == 13)
+            qtbot.waitUntil(lambda: tour.index == 15)
             assert not tour.widget.next_btn.isEnabled()
             filter_node.output(port_name="raw").connect_to(crop.input(port_name="raw"))
-            qtbot.waitUntil(lambda: tour.index == 14)
+            qtbot.waitUntil(lambda: tour.index == 16)
             assert tour.widget.next_btn.isEnabled()
             tour.next_step()
             assert tour.widget.next_btn.text() == "Finished"

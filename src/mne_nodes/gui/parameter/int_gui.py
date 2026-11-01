@@ -20,6 +20,8 @@ class IntGui(Param):
         self.param_widget = QSpinBox()
         self.param_widget.setMinimum(min_val)
         self.param_widget.setMaximum(max_val)
+        # Commit typed numbers on Enter or focus loss rather than per keystroke.
+        self.param_widget.setKeyboardTracking(False)
         self.param_widget.setToolTip(f"MinValue = {min_val}\nMaxValue = {max_val}")
         if special_value_text:
             self.param_widget.setSpecialValueText(special_value_text)
