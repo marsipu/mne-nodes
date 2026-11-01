@@ -101,6 +101,44 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
     assert calls == [{"force": True}]
 
 
+def test_export_actions(main_window, monkeypatch, tmp_path):
+    """The File menu exports Python, Jupyter, and complete-project files."""
+    import zipfile
+
+    paths = iter(
+        [
+            tmp_path / "pipeline.py",
+            tmp_path / "pipeline_jupyter.py",
+            tmp_path / "pipeline_project.zip",
+        ]
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input",
+        lambda *args, **kwargs: next(paths),
+    )
+    file_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&File"
+    )
+    actions = {action.text(): action for action in file_menu.actions()}
+
+    actions["Export Python Script..."].trigger()
+    actions["Export Jupyter Script..."].trigger()
+    actions["Export Complete Project..."].trigger()
+
+    assert "Controller(config_path=" in (tmp_path / "pipeline.py").read_text()
+    assert (tmp_path / "pipeline_jupyter.py").read_text().startswith("# %%\n")
+    with zipfile.ZipFile(tmp_path / "pipeline_project.zip") as archive:
+        assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
+            archive.namelist()
+        )
+        assert "os.chdir(Path(__file__).resolve().parent)" in archive.read(
+            "pipeline.py"
+        ).decode()
+        assert "mne-nodes" in archive.read("requirements.txt").decode()
+
+
 def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
     """Invoking the action during a tour must not replace its plugin snapshot."""
     from types import SimpleNamespace

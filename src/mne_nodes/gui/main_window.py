@@ -13,6 +13,7 @@ from qtpy.QtGui import QAction, QKeySequence
 from qtpy.QtWidgets import QApplication, QMainWindow
 
 from mne_nodes import iswin
+from mne_nodes.backend.code_generation import CodeGenerator, export_project
 from mne_nodes.backend.data_import import load_sample_bids
 from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
@@ -108,6 +109,28 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(save_config_action)
         file_menu.addAction(save_config_as_action)
+        file_menu.addSeparator()
+        export_python_action = QAction(
+            "Export Python Script...",
+            parent=self,
+            statusTip="Export the generated execution code as a Python script.",
+        )
+        export_python_action.triggered.connect(self.export_python_script)
+        export_jupyter_action = QAction(
+            "Export Jupyter Script...",
+            parent=self,
+            statusTip="Export the generated execution code as a Jupyter script.",
+        )
+        export_jupyter_action.triggered.connect(self.export_jupyter_script)
+        export_project_action = QAction(
+            "Export Complete Project...",
+            parent=self,
+            statusTip="Export the code, pipeline, plugins, and requirements as a ZIP.",
+        )
+        export_project_action.triggered.connect(self.export_complete_project)
+        file_menu.addAction(export_python_action)
+        file_menu.addAction(export_jupyter_action)
+        file_menu.addAction(export_project_action)
         # BIDS Menu
         sample_action = QAction(
             "&Add Sample BIDS Data", parent=self, statusTip="Add Sample BIDS Data"
@@ -264,6 +287,82 @@ class MainWindow(QMainWindow):
             return
         self.controller.ensure_ready()
         self.statusBar().showMessage(f"{self.controller.name} saved as {config_path}.")
+
+    def _export_node_sequence(self):
+        if self.viewer.input_node is None:
+            raise_user_attention("There is no pipeline code to export.", parent=self)
+            return None
+        return self.viewer.get_node_sequence(self.viewer.input_node)
+
+    def export_python_script(self, _checked=False):
+        node_sequence = self._export_node_sequence()
+        if node_sequence is None:
+            return
+        script_path = get_user_input(
+            "Select a file for the generated Python script.",
+            input_type="file_new",
+            file_filter="Python files (*.py)",
+            parent=self,
+        )
+        if script_path is None:
+            return
+        script_path = Path(script_path)
+        if script_path.suffix.lower() != ".py":
+            script_path = script_path.with_suffix(".py")
+        script_path.write_text(
+            CodeGenerator(self.controller, node_sequence).code, encoding="utf-8"
+        )
+        self.statusBar().showMessage(f"Code exported to {script_path}.")
+
+    def export_jupyter_script(self, _checked=False):
+        node_sequence = self._export_node_sequence()
+        if node_sequence is None:
+            return
+        script_path = get_user_input(
+            "Select a file for the generated Jupyter script.",
+            input_type="file_new",
+            file_filter="Python files (*.py)",
+            parent=self,
+        )
+        if script_path is None:
+            return
+        script_path = Path(script_path)
+        if script_path.suffix.lower() != ".py":
+            script_path = script_path.with_suffix(".py")
+        script_path.write_text(
+            CodeGenerator(self.controller, node_sequence).jupyter_script,
+            encoding="utf-8",
+        )
+        self.statusBar().showMessage(f"Jupyter script exported to {script_path}.")
+
+    def export_complete_project(self, _checked=False):
+        node_sequence = self._export_node_sequence()
+        if node_sequence is None:
+            return
+        archive_path = get_user_input(
+            "Select a ZIP file for the complete project.",
+            input_type="file_new",
+            file_filter="ZIP archives (*.zip)",
+            parent=self,
+        )
+        if archive_path is None:
+            return
+        archive_path = Path(archive_path)
+        if archive_path.suffix.lower() != ".zip":
+            archive_path = archive_path.with_suffix(".zip")
+        try:
+            export_project(
+                self.controller,
+                node_sequence,
+                archive_path,
+                self.viewer.to_dict(),
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not export the complete project."
+            ).open()
+            return
+        self.statusBar().showMessage(f"Project exported to {archive_path}.")
 
     def load_plugin_path(self):
         plugin_path = get_user_input(

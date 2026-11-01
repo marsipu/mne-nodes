@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -62,6 +63,38 @@ def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     assert new_func(2) == 8, "New function reference should return updated value"
 
     # Test insertion
+
+
+def test_export_project_bundles_path_plugins(
+    tmp_path, ct, test_plugin_config, monkeypatch
+):
+    from mne_nodes.backend.code_generation import export_project
+
+    ct.load_plugin_path(test_plugin_config)
+    ct._config["plugin_meta"]["github_plugin"] = {
+        "plugin_type": "github",
+        "plugin_github": "https://github.com/example/github-plugin.git",
+    }
+    ct._config["plugin_meta"]["module_plugin"] = {"plugin_type": "module"}
+    monkeypatch.setattr(
+        "mne_nodes.backend.code_generation.importlib.metadata.packages_distributions",
+        lambda: {"module_plugin": ["module-plugin"]},
+    )
+    archive_path = tmp_path / "pipeline_project.zip"
+    export_project(ct, {"file": [], "group": []}, archive_path, {})
+
+    with zipfile.ZipFile(archive_path) as archive:
+        names = set(archive.namelist())
+        assert "plugins/test_module/test_module.py" in names
+        assert "plugins/test_module/test_module_config.json" in names
+        requirements = archive.read("requirements.txt").decode()
+        assert "mne-nodes" in requirements
+        assert "git+https://github.com/example/github-plugin.git" in requirements
+        assert "module-plugin" in requirements
+        config = json.loads(archive.read("pipeline.json"))
+        plugin = config["plugin_meta"]["test_module"]
+        assert plugin["config_path"] == "plugins/test_module/test_module_config.json"
+        assert plugin["script_path"] == "plugins/test_module/test_module.py"
 
 
 def test_remove_plugin_unregisters_without_deleting_files(
