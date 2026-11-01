@@ -34,10 +34,7 @@ def _anonymize_report(text: str) -> str:
     text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "[email]", text)
     text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[address]", text)
     identities = {str(Path.home()), socket.gethostname()}
-    try:
-        identities.add(getpass.getuser())
-    except OSError:
-        pass
+    identities.add(getpass.getuser())
     for identity in sorted(identities, key=len, reverse=True):
         if identity:
             text = re.sub(
