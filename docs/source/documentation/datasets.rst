@@ -32,6 +32,14 @@ widget or independent file selections. Select recordings in the EEG, MEG or
 iEEG tabs, or select a recording group, and connect the metadata outputs to
 functions that need them. A raw-data connection is not required.
 
+When the input checklist is rebuilt (for example after loading a pipeline or
+changing datasets), saved file selections absent from the current dataset are
+removed with a warning in the application log. This prevents hidden selections
+from an older dataset from blocking the current recording outputs.
+Availability-only refreshes do not discard selections: if a selected recording
+disappears during a session, its outputs remain disabled with a missing-file
+explanation until the checklist is rebuilt or the selection is cleared.
+
 Associated auxiliary data and overview
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

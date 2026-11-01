@@ -632,9 +632,6 @@ class NodeViewer(QGraphicsView):
             Function metadata before the reload, keyed by function name.
         """
 
-        def _strip(meta):
-            return {k: v for k, v in meta.items() if k != "plugin"}
-
         for name, node in list(self.function_nodes.items()):
             base_name = name
             if base_name not in old_functions:
@@ -646,7 +643,7 @@ class NodeViewer(QGraphicsView):
             if new_meta is None:
                 self.remove_node(node, force=True)
                 continue
-            if _strip(new_meta) == _strip(old_functions[base_name]):
+            if new_meta == old_functions[base_name]:
                 continue
             node_class = CommandNode if "command" in new_meta else FunctionNode
             new_node = node_class(self.ct, name=name)

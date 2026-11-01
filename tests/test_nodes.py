@@ -79,6 +79,84 @@ def test_recording_and_anatomy_outputs_require_selection(nodeviewer):
     assert "missing" in node.output(port_name="anat").toolTip()
 
 
+def test_rebuilding_input_checklists_removes_hidden_stale_selections(
+    nodeviewer, caplog
+):
+    """A previous dataset's invisible checked files cannot block current outputs."""
+    ct = nodeviewer.ct
+    node = nodeviewer.input_node
+    recording = ct.get_datatype_items("eeg")[0]
+    ct.set(
+        "selected_inputs",
+        {
+            "eeg": ["sub-absent_task-rest_eeg.vhdr", recording],
+            "anat": ["sub-absent_T1w.nii.gz"],
+        },
+    )
+    ct.refresh_input_outputs()
+    assert not node.output(port_name="eeg").isEnabled()
+    node.update_widgets()
+    assert ct.get("selected_inputs")["eeg"] == [recording]
+    assert not ct.get("selected_inputs")["anat"]
+    assert node.output(port_name="eeg").isEnabled()
+    assert node.output(port_name="info").isEnabled()
+    assert "sub-absent_task-rest_eeg.vhdr" in caplog.text
+    tabs = node.input_widget.tab_widget
+    widget = next(
+        tabs.widget(index)
+        for index in range(tabs.count())
+        if tabs.tabText(index) == "eeg"
+    )
+    widget.clear_all()
+    assert not node.output(port_name="eeg").isEnabled()
+    widget.select_all()
+    assert ct.get("selected_inputs")["eeg"] == ct.get_datatype_items("eeg")
+    assert node.output(port_name="eeg").isEnabled()
+
+
+def test_sample_meg_ports_enable_after_checking_with_old_dataset_selection(
+    nodeviewer, tmp_path
+):
+    """Reproduce the sample-dataset switch without downloading or loading raw data."""
+    ct = nodeviewer.ct
+    root = tmp_path / "sample-bids"
+    meg = root / "sub-01" / "ses-01" / "meg"
+    meg.mkdir(parents=True)
+    name = "sub-01_ses-01_task-audiovisual_run-1_meg.fif"
+    (meg / name).touch()
+    (root / "dataset_description.json").write_text(
+        '{"Name": "sample-dataset", "BIDSVersion": "1.7.0"}', encoding="utf-8"
+    )
+    ct.settings.set("bids_root", root)
+    ct.set("selected_inputs", {"meg": ["sub-pp10_ses-01_task-128_run-1_meg.fif"]})
+    node = nodeviewer.input_node
+    connections = list(node.output(port_name="info").connected_ports)
+    node.update_widgets()
+    assert not node.output(port_name="meg").isEnabled()
+    tabs = node.input_widget.tab_widget
+    widget = next(
+        tabs.widget(index)
+        for index in range(tabs.count())
+        if tabs.tabText(index) == "meg"
+    )
+    for _ in range(2):
+        widget.model.setData(
+            widget.model.index(0, 0),
+            Qt.CheckState.Checked,
+            Qt.ItemDataRole.CheckStateRole,
+        )
+        assert ct.get("selected_inputs")["meg"] == [name]
+        for datatype in ("meg", "info", "event_id"):
+            assert node.output(port_name=datatype).isEnabled()
+        widget.model.setData(
+            widget.model.index(0, 0),
+            Qt.CheckState.Unchecked,
+            Qt.ItemDataRole.CheckStateRole,
+        )
+        assert not node.output(port_name="meg").isEnabled()
+    assert node.output(port_name="info").connected_ports == connections
+
+
 def test_input_output_availability_tracks_all_selected_recordings(nodeviewer):
     """Mixed selections disable MRI outputs without destroying graph connections."""
     import mne

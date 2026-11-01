@@ -34,7 +34,7 @@ from mne_bids import (
 from mne_bids.config import ALLOWED_DATATYPE_EXTENSIONS
 from packaging.utils import canonicalize_name
 
-from mne_nodes import gui_mode
+import mne_nodes
 from mne_nodes.backend.code_generation import CodeGenerator
 from mne_nodes.backend.coregistration import find_trans
 from mne_nodes.backend.execution import build_command
@@ -44,6 +44,10 @@ from mne_nodes.backend.freesurfer import (
     run_freesurfer_function,
     run_freesurfer_subprocess,
     stream_subprocess,
+)
+from mne_nodes.backend.function_conflicts import (
+    can_rename_plugin_source,
+    rename_plugin_functions,
 )
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
@@ -56,6 +60,7 @@ from mne_nodes.backend.package_utils import (
     unload_plugin_modules,
 )
 from mne_nodes.backend.settings import Settings
+from mne_nodes.gui.function_conflicts import resolve_function_conflicts
 from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
@@ -85,6 +90,7 @@ default_config = {
     "shutdown": False,
     # Plugins
     "plugin_meta": {},
+    "function_aliases": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
     "coreg_subjects": {},
@@ -301,7 +307,7 @@ class Controller:
 
     def initialize_welcome_tour(self, *, force: bool = False) -> None:
         """Start the tour using a disposable copy of the packaged pipeline."""
-        if not gui_mode:
+        if not mne_nodes.gui_mode:
             return
         active_tour = getattr(self, "welcome_tour", None)
         if active_tour is not None and not active_tour._finished:
@@ -1605,7 +1611,10 @@ class Controller:
         if metadata.get("class_name"):
             raise ValueError("FreeSurfer subprocess calls cannot be instance methods.")
         plugin = self.plugins[self.get_plugin_from_function(function_name)]
-        function = getattr(plugin, CodeGenerator.base_func_name(function_name))
+        function = getattr(
+            plugin,
+            metadata.get("callable_name", CodeGenerator.base_func_name(function_name)),
+        )
         subjects_dir = self.ensure_subjects_dir(interactive=False)
         if "subjects_dir" in metadata.get("parameters", {}) or (
             "subjects_dir" in metadata.get("inputs", {})
@@ -1716,6 +1725,7 @@ class Controller:
             raise ValueError(
                 f"Invalid config_path for plugin '{plugin_name}': {config_path}. Must be a dict or a valid path to a JSON config file."
             )
+        functions = deepcopy(functions)
         # add plugin-name to function metadata for later retrival
         for func, func_meta in functions.items():
             if not isinstance(func_meta, dict):
@@ -1738,25 +1748,126 @@ class Controller:
                         f"{sorted(missing_outputs)}."
                     )
             func_meta["plugin"] = plugin_name
-        # Warn for collisions with other plugins, but let the newly loaded
-        # plugin's functions win.
+        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
+        aliases = deepcopy(self.get("function_aliases", {}))
+        plugin_aliases = aliases.setdefault(plugin_name, {})
+        resolved_functions = {}
+        for name, meta in functions.items():
+            alias = plugin_aliases.get(name, name)
+            if alias is None:
+                continue
+            if alias != name:
+                if (
+                    not isinstance(alias, str)
+                    or not alias.isidentifier()
+                    or keyword.iskeyword(alias)
+                ):
+                    raise ValueError(f"Invalid saved function alias: {alias!r}.")
+                meta["callable_name"] = name
+            if alias in resolved_functions:
+                raise ValueError(f"Duplicate saved function alias: {alias!r}.")
+            resolved_functions[alias] = meta
+        functions = resolved_functions
         duplicate_functions = [
             fn
             for fn in functions
             if fn in self.function_meta
             and self.function_meta[fn].get("plugin") != plugin_name
         ]
-        if len(duplicate_functions) > 0:
-            raise_user_attention(
-                f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
-                "warning",
-            )
-        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
         old_functions = {
             fn: deepcopy(meta)
             for fn, meta in self.function_meta.items()
             if meta.get("plugin") == plugin_name
         }
+        if duplicate_functions:
+            if not mne_nodes.gui_mode:
+                raise ValueError(
+                    f"Unresolved function conflicts in {plugin_name!r}: "
+                    f"{duplicate_functions}. Resolve them in the GUI first."
+                )
+
+            def origin(name, meta):
+                source = meta.get("script_path") or meta.get("module_name")
+                return f"{name}\n{source or meta.get('config_path', '')}"
+
+            conflicts = {
+                name: (
+                    origin(
+                        self.function_meta[name]["plugin"],
+                        self.get("plugin_meta")[self.function_meta[name]["plugin"]],
+                    ),
+                    origin(plugin_name, plugin_meta),
+                )
+                for name in duplicate_functions
+            }
+            while True:
+                choices = resolve_function_conflicts(
+                    conflicts,
+                    set(self.function_meta) | set(functions),
+                    get_widget("main_window"),
+                    source_renamable={
+                        name
+                        for name in duplicate_functions
+                        if "command" not in functions[name]
+                        and not functions[name].get("class_name")
+                    }
+                    if can_rename_plugin_source(plugin_meta)
+                    else set(),
+                )
+                if choices is None:
+                    raise RuntimeError(f"Loading plugin {plugin_name!r} was cancelled.")
+                occupied = set(self.function_meta) | set(functions)
+                source_renames = {}
+                source_callables = {}
+                for name in duplicate_functions:
+                    mode, new_name = choices[name]
+                    if mode not in ("existing", "incoming", "alias", "source"):
+                        raise ValueError(f"Invalid conflict resolution: {mode!r}.")
+                    if mode in ("alias", "source"):
+                        if (
+                            not new_name.isidentifier()
+                            or keyword.iskeyword(new_name)
+                            or new_name in occupied
+                        ):
+                            raise ValueError(f"Invalid or occupied name: {new_name!r}.")
+                        occupied.add(new_name)
+                    if mode == "source":
+                        metadata = functions[name]
+                        if "command" in metadata or metadata.get("class_name"):
+                            raise ValueError(
+                                "Use a node alias for command nodes or class methods."
+                            )
+                        original_name = metadata.get("callable_name", name)
+                        source_callables[new_name] = getattr(plugin, original_name)
+                        source_renames[original_name] = new_name
+                if source_renames and not rename_plugin_functions(
+                    plugin_meta, source_renames
+                ):
+                    continue
+                break
+            for new_name, function in source_callables.items():
+                setattr(plugin, new_name, function)
+            for name in duplicate_functions:
+                mode, new_name = choices[name]
+                original_name = functions[name].get("callable_name", name)
+                if mode == "existing":
+                    plugin_aliases[original_name] = None
+                    functions.pop(name)
+                elif mode == "incoming":
+                    existing = self.function_meta[name]
+                    aliases.setdefault(existing["plugin"], {})[
+                        existing.get("callable_name", name)
+                    ] = None
+                    old_functions[name] = deepcopy(existing)
+                elif mode in ("alias", "source"):
+                    metadata = functions.pop(name)
+                    metadata["callable_name"] = (
+                        new_name if mode == "source" else original_name
+                    )
+                    functions[new_name] = metadata
+                    plugin_aliases[original_name] = new_name
+            self.set("function_aliases", aliases)
+            logger.info("Resolved function conflicts for plugin %s", plugin_name)
         self._unload_plugin_session(plugin_name, remove_nodes=False)
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         self.plugins[plugin_name] = plugin
@@ -2422,6 +2533,9 @@ class Controller:
         """Get the code for a specific function from the plugins."""
         plugin_name = self.get_plugin_from_function(function_name)
         plugin = self.plugins[plugin_name]
+        function_name = self.get_function_meta(function_name).get(
+            "callable_name", CodeGenerator.base_func_name(function_name)
+        )
         function = getattr(plugin, function_name)
         if function is None:
             raise KeyError(

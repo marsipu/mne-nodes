@@ -31,7 +31,7 @@ def welcome_sample_loader(monkeypatch):
 
 
 @pytest.fixture
-def welcome_tour_enabled(ct):
+def welcome_tour_enabled(ct, gui_mode):
     """Enable the first-run tour for tests that explicitly start it."""
     ct.settings.set("first_start", True)
 
@@ -329,7 +329,13 @@ def test_app_start(ct, main_window, qtbot):
 
 @pytest.mark.parametrize("relocate_sample", [False, True])
 def test_welcome_tour_initializes_demo_and_tracks_input_node(
-    settings, monkeypatch, tmp_path, qtbot, welcome_sample_loader, relocate_sample
+    settings,
+    monkeypatch,
+    tmp_path,
+    qtbot,
+    welcome_sample_loader,
+    relocate_sample,
+    gui_mode,
 ):
     """The real tour loads fresh demo state and follows its input node."""
     from mne_bids import BIDSPath

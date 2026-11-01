@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import mne_nodes
 from mne_nodes.logger import init_logging, logger
 
 test_parameters = {
@@ -89,6 +90,10 @@ def pytest_configure(config: pytest.Config) -> None:
         directory.cleanup()
 
     config.add_cleanup(cleanup)
+    config.addinivalue_line(
+        "markers", "gui_mode: enable application GUI routing for this test"
+    )
+    environment.setattr(mne_nodes, "gui_mode", False)
     environment.setenv("MNENODES_SETTINGS_DIR", directory.name)
     environment.setenv("MNENODES_DEBUG", "true")
     Settings().set("log_file_path", Path(directory.name) / "mne_nodes.log")
@@ -96,7 +101,20 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(autouse=True)
-def isolated_settings(tmp_path, monkeypatch):
+def application_gui_mode(request, monkeypatch):
+    """Keep application routing headless unless a test explicitly opts in."""
+    enabled = request.node.get_closest_marker("gui_mode") is not None
+    monkeypatch.setattr(mne_nodes, "gui_mode", enabled)
+
+
+@pytest.fixture
+def gui_mode(application_gui_mode, monkeypatch):
+    """Opt into application dialogs and welcome-tour behavior for a GUI test."""
+    monkeypatch.setattr(mne_nodes, "gui_mode", True)
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path, monkeypatch, application_gui_mode):
     """Protect implicit Settings users and give each test a clean startup state."""
     from mne_nodes.backend.settings import Settings
 

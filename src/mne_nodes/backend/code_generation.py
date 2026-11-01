@@ -176,11 +176,12 @@ class CodeGenerator:
         the generated script header.
         """
         func_meta = self.ct.get_function_meta(func_name)
+        callable_name = func_meta.get("callable_name", func_name)
         if func_meta.get("class_name") is None:
             function_names.add(func_name)
             plugin_name = self.ct.get_plugin_from_function(func_name)
-            return f"{self._plugin_namespace(plugin_name)}.{func_name}"
-        return func_name
+            return f"{self._plugin_namespace(plugin_name)}.{callable_name}"
+        return callable_name
 
     def generate_code(self):
         """Convert a list of instructions to a Python code string."""
@@ -362,10 +363,12 @@ class CodeGenerator:
                         method_receiver = func_inputs.get(lower_class, lower_class)
                         supplied_values.add(method_receiver)
                         func_line += f"{method_receiver}."
-                        func_name = base_name.split(".")[-1]
+                        func_name = func_meta.get("callable_name", base_name).split(
+                            "."
+                        )[-1]
                         func_inputs.pop(lower_class, None)
                     else:
-                        func_name = base_name
+                        func_name = func_meta.get("callable_name", base_name)
                         plugin_name = self.ct.get_plugin_from_function(name)
                         import_function_names.add(name)
                         func_name = f"{self._plugin_namespace(plugin_name)}.{func_name}"

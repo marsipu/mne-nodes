@@ -134,6 +134,28 @@ does not cause an installed plugin to be reloaded from GitHub.
 
 Editing existing plugins
 -------------------------
+When different plugins register the same function name, the **Conflicting Plugin
+Functions** dialog shows both plugin origins. Choose **Keep existing** or
+**Use incoming**, or keep both by giving the incoming function a unique name.
+**Node alias** saves a pipeline-specific name without changing plugin files;
+generated code still calls the original Python function. Choices are saved in
+the pipeline and reused on reload. Unresolved conflicts in headless execution
+are reported as errors instead of silently replacing functions.
+
+**Rename Python source** changes a top-level function definition or local import
+binding and its JSON
+configuration in a local or editable plugin. The old Python name remains a
+compatibility alias for existing imports and internal calls. For imported
+functions, only the local import binding is renamed; the third-party
+implementation is unchanged. Class methods and ordinary installed package files
+do not offer **Rename Python source** in the conflict dialog. Node aliases remain
+available because they do not modify plugin files. Use a node alias, or use
+**Manage Plugins > Edit...** to create a local
+editable copy. Cancel aborts loading the incoming plugin.
+Rename validation and file errors are displayed using the application's error
+notification and logged. The conflict dialog reopens so you can retry, choose a
+node alias, or cancel; failed renames do not register new function names.
+
 Choose **Plugins > Manage Plugins > Edit...** on the plugin's row.
 This opens the function importer, not a separate plugin editor. Its source tab
 edits the complete implementation module; select a function on the right to

@@ -31,6 +31,7 @@ from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.user_interaction import get_user_input
 from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 from mne_nodes.gui.widgets.tree_widgets import CustomGroupTreeWidget, ShallowTreeWidget
+from mne_nodes.logger import logger
 
 
 class DatatypeTabBar(QTabBar):
@@ -122,10 +123,25 @@ class InputWidget(QWidget):
     def update_widgets(self):
         self.ct.discard_legacy_segmentation_checks()
         self.selected_inputs = self.ct.get("selected_inputs")
+        inventory = self.ct.get_all_datatype_items()
+        for datatype, checked in self.selected_inputs.items():
+            if datatype in self.ct.scopes:
+                continue
+            available = set(inventory.get(datatype, []))
+            missing = [name for name in checked if name not in available]
+            if missing:
+                logger.warning(
+                    "Removed unavailable %s input selections from the current "
+                    "dataset: %s",
+                    datatype,
+                    ", ".join(missing),
+                )
+                checked[:] = [name for name in checked if name in available]
+        self.ct.set("selected_inputs", self.selected_inputs)
         # Clear tab widget
         self.tab_widget.clear()
         # Populate lists
-        for dt, data in self.ct.get_all_datatype_items().items():
+        for dt, data in inventory.items():
             checked = self.selected_inputs.setdefault(dt, [])
             dt_list = CheckListProgress(data, checked=checked, ui_button_pos="bottom")
             dt_list.checkedChanged.connect(
