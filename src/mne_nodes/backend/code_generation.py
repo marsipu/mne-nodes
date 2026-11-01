@@ -22,11 +22,7 @@ class CodeGenerator:
     @property
     def jupyter_script(self):
         """Return the generated code with Jupyter cell markers."""
-        code = re.sub(
-            r"(?m)^(# (?:Target|Selection-Type):)",
-            r"# %%\n\1",
-            self.code,
-        )
+        code = re.sub(r"(?m)^(# (?:Target|Selection-Type):)", r"# %%\n\1", self.code)
         return f"# %%\n{code}"
 
     @staticmethod
@@ -154,9 +150,7 @@ class CodeGenerator:
                 "from pathlib import Path\n"
                 "os.chdir(Path(__file__).resolve().parent)\n"
             )
-            config_path = (
-                "Path(__file__).resolve().parent / 'pipeline.json'"
-            )
+            config_path = "Path(__file__).resolve().parent / 'pipeline.json'"
         else:
             config_setup = ""
             config_path = (

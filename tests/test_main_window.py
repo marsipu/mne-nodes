@@ -113,8 +113,7 @@ def test_export_actions(main_window, monkeypatch, tmp_path):
         ]
     )
     monkeypatch.setattr(
-        "mne_nodes.gui.main_window.get_user_input",
-        lambda *args, **kwargs: next(paths),
+        "mne_nodes.gui.main_window.get_user_input", lambda *args, **kwargs: next(paths)
     )
     file_menu = next(
         menu
@@ -133,9 +132,10 @@ def test_export_actions(main_window, monkeypatch, tmp_path):
         assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
             archive.namelist()
         )
-        assert "os.chdir(Path(__file__).resolve().parent)" in archive.read(
-            "pipeline.py"
-        ).decode()
+        assert (
+            "os.chdir(Path(__file__).resolve().parent)"
+            in archive.read("pipeline.py").decode()
+        )
         assert "mne-nodes" in archive.read("requirements.txt").decode()
 
 

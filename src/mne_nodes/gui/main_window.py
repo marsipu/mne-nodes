@@ -352,10 +352,7 @@ class MainWindow(QMainWindow):
             archive_path = archive_path.with_suffix(".zip")
         try:
             export_project(
-                self.controller,
-                node_sequence,
-                archive_path,
-                self.viewer.to_dict(),
+                self.controller, node_sequence, archive_path, self.viewer.to_dict()
             )
         except (OSError, ValueError, KeyError, TypeError):
             ErrorDialog(
