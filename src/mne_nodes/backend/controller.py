@@ -90,6 +90,8 @@ class Controller:
         Settings object to use for device-dependent settings.
     """
 
+    raw_datatypes: tuple[str, ...] = ("eeg", "meg", "ieeg")
+
     def __init__(
         self, config_path: str | Path | None = None, settings: Settings | None = None
     ):
@@ -107,7 +109,7 @@ class Controller:
         self.lock_timeout = 5  # seconds
         self.disk_interval = 10  # seconds
         # raw datatypes
-        self.raw_types = ["eeg", "meg", "ieeg"]
+        self.raw_types = list(self.raw_datatypes)
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
@@ -1081,7 +1083,7 @@ class Controller:
                     for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match(
                         ignore_json=True, ignore_nosub=True
                     )
-                    if bp.datatype in self.raw_types and bp.extension != ".tsv"
+                    if bp.datatype in self.raw_datatypes and bp.extension != ".tsv"
                 ]
                 for v in vals
             }
@@ -1112,13 +1114,13 @@ class Controller:
     def get_datatype_items(self):
         items = {}
         data_types = self.get_datatypes()
-        data_types = [dt for dt in data_types if dt in self.raw_types] + [
-            dt for dt in data_types if dt not in self.raw_types
+        data_types = [dt for dt in data_types if dt in self.raw_datatypes] + [
+            dt for dt in data_types if dt not in self.raw_datatypes
         ]
         empty_room_items = []
         for dt in data_types:
             bp_kwargs = {"root": self.bids_root, "check": False}
-            if dt in self.raw_types:
+            if dt in self.raw_datatypes:
                 bp_kwargs.update({"suffix": dt})
             else:
                 bp_kwargs.update({"datatype": dt})
@@ -1352,7 +1354,7 @@ class Controller:
     def get_func_by_input(self, input_name: str) -> list:
         """Get the function name(s) associated with a specific input
         name."""
-        input_name = "raw" if input_name in self.raw_types else input_name
+        input_name = "raw" if input_name in self.raw_datatypes else input_name
         associated_functions = [
             func_name
             for func_name, func_meta in self.function_meta.items()
@@ -1367,7 +1369,7 @@ class Controller:
     def get_func_by_output(self, output_name: str) -> list:
         """Get the function name(s) associated with a specific output
         name."""
-        output_name = "raw" if output_name in self.raw_types else output_name
+        output_name = "raw" if output_name in self.raw_datatypes else output_name
         associated_functions = [
             func_name
             for func_name, func_meta in self.function_meta.items()

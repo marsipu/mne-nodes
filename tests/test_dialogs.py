@@ -214,9 +214,16 @@ def test_diagnostics_are_minimal_and_do_not_reload(monkeypatch):
                     "script_path": "/private/script.py",
                 },
             },
-            "selected_inputs": {"eeg": ["private-subject"], "private-task": ["secret"]},
+            "selected_inputs": {
+                "eeg": ["private-subject"],
+                "meg": ["private-run"],
+                "ieeg": ["private-session"],
+                "subject": ["private-subject"],
+                "private-task": ["secret"],
+            },
             "bids_dataset_name": "private dataset",
         },
+        raw_datatypes=("eeg", "meg", "ieeg"),
         get=lambda *args: pytest.fail("Must not reload config"),
         get_dataset_name=lambda: pytest.fail("Must not scan dataset"),
     )
@@ -225,6 +232,8 @@ def test_diagnostics_are_minimal_and_do_not_reload(monkeypatch):
     assert "public_module: 1.2" in report
     assert "custom plugin 2" in report
     assert "- eeg: 1" in report
+    assert "- meg: 1" in report
+    assert "- ieeg: 1" in report
     assert "private" not in report
     assert "secret" not in report
 

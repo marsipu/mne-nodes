@@ -78,7 +78,7 @@ def collect_diagnostics(controller: "Controller | None" = None) -> str:
             selected = config.get("selected_inputs", {})
             counts = [
                 f"- {datatype}: {len(selected[datatype])}"
-                for datatype in ("eeg", "meg", "ieeg")
+                for datatype in controller.raw_datatypes
                 if datatype in selected
             ]
             sections.append(

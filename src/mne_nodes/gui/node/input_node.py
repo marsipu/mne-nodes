@@ -158,7 +158,7 @@ class InputNode(BaseNode):
                     continue
                 port_kwargs = existing_outputs.get(name, {})
                 accepted = port_kwargs.get("accepted_ports") or [name]
-                if dt in self.ct.raw_types and "raw" not in accepted:
+                if dt in self.ct.raw_datatypes and "raw" not in accepted:
                     accepted.append("raw")
                 if name not in accepted:
                     accepted.append(name)
