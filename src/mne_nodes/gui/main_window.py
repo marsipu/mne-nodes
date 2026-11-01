@@ -292,7 +292,9 @@ class MainWindow(QMainWindow):
         if self.viewer.input_node is None:
             raise_user_attention("There is no pipeline code to export.", parent=self)
             return None
-        return self.viewer.get_node_sequence(self.viewer.input_node)
+        node_sequence = self.viewer.get_node_sequence(self.viewer.input_node)
+        self.controller.flush()
+        return node_sequence
 
     def export_python_script(self, _checked=False):
         node_sequence = self._export_node_sequence()
