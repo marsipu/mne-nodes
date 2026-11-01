@@ -504,6 +504,96 @@ def test_codegen_bids_metadata_inputs(ct, monkeypatch, target, inputs):
             assert info is raw.info
 
 
+@pytest.mark.parametrize("port", ["eeg", "raw_er"])
+@pytest.mark.parametrize("from_dataset", [True, False])
+def test_codegen_raw_method_uses_connected_receiver(
+    ct, monkeypatch, port, from_dataset
+):
+    """Raw method receivers use live upstream values or direct dataset loaders."""
+    from types import SimpleNamespace
+
+    from mne_bids import get_bids_path_from_fname
+
+    from mne_nodes.backend.code_generation import CodeGenerator
+
+    recording_path = next(ct.bids_root.rglob("*_eeg.vhdr"))
+    ct.set("selected_inputs", {"eeg": [recording_path.name]})
+    method_meta = {
+        "inputs": {"raw": {"accepted_ports": [port]}},
+        "outputs": {},
+        "parameters": {},
+        "class_name": "Raw",
+    }
+    ct.function_meta["Raw.filter"] = method_meta
+    nodes = []
+    source = "Input-0"
+    if not from_dataset:
+        plugin_name = "receiver_plugin"
+        function_name = "make_recording"
+        output_meta = {
+            "inputs": {},
+            "outputs": {port: {}},
+            "parameters": {},
+            "class_name": None,
+            "plugin": plugin_name,
+        }
+        ct.function_meta[function_name] = output_meta
+        nodes.append(
+            {
+                "name": function_name,
+                "function_meta": output_meta,
+                "inputs": {},
+                "outputs": {port: []},
+                "checked": False,
+            }
+        )
+        source = function_name
+    nodes.append(
+        {
+            "name": "Raw.filter",
+            "function_meta": method_meta,
+            "inputs": {"raw": [source]},
+            "input_ports": {"raw": [port]},
+            "outputs": {},
+            "checked": False,
+        }
+    )
+    monkeypatch.setattr(CodeGenerator, "_build_header", lambda *args: "")
+    monkeypatch.setattr(ct, "func_parameters", lambda _name: {})
+
+    class Recording:
+        def __init__(self):
+            self.filter_calls = 0
+
+        def filter(self, **_kwargs):
+            self.filter_calls += 1
+
+    code = CodeGenerator(ct, {"file": nodes}).code
+    recording = Recording()
+
+    receiver = "_recording_raw" if port == "eeg" else "raw_er"
+    if from_dataset:
+        assert f"{receiver}.filter(" in code
+        assert (
+            "ct.load_raw(bp)" in code if port == "eeg" else "ct.load_raw_er(bp)" in code
+        )
+        if port == "eeg":
+            monkeypatch.setattr(ct, "load_raw", lambda _bp: (recording, {}))
+        else:
+            monkeypatch.setattr(ct, "load_raw_er", lambda _bp: recording)
+    else:
+        assert f"{port}.filter(" in code
+        assert "ct.load_raw(" not in code
+        assert "ct.load_raw_er(" not in code
+    namespace = {"ct": ct, "get_bids_path_from_fname": get_bids_path_from_fname}
+    if not from_dataset:
+        namespace["receiver_plugin"] = SimpleNamespace(
+            make_recording=lambda **_kwargs: recording
+        )
+    exec(compile(code, "<generated raw method>", "exec"), namespace)  # noqa: S102
+    assert recording.filter_calls == 1
+
+
 def test_plugin_import(tmp_path, ct, test_plugin_config, test_script):
     # ToDo Next: Fix get_function_code
     # Assert basic plugins are imported

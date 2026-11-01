@@ -231,16 +231,25 @@ class CodeGenerator:
                     # Check which inputs are already satisfied (incl. via accepted_ports)
                     # before deciding what still needs to be loaded from disk.
                     func_inputs, loading_needed = self.ct.func_inputs(name, loaded_data)
+                    dataset_inputs = {
+                        param
+                        for param, sources in n.get("inputs", {}).items()
+                        if sources
+                        and all(
+                            isinstance(source, str) and source.startswith("Input-")
+                            for source in sources
+                        )
+                    }
                     empty_room_inputs = {
                         param
                         for param, ports in n.get("input_ports", {}).items()
                         if "raw_er" in ports
-                    }
+                    } & dataset_inputs
                     recording_inputs = {
                         param
                         for param, ports in n.get("input_ports", {}).items()
                         if any(port in self.ct.raw_types for port in ports)
-                    }
+                    } & dataset_inputs
                     for param in empty_room_inputs | recording_inputs:
                         func_inputs.pop(param, None)
                         if param not in loading_needed:
@@ -350,8 +359,9 @@ class CodeGenerator:
                         func_name = "ct.execute_external"
                     elif func_meta["class_name"] is not None:
                         lower_class = func_meta["class_name"].lower()
-                        supplied_values.add(lower_class)
-                        func_line += f"{lower_class}."
+                        method_receiver = func_inputs.get(lower_class, lower_class)
+                        supplied_values.add(method_receiver)
+                        func_line += f"{method_receiver}."
                         func_name = base_name.split(".")[-1]
                         func_inputs.pop(lower_class, None)
                     else:

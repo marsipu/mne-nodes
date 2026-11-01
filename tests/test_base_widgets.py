@@ -217,6 +217,36 @@ def test_tree_widget_content_changed_rebuilds_view(qtbot):
     assert "new_top" in keys
 
 
+def test_mark_list_refreshes_cached_keys(qtbot):
+    """Refresh key snapshots on replacement and externally mutated dictionaries."""
+    from mne_nodes.gui.widgets.list_widgets import MarkList
+
+    data = {"first": True, "second": False}
+    widget = MarkList(data=data)
+    qtbot.addWidget(widget)
+    assert widget.model._data is data
+    assert widget.model.index(0, 0).data() == "first"
+
+    del data["first"]
+    data["third"] = True
+    widget.content_changed()
+
+    assert widget.model.rowCount() == 2
+    assert [widget.model.index(row, 0).data() for row in range(2)] == [
+        "second",
+        "third",
+    ]
+    assert (
+        widget.model.data(widget.model.index(0, 0), Qt.ItemDataRole.DecorationRole)
+        is widget.model.mark_icons[False]
+    )
+
+    replacement = {"replacement": True}
+    widget.replace_data(replacement)
+    assert widget.model._data is replacement
+    assert widget.model.index(0, 0).data() == "replacement"
+
+
 # Parameterized test for widget selection methods
 @pytest.mark.parametrize(
     "widget_type, widget_names, data_type, select_params",

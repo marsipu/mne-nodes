@@ -206,6 +206,7 @@ class CoregDialog(QDialog):
         self._subject_changed(selected)
         self.status.setText(
             recording.error
+            or recording.warning
             or "Choose a FreeSurfer subject, then fit or inspect alignment."
         )
         self.recording_list.view.setCurrentIndex(self.recording_list.model.index(0, 0))
@@ -220,6 +221,7 @@ class CoregDialog(QDialog):
             if recording:
                 self.status.setText(
                     recording.error
+                    or recording.warning
                     or (
                         str(recording.existing_trans)
                         if recording.existing_trans

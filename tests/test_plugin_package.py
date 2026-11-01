@@ -21,6 +21,7 @@ from mne_nodes.backend.package_utils import (
     find_plugin_entry_point,
     get_import_name,
     get_plugin_entry_points,
+    unload_plugin_modules,
 )
 from mne_nodes.backend.plugin_package import (
     PluginPackageMetadata,
@@ -396,6 +397,23 @@ def test_local_package_relative_imports_and_reload(ct, tmp_path, package_metadat
         ct.load_plugin_path(config)
     assert ct.plugins["relative_fixture"] is previous
     assert sys.modules[previous.__name__] is previous
+
+
+def test_unload_plugin_modules_ignores_unwritable_bytecode(tmp_path, monkeypatch):
+    """A read-only plugin source remains unloadable when cache deletion is denied."""
+    module = ModuleType("readonly_plugin")
+    module.__file__ = str(tmp_path / "readonly_plugin.py")
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+
+    def deny_removal(_path):
+        raise PermissionError("read-only cache")
+
+    monkeypatch.setattr("mne_nodes.backend.package_utils.os.remove", deny_removal)
+
+    unloaded = unload_plugin_modules(module.__name__)
+
+    assert unloaded == {module.__name__: module}
+    assert module.__name__ not in sys.modules
 
 
 def test_metadata_dialog_requires_explicit_license(qtbot, monkeypatch):

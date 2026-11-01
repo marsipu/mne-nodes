@@ -222,6 +222,7 @@ class MarkListModel(QAbstractListModel):
     ) -> None:
         super().__init__()
         self.show_index = show_index
+        self._keys: list[Hashable] = []
         self.set_data({} if data is None else data)
         if not isinstance(mark_icons, dict):
             raise TypeError("Mark icons must be configured with a dictionary")
@@ -255,18 +256,23 @@ class MarkListModel(QAbstractListModel):
         """Replace the data reference after validating its mark values."""
         self.validate_data(data)
         self._data = data
+        self.refresh_keys()
+
+    def refresh_keys(self) -> None:
+        """Refresh the ordered keys after the dictionary contents change."""
+        self._keys = list(self._data)
 
     def getData(self, index: QModelIndex | QPersistentModelIndex) -> Hashable | None:
         """Return the item key at an index, rather than its marking."""
-        if not index.isValid() or not 0 <= index.row() < len(self._data):
+        if not index.isValid() or not 0 <= index.row() < len(self._keys):
             return None
-        return list(self._data)[index.row()]
+        return self._keys[index.row()]
 
     def rowCount(
         self, parent: QModelIndex | QPersistentModelIndex | None = None
     ) -> int:
         """Return the number of items in this flat model."""
-        return 0 if parent is not None and parent.isValid() else len(self._data)
+        return 0 if parent is not None and parent.isValid() else len(self._keys)
 
     def data(
         self,
@@ -274,7 +280,7 @@ class MarkListModel(QAbstractListModel):
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> str | QIcon | None:
         """Return an item's label or its configured marking icon."""
-        if not index.isValid() or not 0 <= index.row() < len(self._data):
+        if not index.isValid() or not 0 <= index.row() < len(self._keys):
             return None
         item = self.getData(index)
         if role == Qt.ItemDataRole.DisplayRole:

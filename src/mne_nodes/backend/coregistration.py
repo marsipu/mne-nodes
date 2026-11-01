@@ -47,6 +47,7 @@ class CoregRecording:
     info: mne.Info | None
     error: str | None = None
     existing_trans: Path | None = None
+    warning: str | None = None
 
 
 @dataclass
@@ -171,9 +172,12 @@ def discover_coreg_groups(
         if worker_signals.was_canceled:
             break
         worker_signals.pgbar_text.emit(f"Reading digitization: {path.basename}")
-        info, error, existing = None, None, None
+        info, error, existing, warning = None, None, None, None
         try:
             existing = find_trans(path, deriv_root, other_roots)
+        except (OSError, ValueError, RuntimeError) as exc:
+            warning = f"Transformation lookup failed: {exc}"
+        try:
             with read_raw_bids(path, extra_params={"preload": False}) as raw:
                 info = raw.info.copy()
             if not info["dig"]:
@@ -182,7 +186,9 @@ def discover_coreg_groups(
             error = str(exc)
         if error:
             logger.warning(f"Coregistration: {path.basename}: {error}")
-        recording = CoregRecording(path, info, error, existing)
+        if warning:
+            logger.warning(f"Coregistration: {path.basename}: {warning}")
+        recording = CoregRecording(path, info, error, existing, warning)
         for group in groups:
             representative = group.recordings[0]
             other = representative.bids_path

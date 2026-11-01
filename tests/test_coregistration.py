@@ -131,6 +131,37 @@ def test_discover_groups(tmp_path, monkeypatch):
     assert progress.call_args.args == (len(paths),)
 
 
+def test_ambiguous_transformation_does_not_disable_fitting(
+    qtbot, tmp_path, monkeypatch
+):
+    """Show lookup warnings while keeping usable digitization available for fitting."""
+    ct = make_controller(tmp_path)
+    path = make_path(ct.ensure_bids_root())
+    ct.get_datatype_items.side_effect = lambda dt: (
+        [path.basename] if dt == "eeg" else ["sub-01"] if dt == "subject" else []
+    )
+    monkeypatch.setattr(
+        backend, "find_trans", Mock(side_effect=ValueError("ambiguous candidates"))
+    )
+    monkeypatch.setattr(
+        backend,
+        "read_raw_bids",
+        lambda *_args, **_kwargs: nullcontext(SimpleNamespace(info=make_info())),
+    )
+
+    groups = backend.discover_coreg_groups(ct, WorkerSignals())
+    recording = groups[0].recordings[0]
+    assert recording.error is None
+    assert recording.warning == ("Transformation lookup failed: ambiguous candidates")
+
+    dialog = coreg_widgets.CoregDialog(ct)
+    qtbot.addWidget(dialog)
+    dialog.mri_subject.addItem("sub-01")
+    dialog._discovered(groups)
+    assert dialog.auto_button.isEnabled()
+    assert "ambiguous candidates" in dialog.status.text()
+
+
 def test_discover_cancel(tmp_path):
     """Cancellation does not read further headers."""
     signals = WorkerSignals()

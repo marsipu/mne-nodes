@@ -372,6 +372,7 @@ class MarkList(BaseList):
     def content_changed(self) -> None:
         """Validate and refresh externally changed items or markings."""
         self.model.validate_data(self.model._data)
+        self.model.refresh_keys()
         super().content_changed()
 
 

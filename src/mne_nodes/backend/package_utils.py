@@ -12,6 +12,7 @@ from packaging.utils import canonicalize_name
 from qtpy.QtWidgets import QWidget
 
 from mne_nodes.gui.run_widgets import ProcessDialog
+from mne_nodes.logger import logger
 
 
 def unload_plugin_modules(
@@ -34,6 +35,8 @@ def unload_plugin_modules(
             os.remove(cache_from_source(str(path)))
         except FileNotFoundError:
             pass
+        except PermissionError as exc:
+            logger.debug("Could not remove plugin bytecode cache: %s", exc)
     for name in previous_modules:
         sys.modules.pop(name)
     importlib.invalidate_caches()
