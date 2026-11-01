@@ -172,7 +172,14 @@ def init_plotting() -> None:
     """Show Matplotlib figures without blocking the pipeline execution."""
     import matplotlib.pyplot as plt
 
-    plt.ion()
+    show = plt.show
+
+    def show_nonblocking(*args, **kwargs):
+        if kwargs.get("block") is None:
+            kwargs["block"] = False
+        return show(*args, **kwargs)
+
+    plt.show = show_nonblocking
 
 
 def open_plot_windows() -> list:

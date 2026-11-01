@@ -16,7 +16,11 @@ import pytest
 from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QWidget
 
-from mne_nodes.backend.pipeline_utils import open_plot_windows, wait_for_plots
+from mne_nodes.backend.pipeline_utils import (
+    init_plotting,
+    open_plot_windows,
+    wait_for_plots,
+)
 
 EVENT_ID = {
     "Auditory/Left": 1,
@@ -26,6 +30,22 @@ EVENT_ID = {
     "Smiley": 5,
     "Button": 32,
 }
+
+
+def test_init_plotting_keeps_show_nonblocking_without_interactive_mode(monkeypatch):
+    """Explicit show calls are non-blocking without auto-displaying figures."""
+    import matplotlib.pyplot as plt
+
+    calls = []
+    monkeypatch.setattr(plt, "show", lambda **kwargs: calls.append(kwargs))
+    plt.ioff()
+    init_plotting()
+
+    assert not plt.isinteractive()
+    plt.show()
+    plt.show(block=None)
+    assert calls == [{"block": False}, {"block": False}]
+
 
 PLOT_PLUGIN_CODE = '''
 import mne
