@@ -54,6 +54,35 @@ remain unchanged.
 See the [Docker GUI development guide](docs/source/development/docker_gui.rst)
 for the cross-platform container launcher and X server requirements.
 
+## Publishing releases
+
+Package versions are derived from Git tags by `hatch-vcs`; do not manually
+set a version in `pyproject.toml`. To publish through GitHub's Releases page:
+
+1. Merge the release changes into `main`, wait for CI to pass, and smoke-test
+   the GUI. Review the readiness notice in the README before entering beta;
+   retain the warning about production analysis until it is appropriate to
+   remove it.
+2. Create a release with a new tag targeting the intended commit on `main`.
+   Use Python version notation, for example `v0.1.0b1` for the first beta,
+   `v0.1.0rc1` for a release candidate, or `v0.1.0` for the final release.
+3. Generate and review release notes, including known limitations and
+   installation instructions. Check **Set as a pre-release** for alpha, beta
+   and release-candidate versions; leave it unchecked for final releases.
+4. Publish the release. The **Upload to PyPi** workflow reruns the shared test
+   suite, checks that the tagged commit belongs to `main`, and verifies that
+   both built distributions match the tag and the pre-release flag before
+   uploading to PyPI. Publishing cannot be triggered manually.
+5. Confirm the workflow succeeded and the version appears on PyPI. Install
+   that exact published version in a clean environment, for example
+   `pip install mne-nodes==0.1.0b1`, and smoke-test the GUI before announcing it.
+
+Users can opt into pre-releases with `pip install --upgrade --pre mne-nodes`.
+PyPI versions cannot be overwritten: publish a new version (for example
+`v0.1.0b2`) for fixes instead of moving or reusing an existing release tag.
+If validation fails before upload, fix the issue and rerun the failed workflow;
+do not use a manual untagged publish as a workaround.
+
 ## Workflow for contributing
 1. Create a branch for changes: `git checkout -b <branch-name>`
 2. Commit changes: `git commit -am "<your commit message>"`

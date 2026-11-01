@@ -1,5 +1,6 @@
 name: CIs
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -23,6 +24,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       # Set up headless display for windows and linux
       - name: Setup headless display
         uses: pyvista/setup-headless-display-action@main
@@ -37,7 +40,9 @@ jobs:
         # Test with PySide6 by default
         run: |
           python -m pip install --upgrade pip
-          python -m pip install PySide6
+          python -m pip install \
+            "PySide6<6.12; python_version < '3.12'" \
+            "PySide6; python_version >= '3.12'"
           python -m pip install -v ".[test]"
       - name: Get testing version
         run: |
