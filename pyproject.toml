@@ -24,6 +24,7 @@ dependencies = [
     "mne-bids",
     "mne-qt-browser",
     "mne-connectivity",
+    "traitlets",
     # MNE related
     "vtk", # needed for CIs
     "nibabel", # needed for CIs
@@ -44,10 +45,14 @@ dependencies = [
     "rich",
     "docstring_parser",
     "ijson",
+    "packaging>=24.2",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
 test = [
+    "build",
+    "hatchling>=1.27",
+    "editables",
     "pytest",
     "pytest-qt",
     "pre-commit",

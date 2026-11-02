@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import mne
 
+read_epochs = mne.read_epochs
+read_evokeds = mne.read_evokeds
+write_evokeds = mne.write_evokeds
+
 
 def test_filter(
     raw,

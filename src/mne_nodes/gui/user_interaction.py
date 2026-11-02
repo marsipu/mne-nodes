@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
-from mne_nodes import gui_mode
+import mne_nodes
 from mne_nodes.logger import logger
 
 
@@ -79,7 +79,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     parent : QWidget | None, optional
         Set the parent of the modal widget.
     """
-    if gui_mode:
+    if mne_nodes.gui_mode:
         ans, cancel = question_yes_no(
             prompt, cancel_allowed=cancel_allowed, parent=parent
         )
@@ -106,7 +106,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     else:
         message = None
     if message is not None:
-        if gui_mode:
+        if mne_nodes.gui_mode:
             warning_message(message, parent=parent)
         else:
             logger.warning(message)
@@ -158,7 +158,7 @@ def ask_user_custom(
     first_label = button_labels[0]
     second_label = button_labels[1]
 
-    if gui_mode:
+    if mne_nodes.gui_mode:
         msg_box = QMessageBox(parent)
         msg_box.setWindowTitle("Question")
         msg_box.setText(prompt)
@@ -225,7 +225,7 @@ def ask_user_custom(
     else:
         message = None
     if message is not None:
-        if gui_mode:
+        if mne_nodes.gui_mode:
             warning_message(message, parent=parent)
         else:
             logger.warning(message)
@@ -334,7 +334,7 @@ def get_user_input(
         If `input_type` is not a supported input type.
     """
     type_error_message = f"input_type must be 'string', 'url', 'folder', 'file', 'file_new', not '{input_type}'"
-    if gui_mode:
+    if mne_nodes.gui_mode:
         if input_type in ("string", "url"):
             user_input, ok = _get_text_input(prompt, parent=parent)
         elif input_type == "folder":
@@ -416,7 +416,7 @@ def get_user_input(
 
 def raise_user_attention(message, message_type="warning", parent=None):
     """Raise a message to the user, either as a warning or an error."""
-    if gui_mode:
+    if mne_nodes.gui_mode:
         if message_type == "warning":
             warning_message(message, parent=parent)
         elif message_type == "error":

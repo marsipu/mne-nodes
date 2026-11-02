@@ -25,7 +25,7 @@ class FunctionNode(BaseNode):
             checkbox = "Save"
         else:
             checkbox = None
-        super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
+        super().__init__(ct, checkbox=checkbox, startable=False, **kwargs)
         # Set Tooltip
         self.setToolTip(func_meta.get("description", ""))
         # Initialize inputs and outputs
@@ -100,3 +100,17 @@ class FunctionNode(BaseNode):
                 message_type="info",
                 parent=self,
             )
+
+
+class CommandNode(FunctionNode):
+    """Node whose configured parameters form an executable argument vector."""
+
+    def mouseDoubleClickEvent(self, event):
+        metadata = self.ct.get_function_meta(self.name)
+        raise_user_attention(
+            "This node runs a command, not a Python function:\n"
+            + " ".join(metadata["command"])
+            + "\nEdit command/command_args in the plugin JSON configuration.",
+            message_type="info",
+            parent=self,
+        )
