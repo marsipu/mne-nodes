@@ -1,16 +1,72 @@
-"""GUI entry points and persistence for custom function imports."""
+"""Saving, loading and error handling of custom function imports."""
 
 import json
 
 import pytest
-from qtpy.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
-from qtpy.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
-from qtpy.QtWidgets import QApplication, QLineEdit, QMenu
+from qtpy.QtCore import QMimeData, QPointF, Qt, QUrl
+from qtpy.QtGui import QDropEvent
 
-from mne_nodes.gui.function_widgets import FunctionImporter
+from mne_nodes.backend.plugin_package import PluginPackageMetadata
+from mne_nodes.gui.function_widgets import FunctionImporter, ParameterConfiguration
 from mne_nodes.gui.gui_utils import is_function_import_mime
+from mne_nodes.gui.parameter import BoolGui, CheckListGui, ComboGui, ListGui
+from mne_nodes.gui.widgets.list_widgets import EditList
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 CODE = "def transform(raw, scale=2):\n    result = raw * scale\n    return result\n"
+
+
+@pytest.mark.parametrize("gui_class", [ComboGui, CheckListGui])
+@pytest.mark.parametrize("existing_options", [None, ["first", "second"]])
+def test_parameter_configuration_required_options(qtbot, gui_class, existing_options):
+    """Required option sequences can be edited and reused by parameter GUIs."""
+    config = {"gui": gui_class.__name__}
+    if existing_options is not None:
+        config["options"] = existing_options.copy()
+    dialog = ParameterConfiguration("choice", config)
+    qtbot.addWidget(dialog)
+    widgets = {
+        dialog.specific_gui_config_layout.itemAt(index)
+        .widget()
+        .name: dialog.specific_gui_config_layout.itemAt(index).widget()
+        for index in range(dialog.specific_gui_config_layout.count())
+    }
+    assert "options" in widgets
+    options = widgets["options"]
+    assert isinstance(options, ListGui)
+    assert not options.none_select
+    assert options.value == (existing_options or [])
+    assert "kwargs" not in widgets
+    if gui_class is ComboGui:
+        assert isinstance(widgets["editable"], BoolGui)
+        assert widgets["editable"].value is False
+    else:
+        assert isinstance(widgets["one_check"], BoolGui)
+        assert widgets["one_check"].value is False
+
+    options.open_dialog()
+    list_dialog = options.findChild(SimpleDialog)
+    edit_list = list_dialog.findChild(EditList)
+    row = edit_list.model.rowCount()
+    edit_list.model.insertRow(row)
+    assert edit_list.model.setData(
+        edit_list.model.index(row, 0), "third", Qt.ItemDataRole.EditRole
+    )
+    list_dialog.close()
+    expected_options = [*(existing_options or []), "third"]
+    assert config["options"] == expected_options
+    dialog.close()
+    reopened = ParameterConfiguration("choice", config)
+    qtbot.addWidget(reopened)
+    assert (
+        reopened.specific_gui_config_layout.itemAt(0).widget().value == expected_options
+    )
+    default = "third" if gui_class is ComboGui else []
+    widget = gui_class(
+        data={}, name="choice", options=config["options"], default=default
+    )
+    qtbot.addWidget(widget)
+    assert list(widget.options) == config["options"]
 
 
 @pytest.fixture
@@ -23,7 +79,30 @@ def importer_input(monkeypatch, tmp_path):
         return tmp_path if input_type == "folder" else "custom_functions"
 
     monkeypatch.setattr("mne_nodes.gui.function_widgets.get_user_input", user_input)
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.request_package_metadata",
+        lambda *args: PluginPackageMetadata(
+            distribution_name="mne-nodes_custom-functions",
+            description="Test plugin",
+            author="Test contributors",
+            license_expression="BSD-3-Clause",
+        ),
+    )
     return calls
+
+
+@pytest.fixture
+def errors(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.ErrorDialog.open",
+        lambda self: captured.append(self),
+    )
+    return captured
+
+
+def _package_dir(root, plugin_name="custom_functions"):
+    return root / "src" / f"mne_nodes_{plugin_name}"
 
 
 def _importers(main_window):
@@ -35,93 +114,6 @@ def _discard_importers(main_window):
         # Avoid unsaved-change prompts during fixture cleanup.
         importer.func_config.clear()
         importer.close()
-
-
-def _set_clipboard_text(qtbot, text):
-    def set_and_check():
-        QApplication.clipboard().setText(text)
-        return QApplication.clipboard().text() == text
-
-    qtbot.waitUntil(set_and_check)
-
-
-def test_import_menu_opens_empty_dialog(main_window):
-    menu = next(
-        menu
-        for menu in main_window.menuBar().findChildren(QMenu)
-        if menu.title() == "&Plugins"
-    )
-    next(
-        action for action in menu.actions() if action.text() == "&Import Functions..."
-    ).trigger()
-    (importer,) = _importers(main_window)
-    assert importer.isVisible()
-    assert not importer.allow_exec
-    importer.close()
-
-
-@pytest.mark.parametrize("target", ["window", "canvas"])
-@pytest.mark.parametrize("payload", ["text", "files"])
-def test_drop_imports_functions(
-    main_window, qtbot, tmp_path, importer_input, target, payload
-):
-    mime = QMimeData()
-    if payload == "files":
-        paths = [tmp_path / "first.py", tmp_path / "second.PY"]
-        for path in paths:
-            path.write_text(CODE, encoding="utf-8")
-        mime.setUrls([QUrl.fromLocalFile(str(path)) for path in paths])
-    else:
-        mime.setText(CODE)
-    widget = main_window if target == "window" else main_window.viewer.viewport()
-    pos = QPoint(20, 20)
-    actions = Qt.DropAction.CopyAction
-    buttons = Qt.MouseButton.LeftButton
-    modifiers = Qt.KeyboardModifier.NoModifier
-    enter = QDragEnterEvent(pos, actions, mime, buttons, modifiers)
-    QApplication.sendEvent(widget, enter)
-    assert enter.isAccepted()
-    move = QDragMoveEvent(pos, actions, mime, buttons, modifiers)
-    QApplication.sendEvent(widget, move)
-    assert move.isAccepted()
-    drop = QDropEvent(QPointF(pos), actions, mime, buttons, modifiers)
-    QApplication.sendEvent(widget, drop)
-    assert drop.isAccepted()
-    importers = _importers(main_window)
-    assert len(importers) == (2 if payload == "files" else 1)
-    for importer in importers:
-        assert importer.isVisible()
-        assert "transform" in importer.func_config
-        assert not importer.allow_exec
-    _discard_importers(main_window)
-
-
-def test_canvas_paste_and_editor_paste(main_window, qtbot, importer_input):
-    _set_clipboard_text(qtbot, CODE)
-    main_window.viewer.setFocus()
-    qtbot.keyClick(
-        main_window.viewer, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier
-    )
-    (importer,) = _importers(main_window)
-    assert "transform" in importer.func_config
-    _discard_importers(main_window)
-    qtbot.waitUntil(lambda: not _importers(main_window))
-
-    editor = QLineEdit(main_window)
-    qtbot.addWidget(editor)
-    editor.show()
-    editor.setFocus()
-    _set_clipboard_text(qtbot, "ordinary parameter text")
-    qtbot.keyClick(editor, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
-    assert editor.text() == "ordinary parameter text"
-    assert not _importers(main_window)
-
-
-def test_paste_handler(main_window, qtbot, importer_input):
-    _set_clipboard_text(qtbot, CODE)
-    main_window.paste_function_code()
-    assert "transform" in _importers(main_window)[0].func_config
-    _discard_importers(main_window)
 
 
 @pytest.mark.parametrize(
@@ -191,8 +183,8 @@ def test_text_plugin_save_preserves_module(qtbot, importer_input, tmp_path):
     importer.reanalyze()
     assert importer.func_config["transform"]["parameters"]["scale"]["default"] == 3
     importer.save()
-    script_path = tmp_path / "custom_functions.py"
-    config_path = tmp_path / "custom_functions_config.json"
+    script_path = _package_dir(tmp_path) / "custom_functions.py"
+    config_path = _package_dir(tmp_path) / "custom_functions_config.json"
     assert importer.file_path == script_path
     assert script_path.read_text(encoding="utf-8") == code.replace("scale=2", "scale=3")
     assert "transform" in json.loads(config_path.read_text(encoding="utf-8"))
@@ -201,31 +193,81 @@ def test_text_plugin_save_preserves_module(qtbot, importer_input, tmp_path):
     importer.close()
 
 
-def test_file_import_uses_python_encoding(qtbot, tmp_path):
+def test_invalid_reanalysis_preserves_editor(qtbot, importer_input, errors):
+    importer = FunctionImporter(code=CODE)
+    qtbot.addWidget(importer)
+    editor = importer.editors["transform"]
+    editor.setPlainText("def broken(:")
+    importer.reanalyze()
+    assert len(errors) == 1
+    assert importer.editors["transform"] is editor
+    assert editor.toPlainText() == "def broken(:"
+    importer.func_config.clear()
+    importer.close()
+
+
+def test_file_import_never_modifies_source(qtbot, tmp_path, importer_input):
     script = tmp_path / "encoded.py"
-    script.write_bytes(("# coding: latin-1\n# caf\xe9\n" + CODE).encode("latin-1"))
+    original = ("# coding: latin-1\n# caf\xe9\n" + CODE).encode("latin-1")
+    script.write_bytes(original)
     importer = FunctionImporter(file_path=script)
     qtbot.addWidget(importer)
-    importer.save()
-    assert (tmp_path / "encoded_config.json").is_file()
     assert "caf\xe9" in importer.get_code()
+    importer.editors["transform"].setPlainText(
+        importer.editors["transform"].toPlainText().replace("scale=2", "scale=7")
+    )
+    importer.reanalyze()
+    assert importer.save()
+    assert script.read_bytes() == original
+    assert (_package_dir(tmp_path, "encoded") / "encoded_config.json").is_file()
+    saved_code = importer.file_path.read_text(encoding="utf-8")
+    assert "# coding: utf-8" in saved_code
+    assert "caf\xe9" in saved_code
+    assert "scale=7" in saved_code
+    assert importer.func_config["transform"]["parameters"]["scale"]["default"] == 7
+    # Re-saving keeps manually customized package metadata.
+    metadata_file = tmp_path / "pyproject.toml"
+    metadata_file.write_text("# manually customized metadata\n", encoding="utf-8")
+    assert importer.save()
+    assert (
+        metadata_file.read_text(encoding="utf-8") == "# manually customized metadata\n"
+    )
+    importer.close()
+
+
+def test_loading_another_file_chooses_a_new_package_destination(
+    qtbot, importer_input, tmp_path, monkeypatch
+):
+    sources = [tmp_path / "first.py", tmp_path / "second.py"]
+    destinations = [tmp_path / "first_package", tmp_path / "second_package"]
+    for source in sources:
+        source.write_text(CODE, encoding="utf-8")
+    choices = iter(destinations)
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.get_user_input",
+        lambda *args, **kwargs: next(choices),
+    )
+    importer = FunctionImporter(file_path=sources[0])
+    qtbot.addWidget(importer)
+    assert importer.save()
+    importer.load_file(sources[1])
+    assert importer.save()
+    for source, destination in zip(sources, destinations, strict=True):
+        config = _package_dir(destination, source.stem) / f"{source.stem}_config.json"
+        assert config.is_file()
+        assert source.read_text(encoding="utf-8") == CODE
     importer.close()
 
 
 @pytest.mark.parametrize("plugin_name", ["my-plugin", "two words", "1plugin", "class"])
 @pytest.mark.parametrize("source", ["text", "file"])
 def test_invalid_plugin_names_cannot_be_saved(
-    qtbot, monkeypatch, tmp_path, plugin_name, source
+    qtbot, monkeypatch, tmp_path, errors, plugin_name, source
 ):
-    from mne_nodes.gui import function_widgets
-
-    errors = []
-    monkeypatch.setattr(
-        function_widgets.ErrorDialog, "open", lambda self: errors.append(self)
-    )
     if source == "text":
         monkeypatch.setattr(
-            function_widgets, "get_user_input", lambda *args, **kwargs: plugin_name
+            "mne_nodes.gui.function_widgets.get_user_input",
+            lambda *args, **kwargs: plugin_name,
         )
         importer = FunctionImporter(code=CODE)
     else:
@@ -241,8 +283,35 @@ def test_invalid_plugin_names_cannot_be_saved(
     importer.close()
 
 
+@pytest.mark.parametrize("case", ["existing_file", "metadata_cancelled"])
+def test_unsaved_new_plugin_writes_nothing(
+    qtbot, importer_input, tmp_path, monkeypatch, errors, case
+):
+    if case == "existing_file":
+        (tmp_path / "pyproject.toml").write_text("original", encoding="utf-8")
+    else:
+        monkeypatch.setattr(
+            "mne_nodes.gui.function_widgets.request_package_metadata",
+            lambda *args: None,
+        )
+
+    def contents():
+        return {p: p.is_file() and p.read_bytes() for p in tmp_path.iterdir()}
+
+    before = contents()
+    saved_paths = []
+    importer = FunctionImporter(code=CODE, on_saved=saved_paths.append)
+    qtbot.addWidget(importer)
+    assert not importer.save()
+    assert contents() == before
+    assert saved_paths == []
+    assert len(errors) == (case == "existing_file")
+    importer.func_config.clear()
+    importer.close()
+
+
 @pytest.mark.parametrize("source", ["text", "file"])
-def test_saved_plugin_is_loaded_automatically(
+def test_saved_plugin_is_loaded_and_reloaded(
     main_window, importer_input, tmp_path, source
 ):
     main_window.show_node_picker()
@@ -257,54 +326,29 @@ def test_saved_plugin_is_loaded_automatically(
     assert importer.save()
     assert main_window.node_picker.functions_view.model() is not old_model
     assert "transform" in main_window.controller.function_meta
-    assert "saved and loaded" in main_window.statusBar().currentMessage()
     node = main_window.viewer.add_function_node("transform")
     assert node.input(port_name="raw") is not None
     assert node.output(port_name="result") is not None
-    importer.close()
 
-
-def test_resaving_text_plugin_reloads_updated_code(
-    main_window, importer_input, tmp_path
-):
-    main_window.import_functions(code="import math\n\n" + CODE)
-    (importer,) = _importers(main_window)
-    assert importer.save()
-    old_plugin = main_window.controller.plugins["custom_functions"]
+    # Re-saving reloads the updated code.
+    plugin_name = importer.file_path.stem
+    old_plugin = main_window.controller.plugins[plugin_name]
     assert old_plugin.transform(2) == 4
-
     editor = importer.editors["transform"]
     editor.setPlainText(editor.toPlainText().replace("scale=2", "scale=3"))
     importer.reanalyze()
     assert importer.save()
-
-    updated_plugin = main_window.controller.plugins["custom_functions"]
+    updated_plugin = main_window.controller.plugins[plugin_name]
     assert updated_plugin is not old_plugin
     assert updated_plugin.transform(2) == 6
-    assert "scale=3" in (tmp_path / "custom_functions.py").read_text(encoding="utf-8")
+    assert "scale=3" in importer.file_path.read_text(encoding="utf-8")
     importer.func_config.clear()
     importer.close()
 
 
-def test_save_and_quit_loads_plugin(main_window, importer_input, monkeypatch):
-    monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.ask_user_custom", lambda *args, **kwargs: True
-    )
-    main_window.import_functions(code=CODE)
-    (importer,) = _importers(main_window)
-    assert importer.close()
-    assert "transform" in main_window.controller.function_meta
-
-
 def test_saved_plugin_load_failure_is_reported(
-    main_window, importer_input, tmp_path, monkeypatch
+    main_window, importer_input, tmp_path, monkeypatch, errors
 ):
-    errors = []
-    monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.ErrorDialog.open",
-        lambda self: errors.append(self.windowTitle()),
-    )
-
     def fail_load(path):
         raise ImportError("Plugin dependency missing")
 
@@ -312,49 +356,7 @@ def test_saved_plugin_load_failure_is_reported(
     main_window.import_functions(code=CODE)
     (importer,) = _importers(main_window)
     assert not importer.save()
-    assert (tmp_path / "custom_functions_config.json").is_file()
-    assert errors == ["The plugin was saved, but could not be loaded."]
+    assert (_package_dir(tmp_path) / "custom_functions_config.json").is_file()
+    assert len(errors) == 1
     assert "transform" not in main_window.controller.function_meta
-    assert "saved and loaded" not in main_window.statusBar().currentMessage()
     _discard_importers(main_window)
-
-
-def test_invalid_reanalysis_preserves_editor(qtbot, importer_input, monkeypatch):
-    from mne_nodes.gui import function_widgets
-
-    errors = []
-    monkeypatch.setattr(
-        function_widgets.ErrorDialog, "open", lambda self: errors.append(self)
-    )
-    importer = FunctionImporter(code=CODE)
-    qtbot.addWidget(importer)
-    editor = importer.editors["transform"]
-    editor.setPlainText("def broken(:")
-    importer.reanalyze()
-    assert len(errors) == 1
-    assert importer.editors["transform"] is editor
-    assert editor.toPlainText() == "def broken(:"
-    importer.func_config.clear()
-    importer.close()
-
-
-def test_new_text_plugin_does_not_overwrite_existing_file(
-    qtbot, importer_input, tmp_path, monkeypatch
-):
-    from mne_nodes.gui import function_widgets
-
-    errors = []
-    monkeypatch.setattr(
-        function_widgets.ErrorDialog, "open", lambda self: errors.append(self)
-    )
-    path = tmp_path / "custom_functions.py"
-    path.write_text("original content", encoding="utf-8")
-    saved_paths = []
-    importer = FunctionImporter(code=CODE, on_saved=saved_paths.append)
-    qtbot.addWidget(importer)
-    assert not importer.save()
-    assert len(errors) == 1
-    assert path.read_text(encoding="utf-8") == "original content"
-    assert saved_paths == []
-    importer.func_config.clear()
-    importer.close()

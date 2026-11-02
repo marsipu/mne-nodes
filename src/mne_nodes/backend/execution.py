@@ -7,11 +7,50 @@ GitHub: https://github.com/marsipu/mne-nodes
 import sys
 from inspect import signature
 from os.path import isdir
+from pathlib import Path
 
 from qtpy.QtCore import QObject, QProcess, QRunnable, QThreadPool, Signal, Slot
 
 from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.logger import logger
+
+
+def build_command(metadata: dict, values: dict) -> list[str]:
+    """Build argv from configured flags, omitting None and false switches.
+
+    A null flag denotes positional/extra arguments. Lists repeat a named flag
+    for each value; boolean values enable/disable a standalone flag.
+    """
+    command = metadata["command"]
+    if (
+        not isinstance(command, list)
+        or not command
+        or not all(isinstance(part, str) and part for part in command)
+    ):
+        raise ValueError("command must be a nonempty list of strings.")
+    arguments = metadata.get("command_args", {})
+    unknown = values.keys() - arguments.keys()
+    if unknown:
+        raise ValueError(f"No command argument mapping for: {sorted(unknown)}")
+    argv = list(command)
+    for name, flag in arguments.items():
+        if flag is not None and (not isinstance(flag, str) or not flag):
+            raise ValueError(f"Invalid command flag for {name}: {flag!r}")
+        value = values.get(name)
+        if value is None or value is False:
+            continue
+        if value is True:
+            if flag is None:
+                raise ValueError(f"Boolean argument {name} requires a named flag.")
+            argv.append(flag)
+            continue
+        for item in value if isinstance(value, (list, tuple)) else [value]:
+            if not isinstance(item, (str, int, float, Path)):
+                raise TypeError(f"Unsupported command argument {name}: {type(item)}")
+            if flag is not None:
+                argv.append(flag)
+            argv.append(str(item))
+    return argv
 
 
 class WorkerSignals(QObject):

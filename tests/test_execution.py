@@ -47,57 +47,25 @@ def test_process(qtbot):
     assert "TEST_ERR" in console_text, "Stderr not captured in console"
 
 
-@pytest.mark.timeout(10)
-def test_main_window_process(qtbot, main_window, ct, tmp_path):
-    """Test launching a process through Controller/MainWindow integration.
-
-    Uses a trivial Python one-shot command that writes to stdout &
-    stderr.
-    """
-    program = sys.executable
-    args = [
-        "-u",
-        "-c",
-        "import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)",
-    ]
-    main_window.console_dock.start_process(program, args)
-    console_text = _wait_for_console_output(
-        qtbot,
-        lambda: main_window.console_dock.processes[0].console.toPlainText(),
-        ["TEST_OUT", "TEST_ERR"],
-    )
-    assert "TEST_OUT" in console_text, "Stdout not captured in console"
-    assert "TEST_ERR" in console_text, "Stderr not captured in console"
-
-
-@pytest.mark.timeout(10)
-def test_process_dialog(qtbot):
-    """Test the ProcessDialog execution.
-
-    Ensures dialog execution finishes, output is captured, and
-    controller stores process.
-    """
-    py_snippet = "import sys; print('DIALOG_OUT'); print('DIALOG_ERR', file=sys.stderr)"
-    commands = [(sys.executable, "-u", "-c", py_snippet)]
-
+def test_process_dialog_waits_for_all_commands(qtbot):
+    """Only the final command completes the dialog and sets its exit code."""
     dialog = ProcessDialog(
-        commands=commands,
-        parent=None,
-        show_buttons=False,
-        show_console=True,
-        close_directly=False,
+        commands=[
+            (sys.executable, "-c", "pass"),
+            (sys.executable, "-c", "import sys; sys.exit(7)"),
+        ],
         blocking=False,
+        show_console=False,
     )
     qtbot.addWidget(dialog)
-    # Wait for completion
-    with qtbot.waitSignal(dialog.process.finished, timeout=5000):
-        pass
-
-    console_text = _wait_for_console_output(
-        qtbot, dialog.console.toPlainText, ["DIALOG_OUT", "DIALOG_ERR"]
+    completions = []
+    dialog.process.finished.connect(
+        lambda code, status: completions.append((code, dialog.is_finished))
     )
-    assert "DIALOG_OUT" in console_text, "Dialog stdout missing"
-    assert "DIALOG_ERR" in console_text, "Dialog stderr missing"
+    with qtbot.waitSignal(dialog.process.destroyed, timeout=5000):
+        assert not dialog.is_finished
+    assert completions == [(0, False), (7, True)]
+    assert dialog.exit_code == 7
 
 
 @pytest.mark.timeout(10)

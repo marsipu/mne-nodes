@@ -9,15 +9,14 @@ import json
 import keyword
 import os
 import re
-import subprocess
 import sys
 from collections.abc import Callable
 from copy import deepcopy
 from functools import partial
 from importlib import import_module
-from importlib.util import cache_from_source, module_from_spec, spec_from_file_location
+from importlib.util import module_from_spec, spec_from_file_location
 from inspect import getsource
-from os.path import isdir, isfile, join
+from os.path import isdir, isfile
 from pathlib import Path
 from time import perf_counter
 from types import ModuleType
@@ -32,18 +31,37 @@ from mne_bids import (
     get_entity_vals,
     read_raw_bids,
 )
+from mne_bids.config import ALLOWED_DATATYPE_EXTENSIONS
+from packaging.utils import canonicalize_name
 
-from mne_nodes import gui_mode, ismac, iswin
+import mne_nodes
 from mne_nodes.backend.code_generation import CodeGenerator
+from mne_nodes.backend.coregistration import find_trans
+from mne_nodes.backend.execution import build_command
+from mne_nodes.backend.freesurfer import (
+    discover_freesurfer,
+    find_freesurfer_subjects,
+    run_freesurfer_function,
+    run_freesurfer_subprocess,
+    stream_subprocess,
+)
+from mne_nodes.backend.function_conflicts import (
+    can_rename_plugin_source,
+    rename_plugin_functions,
+)
 from mne_nodes.backend.io import TypedJSONEncoder, load_json
 from mne_nodes.backend.package_utils import (
+    find_plugin_entry_point,
     get_name_from_github,
+    get_plugin_entry_points,
     import_distribution,
     install_github_package,
     install_pip_packages,
+    unload_plugin_modules,
 )
-from mne_nodes.backend.pipeline_utils import is_test, wait_for_plots
+from mne_nodes.backend.pipeline_utils import wait_for_plots
 from mne_nodes.backend.settings import Settings
+from mne_nodes.gui.function_conflicts import resolve_function_conflicts
 from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
@@ -73,8 +91,10 @@ default_config = {
     "shutdown": False,
     # Plugins
     "plugin_meta": {},
+    "function_aliases": {},
     # Nodes
     "node_config": {"nodes": {}, "connections": {}},
+    "coreg_subjects": {},
 }
 
 
@@ -104,10 +124,12 @@ class Controller:
         self._local_set = False
         self.plugins = {}
         self.function_meta = {}
+        self.installed_plugins: dict[str, dict[str, Any]] = {}
         self.lock_timeout = 5  # seconds
         self.disk_interval = 10  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
+        self.non_selectable_datatypes = ["event_id", "info", "trans", "raw_er", "anat"]
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
@@ -252,6 +274,7 @@ class Controller:
         if prepare_bids_root is not None:
             prepare_bids_root()
         if self.viewer is not None:
+            self.ensure_bids_root(interactive=interactive)
             self.viewer.load_nodes(self._config["node_config"])
 
     def _set_config_path(
@@ -285,7 +308,7 @@ class Controller:
 
     def initialize_welcome_tour(self, *, force: bool = False) -> None:
         """Start the tour using a disposable copy of the packaged pipeline."""
-        if not gui_mode:
+        if not mne_nodes.gui_mode:
             return
         active_tour = getattr(self, "welcome_tour", None)
         if active_tour is not None and not active_tour._finished:
@@ -472,22 +495,6 @@ class Controller:
         self.settings.set(key, path_value)
         return path_value
 
-    def _get_subjects_dir_path(self) -> Path | None:
-        if is_test():
-            subjects_dir = self.settings.get("subjects_dir", None)
-        else:
-            subjects_dir = mne.get_config("SUBJECTS_DIR", None)
-        subjects_dir = self._as_path(subjects_dir)
-        if subjects_dir is not None and subjects_dir.is_dir():
-            return subjects_dir
-        return None
-
-    def _set_subjects_dir_path(self, value: Path) -> None:
-        if is_test():
-            self.settings.set("subjects_dir", value)
-        else:
-            mne.set_config("SUBJECTS_DIR", value)
-
     def _prompt_name(self) -> str:
         name = get_user_input(
             "Please enter a name for this pipeline", "string", cancel_allowed=False
@@ -537,11 +544,15 @@ class Controller:
             self._bids_root_confirmation_pending = False
             dataset_name = self._read_bids_dataset_name(new_root)
             self.set("bids_dataset_name", dataset_name)
+            viewer = self.viewer
+            if viewer is not None and viewer.input_node is not None:
+                viewer.input_node.update_widgets()
             return
         if previous_root != new_root:
             ans = ask_user(
-                "When you change the BIDS-root, all selections, custom groups, "
-                "derivatives-root and plot-root will be lost. Do you want to proceed?"
+                "When you change the BIDS-root, all input selections, FreeSurfer "
+                "subject mappings, custom groups and output-folder settings will "
+                "be reset. Existing files will not be moved. Do you want to proceed?"
             )
             if not ans:
                 self.settings.set("bids_root", previous_root)
@@ -553,20 +564,16 @@ class Controller:
         """Select one dataset and discard state associated with the previous root."""
         self._bids_root_confirmation_pending = False
         self.settings.set("bids_root", new_root)
-        # Clear selected inputs and custom groups
-        selected_inputs = self.get("selected_inputs")
-        custom_groups = self.get("custom_groups")
-        selected_inputs.clear()
-        custom_groups.clear()
-        selected_inputs.update(deepcopy(default_config["selected_inputs"]))
-        custom_groups.update(deepcopy(default_config["custom_groups"]))
-        self.set("selected_inputs", selected_inputs)
-        self.set("custom_groups", custom_groups)
-        # deriv_root/plot_root belonged to the previous dataset, force re-selection
-        self.settings.set("deriv_root", None)
-        self.settings.set("plot_root", None)
         dataset_name = self._read_bids_dataset_name(new_root)
         self.set("bids_dataset_name", dataset_name)
+        self._reset_input_directory_state()
+
+    def _reset_input_directory_state(self) -> None:
+        self.set("selected_inputs", {})
+        self.set("custom_groups", deepcopy(default_config["custom_groups"]))
+        self.set("coreg_subjects", {})
+        self.settings.set("deriv_root", None)
+        self.settings.set("plot_root", None)
         # Update input widget when viewer is available.
         viewer = self.viewer
         if viewer is not None and viewer.input_node is not None:
@@ -574,40 +581,66 @@ class Controller:
 
     @property
     def deriv_root(self) -> Path | None:
-        """Configured derivatives root directory, if available."""
-        return self._setting_folder("deriv_root")
+        """Configured or default derivatives root, if it already exists."""
+        bids_root = self.bids_root
+        if bids_root is None:
+            return None
+        if self.settings.get("deriv_root") is not None:
+            return self._setting_folder("deriv_root")
+        default = bids_root / "derivatives" / "mne-nodes"
+        return default if default.is_dir() else None
 
     @deriv_root.setter
     def deriv_root(self, value: Any) -> None:
         if value is None:
-            self._setup_output_roots()
+            previous = self.settings.get("deriv_root")
+            self.settings.set("deriv_root", None)
+            try:
+                self.ensure_deriv_root()
+            except (OSError, ValueError, RuntimeError):
+                self.settings.set("deriv_root", previous)
+                raise
             return
-        self._set_setting_path(
-            key="deriv_root",
-            value=value,
-            prompt="Please select/create a folder for the derivatives root.",
-            missing_message=(
-                "Path {path} does not exist! If you moved from another device, "
-                "please select the correct folder for data derivatives."
-            ),
-            reprompt_on_none=True,
-        )
+        root = self._validate_existing_dir(value, key="deriv_root")
+        self.ensure_bids_root(interactive=False)
+        self.settings.set("deriv_root", root)
 
     @property
     def subjects_dir(self) -> Path | None:
-        """Configured FreeSurfer subjects directory, if available."""
-        return self._get_subjects_dir_path()
+        """Dataset-local FreeSurfer subjects directory, preferring nested layouts."""
+        bids_root = self.bids_root
+        if bids_root is None:
+            return None
+        subjects_dir = bids_root / "derivatives" / "freesurfer"
+        nested = subjects_dir / "subjects"
+        if nested.is_dir():
+            return nested
+        return subjects_dir if subjects_dir.is_dir() else None
 
-    @subjects_dir.setter
-    def subjects_dir(self, value):
-        if value is None:
-            selected_path = self._prompt_path(
-                "Please enter the path to the FreeSurfer subjects directory"
-            )
-            self._set_subjects_dir_path(selected_path)
-            return
-        selected_path = self._validate_existing_dir(value, key="subjects_dir")
-        self._set_subjects_dir_path(selected_path)
+    def other_derivative_roots(self) -> list[Path]:
+        """Return derivative pipeline folders besides the configured root.
+
+        FreeSurfer folders and the configured derivatives root are excluded.
+        """
+        bids_root = self.bids_root
+        derivatives = None if bids_root is None else bids_root / "derivatives"
+        if derivatives is None or not derivatives.is_dir():
+            return []
+        excluded = {
+            path.resolve()
+            for path in (self.deriv_root, self.subjects_dir)
+            if path is not None
+        }
+        excluded.add((derivatives / "freesurfer").resolve())
+        return sorted(
+            path
+            for path in derivatives.iterdir()
+            if path.is_dir() and path.resolve() not in excluded
+        )
+
+    def find_recording_trans(self, recording: BIDSPath) -> Path | None:
+        """Find a recording's transformation across all derivative pipelines."""
+        return find_trans(recording, self.deriv_root, self.other_derivative_roots())
 
     @property
     def plot_root(self) -> Path | None:
@@ -617,7 +650,8 @@ class Controller:
     @plot_root.setter
     def plot_root(self, value):
         if value is None:
-            self._setup_output_roots()
+            self.settings.set("plot_root", None)
+            self.settings.set("plot_root_is_config_specific", False)
             return
         self._set_setting_path(
             key="plot_root",
@@ -630,40 +664,6 @@ class Controller:
             reprompt_on_none=True,
         )
         self.settings.set("plot_root_is_config_specific", False)
-
-    def _setup_output_roots(self) -> None:
-        """Create config-specific derivatives and plots under one selected parent."""
-        name = self.ensure_name()
-        parent = self._validate_existing_dir(
-            self._prompt_path(
-                f"Select the parent folder for '{name}_derivatives' and '{name}_plots'."
-            ),
-            key="output_parent",
-        )
-        deriv_root = parent / f"{name}_derivatives"
-        plot_root = parent / f"{name}_plots"
-        deriv_root.mkdir(exist_ok=True)
-        plot_root.mkdir(exist_ok=True)
-        self.settings.set("deriv_root", deriv_root)
-        self.settings.set("plot_root", plot_root)
-        self.settings.set("plot_root_is_config_specific", True)
-
-    def _ensure_output_root(self, key: str, *, interactive: bool) -> Path:
-        root = self._setting_folder(key)
-        if root is not None:
-            return root
-        configured_root = self.settings.get(key)
-        if configured_root is not None:
-            message = f"Output folder {configured_root} does not exist."
-            logger.warning(message)
-            if interactive:
-                raise_user_attention(message)
-        if not interactive:
-            raise RuntimeError(
-                f"Required path '{key}' is not configured. Call ensure_{key}() first."
-            )
-        self._setup_output_roots()
-        return self._validate_existing_dir(self.settings.get(key), key=key)
 
     @property
     def plot_path(self) -> Path:
@@ -751,94 +751,41 @@ class Controller:
             self.ensure_bids_root()
 
     def ensure_deriv_root(self, interactive: bool = True) -> Path:
-        return self._ensure_output_root("deriv_root", interactive=interactive)
+        """Use an explicit root or create the dataset-local default."""
+        bids_root = self.ensure_bids_root(interactive=interactive)
+        configured = self.settings.get("deriv_root")
+        if configured is not None:
+            return self._validate_existing_dir(configured, key="deriv_root")
+        default = bids_root / "derivatives" / "mne-nodes"
+        if not default.resolve().is_relative_to(bids_root.resolve()):
+            raise ValueError(
+                f"Derivatives directory points outside the dataset: {default}"
+            )
+        default.mkdir(parents=True, exist_ok=True)
+        self.settings.set("deriv_root", default)
+        return default
 
     def ensure_plot_root(self, interactive: bool = True) -> Path:
-        return self._ensure_output_root("plot_root", interactive=interactive)
+        """Require an explicitly configured optional plot root without prompting."""
+        root = self.plot_root
+        if root is None:
+            raise RuntimeError(
+                "Optional plot output folder is not configured. "
+                "Set plot_root explicitly when plot exports are needed."
+            )
+        return root
 
     def ensure_subjects_dir(self, interactive: bool = True) -> Path:
-        subjects_dir = self.subjects_dir
-        if subjects_dir is not None:
-            return subjects_dir
-        if not interactive:
-            raise RuntimeError(
-                "FreeSurfer subjects directory is not configured. Call ensure_subjects_dir() first."
+        """Create the dataset's FreeSurfer folder without global MNE settings."""
+        bids_root = self.ensure_bids_root(interactive=interactive)
+        self.ensure_deriv_root(interactive=False)
+        subjects_dir = self.subjects_dir or bids_root / "derivatives" / "freesurfer"
+        if not subjects_dir.resolve().is_relative_to(bids_root.resolve()):
+            raise ValueError(
+                f"FreeSurfer directory points outside the dataset: {subjects_dir}"
             )
-        selected_path = self._prompt_path(
-            "Please enter the path to the FreeSurfer subjects directory"
-        )
-        self.subjects_dir = selected_path
-        return selected_path
-
-    def run_freesurfer_subprocess(self, command: list[str]) -> None:
-        """Run a FreeSurfer/MNE command using paths from controller settings."""
-        if len(command) == 0:
-            raise ValueError("Command must not be empty.")
-
-        fs_path_value = self.settings.get("fs_path", None)
-        if fs_path_value is None:
-            raise RuntimeError(
-                "Path to FREESURFER_HOME not set, can't run this function"
-            )
-        fs_path = str(fs_path_value)
-        subjects_dir = str(self.ensure_subjects_dir(interactive=False))
-        mne_path = self.settings.get("mne_path", None) or self.settings.get(
-            "wls_mne_path", None
-        )
-
-        environment = os.environ.copy()
-        environment["FREESURFER_HOME"] = fs_path
-        environment["SUBJECTS_DIR"] = subjects_dir
-
-        command_line = list(command)
-        if iswin:
-            command_line.insert(0, "wsl")
-            if mne_path is None:
-                raise RuntimeError(
-                    "Path to MNE environment in WSL not set, can't run this function"
-                )
-            environment["PATH"] = (
-                f"{fs_path}/bin:{mne_path}/bin:"
-                f"/usr/local/sbin:"
-                f"/usr/local/bin:"
-                f"/usr/sbin:"
-                f"/usr/bin:"
-                f"/sbin:"
-                f"/bin"
-            )
-            environment["WSLENV"] = "PATH/u:SUBJECTS_DIR/p:FREESURFER_HOME/u"
-        else:
-            environment["PATH"] = environment["PATH"] + f":{fs_path}/bin"
-
-        if ismac:
-            if isdir(join(fs_path, "lib/misc/lib")):
-                environment["PATH"] = environment["PATH"] + f":{fs_path}/lib/misc/bin"
-                environment["MISC_LIB"] = join(fs_path, "lib/misc/lib")
-                environment["LD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
-                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/misc/lib")
-
-            if isdir(join(fs_path, "lib/gcc/lib")):
-                environment["DYLD_LIBRARY_PATH"] = join(fs_path, "lib/gcc/lib")
-
-        process = subprocess.Popen(
-            command_line,
-            env=environment,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            universal_newlines=True,
-        )
-
-        if process.stdout is not None:
-            for stdout_line in process.stdout:
-                if stdout_line:
-                    sys.stdout.write(stdout_line)
-
-        return_code = process.wait()
-        if return_code != 0:
-            raise RuntimeError(
-                f"FreeSurfer command failed with exit code {return_code}: {' '.join(command_line)}"
-            )
+        subjects_dir.mkdir(parents=True, exist_ok=True)
+        return subjects_dir
 
     def ensure_ready(
         self,
@@ -878,7 +825,8 @@ class Controller:
         ``bids_root`` is a device-wide setting. If the currently
         configured ``bids_root`` points to a different dataset than the one this
         project was last used with (recorded as ``bids_dataset_name``), the
-        input selections and custom groups are stale and must be re-selected.
+        BIDS input selections and custom groups are stale and must be re-selected.
+        FreeSurfer subject selections and coregistration mappings are dataset-local.
         """
         cached_name = config.get("bids_dataset_name")
         if not cached_name:
@@ -892,10 +840,12 @@ class Controller:
         raise_user_attention(
             f"The configured BIDS-root '{bids_root}' belongs to dataset "
             f"'{actual_name}', but this project was last used with dataset "
-            f"'{cached_name}'. All selected inputs and custom groups will be considered stale and removed."
+            f"'{cached_name}'. All input selections, FreeSurfer subject mappings "
+            "and custom groups will be considered stale and removed."
         )
-        for key in ["selected_inputs", "custom_groups"]:
-            config[key] = deepcopy(default_config.get(key))
+        config["selected_inputs"] = {}
+        config["coreg_subjects"] = {}
+        config["custom_groups"] = deepcopy(default_config["custom_groups"])
         config["bids_dataset_name"] = actual_name
 
     def _load_config(self, *, nodes: bool = False, plugins: bool = False):
@@ -1069,7 +1019,11 @@ class Controller:
     def get_group_by(self, group_by):
         if group_by == "custom":
             data = {
-                k: [get_bids_path_from_fname(i) for i in v]
+                k: [
+                    path
+                    for i in v
+                    if not self.is_empty_room(path := get_bids_path_from_fname(i))
+                ]
                 for k, v in self.get("custom_groups").items()
             }
         else:
@@ -1081,7 +1035,10 @@ class Controller:
                     for bp in BIDSPath(**{group_by: v, "root": self.bids_root}).match(
                         ignore_json=True, ignore_nosub=True
                     )
-                    if bp.datatype in self.raw_types and bp.extension != ".tsv"
+                    if bp.datatype in self.raw_types
+                    and bp.suffix == bp.datatype
+                    and bp.extension in ALLOWED_DATATYPE_EXTENSIONS[bp.datatype]
+                    and not self.is_empty_room(bp)
                 ]
                 for v in vals
             }
@@ -1096,48 +1053,103 @@ class Controller:
 
         return data
 
-    def get_fsmri_subjects(self):
-        fsmri_subjects = (
-            os.listdir(self.subjects_dir) if self.subjects_dir is not None else []
-        )
-        return fsmri_subjects
+    def check_trans_exists(self):
+        fsmri_subjects = self.get_datatype_items("subject")
+        subjects_dir = self.subjects_dir
+        if subjects_dir is None:
+            return {}
+        trans_exists = {}
+        for subj in fsmri_subjects:
+            trans_exists[subj] = (subjects_dir / subj / "mri" / "transforms").exists()
+        return trans_exists
 
     def get_datatypes(self):
-        # ToDo: Implement data-types other than raw
         bids_root = self.ensure_bids_root(interactive=False)
         excluded_datatypes = ["func"]
-        return [dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes]
+        bids_dt = [
+            dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes
+        ]
+        bids_dt += [dt for dt in self.non_selectable_datatypes if dt not in bids_dt]
+        # Optional associated outputs retain their identity and saved connections.
+        bids_dt += ["subject"]
+        return bids_dt
 
-    # TodoNext: Only show measurments and separate empty room measurements. Also facilitate plugin-addition (drag/drop etc.)
-    def get_datatype_items(self):
+    def _get_datatype_candidates(self, data_type: str) -> list[BIDSPath]:
+        bp_kwargs = {"root": self.bids_root, "check": False}
+        if data_type in self.raw_types:
+            bp_kwargs.update({"suffix": data_type})
+        else:
+            bp_kwargs.update({"datatype": data_type})
+        return [
+            f
+            for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
+            if f.acquisition not in ["calibration", "crosstalk"]
+        ]
+
+    def get_datatype_items(self, data_type: str) -> list[str]:
+        """Get the available input items for one data type."""
+        if data_type in self.non_selectable_datatypes:
+            return []
+        if data_type == "subject":
+            subjects_dir = self.subjects_dir
+            if subjects_dir is None:
+                return []
+            return [path.name for path in find_freesurfer_subjects(subjects_dir)]
+        if data_type == "emptyroom":
+            return [
+                path.basename
+                for path in self._get_datatype_candidates("meg")
+                if self.is_empty_room(path)
+            ]
+        return [
+            path.basename
+            for path in self._get_datatype_candidates(data_type)
+            if not self.is_empty_room(path)
+        ]
+
+    @staticmethod
+    def is_empty_room(path: BIDSPath) -> bool:
+        """Identify BIDS MEG noise recordings, including same-subject noise tasks."""
+        return path.datatype == "meg" and (
+            path.subject == "emptyroom" or path.task == "noise"
+        )
+
+    def resolve_empty_room(self, recording: BIDSPath) -> BIDSPath:
+        """Find a recording's empty-room data using the MNE-BIDS association lookup."""
+        recording = recording.copy().update(root=self.bids_root)
+        if recording.datatype != "meg" or self.is_empty_room(recording):
+            raise FileNotFoundError(
+                f"No empty-room association for {recording.basename}: "
+                "select a participant MEG recording."
+            )
+        empty_room = recording.find_empty_room()
+        if empty_room is None:
+            raise FileNotFoundError(
+                f"No associated empty-room recording for {recording.basename}."
+            )
+        if not empty_room.fpath.exists():
+            raise FileNotFoundError(
+                f"Associated empty-room recording is missing: {empty_room.fpath}."
+            )
+        if empty_room.fpath == recording.fpath:
+            raise ValueError(
+                f"Empty-room association points to the recording itself: "
+                f"{recording.basename}."
+            )
+        return empty_room
+
+    def get_all_datatype_items(self) -> dict[str, list[str]]:
         items = {}
         data_types = self.get_datatypes()
+        # Raw should be first
         data_types = [dt for dt in data_types if dt in self.raw_types] + [
             dt for dt in data_types if dt not in self.raw_types
         ]
-        empty_room_items = []
         for dt in data_types:
-            bp_kwargs = {"root": self.bids_root, "check": False}
-            if dt in self.raw_types:
-                bp_kwargs.update({"suffix": dt})
-            else:
-                bp_kwargs.update({"datatype": dt})
-            file_candidates = [
-                f
-                for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
-                if f.acquisition not in ["calibration", "crosstalk"]
-            ]
-            for f in file_candidates.copy():
-                try:
-                    er_bp = f.find_empty_room()
-                    if er_bp is not None and er_bp in file_candidates:
-                        file_candidates.remove(er_bp)
-                        empty_room_items.append(er_bp.basename)
-                except (RuntimeError, ValueError):
-                    pass
-            items[dt] = [f.basename for f in file_candidates]
-        if empty_room_items:
-            items["emptyroom"] = empty_room_items
+            if dt == "subject":
+                continue
+            if dt not in self.non_selectable_datatypes:
+                items[dt] = self.get_datatype_items(dt)
         return items
 
     def input_selection_changed(self, selected, data_type):
@@ -1145,10 +1157,190 @@ class Controller:
         selected_inputs[data_type] = selected
         self.set("selected_inputs", selected_inputs)
         self.check_selection_enable()
+        self.refresh_input_outputs(selection_only=True)
+
+    def discard_legacy_segmentation_checks(self) -> None:
+        """Discard legacy auxiliary selections without removing recording groups."""
+        inputs = self.get("selected_inputs")
+        if "emptyroom" in inputs:
+            inputs.pop("emptyroom")
+            self.set("selected_inputs", inputs)
+        legacy = inputs.get("subject", [])
+        if legacy:
+            subjects = set(self.get_datatype_items("subject"))
+            groups = self.get_group_by("subject")
+            migrated = [
+                name for name in legacy if name in subjects and name not in groups
+            ]
+            if migrated:
+                inputs["subject"] = [name for name in legacy if name not in migrated]
+                self.set("selected_inputs", inputs)
+
+    def refresh_input_outputs(self, *, selection_only: bool = False) -> None:
+        """Refresh availability without rebuilding ports or removing connections."""
+        viewer = self.viewer
+        if viewer is not None and viewer.input_node is not None:
+            viewer.input_node.update_output_availability(selection_only=selection_only)
+
+    def selected_recordings(self) -> list[BIDSPath]:
+        """Return the raw recordings selected directly or through groups."""
+        recordings: dict[str, BIDSPath] = {}
+        for datatype, selected in self.get("selected_inputs").items():
+            if not selected:
+                continue
+            if datatype in self.raw_types:
+                paths = [get_bids_path_from_fname(name) for name in selected]
+            elif datatype in self.scopes:
+                groups = self.get_group_by(datatype)
+                paths = [path for name in selected for path in groups.get(name, [])]
+            else:
+                continue
+            for path in paths:
+                if (
+                    path.datatype in self.raw_types
+                    and path.suffix == path.datatype
+                    and not self.is_empty_room(path)
+                ):
+                    path = path.copy().update(root=self.bids_root)
+                    recordings[str(path.fpath)] = path
+        return list(recordings.values())
+
+    def resolve_recording_subject(
+        self, recording: BIDSPath, *, available: list[str] | None = None
+    ) -> str:
+        """Resolve the saved or conventional FreeSurfer subject for a recording."""
+        if available is None:
+            available = self.get_datatype_items("subject")
+        saved = self.get("coreg_subjects", {}).get(recording.basename)
+        candidates = (
+            (saved,) if saved else (f"sub-{recording.subject}", recording.subject)
+        )
+        for subject in candidates:
+            if subject in available:
+                return subject
+        raise FileNotFoundError(
+            f"No matching FreeSurfer subject for {recording.basename}."
+        )
+
+    def input_output_availability(
+        self, *, inventory: dict[str, list[str]] | None = None
+    ) -> dict[str, str]:
+        """Map unavailable input-node outputs to explanatory messages."""
+        recordings = self.selected_recordings()
+        unavailable = {}
+        selected_types = {recording.datatype for recording in recordings}
+        for datatype in self.raw_types:
+            if datatype not in selected_types:
+                unavailable[datatype] = f"No selected {datatype.upper()} recordings."
+        selections = self.get("selected_inputs")
+        data_types = self.get_datatypes() if inventory is None else inventory
+        for datatype in data_types:
+            if datatype in self.raw_types + self.non_selectable_datatypes + ["subject"]:
+                continue
+            selected = selections.get(datatype, [])
+            if not selected:
+                unavailable[datatype] = f"No selected {datatype} files."
+                continue
+            for name in selected:
+                path = get_bids_path_from_fname(name).update(
+                    root=self.bids_root, datatype=datatype
+                )
+                if not path.fpath.exists():
+                    unavailable[datatype] = f"Selected file is missing: {path.fpath}."
+        for datatype in self.non_selectable_datatypes + ["subject"]:
+            if not recordings:
+                unavailable[datatype] = "Select raw recordings or a recording group."
+        if not recordings:
+            return unavailable
+        subjects = (
+            self.get_datatype_items("subject")
+            if inventory is None
+            else inventory["subject"]
+        )
+        has_empty_room = bool(
+            self.get_datatype_items("emptyroom")
+            if inventory is None
+            else inventory["raw_er"]
+        )
+        resolved_subjects: dict[str, str] = {}
+
+        def resolve_subject(recording: BIDSPath) -> str:
+            name = recording.basename
+            if name not in resolved_subjects:
+                resolved_subjects[name] = self.resolve_recording_subject(
+                    recording, available=subjects
+                )
+            return resolved_subjects[name]
+
+        for recording in recordings:
+            if not recording.fpath.exists():
+                affected = self.non_selectable_datatypes + ["subject"]
+                if recording.datatype is not None:
+                    affected.append(recording.datatype)
+                for datatype in affected:
+                    unavailable[datatype] = (
+                        f"Selected recording is missing: {recording.fpath}."
+                    )
+            if "subject" not in unavailable:
+                try:
+                    resolve_subject(recording)
+                except FileNotFoundError as error:
+                    unavailable["subject"] = str(error)
+            if not has_empty_room:
+                unavailable["raw_er"] = "No empty-room data in this dataset."
+            elif recording.datatype != "meg":
+                unavailable["raw_er"] = (
+                    f"No empty-room association for {recording.basename}: "
+                    "select a participant MEG recording."
+                )
+            elif "raw_er" not in unavailable:
+                try:
+                    self.resolve_empty_room(recording)
+                except (OSError, ValueError, RuntimeError) as error:
+                    unavailable["raw_er"] = str(error)
+            if "trans" not in unavailable:
+                try:
+                    if self.find_recording_trans(recording) is None:
+                        unavailable["trans"] = (
+                            f"No transformation for {recording.basename}."
+                        )
+                except (OSError, ValueError, RuntimeError) as error:
+                    unavailable["trans"] = str(error)
+        anatomy_candidates = self._get_datatype_candidates("anat")
+        if "anat" not in unavailable:
+            for recording in recordings:
+                try:
+                    self._match_recording_anat(recording, anatomy_candidates)
+                except (FileNotFoundError, ValueError) as error:
+                    unavailable["anat"] = str(error)
+                    break
+        for scope, selected in self.get("selected_inputs").items():
+            if scope not in self.scopes or not selected:
+                continue
+            groups = self.get_group_by(scope)
+            for name in selected:
+                if "subject" in unavailable:
+                    break
+                try:
+                    subjects_in_group = {
+                        resolve_subject(path) for path in groups.get(name, [])
+                    }
+                except FileNotFoundError as error:
+                    unavailable["subject"] = str(error)
+                    break
+                if len(subjects_in_group) != 1:
+                    unavailable["subject"] = (
+                        "A group must resolve to exactly one FreeSurfer subject."
+                    )
+        return unavailable
 
     def check_selection_enable(self):
         # Enable/Disable start buttons based on whether any inputs are selected
-        any_selected = any(len(v) > 0 for v in self.get("selected_inputs").values())
+        any_selected = any(
+            values
+            for datatype, values in self.get("selected_inputs").items()
+            if datatype not in self.non_selectable_datatypes
+        )
         if self.viewer is not None:
             self.viewer.enable_start_buttons(any_selected)
 
@@ -1180,6 +1372,12 @@ class Controller:
             return [r for r, _ in loaded], [e for _, e in loaded]
         return _load(items, preload=True)
 
+    def load_raw_er(self, items: BIDSPath | list[BIDSPath]):
+        """Load associated empty-room raw data, preserving file/group input shape."""
+        if isinstance(items, list):
+            return [self.load_raw(self.resolve_empty_room(path))[0] for path in items]
+        return self.load_raw(self.resolve_empty_room(items))[0]
+
     def load_info(self, items, raw=None):
         """Load measurement info for one or multiple bids-paths.
 
@@ -1202,7 +1400,10 @@ class Controller:
 
         def _load(bp):
             bp = bp.copy().update(root=self.bids_root)
-            return mne.io.read_info(bp.fpath)
+            if bp.extension in (".fif", ".fif.gz"):
+                return mne.io.read_info(bp.fpath)
+            with read_raw_bids(bp, extra_params={"preload": False}) as recording:
+                return recording.info
 
         if isinstance(items, list):
             if raw is not None:
@@ -1212,14 +1413,91 @@ class Controller:
             return raw.info
         return _load(items)
 
+    def load_anat(self, items: BIDSPath | list[BIDSPath]) -> Path | list[Path]:
+        """Return matching T1w paths for recordings without loading image data."""
+
+        def _load(bp: BIDSPath) -> Path:
+            if bp.datatype == "anat":
+                path = bp.copy().update(root=self.bids_root).fpath
+            else:
+                path = self.find_recording_anat(bp).fpath
+            if not path.is_file():
+                raise FileNotFoundError(f"Anatomy image is missing: {path}.")
+            return path
+
+        if isinstance(items, list):
+            return [_load(bp) for bp in items]
+        return _load(items)
+
+    def find_recording_anat(self, recording: BIDSPath) -> BIDSPath:
+        """Find the matching session-specific or subject-level T1w anatomy."""
+        return self._match_recording_anat(
+            recording, self._get_datatype_candidates("anat")
+        )
+
+    @staticmethod
+    def _match_recording_anat(
+        recording: BIDSPath, candidates: list[BIDSPath]
+    ) -> BIDSPath:
+        """Choose the most specific unambiguous T1w candidate for a recording."""
+        matching = [
+            path
+            for path in candidates
+            if path.subject == recording.subject
+            and path.suffix == "T1w"
+            and path.session in (None, recording.session)
+        ]
+        if recording.session is not None:
+            session_specific = [
+                path for path in matching if path.session == recording.session
+            ]
+            if session_specific:
+                matching = session_specific
+        if not matching:
+            raise FileNotFoundError(
+                f"No matching T1w anatomy (missing) for {recording.basename}."
+            )
+        if len(matching) > 1:
+            paths = ", ".join(sorted(str(path.fpath) for path in matching))
+            raise ValueError(
+                f"Ambiguous T1w anatomy for {recording.basename}: {paths}."
+            )
+        return matching[0]
+
     def load_subject(self, subject):
-        result = subject in self.get_fsmri_subjects()
+        result = subject in self.get_datatype_items("subject")
         if not result:
             logger.warning(
                 f"Subject {subject} not found in FreeSurfer subjects directory!"
             )
             return False
         return subject
+
+    def load_recording_subject(self, items: BIDSPath | list[BIDSPath]) -> str:
+        """Load the MRI subject for a recording or a single-subject group."""
+        recordings = items if isinstance(items, list) else [items]
+        subjects = {self.resolve_recording_subject(path) for path in recordings}
+        if len(subjects) != 1:
+            raise ValueError("A group must resolve to exactly one FreeSurfer subject.")
+        return subjects.pop()
+
+    def load_trans(self, items: BIDSPath | list[BIDSPath]):
+        """Load head-to-MRI transformations using the coregistration lookup rules."""
+        root = self.ensure_deriv_root(interactive=False)
+        other_roots = self.other_derivative_roots()
+
+        def load(recording: BIDSPath):
+            path = find_trans(recording, root, other_roots)
+            if path is None:
+                raise FileNotFoundError(
+                    f"No transformation for {recording.basename} in the "
+                    "derivatives folders."
+                )
+            return mne.read_trans(path)
+
+        if isinstance(items, list):
+            return [load(path) for path in items]
+        return load(items)
 
     ####################################################################################
     # Parameters
@@ -1336,8 +1614,78 @@ class Controller:
         params = {
             pn: self.parameter(pn, function_name) for pn in func_meta["parameters"]
         }
-
         return params
+
+    def freesurfer_runtime(self):
+        """Discover the execution environment in the selected WSL distribution."""
+        return discover_freesurfer(distribution=self.settings.get("wsl_distribution"))
+
+    def execute_external(self, function_name: str, **kwargs: Any) -> Any:
+        """Execute a command node or FreeSurfer-dependent Python function."""
+        metadata = self.get_function_meta(function_name)
+        uses_freesurfer = metadata.get("uses_freesurfer", False)
+        if "command" in metadata:
+            subject_source = metadata.get("bids_subject_from")
+            if subject_source:
+                image = kwargs.get(subject_source)
+                if image is None:
+                    raise ValueError(f"{function_name} requires '{subject_source}'.")
+                if "subject" in kwargs:
+                    raise ValueError(
+                        f"{function_name} derives 'subject' from '{subject_source}'; "
+                        "do not supply it explicitly."
+                    )
+                subject = get_bids_path_from_fname(image).subject
+                if subject is None:
+                    raise ValueError(f"No BIDS subject found in {image}.")
+                kwargs["subject"] = f"sub-{subject}"
+            output_names = list(metadata.get("outputs", {}))
+            missing = [name for name in output_names if name not in kwargs]
+            if missing:
+                raise ValueError(
+                    f"Command outputs must name supplied arguments: {missing}."
+                )
+            argv = build_command(metadata, kwargs)
+            if uses_freesurfer:
+                run_freesurfer_subprocess(
+                    argv,
+                    self.ensure_subjects_dir(interactive=False),
+                    runtime=self.freesurfer_runtime(),
+                )
+            else:
+                stream_subprocess(argv)
+            outputs = tuple(kwargs[name] for name in output_names)
+            if len(outputs) == 1:
+                return outputs[0]
+            return outputs if outputs else None
+        if not uses_freesurfer:
+            raise ValueError(f"{function_name} is not an external-execution node.")
+        if metadata.get("class_name"):
+            raise ValueError("FreeSurfer subprocess calls cannot be instance methods.")
+        plugin = self.plugins[self.get_plugin_from_function(function_name)]
+        function = getattr(
+            plugin,
+            metadata.get("callable_name", CodeGenerator.base_func_name(function_name)),
+        )
+        subjects_dir = self.ensure_subjects_dir(interactive=False)
+        if "subjects_dir" in metadata.get("parameters", {}) or (
+            "subjects_dir" in metadata.get("inputs", {})
+        ):
+            kwargs["subjects_dir"] = subjects_dir
+        result = run_freesurfer_function(
+            function, kwargs, subjects_dir, runtime=self.freesurfer_runtime()
+        )
+        output_names = list(metadata.get("outputs", {}))
+        if result is not None or not output_names:
+            return result
+        # Functions like make_watershed_bem only modify files, so forward inputs.
+        missing = [name for name in output_names if name not in kwargs]
+        if missing:
+            raise ValueError(
+                f"{function_name} returned None and cannot provide outputs {missing}."
+            )
+        outputs = tuple(kwargs[name] for name in output_names)
+        return outputs[0] if len(outputs) == 1 else outputs
 
     def get_func_from_param(self, parameter_name: str) -> list:
         """Get the function name(s) associated with a specific parameter
@@ -1384,32 +1732,36 @@ class Controller:
     ####################################################################################
     @staticmethod
     def _expose_plugin_functions(plugin, functions, script_path):
-        """Expose configured functions from a plugin's implementation script."""
+        """Expose configured functions from the script or their declared modules."""
         missing_functions = [
             function_name
             for function_name in functions
             if not hasattr(plugin, function_name)
+            and "command" not in functions[function_name]
         ]
-        if not missing_functions or script_path is None:
-            return
-
-        script_path = Path(script_path)
-        if not script_path.is_file():
-            return
-
-        if hasattr(plugin, "__path__"):
-            module_name = f"{plugin.__name__}.{script_path.stem}"
-            script_module = import_module(module_name)
-        elif Path(getattr(plugin, "__file__", "")).resolve() == script_path.resolve():
-            script_module = plugin
-        else:
-            raise ValueError(
-                f"Cannot expose functions from '{script_path}' for plugin "
-                f"'{plugin.__name__}'."
-            )
-
+        script_module = None
+        if missing_functions and script_path is not None:
+            script_path = Path(script_path)
+            if script_path.is_file():
+                if hasattr(plugin, "__path__"):
+                    module_name = f"{plugin.__name__}.{script_path.stem}"
+                    script_module = import_module(module_name)
+                elif (
+                    Path(getattr(plugin, "__file__", "")).resolve()
+                    == script_path.resolve()
+                ):
+                    script_module = plugin
+                else:
+                    raise ValueError(
+                        f"Cannot expose functions from '{script_path}' for plugin "
+                        f"'{plugin.__name__}'."
+                    )
         for function_name in missing_functions:
             function = getattr(script_module, function_name, None)
+            func_meta = functions[function_name]
+            module_name = func_meta.get("module_name")
+            if function is None and module_name and not func_meta.get("class_name"):
+                function = getattr(import_module(module_name), function_name)
             if function is not None:
                 setattr(plugin, function_name, function)
 
@@ -1425,50 +1777,197 @@ class Controller:
             raise ValueError(
                 f"Invalid config_path for plugin '{plugin_name}': {config_path}. Must be a dict or a valid path to a JSON config file."
             )
+        functions = deepcopy(functions)
         # add plugin-name to function metadata for later retrival
         for func, func_meta in functions.items():
             if not isinstance(func_meta, dict):
                 raise TypeError(
                     f"Invalid metadata for function '{func}' in plugin '{plugin_name}'. Expected a dict, got {type(func_meta).__name__}."
                 )
+            if not isinstance(func_meta.get("uses_freesurfer", False), bool):
+                raise TypeError(f"uses_freesurfer must be boolean for '{func}'.")
+            if "command" in func_meta:
+                build_command(func_meta, {})
+                if func_meta.get("class_name"):
+                    raise ValueError(f"Command '{func}' cannot have a class_name.")
+                missing_outputs = (
+                    func_meta.get("outputs", {}).keys()
+                    - func_meta.get("command_args", {}).keys()
+                )
+                if missing_outputs:
+                    raise ValueError(
+                        f"Command '{func}' outputs need command argument mappings: "
+                        f"{sorted(missing_outputs)}."
+                    )
             func_meta["plugin"] = plugin_name
-        # Warn for collisions with other plugins, but let the newly loaded
-        # plugin's functions win.
+        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
+        aliases = deepcopy(self.get("function_aliases", {}))
+        plugin_aliases = aliases.setdefault(plugin_name, {})
+        resolved_functions = {}
+        for name, meta in functions.items():
+            alias = plugin_aliases.get(name, name)
+            if alias is None:
+                continue
+            if alias != name:
+                if (
+                    not isinstance(alias, str)
+                    or not alias.isidentifier()
+                    or keyword.iskeyword(alias)
+                ):
+                    raise ValueError(f"Invalid saved function alias: {alias!r}.")
+                meta["callable_name"] = name
+            if alias in resolved_functions:
+                raise ValueError(f"Duplicate saved function alias: {alias!r}.")
+            resolved_functions[alias] = meta
+        functions = resolved_functions
         duplicate_functions = [
             fn
             for fn in functions
             if fn in self.function_meta
             and self.function_meta[fn].get("plugin") != plugin_name
         ]
-        if len(duplicate_functions) > 0:
-            raise_user_attention(
-                f"Duplicate function names found in plugin '{plugin_name}': {duplicate_functions}. The newly loaded versions will replace the existing ones.",
-                "warning",
-            )
-        self._expose_plugin_functions(plugin, functions, plugin_meta.get("script_path"))
-        self._unload_plugin_session(plugin_name)
+        old_functions = {
+            fn: deepcopy(meta)
+            for fn, meta in self.function_meta.items()
+            if meta.get("plugin") == plugin_name
+        }
+        if duplicate_functions:
+            if not mne_nodes.gui_mode:
+                raise ValueError(
+                    f"Unresolved function conflicts in {plugin_name!r}: "
+                    f"{duplicate_functions}. Resolve them in the GUI first."
+                )
+
+            def origin(name, meta):
+                source = meta.get("script_path") or meta.get("module_name")
+                return f"{name}\n{source or meta.get('config_path', '')}"
+
+            conflicts = {
+                name: (
+                    origin(
+                        self.function_meta[name]["plugin"],
+                        self.get("plugin_meta")[self.function_meta[name]["plugin"]],
+                    ),
+                    origin(plugin_name, plugin_meta),
+                )
+                for name in duplicate_functions
+            }
+            while True:
+                choices = resolve_function_conflicts(
+                    conflicts,
+                    set(self.function_meta) | set(functions),
+                    get_widget("main_window"),
+                    source_renamable={
+                        name
+                        for name in duplicate_functions
+                        if "command" not in functions[name]
+                        and not functions[name].get("class_name")
+                    }
+                    if can_rename_plugin_source(plugin_meta)
+                    else set(),
+                )
+                if choices is None:
+                    raise RuntimeError(f"Loading plugin {plugin_name!r} was cancelled.")
+                occupied = set(self.function_meta) | set(functions)
+                source_renames = {}
+                source_callables = {}
+                for name in duplicate_functions:
+                    mode, new_name = choices[name]
+                    if mode not in ("existing", "incoming", "alias", "source"):
+                        raise ValueError(f"Invalid conflict resolution: {mode!r}.")
+                    if mode in ("alias", "source"):
+                        if (
+                            not new_name.isidentifier()
+                            or keyword.iskeyword(new_name)
+                            or new_name in occupied
+                        ):
+                            raise ValueError(f"Invalid or occupied name: {new_name!r}.")
+                        occupied.add(new_name)
+                    if mode == "source":
+                        metadata = functions[name]
+                        if "command" in metadata or metadata.get("class_name"):
+                            raise ValueError(
+                                "Use a node alias for command nodes or class methods."
+                            )
+                        original_name = metadata.get("callable_name", name)
+                        source_callables[new_name] = getattr(plugin, original_name)
+                        source_renames[original_name] = new_name
+                if source_renames and not rename_plugin_functions(
+                    plugin_meta, source_renames
+                ):
+                    continue
+                break
+            for new_name, function in source_callables.items():
+                setattr(plugin, new_name, function)
+            for name in duplicate_functions:
+                mode, new_name = choices[name]
+                original_name = functions[name].get("callable_name", name)
+                if mode == "existing":
+                    plugin_aliases[original_name] = None
+                    functions.pop(name)
+                elif mode == "incoming":
+                    existing = self.function_meta[name]
+                    aliases.setdefault(existing["plugin"], {})[
+                        existing.get("callable_name", name)
+                    ] = None
+                    old_functions[name] = deepcopy(existing)
+                elif mode in ("alias", "source"):
+                    metadata = functions.pop(name)
+                    metadata["callable_name"] = (
+                        new_name if mode == "source" else original_name
+                    )
+                    functions[new_name] = metadata
+                    plugin_aliases[original_name] = new_name
+            self.set("function_aliases", aliases)
+            logger.info("Resolved function conflicts for plugin %s", plugin_name)
+        self._unload_plugin_session(plugin_name, remove_nodes=False)
         self.set_dict_value("plugin_meta", plugin_name, plugin_meta)
         self.plugins[plugin_name] = plugin
         self.function_meta.update(functions)
+        if self.viewer is not None:
+            self.viewer.refresh_function_nodes(old_functions)
 
-    def load_plugin_module(self, plugin):
+    def load_plugin_module(self, plugin, *, source: dict | None = None):
+        """Load a package, preserving its actual activation source."""
         plugin_name = getattr(plugin, "PLUGIN_NAME", None) or plugin.__name__
         config_path = getattr(plugin, "CONFIG_PATH", None)
         if config_path is None:
             raise ValueError(
                 "CONFIG_PATH must be defined in __init__.py of the plugin!"
             )
-        plugin_meta = {"config_path": config_path}
+        plugin_meta = {
+            "config_path": config_path,
+            "plugin_type": "module",
+            "module_name": plugin.__name__,
+        }
         script_path = getattr(plugin, "SCRIPT_PATH", None)
         if script_path is not None:
             plugin_meta["script_path"] = script_path
         plugin_github = getattr(plugin, "PLUGIN_GITHUB", None)
         if plugin_github is not None:
             plugin_meta["plugin_github"] = plugin_github
-            plugin_meta["plugin_type"] = "github"
-        else:
-            plugin_meta["plugin_type"] = "module"
+        if source is not None:
+            plugin_meta.update(source)
         self.load_plugin(plugin, plugin_name, plugin_meta)
+
+    def load_plugin_entry_point(
+        self, distribution_name: str, entry_point_name: str
+    ) -> None:
+        """Activate one explicitly selected installed plugin in this project."""
+        entry = find_plugin_entry_point(distribution_name, entry_point_name)
+        plugin = entry.load()
+        if not isinstance(plugin, ModuleType):
+            raise TypeError(
+                f"Plugin entry point '{entry_point_name}' must reference a module."
+            )
+        self.load_plugin_module(
+            plugin,
+            source={
+                "plugin_type": "entry_point",
+                "distribution_name": distribution_name,
+                "entry_point_name": entry_point_name,
+            },
+        )
 
     def _import_with_install_prompt(
         self,
@@ -1527,10 +2026,15 @@ class Controller:
             ask_before_install=ask_before_install,
         )
         if plugin is not None:
-            self.load_plugin_module(plugin)
+            self.load_plugin_module(
+                plugin, source={"plugin_type": "github", "plugin_github": plugin_url}
+            )
 
-    def load_plugin_path(self, config_path: str | Path):
-        config_path = Path(config_path)
+    def load_plugin_path(
+        self, config_path: str | Path, *, previous_name: str | None = None
+    ):
+        """Load a local plugin, migrating legacy registrations after success."""
+        config_path = Path(config_path).resolve()
         path_was_missing = False
         if not config_path.is_file():
             path_was_missing = True
@@ -1540,13 +2044,13 @@ class Controller:
                 message_type="info",
             )
             config_path = get_user_input(
-                "Select a plugin configuration file to load.",
+                f"Set the current location of the plugin config file {config_path.name}.",
                 input_type="file",
                 file_filter="JSON files (*.json)",
             )  # type: ignore
             if config_path is None:
                 return
-            config_path = Path(config_path)
+            config_path = Path(config_path).resolve()
         pattern = r"([\w_]+)_config\.json$"
         match = re.search(pattern, str(config_path))
         if match:
@@ -1570,41 +2074,72 @@ class Controller:
             "script_path": script_path,
             "plugin_type": "path",
         }
-        if path_was_missing:
-            # Save the new device-specific path to settings so it is used
-            # automatically on the next session without prompting again.
-            plugin_config = self.settings.get("plugin_config", {})
-            plugin_config[plugin_name] = {
+        init_path = folder_path / "__init__.py"
+        # A standalone script may live in a non-plugin Python package.
+        is_package = init_path.is_file() and any(
+            isinstance(node, ast.Name)
+            and node.id == "CONFIG_PATH"
+            and isinstance(node.ctx, ast.Store)
+            for node in ast.walk(ast.parse(init_path.read_text(encoding="utf-8")))
+        )
+        module_name = folder_path.name if is_package else plugin_name
+        if not module_name.isidentifier() or keyword.iskeyword(module_name):
+            raise ValueError(f"Invalid plugin package name '{module_name}'.")
+        import_root = folder_path.parent if is_package else folder_path
+        added_import_root = str(import_root) not in sys.path
+        if added_import_root:
+            sys.path.append(str(import_root))
+        source_paths = {script_path}
+        if is_package:
+            source_paths.add(init_path)
+        previous_modules = unload_plugin_modules(module_name, source_paths)
+        try:
+            spec = spec_from_file_location(
+                module_name, init_path if is_package else script_path
+            )
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not load plugin module from '{script_path}'.")
+            plugin = module_from_spec(spec)
+            sys.modules[module_name] = plugin
+            spec.loader.exec_module(plugin)
+            registered_name = getattr(plugin, "PLUGIN_NAME", None) or plugin_name
+            self.load_plugin(plugin, registered_name, plugin_meta)
+        except BaseException:
+            for name in list(sys.modules):
+                if name == module_name or name.startswith(f"{module_name}."):
+                    sys.modules.pop(name)
+            sys.modules.update(previous_modules)
+            if added_import_root:
+                sys.path.remove(str(import_root))
+            raise
+        aliases = {plugin_name, previous_name} - {None, registered_name}
+        registrations = self.get("plugin_meta", {})
+        plugin_config = self.settings.get("plugin_config", {})
+        migrated_override = False
+        for alias in aliases:
+            meta = registrations.get(alias, {})
+            if meta.get("plugin_type") != "path":
+                continue
+            if Path(meta["config_path"]).name != config_path.name:
+                continue
+            old_functions = {
+                fn: deepcopy(meta)
+                for fn, meta in self.function_meta.items()
+                if meta.get("plugin") == alias
+            }
+            self._unload_plugin_session(alias, remove_nodes=False)
+            if self.viewer is not None:
+                self.viewer.refresh_function_nodes(old_functions)
+            registrations.pop(alias)
+            migrated_override |= plugin_config.pop(alias, None) is not None
+        self.set("plugin_meta", registrations)
+        if path_was_missing or migrated_override:
+            # Keep device-specific paths separate from shared project metadata.
+            plugin_config[registered_name] = {
                 "config_path": config_path,
                 "script_path": script_path,
             }
-            self.settings.set("plugin_config", plugin_config)
-        if str(folder_path) not in sys.path:
-            sys.path.append(str(folder_path))
-        previous_module = sys.modules.get(plugin_name)
-        bytecode_file = cache_from_source(str(script_path))
-        try:
-            os.remove(bytecode_file)
-        except FileNotFoundError:
-            pass
-        spec = spec_from_file_location(plugin_name, script_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load plugin module from '{script_path}'.")
-        plugin = module_from_spec(spec)
-        sys.modules[plugin_name] = plugin
-        try:
-            spec.loader.exec_module(plugin)
-            self.load_plugin(plugin, plugin_name, plugin_meta)
-        except BaseException:
-            if previous_module is None:
-                sys.modules.pop(plugin_name, None)
-            else:
-                sys.modules[plugin_name] = previous_module
-            raise
-
-    def load_plugin_code(self, code: str):
-        # ToDo Next: Further work on plugin system and refactor analyze code from FunctionImporter into Controller for general purpose.
-        pass
+        self.settings.set("plugin_config", plugin_config)
 
     def load_recent_plugins(self, plugin_name: str | None = None) -> None:
         """Load plugins registered in the project config.
@@ -1626,6 +2161,8 @@ class Controller:
             return
 
         for pname in plugin_names:
+            if pname not in self.get("plugin_meta", {}):
+                continue
             plugin_meta = plugin_meta_all[pname]
             if pname in disabled_plugins:
                 logger.debug(f"Skipping disabled plugin '{pname}'.")
@@ -1639,15 +2176,157 @@ class Controller:
                     config_path = device_override.get(
                         "config_path", plugin_meta["config_path"]
                     )
-                    self.load_plugin_path(config_path)
+                    if not Path(config_path).is_file() and not device_override:
+                        # Older versions saved relocations under PLUGIN_NAME but
+                        # left the filename-based registration in the project.
+                        relocated = [
+                            override["config_path"]
+                            for override in device_plugin_config.values()
+                            if override.get("config_path") is not None
+                            and Path(override["config_path"]).name
+                            == Path(config_path).name
+                            and Path(override["config_path"]).is_file()
+                        ]
+                        if len(relocated) == 1:
+                            config_path = relocated[0]
+                    self.load_plugin_path(config_path, previous_name=pname)
                 case "github":
                     self.load_plugin_github(plugin_meta["plugin_github"])
                 case "module":
-                    self.load_plugin_module_name(pname)
+                    self.load_plugin_module_name(plugin_meta.get("module_name", pname))
+                case "entry_point":
+                    try:
+                        self.load_plugin_entry_point(
+                            plugin_meta["distribution_name"],
+                            plugin_meta["entry_point_name"],
+                        )
+                    except Exception as error:
+                        if plugin_name is not None:
+                            raise
+                        distribution = plugin_meta["distribution_name"]
+                        entry_name = plugin_meta["entry_point_name"]
+                        identity = f"{canonicalize_name(distribution)}:{entry_name}"
+                        self.installed_plugins[identity] = {
+                            "distribution_name": distribution,
+                            "entry_point_name": entry_name,
+                            "version": "",
+                            "plugin_name": pname,
+                            "error": f"{type(error).__name__}: {error}",
+                        }
+                        logger.exception("Could not load installed plugin %s", pname)
                 case _:
                     logger.warning(
                         f"Unknown plugin type '{plugin_type}' for plugin '{pname}'. Skipping."
                     )
+        if plugin_name is None:
+            self.discover_installed_plugins()
+
+    def discover_installed_plugins(self) -> None:
+        """Enable new installed plugins without overriding saved registrations.
+
+        Run at startup and when refreshing the manager, including packages
+        installed externally since startup. Explicitly disabled plugins stay
+        disabled. Failed registrations remain visible in the manager with errors.
+        """
+        installed = {
+            identity: record
+            for identity, record in self.installed_plugins.items()
+            if "error" in record
+            and record.get("plugin_name") in self.get("plugin_meta", {})
+        }
+        changed = False
+        for entry in get_plugin_entry_points():
+            if entry.dist is None:
+                continue
+            distribution = entry.dist.name
+            identity = f"{canonicalize_name(distribution)}:{entry.name}"
+            record = {
+                "distribution_name": distribution,
+                "entry_point_name": entry.name,
+                "version": entry.dist.version,
+                "module_name": entry.module,
+            }
+            installed[identity] = record
+            try:
+                registered = self.get("plugin_meta", {})
+                name = next(
+                    (
+                        name
+                        for name, meta in registered.items()
+                        if (
+                            meta.get("entry_point_name") == entry.name
+                            and canonicalize_name(meta.get("distribution_name", ""))
+                            == canonicalize_name(distribution)
+                        )
+                        or (
+                            meta.get("plugin_type") in ("module", "github")
+                            and meta.get("module_name") == entry.module
+                            and entry.attr is None
+                        )
+                    ),
+                    None,
+                )
+                if name is None:
+                    plugin = entry.load()
+                    if not isinstance(plugin, ModuleType):
+                        raise TypeError("Plugin entry points must reference modules.")
+                    name = getattr(plugin, "PLUGIN_NAME", None) or plugin.__name__
+                    if name in registered:
+                        meta = registered[name]
+                        if meta.get("plugin_type") != "path":
+                            raise ValueError(
+                                f"Plugin name '{name}' is already registered from "
+                                "another source. Resolve the name conflict first."
+                            )
+                    else:
+                        source = {
+                            "plugin_type": "entry_point",
+                            "distribution_name": distribution,
+                            "entry_point_name": entry.name,
+                        }
+                        if name in self.settings.get("disabled_plugins", []):
+                            config = getattr(plugin, "CONFIG_PATH", None)
+                            if config is None:
+                                raise ValueError("Plugin must define CONFIG_PATH.")
+                            self.set_dict_value(
+                                "plugin_meta",
+                                name,
+                                {
+                                    **source,
+                                    "module_name": plugin.__name__,
+                                    "config_path": config,
+                                    "script_path": getattr(plugin, "SCRIPT_PATH", None),
+                                },
+                            )
+                        else:
+                            self.load_plugin_module(plugin, source=source)
+                            changed = True
+                record["plugin_name"] = name
+                if name not in self.plugins and name not in self.settings.get(
+                    "disabled_plugins", []
+                ):
+                    self.load_recent_plugins(name)
+                    changed = True
+            except Exception as error:  # noqa: BLE001
+                # The manager displays this error alongside the failed registration.
+                record["error"] = f"{type(error).__name__}: {error}"
+                logger.exception("Could not discover plugin %s", identity)
+        self.installed_plugins = installed
+        if changed and self.viewer is not None:
+            self.viewer.refresh_node_picker()
+
+    def plugin_node_count(self, plugin_name: str) -> int:
+        """Read a plugin's node count even while it is disabled."""
+        meta = self.get("plugin_meta")[plugin_name]
+        override = self.settings.get("plugin_config", {}).get(plugin_name, {})
+        config = override.get("config_path", meta["config_path"])
+        if isinstance(config, dict):
+            return len(config)
+        with Path(config).open(encoding="utf-8") as stream:
+            nodes = json.load(stream)
+        if not isinstance(nodes, dict):
+            raise TypeError("Plugin configuration must map node names to objects.")
+        return len(nodes)
 
     def get_plugin_from_function(self, function_name: str) -> str:
         """Return the plugin path configured for a function."""
@@ -1659,7 +2338,9 @@ class Controller:
             )
         return plugin_name
 
-    def _unload_plugin_session(self, plugin_name: str) -> list[str]:
+    def _unload_plugin_session(
+        self, plugin_name: str, remove_nodes: bool = True
+    ) -> list[str]:
         """Remove a plugin and its functions from the current in-memory session.
 
         Removes the plugin from ``self.plugins``, clears the associated entries
@@ -1670,6 +2351,9 @@ class Controller:
         ----------
         plugin_name : str
             Name of the plugin to unload.
+        remove_nodes : bool
+            Whether to remove the plugin's nodes from the node-viewer. Reloads
+            keep the nodes and refresh them afterwards.
 
         Returns
         -------
@@ -1687,13 +2371,14 @@ class Controller:
 
         # Remove matching nodes from the viewer if it is available
         if self.viewer is not None:
-            nodes_to_remove = [
-                node
-                for node in list(self.viewer.nodes.values())
-                if getattr(node, "name", None) in functions_to_remove
-            ]
-            for node in nodes_to_remove:
-                self.viewer.remove_node(node, force=True)
+            if remove_nodes:
+                nodes_to_remove = [
+                    node
+                    for node in list(self.viewer.nodes.values())
+                    if getattr(node, "name", None) in functions_to_remove
+                ]
+                for node in nodes_to_remove:
+                    self.viewer.remove_node(node, force=True)
             self.viewer.refresh_node_picker()
 
         return functions_to_remove
@@ -1732,7 +2417,12 @@ class Controller:
         disabled.discard(plugin_name)
         self.settings.set("disabled_plugins", list(disabled))
         # Reload the plugin immediately in the current session
-        self.load_recent_plugins(plugin_name)
+        try:
+            self.load_recent_plugins(plugin_name)
+        except BaseException:
+            disabled.add(plugin_name)
+            self.settings.set("disabled_plugins", list(disabled))
+            raise
         # Refresh the node picker in the viewer if available
         if self.viewer is not None:
             self.viewer.refresh_node_picker()
@@ -1790,33 +2480,29 @@ class Controller:
         >>> new_func = controller.plugins["plugin_name"].some_func
         """
 
-        if plugin_name is None:
-            plugins_to_reload = self.plugins
-        else:
-            plugin = sys.modules[plugin_name]
-            plugins_to_reload = {plugin_name: plugin}
-
-        for loaded_plugin_name, plugin in plugins_to_reload.items():
-            # Remove the plugin from sys.modules
-            del sys.modules[loaded_plugin_name]
-
-            # Clear bytecode cache if possible
-            bytecode_file = cache_from_source(str(plugin.__file__))
+        names = list(self.plugins) if plugin_name is None else [plugin_name]
+        for name in names:
+            plugin = self.plugins[name]
+            if self.get("plugin_meta")[name]["plugin_type"] == "path":
+                self.load_recent_plugins(name)
+                continue
+            previous_modules = unload_plugin_modules(plugin.__name__)
             try:
-                os.remove(bytecode_file)
-            except OSError as e:
-                logger.warning(f"Error clearing bytecode cache: {e}")
-
-            # Import the plugin again
-            reloaded_plugin = import_module(loaded_plugin_name)
-            # Update the plugin in the controller
-            self.plugins[loaded_plugin_name] = reloaded_plugin
+                self.load_recent_plugins(name)
+            except BaseException:
+                for module_name in list(sys.modules):
+                    if module_name == plugin.__name__ or module_name.startswith(
+                        f"{plugin.__name__}."
+                    ):
+                        sys.modules.pop(module_name)
+                sys.modules.update(previous_modules)
+                raise
 
     def get_function_meta(self, function_name: str) -> dict[str, Any]:
         """Get the metadata for a specific function."""
         function_meta = self.function_meta.get(function_name, None)
         if function_meta is None:
-            match = re.match(r"([\w\.]+)-\d+", function_name)
+            match = re.fullmatch(r"(.+)-\d+", function_name)
             if match:
                 function_meta = self.function_meta[match.group(1)]
             else:
@@ -1899,6 +2585,9 @@ class Controller:
         """Get the code for a specific function from the plugins."""
         plugin_name = self.get_plugin_from_function(function_name)
         plugin = self.plugins[plugin_name]
+        function_name = self.get_function_meta(function_name).get(
+            "callable_name", CodeGenerator.base_func_name(function_name)
+        )
         function = getattr(plugin, function_name)
         if function is None:
             raise KeyError(

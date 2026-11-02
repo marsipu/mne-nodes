@@ -22,6 +22,8 @@ class FloatGui(Param):
         self.param_widget.setMaximum(max_val)
         self.param_widget.setSingleStep(step)
         self.param_widget.setDecimals(decimals)
+        # Commit typed numbers on Enter or focus loss rather than per keystroke.
+        self.param_widget.setKeyboardTracking(False)
         self.param_widget.setToolTip(f"MinValue = {min_val}\nMaxVal = {max_val}")
         if self.unit:
             self.param_widget.setSuffix(f" {self.unit}")
