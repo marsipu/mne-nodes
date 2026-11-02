@@ -5,6 +5,7 @@ Development
     :maxdepth: 2
 
     Docker GUI <docker_gui>
+    Documentation screenshots <screenshots>
 
 Project layout
 --------------

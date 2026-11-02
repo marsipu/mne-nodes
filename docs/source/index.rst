@@ -12,6 +12,9 @@
 Welcome to mne-nodes's documentation!
 ===========================================
 
+See the :doc:`CI screenshot demo <documentation/screenshot_demo>` for
+automatically captured views of the app on Ubuntu.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:

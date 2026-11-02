@@ -17,3 +17,4 @@ venv/
 docs/build/
 docs/generated/
 docs/source/generated
+docs/source/_static/screenshots/
