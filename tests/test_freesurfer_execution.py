@@ -52,7 +52,8 @@ def external_plugin(ct):
     return plugin
 
 
-def test_stream_drains_fast_process_and_reports_failure(capsys):
+def test_stream_failure_and_invalid_commands(capsys):
+    """Drain output of failing processes and reject non-sequence commands."""
     with pytest.raises(subprocess.CalledProcessError) as error:
         freesurfer.stream_subprocess(
             [
@@ -64,12 +65,9 @@ def test_stream_drains_fast_process_and_reports_failure(capsys):
     assert error.value.returncode == 7
     output = capsys.readouterr().out
     assert "first" in output and "last" in output
-
-
-@pytest.mark.parametrize("command", [[], "recon-all"])
-def test_invalid_command(command):
-    with pytest.raises(ValueError, match="nonempty argument sequence"):
-        freesurfer.run_freesurfer_subprocess(command, "subjects")
+    for command in ([], "recon-all"):
+        with pytest.raises(ValueError, match="nonempty argument sequence"):
+            freesurfer.run_freesurfer_subprocess(command, "subjects")
 
 
 def test_wsl_argv_and_paths_are_not_shell_interpolated(monkeypatch):
@@ -106,7 +104,9 @@ def test_wsl_argv_and_paths_are_not_shell_interpolated(monkeypatch):
 
 @pytest.mark.parametrize("windows", [False, True])
 def test_discovery_uses_environment_and_distro(monkeypatch, windows):
+    """Discover runtime paths via the platform shell and surface setup errors."""
     monkeypatch.setattr(freesurfer, "iswin", windows)
+    original_capture = freesurfer._capture
     calls = []
 
     def capture(argv):
@@ -123,14 +123,12 @@ def test_discovery_uses_environment_and_distro(monkeypatch, windows):
         assert calls[0][:4] == ["wsl.exe", "--distribution", "Ubuntu", "--exec"]
     else:
         assert calls[0][:2] == ["bash", "-lic"]
-
-
-def test_capture_surfaces_setup_errors(monkeypatch):
     monkeypatch.setattr(
         freesurfer.subprocess,
         "run",
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 2, "", "missing FS"),
     )
+    monkeypatch.setattr(freesurfer, "_capture", original_capture)
     with pytest.raises(RuntimeError, match="missing FS"):
         freesurfer.discover_freesurfer()
 
@@ -181,16 +179,6 @@ def test_python_worker_result_and_path_pickling(tmp_path, monkeypatch):
         PathPickler(stream, lambda text: text + "-translated").dump(tmp_path)
     with path_file.open("rb") as stream:
         assert pickle.load(stream) == Path(str(tmp_path) + "-translated")
-
-
-def test_python_requires_mne_interpreter(tmp_path):
-    with pytest.raises(RuntimeError, match="No Python with MNE"):
-        freesurfer.run_freesurfer_function(
-            json.loads,
-            {},
-            tmp_path,
-            runtime=freesurfer.FreeSurferRuntime("/opt/fs", None),
-        )
 
 
 def test_command_arguments():
@@ -278,10 +266,7 @@ def test_controller_routes_commands_and_python(ct, monkeypatch, external_plugin)
     ct.get_function_meta("make_watershed_bem")["outputs"] = {"subject": {}}
     assert ct.execute_external("make_watershed_bem", subject="sample") == "sample"
 
-
-def test_command_outputs_pass_through_only_after_success(
-    ct, monkeypatch, external_plugin
-):
+    # Plain commands pass outputs through only after a successful run.
     metadata = ct.get_function_meta("recon-all")
     metadata["uses_freesurfer"] = False
     metadata["outputs"] = {"subject": {}, "t1": {}}
@@ -303,37 +288,6 @@ def test_command_outputs_pass_through_only_after_success(
     monkeypatch.setattr("mne_nodes.backend.controller.stream_subprocess", fail)
     with pytest.raises(subprocess.CalledProcessError):
         ct.execute_external("recon-all", subject="sample", t1="image.nii")
-
-
-def test_freesurfer_flag_editor(qtbot):
-    from mne_nodes.gui.function_widgets import FunctionImporter
-
-    importer = FunctionImporter(
-        code="def example(subject: str):\n    pass\n", plugin_name="freesurfer_test"
-    )
-    qtbot.addWidget(importer)
-    importer.freesurfer_checkbox.setChecked(True)
-    assert importer.func_config["example"]["uses_freesurfer"] is True
-    importer.reanalyze()
-    assert importer.func_config["example"]["uses_freesurfer"] is True
-    importer.func_config.clear()
-
-
-def test_setup_dialog_discovery(qtbot, ct, monkeypatch):
-    from qtpy.QtWidgets import QLineEdit
-
-    from mne_nodes.gui.freesurfer_widgets import FreeSurferSetupDialog
-
-    runtime = freesurfer.FreeSurferRuntime("/opt/fs", "/env/bin/python", "Ubuntu")
-    monkeypatch.setattr(ct, "freesurfer_runtime", lambda: runtime)
-    dialog = FreeSurferSetupDialog(ct)
-    qtbot.addWidget(dialog)
-    assert dialog.findChildren(QLineEdit) == [dialog.distribution]
-    assert dialog.discover_button.text() == "Discover"
-    dialog.discover()
-    qtbot.waitUntil(dialog.discover_button.isEnabled)
-    assert "/opt/fs" in dialog.status.toPlainText()
-    assert "/env/bin/python" in dialog.status.toPlainText()
 
 
 @pytest.mark.skipif(

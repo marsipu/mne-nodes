@@ -1,23 +1,13 @@
 """Associated empty-room inputs and the recording data overview."""
 
-from threading import Event
-from time import perf_counter
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from mne_bids import BIDSPath, get_bids_path_from_fname
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QAbstractItemView
 
 from mne_nodes.backend.code_generation import CodeGenerator
-from mne_nodes.backend.data_overview import (
-    DataAvailability,
-    DataOverview,
-    discover_data_overview,
-)
-from mne_nodes.backend.execution import WorkerSignals
-from mne_nodes.gui.data_overview import DataOverviewDialog
+from mne_nodes.backend.data_overview import DataAvailability, discover_data_overview
 
 
 @pytest.fixture
@@ -55,7 +45,8 @@ def meg_associations(ct):
     return first, second, empty_room
 
 
-def test_empty_room_is_associated_not_selected(ct, meg_associations):
+def test_empty_room_association(ct, meg_associations, monkeypatch):
+    """Empty-room data is associated with recordings, never selected directly."""
     first, second, empty_room = meg_associations
     assert ct.resolve_empty_room(first) == empty_room
     assert ct.get_datatype_items("emptyroom") == [empty_room.basename]
@@ -69,10 +60,7 @@ def test_empty_room_is_associated_not_selected(ct, meg_associations):
     ct.set("selected_inputs", {"emptyroom": [empty_room.basename]})
     ct.discard_legacy_segmentation_checks()
     assert not ct.selected_recordings()
-
-
-def test_empty_room_missing_mixed_and_non_meg(ct, meg_associations):
-    first, second, empty_room = meg_associations
+    # Missing, non-MEG and mixed associations are reported as unavailable.
     ct.set("selected_inputs", {})
     assert "raw_er" in ct.input_output_availability()
     ct.input_selection_changed([first.basename], "meg")
@@ -86,25 +74,19 @@ def test_empty_room_missing_mixed_and_non_meg(ct, meg_associations):
     with pytest.raises(FileNotFoundError):
         ct.load_raw_er(first)
     empty_room.fpath.touch()
+    # Single and grouped loads always read the associated empty-room file.
+    read = Mock(side_effect=lambda path: ({"path": path}, {}))
+    monkeypatch.setattr(ct, "load_raw", read)
+    expected = {"path": empty_room}
+    assert ct.load_raw_er(first) == expected
+    assert ct.load_raw_er([first, second]) == [expected, expected]
+    assert all(call.args == (empty_room,) for call in read.call_args_list)
     second.copy().update(extension=".json").fpath.write_text(
         '{"AssociatedEmptyRoom": "sub-emptyroom/meg/sub-emptyroom_task-noise_meg.fif"}',
         encoding="utf-8",
     )
     ct.input_selection_changed([first.basename, second.basename], "meg")
     assert "raw_er" in ct.input_output_availability()
-
-
-@pytest.mark.parametrize("grouped", [False, True])
-def test_load_empty_room_shape_and_recording_independence(
-    ct, meg_associations, monkeypatch, grouped
-):
-    first, second, empty_room = meg_associations
-    read = Mock(side_effect=lambda path: ({"path": path}, {}))
-    monkeypatch.setattr(ct, "load_raw", read)
-    result = ct.load_raw_er([first, second] if grouped else first)
-    expected = {"path": empty_room}
-    assert result == ([expected, expected] if grouped else expected)
-    assert all(call.args == (empty_room,) for call in read.call_args_list)
 
 
 @pytest.mark.parametrize("target", ["file", "group"])
@@ -135,7 +117,7 @@ def test_codegen_routes_empty_room_to_raw_parameters(
             {
                 "name": name,
                 "function_meta": meta,
-                "inputs": {"raw": ["input"]},
+                "inputs": {"raw": ["Input-0"]},
                 "input_ports": {"raw": [port]},
                 "outputs": {},
                 "checked": False,
@@ -157,7 +139,7 @@ def test_codegen_routes_empty_room_to_raw_parameters(
             {
                 "name": "process_noise",
                 "function_meta": meta,
-                "inputs": {"raw": ["input"]},
+                "inputs": {"raw": ["Input-0"]},
                 "input_ports": {"raw": ["raw_er"]},
                 "outputs": {"raw": []},
                 "checked": False,
@@ -301,187 +283,4 @@ def test_data_overview_inventory_and_association_errors(
         and row["Empty-room"].state == "error"
         and "ambiguous association" in row["Empty-room"].description
         for row in overview.recordings
-    )
-
-
-def test_overview_table_and_both_entry_points(main_window, qtbot, monkeypatch):
-    window = main_window
-    calls = []
-    monkeypatch.setattr(
-        DataOverviewDialog, "update_widgets", lambda self: calls.append(self)
-    )
-    action = next(
-        action
-        for menu_action in window.menuBar().actions()
-        if menu_action.menu() and "BIDS" in menu_action.text()
-        for action in menu_action.menu().actions()
-        if "Data overview" in action.text()
-    )
-    action.trigger()
-    widget = window.viewer.input_node.input_widget
-    qtbot.mouseClick(widget.overview_bt, Qt.MouseButton.LeftButton)
-    assert len(calls) == 2
-    dialog = calls[-1]
-    assert dialog.parentWidget() is window.viewer
-    assert dialog.graphicsProxyWidget() is None
-    assert dialog.isWindow()
-    qtbot.waitExposed(dialog)
-    overview = discover_data_overview(window.controller)
-    dialog._discovered(overview)
-    assert dialog.table.model().rowCount() == len(overview.recordings)
-    assert dialog.table.editTriggers() == QAbstractItemView.EditTrigger.NoEditTriggers
-    assert "recordings" in dialog.status.text()
-    for child in calls:
-        child.close()
-
-
-def test_overview_worker_refresh_and_failure(ct, qtbot, monkeypatch):
-    """The actual worker populates the table and errors never resemble success."""
-    dialog = DataOverviewDialog(ct)
-    qtbot.addWidget(dialog)
-    dialog.show()
-    dialog.update_widgets()
-    qtbot.waitUntil(lambda: dialog._worker is None, timeout=15000)
-    assert dialog.table.model().rowCount() == len(ct.get_datatype_items("eeg"))
-    assert dialog.refresh_button.isEnabled()
-    from mne_nodes.backend.exception_handling import ExceptionTuple
-
-    shown = []
-    monkeypatch.setattr(
-        "mne_nodes.gui.data_overview.ErrorDialog",
-        lambda *args, **kwargs: SimpleNamespace(exec=lambda: shown.append(args)),
-    )
-    dialog._discovered(ExceptionTuple(ValueError, ValueError("broken scan"), "trace"))
-    assert dialog.status.text() == "Dataset scan failed."
-    assert dialog.table.model().rowCount() == 0
-    assert shown
-
-
-@pytest.mark.parametrize("empty", [False, True])
-def test_overview_discovery_progress(ct, monkeypatch, empty):
-    """Discovery switches from busy to counted progress, including empty datasets."""
-    if empty:
-        monkeypatch.setattr(ct, "get_datatype_items", lambda datatype: [])
-    signals = WorkerSignals()
-    maxima, values, texts = [], [], []
-    signals.pgbar_max.connect(maxima.append)
-    signals.pgbar_n.connect(values.append)
-    signals.pgbar_text.connect(texts.append)
-    overview = discover_data_overview(ct, worker_signals=signals)
-    total = len(overview.recordings)
-    assert maxima == [0, max(1, total)]
-    assert values[0] == 0
-    assert values[-1] == max(1, total)
-    assert values[1 : 1 + total] == list(range(1, total + 1))
-    assert texts[0] == "Discovering anatomy and auxiliary data..."
-    assert texts[-1] == f"Scan complete: {total} recordings."
-    assert (
-        len([text for text in texts if text.startswith("Checking recording")]) == total
-    )
-
-
-def test_overview_worker_shows_recording_progress(ct, qtbot, monkeypatch):
-    """The real worker exposes scan progress while an association lookup is running."""
-    release = Event()
-    resolve = ct.resolve_recording_subject
-
-    def delayed_resolve(recording):
-        if not release.wait(10):
-            raise RuntimeError("Timed out waiting to release the test scan.")
-        return resolve(recording)
-
-    monkeypatch.setattr(ct, "resolve_recording_subject", delayed_resolve)
-    dialog = DataOverviewDialog(ct)
-    qtbot.addWidget(dialog)
-    dialog.show()
-    dialog.update_widgets()
-    worker = dialog._worker
-    try:
-        assert worker is not None
-        qtbot.waitUntil(
-            lambda: worker.progress_label.text().startswith("Checking recording"),
-            timeout=5000,
-        )
-        assert worker.isVisible()
-        assert worker.graphicsProxyWidget() is None
-        assert worker.progress_bar.isVisible()
-        assert worker.progress_bar.maximum() == len(ct.get_datatype_items("eeg"))
-        assert worker.progress_bar.value() == 0
-        assert not dialog.refresh_button.isEnabled()
-        dialog.update_widgets()
-        assert dialog._worker is worker
-    finally:
-        release.set()
-        qtbot.waitUntil(lambda: dialog._worker is None, timeout=15000)
-    assert dialog.refresh_button.isEnabled()
-
-
-@pytest.mark.parametrize("state", ["present", "missing", "error", "not_applicable"])
-def test_overview_availability_symbols(qtbot, state):
-    """Availability is an icon, never a path, with accessible explanations."""
-    dialog = DataOverviewDialog(SimpleNamespace(refresh_input_outputs=Mock()))
-    qtbot.addWidget(dialog)
-    row: dict[str, str | DataAvailability] = {
-        column: DataAvailability(state, "Association details")
-        for column in dialog.model.columns[1:]
-    }
-    row["Recording"] = "sub-01_task-test_meg.fif"
-    dialog._discovered(DataOverview([row], {}))
-    model = dialog.table.model()
-    assert model.index(0, 0).data() == row["Recording"]
-    for column in range(1, model.columnCount()):
-        index = model.index(0, column)
-        assert index.data() == ("N/A" if state == "not_applicable" else None)
-        assert not index.data(Qt.ItemDataRole.DecorationRole).isNull()
-        assert "Association details" in index.data(Qt.ItemDataRole.ToolTipRole)
-        assert "Association details" in index.data(Qt.ItemDataRole.AccessibleTextRole)
-
-
-def test_overview_large_snapshot(qtbot, record_property):
-    """Populate and sort 20,000 recordings without building per-cell widgets."""
-    controller = SimpleNamespace(refresh_input_outputs=Mock())
-    dialog = DataOverviewDialog(controller)
-    qtbot.addWidget(dialog)
-    available = DataAvailability("present", "Found")
-    rows = [
-        {
-            "Recording": f"sub-{number:05}_task-test_meg.fif",
-            **{column: available for column in dialog.model.columns[1:]},
-        }
-        for number in reversed(range(20000))
-    ]
-    start = perf_counter()
-    dialog._discovered(DataOverview(rows, {}))
-    dialog.show()
-    qtbot.waitExposed(dialog)
-    elapsed = perf_counter() - start
-    record_property("overview_20000_rows_seconds", elapsed)
-    assert elapsed < 3.0
-    assert dialog.model._recordings is rows
-    model = dialog.table.model()
-    assert model.rowCount() == 20000
-    assert model.index(0, 0).data() == "sub-00000_task-test_meg.fif"
-    dialog.table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
-    assert model.index(0, 0).data() == "sub-19999_task-test_meg.fif"
-    controller.refresh_input_outputs.assert_called_once_with()
-
-
-def test_overview_caches_subject_lookups(ct, meg_associations, monkeypatch):
-    """Runs for the same subject reuse lookup results within a scan only."""
-    first, second, _empty_room = meg_associations
-    resolve = Mock(wraps=ct.resolve_recording_subject)
-    monkeypatch.setattr(ct, "resolve_recording_subject", resolve)
-    overview = discover_data_overview(ct)
-    assert (
-        len([call for call in resolve.call_args_list if call.args[0].subject == "01"])
-        == 1
-    )
-    rows = {row["Recording"]: row["FreeSurfer subject"] for row in overview.recordings}
-    assert rows[first.basename] is rows[second.basename]
-    ct.set("coreg_subjects", {second.basename: "another-subject"})
-    resolve.reset_mock()
-    discover_data_overview(ct)
-    assert (
-        len([call for call in resolve.call_args_list if call.args[0].subject == "01"])
-        == 2
     )

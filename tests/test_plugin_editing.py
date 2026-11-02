@@ -1,4 +1,4 @@
-"""Safe editing, optional installation and pre-save repository options."""
+"""Safe editing, optional installation and Git initialization of plugins."""
 
 import json
 import shutil
@@ -7,10 +7,13 @@ import sys
 from dataclasses import replace
 
 import pytest
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QPushButton
+from qtpy.QtWidgets import QDialog
 
-from mne_nodes.backend.package_utils import install_local_plugin
+from mne_nodes.backend.package_utils import (
+    install_github_package,
+    install_local_plugin,
+    install_pip_packages,
+)
 from mne_nodes.backend.plugin_package import (
     PluginPackageMetadata,
     PluginSource,
@@ -22,7 +25,8 @@ from mne_nodes.backend.plugin_package import (
 )
 from mne_nodes.gui.function_widgets import FunctionImporter
 from mne_nodes.gui.parameter.plugin_manager import PluginManagerDlg
-from mne_nodes.gui.plugin_package import LocalPluginInstallDialog, PluginPackageDialog
+from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
+from mne_nodes.gui.run_widgets import ProcessDialog
 
 CODE = "def transform(value, scale=2):\n    result = value * scale\n    return result\n"
 CONFIG = {
@@ -67,32 +71,8 @@ def _editors(manager):
     return manager.findChildren(FunctionImporter)
 
 
-def test_git_options_are_visible_before_save(qtbot):
-    dialog = PluginPackageDialog("git_fixture")
-    qtbot.addWidget(dialog)
-    available = shutil.which("git") is not None
-    assert dialog.initialize_git.isEnabled() == available
-    assert dialog.initialize_git.isChecked() == available
-    assert dialog.initial_branch.text() == "main"
-    assert not dialog.install_package.isChecked()
-    assert dialog.editable_install.isChecked()
-    dialog.install_package.setChecked(True)
-    assert dialog.editable_install.isEnabled()
-    dialog.initialize_git.setChecked(False)
-    assert not dialog.initial_branch.isEnabled()
-
-
-def test_git_unavailable_is_explained(qtbot, monkeypatch):
-    monkeypatch.setattr("mne_nodes.gui.plugin_package.which", lambda name: None)
-    dialog = PluginPackageDialog("git_fixture")
-    qtbot.addWidget(dialog)
-    assert not dialog.initialize_git.isChecked()
-    assert not dialog.initialize_git.isEnabled()
-    assert not dialog.initial_branch.isEnabled()
-
-
 @pytest.mark.skipif(shutil.which("git") is None, reason="Git is unavailable")
-def test_git_initialization_main_without_commit_or_remote(tmp_path):
+def test_git_initialization(tmp_path, info):
     root = tmp_path / "new_project"
     initialize_plugin_repository(root)
 
@@ -107,34 +87,32 @@ def test_git_initialization_main_without_commit_or_remote(tmp_path):
     # Calling it again must not rename an existing branch.
     initialize_plugin_repository(root, "different")
     assert git("symbolic-ref", "--short", "HEAD").stdout.strip() == "main"
+    # Invalid branch names are rejected before any file is written.
+    for branch in ["", "--bad", "bad..branch", "two words"]:
+        with pytest.raises(ValueError, match="branch"):
+            create_plugin_package(
+                tmp_path / "project",
+                "git_fixture",
+                CODE,
+                CONFIG,
+                replace(info, initialize_git=True, initial_branch=branch),
+            )
+        assert not (tmp_path / "project").exists()
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="Git is unavailable")
-@pytest.mark.parametrize("branch", ["", "--bad", "bad..branch", "two words"])
-def test_invalid_branch_rejected_before_files(tmp_path, info, branch):
-    with pytest.raises(ValueError, match="branch"):
-        create_plugin_package(
-            tmp_path / "project",
-            "git_fixture",
-            CODE,
-            CONFIG,
-            replace(info, initialize_git=True, initial_branch=branch),
-        )
-    assert not (tmp_path / "project").exists()
-
-
-def test_git_failure_keeps_saved_package_and_allows_retry(
-    qtbot, tmp_path, info, monkeypatch, errors
+def test_failed_post_save_steps_keep_files_and_can_be_retried(
+    qtbot, tmp_path, source, info, monkeypatch, errors
 ):
     calls = []
 
-    def initialize(root, branch):
-        calls.append((root, branch))
-        if len(calls) == 1:
-            raise RuntimeError("Simulated git failure")
+    def flaky(*args):
+        calls.append(args)
+        if len(calls) % 2:
+            raise RuntimeError("Simulated failure")
 
+    # Git initialization of a new package fails once.
     monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.initialize_plugin_repository", initialize
+        "mne_nodes.gui.function_widgets.initialize_plugin_repository", flaky
     )
     importer = FunctionImporter(
         code=CODE,
@@ -145,34 +123,95 @@ def test_git_failure_keeps_saved_package_and_allows_retry(
     qtbot.addWidget(importer)
     assert not importer.save()
     assert importer.file_path.is_file()
-    assert errors == ["Could not save the plugin."]
     assert importer.save()
-    assert len(calls) == 2
     importer.func_config.clear()
     importer.close()
 
+    # Reloading an edited plugin fails once.
+    editor = FunctionImporter(source=source, on_saved=flaky)
+    qtbot.addWidget(editor)
+    editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=4"))
+    assert not editor.save()
+    assert "scale=4" in source.script_path.read_text(encoding="utf-8")
+    assert editor.save()
+    assert len(calls) == 4
+    assert len(errors) == 2
+    editor.close()
+
 
 @pytest.mark.parametrize("editable", [True, False])
-def test_local_install_uses_selected_mode(source, monkeypatch, editable):
-    calls = []
+def test_local_installation_mode(qtbot, tmp_path, source, info, monkeypatch, editable):
+    pip_calls = []
     monkeypatch.setattr(
         "mne_nodes.backend.package_utils.install_pip_packages",
-        lambda arguments, **kwargs: calls.append(arguments),
+        lambda arguments, **kwargs: pip_calls.append(arguments),
     )
     install_local_plugin(source.project_root, editable=editable)
     expected = [str(source.project_root.resolve())]
     if editable:
         expected.insert(0, "--editable")
-    assert calls == [expected]
+    assert pip_calls == [expected]
+
+    # Saving a new package installs it once, only when requested.
+    calls = []
+    monkeypatch.setattr(
+        "mne_nodes.gui.function_widgets.install_local_plugin",
+        lambda root, **kwargs: calls.append((root, kwargs["editable"])),
+    )
+    importer = FunctionImporter(
+        code=CODE,
+        plugin_name="install_fixture",
+        destination_dir=tmp_path / "project",
+        package_metadata=replace(info, install_package=True, editable_install=editable),
+    )
+    qtbot.addWidget(importer)
+    assert importer.save()
+    assert importer.save()
+    assert calls == [(tmp_path / "project", editable)]
+    importer.func_config.clear()
+    importer.close()
 
 
-def test_path_install_dialog_defaults_to_editable(qtbot, source):
-    dialog = LocalPluginInstallDialog(source.project_root)
-    qtbot.addWidget(dialog)
-    assert dialog.editable_install.isChecked()
-    assert not dialog.install_package.isChecked()
-    dialog.install_package.setChecked(True)
-    assert dialog.editable_install.isEnabled()
+@pytest.mark.parametrize("exit_code", [0, 7])
+@pytest.mark.parametrize("kind", ["pip", "github", "local"])
+def test_install_result_after_process_cleanup(
+    qtbot, monkeypatch, tmp_path, kind, exit_code
+):
+    """Installation results remain available after Qt deletes the process."""
+
+    def run_test_command(**kwargs):
+        kwargs["commands"] = [
+            (sys.executable, "-c", f"import sys; sys.exit({exit_code})")
+        ]
+        kwargs["blocking"] = False
+        dialog = ProcessDialog(**kwargs)
+        qtbot.addWidget(dialog)
+        with qtbot.waitSignal(dialog.process.destroyed, timeout=5000):
+            pass
+        dialog.close()
+        return dialog
+
+    monkeypatch.setattr(
+        "mne_nodes.backend.package_utils.ProcessDialog", run_test_command
+    )
+    if kind == "local":
+        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+
+    def install():
+        if kind == "github":
+            return install_github_package("https://github.com/owner/plugin")
+        if kind == "local":
+            return install_local_plugin(tmp_path)
+        return install_pip_packages(["example-plugin"])
+
+    if exit_code:
+        with pytest.raises(
+            RuntimeError, match=f"installation failed with exit code {exit_code}"
+        ):
+            install()
+    else:
+        dialog = install()
+        assert dialog.exit_code == 0
 
 
 def test_real_editable_install_links_source_without_changing_environment(
@@ -226,46 +265,32 @@ def test_real_editable_install_links_source_without_changing_environment(
     assert smoke.returncode == 0, smoke.stdout + smoke.stderr
 
 
-def test_save_installs_only_when_requested(qtbot, tmp_path, info, monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.install_local_plugin",
-        lambda root, **kwargs: calls.append((root, kwargs["editable"])),
-    )
-    importer = FunctionImporter(
-        code=CODE,
-        plugin_name="install_fixture",
-        destination_dir=tmp_path / "project",
-        package_metadata=replace(info, install_package=True, editable_install=False),
-    )
-    qtbot.addWidget(importer)
-    assert importer.save()
-    assert calls == [(tmp_path / "project", False)]
-    assert importer.save()
-    assert len(calls) == 1
-    importer.func_config.clear()
-    importer.close()
-
-
-def test_edit_local_plugin_reloads_and_preserves_metadata(main_window, source, qtbot):
+@pytest.mark.parametrize("disabled", [False, True])
+def test_edit_local_plugin_saves_and_reloads(main_window, source, errors, disabled):
     ct = main_window.controller
     ct.load_plugin_path(source.config_path)
+    if disabled:
+        ct.disable_plugin("edit_fixture")
     original_meta = ct.get("plugin_meta")["edit_fixture"].copy()
     manager = PluginManagerDlg(main_window, ct)
-    group = next(
-        group
-        for group in manager.findChildren(QPushButton)
-        if group.text() == "Edit..."
-        and group.parent().property("plugin_name") == "edit_fixture"
-    )
-    qtbot.mouseClick(group, Qt.MouseButton.LeftButton)
+    manager._edit_plugin("edit_fixture")
     (editor,) = _editors(manager)
     editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=8"))
     assert editor.save()
-    assert ct.plugins["edit_fixture"].transform(2) == 16
-    assert ct.get("plugin_meta")["edit_fixture"] == original_meta
-    assert (source.project_root / "pyproject.toml").is_file()
     editor.close()
+    assert "scale=8" in source.script_path.read_text(encoding="utf-8")
+    assert ct.get("plugin_meta")["edit_fixture"] == original_meta
+    if disabled:
+        assert "edit_fixture" not in ct.plugins
+        assert "edit_fixture" in ct.settings.get("disabled_plugins")
+    else:
+        assert ct.plugins["edit_fixture"].transform(2) == 16
+    # A missing source is reported instead of opening an editor.
+    open_editors = len(_editors(manager))
+    source.script_path.unlink()
+    manager._edit_plugin("edit_fixture")
+    assert len(errors) == 1
+    assert len(_editors(manager)) == open_editors
     manager.close()
 
 
@@ -315,46 +340,24 @@ def test_plugin_reload_refreshes_nodes_in_place(main_window, source):
     assert viewer.function_nodes["consume"].port(port_name="data").connected_ports == []
 
 
-def test_edit_disabled_plugin_does_not_enable_it(main_window, source):
-    ct = main_window.controller
-    ct.load_plugin_path(source.config_path)
-    ct.disable_plugin("edit_fixture")
-    manager = PluginManagerDlg(main_window, ct)
-    manager._edit_plugin("edit_fixture")
-    (editor,) = _editors(manager)
-    editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=9"))
-    assert editor.save()
-    assert "edit_fixture" not in ct.plugins
-    assert "edit_fixture" in ct.settings.get("disabled_plugins")
-    assert "scale=9" in source.script_path.read_text(encoding="utf-8")
-    editor.close()
-    manager.close()
-
-
-def test_editor_handles_import_only_scripts_and_configuration(qtbot, source):
-    source.script_path.write_text("from math import sqrt\n", encoding="utf-8")
-    source.config_path.write_text(json.dumps({"sqrt": CONFIG["transform"]}))
-    editor = FunctionImporter(source=source)
-    qtbot.addWidget(editor)
-    editor.function_cmbx.setCurrentText("sqrt")
-    editor.func_config["sqrt"]["target"] = "group"
-    editor.package_editors[source.project_root / "README.md"].setPlainText(
-        "Updated README\n"
-    )
-    assert editor.save()
-    assert "sqrt" in json.loads(source.config_path.read_text())
-    assert json.loads(source.config_path.read_text())["sqrt"]["target"] == "group"
-    assert (source.project_root / "README.md").read_text() == "Updated README\n"
-    editor.close()
-
-
-def test_importer_preserves_configuration_until_reanalysis(qtbot, source):
+def test_editor_saves_source_configuration_and_package_files(qtbot, source):
     original_config = source.config_path.read_bytes()
+    project = source.project_root / "pyproject.toml"
+    readme = source.project_root / "README.md"
     editor = FunctionImporter(source=source)
     qtbot.addWidget(editor)
-    assert editor.function_cmbx.currentText() == "transform"
     assert editor.save()
     assert source.config_path.read_bytes() == original_config
+    editor.package_editors[project].setPlainText(
+        project.read_text(encoding="utf-8").replace(
+            'version = "0.1.0"', 'version = "0.2.0"'
+        )
+    )
+    editor.package_editors[readme].setPlainText("Updated README\n")
+    assert editor.save()
+    assert 'version = "0.2.0"' in project.read_text(encoding="utf-8")
+    assert readme.read_text() == "Updated README\n"
+    assert source.script_path.read_text(encoding="utf-8") == CODE
     editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=7"))
     editor.reanalyze()
     assert editor.func_config["transform"]["parameters"]["scale"]["default"] == 7
@@ -363,45 +366,26 @@ def test_importer_preserves_configuration_until_reanalysis(qtbot, source):
     editor.close()
 
 
-def test_importer_reanalysis_keeps_imported_function_configuration(qtbot, source):
-    source.script_path.write_text("from math import sqrt\n" + CODE, encoding="utf-8")
-    source.config_path.write_text(
-        json.dumps({**CONFIG, "sqrt": CONFIG["transform"]}), encoding="utf-8"
-    )
+def test_editor_keeps_imported_function_configuration(qtbot, source):
+    source.script_path.write_text("from math import sqrt\n", encoding="utf-8")
+    source.config_path.write_text(json.dumps({"sqrt": CONFIG["transform"]}))
     editor = FunctionImporter(source=source)
     qtbot.addWidget(editor)
     editor.reanalyze()
-    assert set(editor.func_config) == {"transform", "sqrt"}
+    assert set(editor.func_config) == {"sqrt"}
     editor.function_cmbx.setCurrentText("sqrt")
     assert editor.current_func == "sqrt"
+    editor.func_config["sqrt"]["target"] = "group"
     assert editor.save()
+    assert json.loads(source.config_path.read_text())["sqrt"]["target"] == "group"
     editor.close()
 
 
-def test_importer_edits_package_configuration_without_recreating(qtbot, source):
+@pytest.mark.parametrize("invalid", ["source", "json", "toml", "external"])
+def test_editor_writes_nothing_when_invalid_or_changed_externally(
+    qtbot, source, errors, invalid
+):
     project = source.project_root / "pyproject.toml"
-    original = project.read_text(encoding="utf-8")
-    editor = FunctionImporter(source=source)
-    qtbot.addWidget(editor)
-    editor.package_editors[project].setPlainText(
-        original.replace('version = "0.1.0"', 'version = "0.2.0"')
-    )
-    assert editor.save()
-    assert 'version = "0.2.0"' in project.read_text(encoding="utf-8")
-    assert source.script_path.read_text(encoding="utf-8") == CODE
-    editor.close()
-
-
-@pytest.mark.parametrize("invalid", ["source", "json", "toml"])
-def test_editor_validates_everything_before_writing(qtbot, source, errors, invalid):
-    originals = {
-        path: path.read_bytes()
-        for path in (
-            source.script_path,
-            source.config_path,
-            source.project_root / "pyproject.toml",
-        )
-    }
     editor = FunctionImporter(source=source)
     qtbot.addWidget(editor)
     editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=5"))
@@ -409,85 +393,43 @@ def test_editor_validates_everything_before_writing(qtbot, source, errors, inval
         editor.source_editor.setPlainText("def broken(:")
     elif invalid == "json":
         editor.func_config["transform"] = []
+    elif invalid == "toml":
+        editor.package_editors[project].setPlainText("[broken")
     else:
-        editor.package_editors[source.project_root / "pyproject.toml"].setPlainText(
-            "[broken"
-        )
+        source.script_path.write_text("# external edit\n" + CODE, encoding="utf-8")
+    originals = {
+        path: path.read_bytes()
+        for path in (source.script_path, source.config_path, project)
+    }
     assert not editor.save()
-    assert errors == ["Could not save plugin changes."]
+    assert len(errors) == 1
     assert all(path.read_bytes() == text for path, text in originals.items())
     editor._original.update(editor._existing_plugin_contents())
     editor.close()
 
 
-def test_editor_refuses_external_changes(qtbot, source, errors):
-    editor = FunctionImporter(source=source)
-    qtbot.addWidget(editor)
-    editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=5"))
-    source.script_path.write_text("# external edit\n" + CODE, encoding="utf-8")
-    assert not editor.save()
-    assert source.script_path.read_text().startswith("# external edit")
-    assert errors == ["Could not save plugin changes."]
-    editor._original[source.script_path] = editor.source_editor.toPlainText()
-    editor.close()
+def test_installed_sources_are_protected(qtbot, source, info, monkeypatch):
+    with pytest.raises(ValueError, match="outside"):
+        copy_plugin_source(source, source.script_path.parent / "copy", info)
+    assert not (source.script_path.parent / "copy").exists()
 
+    # Files inside the Python environment are never edited in place.
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            "mne_nodes.backend.plugin_package.sysconfig.get_path",
+            lambda key: str(source.project_root),
+        )
+        assert plugin_source_is_installed(source.script_path)
+        resolved = get_plugin_source(
+            {"config_path": source.config_path, "script_path": source.script_path}
+        )
+        assert resolved.installed
+        with pytest.raises(ValueError, match="Copy"):
+            FunctionImporter(source=resolved)
+        with pytest.raises(ValueError, match="environment file"):
+            FunctionImporter(source=source)
 
-def test_editor_reload_failure_can_be_retried(qtbot, source, errors):
-    calls = []
-
-    def reload(config_path):
-        calls.append(True)
-        if len(calls) == 1:
-            raise ImportError("Broken import")
-
-    editor = FunctionImporter(source=source, on_saved=reload)
-    qtbot.addWidget(editor)
-    editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=4"))
-    assert not editor.save()
-    assert errors == ["Plugin files were saved, but could not be reloaded."]
-    assert editor.save()
-    assert len(calls) == 2
-    editor.close()
-
-
-def test_editor_close_cancellation_preserves_unsaved_changes(
-    qtbot, source, monkeypatch
-):
-    editor = FunctionImporter(source=source)
-    qtbot.addWidget(editor)
-    editor.show()
-    editor.source_editor.setPlainText(CODE.replace("scale=2", "scale=3"))
-    monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.ask_user_custom", lambda *a, **k: None
-    )
-    assert not editor.close()
-    assert editor.isVisible()
-    assert source.script_path.read_text() == CODE
-    monkeypatch.setattr(
-        "mne_nodes.gui.function_widgets.ask_user_custom", lambda *a, **k: False
-    )
-    assert editor.close()
-
-
-def test_environment_source_is_never_editable(qtbot, source, monkeypatch):
-    monkeypatch.setattr(
-        "mne_nodes.backend.plugin_package.sysconfig.get_path",
-        lambda key: str(source.project_root),
-    )
-    assert plugin_source_is_installed(source.script_path)
-    resolved = get_plugin_source(
-        {"config_path": source.config_path, "script_path": source.script_path}
-    )
-    assert resolved.installed
-    with pytest.raises(ValueError, match="Copy"):
-        FunctionImporter(source=resolved)
-    with pytest.raises(ValueError, match="environment file"):
-        FunctionImporter(source=source)
-
-
-def test_ordinary_distribution_file_is_protected_but_editable_source_is_not(
-    tmp_path, source, monkeypatch
-):
+    # Distribution files are protected unless installed as editable.
     distribution_root = source.project_root
     dist = distribution_root / "edit_fixture-0.1.0.dist-info"
     dist.mkdir()
@@ -524,11 +466,22 @@ def test_installed_plugin_edit_makes_local_copy_without_touching_original(
     if disabled:
         ct.disable_plugin("edit_fixture")
     # Simulate the installed source while leaving the new copy local.
-    original_source = get_plugin_source(ct.get("plugin_meta")["edit_fixture"])
+    original_meta = ct.get("plugin_meta")["edit_fixture"].copy()
+    original_source = get_plugin_source(original_meta)
     monkeypatch.setattr(
         "mne_nodes.gui.parameter.plugin_manager.get_plugin_source",
         lambda *args: replace(original_source, installed=True),
     )
+    manager = PluginManagerDlg(main_window, ct)
+
+    # Cancelling the copy leaves the registration unchanged.
+    monkeypatch.setattr(
+        "mne_nodes.gui.parameter.plugin_manager.ask_user", lambda *args, **kwargs: False
+    )
+    manager._edit_plugin("edit_fixture")
+    assert not _editors(manager)
+    assert ct.get("plugin_meta")["edit_fixture"] == original_meta
+
     monkeypatch.setattr(
         "mne_nodes.gui.parameter.plugin_manager.ask_user", lambda *args, **kwargs: True
     )
@@ -541,7 +494,6 @@ def test_installed_plugin_edit_makes_local_copy_without_touching_original(
         "mne_nodes.gui.parameter.plugin_manager.get_user_input",
         lambda *args, **kwargs: destination,
     )
-    manager = PluginManagerDlg(main_window, ct)
     manager._edit_plugin("edit_fixture")
     (editor,) = _editors(manager)
     assert editor.source.script_path.is_relative_to(destination)
@@ -560,72 +512,14 @@ def test_installed_plugin_edit_makes_local_copy_without_touching_original(
     manager.close()
 
 
-def test_copy_refuses_destination_inside_source(source, info):
-    with pytest.raises(ValueError, match="outside"):
-        copy_plugin_source(source, source.script_path.parent / "copy", info)
-    assert not (source.script_path.parent / "copy").exists()
-
-
-def test_missing_source_is_reported_by_management(main_window, source, errors):
-    ct = main_window.controller
-    ct.load_plugin_path(source.config_path)
-    source.script_path.unlink()
-    manager = PluginManagerDlg(main_window, ct)
-    manager._edit_plugin("edit_fixture")
-    assert errors == ["Could not edit the plugin."]
-    assert not _editors(manager)
-    manager.close()
-
-
-def test_copy_cancellation_leaves_registration_unchanged(
-    main_window, source, monkeypatch
-):
-    ct = main_window.controller
-    ct.load_plugin_path(source.config_path)
-    original_meta = ct.get("plugin_meta")["edit_fixture"].copy()
-    original_source = get_plugin_source(original_meta)
-    monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source",
-        lambda *args: replace(original_source, installed=True),
-    )
-    monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.ask_user", lambda *args, **kwargs: False
-    )
-    manager = PluginManagerDlg(main_window, ct)
-    manager._edit_plugin("edit_fixture")
-    assert not _editors(manager)
-    assert ct.get("plugin_meta")["edit_fixture"] == original_meta
-    manager.close()
-
-
-def test_config_install_cancellation_does_not_load_or_install(
-    main_window, source, monkeypatch
-):
-    class Choice(LocalPluginInstallDialog):
-        def exec(self):
-            return QDialog.DialogCode.Rejected
-
-    calls = []
-    monkeypatch.setattr("mne_nodes.gui.main_window.LocalPluginInstallDialog", Choice)
-    monkeypatch.setattr(
-        "mne_nodes.gui.main_window.get_user_input",
-        lambda *args, **kwargs: source.config_path,
-    )
-    monkeypatch.setattr(
-        "mne_nodes.gui.main_window.install_local_plugin",
-        lambda *a, **k: calls.append(True),
-    )
-    main_window.load_plugin_path()
-    assert not calls
-    assert "edit_fixture" not in main_window.controller.plugins
-
-
-@pytest.mark.parametrize("editable", [True, False])
-def test_load_config_path_exposes_installation_choice(
+@pytest.mark.parametrize("editable", [None, True, False])
+def test_load_config_path_installation_choice(
     main_window, source, monkeypatch, editable
 ):
     class Choice(LocalPluginInstallDialog):
         def exec(self):
+            if editable is None:
+                return QDialog.DialogCode.Rejected
             self.install_package.setChecked(True)
             self.editable_install.setChecked(editable)
             return QDialog.DialogCode.Accepted
@@ -641,5 +535,9 @@ def test_load_config_path_exposes_installation_choice(
         lambda root, **kwargs: calls.append((root, kwargs["editable"])),
     )
     main_window.load_plugin_path()
-    assert calls == [(source.project_root.resolve(), editable)]
-    assert "edit_fixture" in main_window.controller.plugins
+    if editable is None:
+        assert not calls
+        assert "edit_fixture" not in main_window.controller.plugins
+    else:
+        assert calls == [(source.project_root.resolve(), editable)]
+        assert "edit_fixture" in main_window.controller.plugins

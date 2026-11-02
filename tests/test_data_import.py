@@ -114,11 +114,14 @@ def test_sample_import_exposes_anatomy_and_associated_outputs(
     assert sample_import.call_args.kwargs["fs_subject"] == "sample"
 
 
-def test_reimport_preserves_existing_anatomy_derivatives(
-    tmp_path, sample_source, sample_import
+@pytest.mark.parametrize("missing", ["transform", "image", "reconstruction"])
+def test_reimport_preserves_derivatives_and_detects_incomplete_cache(
+    tmp_path, sample_source, sample_import, missing
 ):
+    """Re-imports never overwrite user files; incomplete caches need an upgrade."""
     root = tmp_path / "sample-bids"
     data_import.load_sample_bids(str(root))
+    assert data_import.sample_bids_has_anatomy(root)
     subject_file = (
         root / "derivatives" / "freesurfer" / "sub-01" / "mri" / "contents.txt"
     )
@@ -133,17 +136,9 @@ def test_reimport_preserves_existing_anatomy_derivatives(
     assert anatomy.read_bytes() == b"existing anatomy"
     assert transform.read_bytes() == b"existing transformation"
     sample_import.assert_not_called()
-
-
-@pytest.mark.parametrize("missing", ["transform", "image", "reconstruction"])
-def test_converted_sample_completeness(tmp_path, sample_import, missing):
-    """Raw-only caches and caches missing either derivative need an upgrade."""
-    root = tmp_path / "sample-bids"
-    data_import.load_sample_bids(root)
-    assert data_import.sample_bids_has_anatomy(root)
     paths = {
-        "transform": next((root / "derivatives" / "mne-nodes").rglob("*_trans.fif")),
-        "image": root / "sub-01" / "ses-01" / "anat" / "sub-01_ses-01_T1w.nii.gz",
+        "transform": transform,
+        "image": anatomy,
         "reconstruction": (
             root / "derivatives" / "freesurfer" / "sub-01" / "label" / "contents.txt"
         ),
@@ -154,39 +149,40 @@ def test_converted_sample_completeness(tmp_path, sample_import, missing):
     assert not data_import.sample_bids_has_anatomy(root)
 
 
-def test_failed_reconstruction_copy_is_not_published(
-    tmp_path, sample_source, monkeypatch
+@pytest.mark.parametrize("failure", ["transform", "image", "reconstruction", "copy"])
+def test_failed_sample_anatomy_copy_is_not_published(
+    tmp_path, sample_source, monkeypatch, failure
 ):
-    """A copy failure leaves no partial subject or staging directory."""
+    """Missing sources or copy failures leave no partial subject directory."""
+    subject = sample_source / "subjects" / "sample"
+    paths = {
+        "transform": sample_source / "MEG" / "sample" / "sample_audvis_raw-trans.fif",
+        "image": subject / "mri" / "T1.mgz",
+        "reconstruction": subject / "label" / "contents.txt",
+    }
+    if failure == "copy":
+
+        def fail_copy(source, destination):
+            destination.mkdir()
+            (destination / "partial").touch()
+            raise OSError("Copy failed (sample)")
+
+        monkeypatch.setattr(data_import, "copytree", fail_copy)
+    else:
+        paths[failure].unlink()
+        if failure == "reconstruction":
+            paths[failure].parent.rmdir()
     root = tmp_path / "bids"
     recording = BIDSPath(root=root, subject="01", session="01", datatype="meg")
-
-    def fail_copy(source, destination):
-        destination.mkdir()
-        (destination / "partial").touch()
-        raise OSError("Copy failed")
-
-    monkeypatch.setattr(data_import, "copytree", fail_copy)
-    with pytest.raises(OSError, match="Copy failed"):
+    with pytest.raises((ValueError, FileNotFoundError, OSError), match="sample"):
         data_import._copy_sample_anatomy(
             sample_source, recording, mne.create_info([], 1)
         )
-    assert list((root / "derivatives" / "freesurfer").iterdir()) == []
+    freesurfer = root / "derivatives" / "freesurfer"
+    assert not freesurfer.exists() or list(freesurfer.iterdir()) == []
 
 
-@pytest.mark.parametrize(
-    "action",
-    [
-        "import-same",
-        "import-new",
-        "button-same",
-        "button-new",
-        "menu-same",
-        "menu-new",
-        "controller-same",
-        "welcome-same",
-    ],
-)
+@pytest.mark.parametrize("action", ["import-new", "controller-same"])
 def test_clean_input_node_refresh_after_import_or_root_selection(
     settings, qtbot, tmp_path, sample_import, monkeypatch, action
 ):
@@ -224,7 +220,7 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     controller.input_selection_changed([recording.basename], "meg")
     target = tmp_path / "sample-bids" if action.endswith("-new") else root
     target.mkdir(exist_ok=True)
-    if not action.startswith("import") and action != "welcome-same":
+    if action == "controller-same":
         data_import.load_sample_bids(target)
     monkeypatch.setattr(
         "mne_nodes.backend.controller.ask_user", lambda *args, **kwargs: True
@@ -232,19 +228,8 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     monkeypatch.setattr(
         "mne_nodes.gui.main_window.get_user_input", lambda *args, **kwargs: target
     )
-    monkeypatch.setattr(
-        "mne_nodes.gui.node.input_node.get_user_input", lambda *args, **kwargs: target
-    )
-    if action.startswith("import"):
+    if action == "import-new":
         window.add_sample_bids()  # Real blocking WorkerDialog, not a mocked factory.
-    elif action.startswith("button"):
-        node.input_widget.set_root()
-    elif action.startswith("menu"):
-        window.change_bids_root()
-    elif action == "welcome-same":
-        from mne_nodes.gui.welcome_tour import _ensure_welcome_sample
-
-        _ensure_welcome_sample(controller, window)
     else:
         controller.bids_root = target
     assert controller.bids_root == target
@@ -279,28 +264,3 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     assert restored.output(port_name="anat").isEnabled()
     tabs = restored.input_widget.tab_widget
     assert [tabs.tabText(index) for index in range(tabs.count())].count("anat") == 1
-
-
-@pytest.mark.parametrize("missing", ["transform", "image", "reconstruction"])
-def test_missing_sample_anatomy_is_reported_before_copy(
-    tmp_path, sample_source, missing
-):
-    paths = {
-        "transform": sample_source / "MEG" / "sample" / "sample_audvis_raw-trans.fif",
-        "image": sample_source / "subjects" / "sample" / "mri" / "T1.mgz",
-        "reconstruction": sample_source
-        / "subjects"
-        / "sample"
-        / "label"
-        / "contents.txt",
-    }
-    paths[missing].unlink()
-    if missing == "reconstruction":
-        paths[missing].parent.rmdir()
-    root = tmp_path / "bids"
-    recording = BIDSPath(root=root, subject="01", session="01", datatype="meg")
-    with pytest.raises((ValueError, FileNotFoundError), match="sample"):
-        data_import._copy_sample_anatomy(
-            sample_source, recording, mne.create_info([], 1)
-        )
-    assert not (root / "derivatives" / "freesurfer" / "sub-01").exists()

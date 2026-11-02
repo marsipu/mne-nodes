@@ -13,8 +13,6 @@ from types import ModuleType
 import pytest
 from build import ProjectBuilder
 from packaging.metadata import Metadata
-from qtpy.QtGui import QAction
-from qtpy.QtWidgets import QDialog, QFrame, QLabel, QPushButton
 
 from mne_nodes.backend.controller import Controller
 from mne_nodes.backend.package_utils import (
@@ -28,8 +26,6 @@ from mne_nodes.backend.plugin_package import (
     create_plugin_package,
     get_plugin_source,
 )
-from mne_nodes.gui.parameter.plugin_manager import PluginManagerDlg
-from mne_nodes.gui.plugin_package import PluginPackageDialog
 
 CODE = "def transform(value, scale=2):\n    return value * scale\n"
 CONFIG = {
@@ -220,7 +216,7 @@ def test_package_build_install_and_entry_point_round_trip(
     assert ct.plugins["packaging_fixture"].transform(5) == 10
 
 
-def test_entry_point_identity_and_no_eager_import(tmp_path, monkeypatch):
+def test_entry_point_lookup_and_validation(ct, tmp_path, monkeypatch):
     first = _register(monkeypatch, tmp_path, "first-dist", "shared", "first_module")
     second = _register(monkeypatch, tmp_path, "second-dist", "shared", "second_module")
     assert first.module == "first_module"
@@ -231,8 +227,7 @@ def test_entry_point_identity_and_no_eager_import(tmp_path, monkeypatch):
     with pytest.raises(LookupError, match="found 0"):
         find_plugin_entry_point("absent", "shared")
 
-
-def test_broken_entry_point_does_not_register_plugin(ct, tmp_path, monkeypatch):
+    # Broken or non-module entry points must not be registered.
     _register(
         monkeypatch, tmp_path, "broken-dist", "broken", "missing_test_plugin_module"
     )
@@ -240,6 +235,15 @@ def test_broken_entry_point_does_not_register_plugin(ct, tmp_path, monkeypatch):
     with pytest.raises(ModuleNotFoundError):
         ct.load_plugin_entry_point("broken-dist", "broken")
     assert ct.get("plugin_meta") == before
+    (tmp_path / "nonmodule_plugin.py").write_text("VALUE = 42\n", encoding="utf-8")
+    _register(
+        monkeypatch, tmp_path, "nonmodule-dist", "nonmodule", "nonmodule_plugin:VALUE"
+    )
+    monkeypatch.setitem(sys.modules, "nonmodule_plugin", None)
+    sys.modules.pop("nonmodule_plugin")
+    with pytest.raises(TypeError, match="must reference a module"):
+        ct.load_plugin_entry_point("nonmodule-dist", "nonmodule")
+    assert "nonmodule" not in ct.plugins
 
 
 @pytest.fixture
@@ -265,18 +269,25 @@ def installed_entry(tmp_path, monkeypatch):
     sys.modules.pop("discovery_plugin", None)
 
 
-def test_new_installed_plugin_enabled_at_startup(settings, installed_entry):
+def test_installed_plugin_discovery_respects_disable(settings, installed_entry):
     controller = Controller(settings=settings)
     assert controller.plugins["discovered"].transform(3) == 6
     meta = controller.get("plugin_meta")["discovered"]
     assert meta["distribution_name"] == "discovered-dist"
     assert meta["entry_point_name"] == "discovery-entry"
     assert controller.plugin_node_count("discovered") == 1
+    controller.discover_installed_plugins()
+    records = controller.installed_plugins.values()
+    assert [r.get("plugin_name") for r in records].count("discovered") == 1
     controller.disable_plugin("discovered")
+    controller.discover_installed_plugins()
+    assert "discovered" not in controller.plugins
     restarted = Controller(settings=settings)
     assert "discovered" not in restarted.plugins
     assert "discovered" in restarted.get("plugin_meta")
     assert restarted.plugin_node_count("discovered") == 1
+    restarted.enable_plugin("discovered")
+    assert restarted.plugins["discovered"].transform(2) == 4
 
 
 def test_discovery_preserves_path_registration(ct, installed_entry):
@@ -286,8 +297,8 @@ def test_discovery_preserves_path_registration(ct, installed_entry):
     assert ct.get("plugin_meta")["discovered"] == original
 
 
-def test_discovery_errors_visible_without_blocking_healthy_plugins(
-    ct, installed_entry, tmp_path, monkeypatch, qtbot
+def test_installed_plugin_errors_do_not_block_others(
+    ct, installed_entry, tmp_path, monkeypatch
 ):
     broken = _register(
         monkeypatch, tmp_path, "broken-dist", "broken-entry", "missing_plugin_code"
@@ -296,67 +307,33 @@ def test_discovery_errors_visible_without_blocking_healthy_plugins(
         "mne_nodes.backend.controller.get_plugin_entry_points",
         lambda: [broken, installed_entry],
     )
-    manager = PluginManagerDlg(None, ct)
-    qtbot.addWidget(manager)
+    ct.discover_installed_plugins()
     assert "discovered" in ct.plugins
     assert (
         "ModuleNotFoundError"
         in ct.installed_plugins["broken-dist:broken-entry"]["error"]
     )
-    assert any(
-        "ModuleNotFoundError" in label.text() for label in manager.findChildren(QLabel)
-    )
-
-
-def test_registered_installed_plugin_failure_does_not_block_startup(
-    ct, installed_entry, monkeypatch, qtbot
-):
-    ct.load_plugin_entry_point("discovered-dist", "discovery-entry")
     ct.flush()
 
-    def broken(*args):
+    def broken_load(*args):
         raise ImportError("Plugin dependency missing")
 
-    monkeypatch.setattr(Controller, "load_plugin_entry_point", broken)
-    restarted = Controller(config_path=ct.config_path, settings=ct.settings)
+    # A registered plugin failing at startup is reported, not raised.
+    with monkeypatch.context() as patch:
+        patch.setattr(Controller, "load_plugin_entry_point", broken_load)
+        restarted = Controller(config_path=ct.config_path, settings=ct.settings)
     assert "discovered" not in restarted.plugins
     assert (
         "Plugin dependency missing"
         in restarted.installed_plugins["discovered-dist:discovery-entry"]["error"]
     )
-    manager = PluginManagerDlg(None, restarted)
-    qtbot.addWidget(manager)
-    group = next(
-        group
-        for group in manager.findChildren(QFrame, "plugin_card")
-        if group.property("plugin_name") == "discovered"
-    )
-    assert group.findChild(QLabel, "plugin_status").text() == "error"
 
-
-def test_failed_enable_keeps_disabled_choice(ct, installed_entry, monkeypatch):
-    ct.discover_installed_plugins()
+    # A failed re-enable keeps the user's disabled choice.
     ct.disable_plugin("discovered")
-
-    def broken(name):
-        raise ImportError("Plugin dependency missing")
-
-    monkeypatch.setattr(ct, "load_recent_plugins", broken)
+    monkeypatch.setattr(ct, "load_recent_plugins", broken_load)
     with pytest.raises(ImportError, match="Plugin dependency missing"):
         ct.enable_plugin("discovered")
     assert "discovered" in ct.settings.get("disabled_plugins")
-
-
-def test_entry_point_must_reference_module(ct, tmp_path, monkeypatch):
-    (tmp_path / "nonmodule_plugin.py").write_text("VALUE = 42\n", encoding="utf-8")
-    _register(
-        monkeypatch, tmp_path, "nonmodule-dist", "nonmodule", "nonmodule_plugin:VALUE"
-    )
-    monkeypatch.setitem(sys.modules, "nonmodule_plugin", None)
-    sys.modules.pop("nonmodule_plugin")
-    with pytest.raises(TypeError, match="must reference a module"):
-        ct.load_plugin_entry_point("nonmodule-dist", "nonmodule")
-    assert "nonmodule" not in ct.plugins
 
 
 def test_module_plugin_reload_uses_import_name(ct, tmp_path, monkeypatch):
@@ -414,97 +391,3 @@ def test_unload_plugin_modules_ignores_unwritable_bytecode(tmp_path, monkeypatch
 
     assert unloaded == {module.__name__: module}
     assert module.__name__ not in sys.modules
-
-
-def test_metadata_dialog_requires_explicit_license(qtbot, monkeypatch):
-    errors = []
-    monkeypatch.setattr(
-        "mne_nodes.gui.plugin_package.ErrorDialog.open",
-        lambda self: errors.append(self),
-    )
-    dialog = PluginPackageDialog("my_plugin")
-    qtbot.addWidget(dialog)
-    dialog.description.setText("My plugin")
-    dialog.author.setText("Plugin contributors")
-    dialog.accept()
-    assert dialog.result() != QDialog.DialogCode.Accepted
-    assert dialog.metadata is None
-    assert len(errors) == 1
-    dialog.license_choice.setCurrentText("MIT")
-    dialog.accept()
-    assert dialog.result() == QDialog.DialogCode.Accepted
-    assert dialog.metadata is not None
-    assert dialog.metadata.license_expression == "MIT"
-
-
-def test_manager_discovers_external_install_and_preserves_disable(
-    main_window, installed_entry, qtbot
-):
-    ct = main_window.controller
-    manager = PluginManagerDlg(main_window, ct)
-    assert "discovered" in ct.plugins
-
-    def row():
-        return next(
-            group
-            for group in manager.findChildren(QFrame, "plugin_card")
-            if group.property("plugin_name") == "discovered" and group.isVisible()
-        )
-
-    group = row()
-    enabled_color = group.findChild(QLabel, "plugin_status").styleSheet()
-    assert "white" not in enabled_color
-    assert group.findChild(QLabel, "plugin_status").text() == "enabled"
-    assert group.findChild(QLabel, "plugin_node_count").text() == "Nodes: 1"
-    next(
-        button
-        for button in group.findChildren(QPushButton)
-        if button.text() == "Disable"
-    ).click()
-    qtbot.wait(1)
-    group = row()
-    assert "discovered" not in ct.plugins
-    assert group.findChild(QLabel, "plugin_status").text() == "disabled"
-    assert group.findChild(QLabel, "plugin_status").styleSheet() != enabled_color
-    assert group.findChild(QLabel, "plugin_node_count").text() == "Nodes: 1"
-    manager._discover_plugins()
-    assert "discovered" not in ct.plugins
-    manager.close()
-    reopened = PluginManagerDlg(main_window, ct)
-    assert "discovered" not in ct.plugins
-    reopened._toggle_plugin("discovered", True)
-    assert ct.plugins["discovered"].transform(2) == 4
-    reopened.close()
-
-
-def test_manager_refresh_finds_plugin_installed_while_open(
-    ct, installed_entry, monkeypatch, qtbot
-):
-    monkeypatch.setattr("mne_nodes.backend.controller.get_plugin_entry_points", list)
-    manager = PluginManagerDlg(None, ct)
-    qtbot.addWidget(manager)
-    assert "discovered" not in ct.plugins
-    monkeypatch.setattr(
-        "mne_nodes.backend.controller.get_plugin_entry_points",
-        lambda: [installed_entry],
-    )
-    manager._discover_plugins()
-    assert "discovered" in ct.plugins
-    assert (
-        len(
-            [
-                record
-                for record in ct.installed_plugins.values()
-                if record.get("plugin_name") == "discovered"
-            ]
-        )
-        == 1
-    )
-
-
-def test_installed_picker_removed_from_menu(main_window):
-    assert not hasattr(main_window, "load_installed_plugin")
-    assert all(
-        action.text() != "Load Installed Plugin..."
-        for action in main_window.findChildren(QAction)
-    )

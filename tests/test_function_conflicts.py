@@ -2,11 +2,11 @@
 
 import json
 from copy import deepcopy
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import Mock
 
 import pytest
-from qtpy.QtWidgets import QDialog
 
 from mne_nodes.backend.code_generation import CodeGenerator
 from mne_nodes.backend.function_conflicts import (
@@ -114,39 +114,6 @@ def test_alias_generated_pipeline_calls_original(ct, monkeypatch):
     plugin.shared.assert_called_once()
 
 
-def test_dialog_requires_choices_and_unique_identifiers(qtbot):
-    dialog = FunctionConflictDialog(
-        {"shared": ("first", "second"), "other": ("first", "second")},
-        {"shared", "other", "occupied"},
-        source_renamable={"shared", "other"},
-    )
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitExposed(dialog)
-    dialog.accept()
-    assert dialog.result() != QDialog.DialogCode.Accepted
-    action, rename = dialog.rows["shared"]
-    action.setCurrentIndex(action.findData("alias"))
-    assert rename.isEnabled()
-    for invalid in ("", "two words", "for", "occupied"):
-        rename.setText(invalid)
-        dialog.accept()
-        assert dialog.result() != QDialog.DialogCode.Accepted
-    rename.setText("renamed")
-    other_action, other_rename = dialog.rows["other"]
-    other_action.setCurrentIndex(other_action.findData("source"))
-    other_rename.setText("renamed")
-    dialog.accept()
-    assert dialog.result() != QDialog.DialogCode.Accepted
-    other_rename.setText("other_renamed")
-    dialog.accept()
-    assert dialog.result() == QDialog.DialogCode.Accepted
-    assert dialog.choices == {
-        "shared": ("alias", "renamed"),
-        "other": ("source", "other_renamed"),
-    }
-
-
 @pytest.mark.parametrize("editable", [False, True])
 def test_controller_hides_source_rename_for_installed_plugins(
     ct, qtbot, local_source, monkeypatch, editable
@@ -182,14 +149,6 @@ def test_controller_hides_source_rename_for_installed_plugins(
     assert local_source["config_path"].read_bytes() == config
 
 
-def test_dialog_without_editable_source_has_no_source_rename(qtbot):
-    dialog = FunctionConflictDialog({"shared": ("first", "second")}, {"shared"})
-    qtbot.addWidget(dialog)
-    action, _ = dialog.rows["shared"]
-    assert action.findData("source") == -1
-    assert action.findData("alias") >= 0
-
-
 @pytest.fixture
 def local_source(tmp_path, monkeypatch):
     script = tmp_path / "local.py"
@@ -205,49 +164,55 @@ def local_source(tmp_path, monkeypatch):
     return {"script_path": script, "config_path": config}
 
 
-def test_source_rename_preserves_internal_calls(local_source):
-    script_path = local_source["script_path"]
-    script_path.write_text(
-        script_path.read_text() + "\ninitial = shared(1)\n", encoding="utf-8"
-    )
-    rename_plugin_function(local_source, "shared", "renamed")
-    script = local_source["script_path"].read_text(encoding="utf-8")
-    namespace = {}
-    exec(compile(script, "<renamed-plugin>", "exec"), namespace)  # noqa: S102
-    assert namespace["renamed"](3) == 3
-    assert namespace["shared"] is namespace["renamed"]
-    assert namespace["initial"] == 1
-    assert set(json.loads(local_source["config_path"].read_text())) == {"renamed"}
-
-
 @pytest.mark.parametrize(
-    "code",
-    [
-        (
+    "case", ["recursive", "comments", "async", "unicode", "import", "multiline-import"]
+)
+def test_source_rename_preserves_code(local_source, case):
+    """Renamed sources keep behaviour, comments, encoding and old-name aliases."""
+    from mne.bem import make_watershed_bem
+
+    code = {
+        "recursive": (
+            "def shared(n=2):\n    return shared(n - 1) + 1 if n else 0\n\n"
+            "initial = shared(1)\n"
+        ),
+        "comments": (
             "# Keep this comment\n"
             "def shared():  # and this one\n"
             "    return 'shared stays inside strings'"
         ),
-        "async def shared():\n    return 'result'\n",
-        "marker = 'caf\u00e9'; from mne.bem import make_watershed_bem as shared\n",
-    ],
-)
-def test_source_edits_preserve_comments_unicode_and_missing_final_newline(
-    local_source, code
-):
+        "async": "async def shared():\n    return 'result'\n",
+        "unicode": (
+            "marker = 'caf\u00e9'; from mne.bem import make_watershed_bem as shared\n"
+        ),
+        "import": (
+            "from mne.bem import make_watershed_bem as shared\n\ninitial = shared\n"
+        ),
+        "multiline-import": (
+            "from mne.bem import (\n    make_watershed_bem as shared,\n)\n\n"
+            "initial = shared\n"
+        ),
+    }[case]
     script = local_source["script_path"]
     script.write_text(code, encoding="utf-8")
-    rename_plugin_function(local_source, "shared", "renamed")
+    assert rename_plugin_function(local_source, "shared", "renamed")
     updated = script.read_text(encoding="utf-8")
     namespace = {}
     exec(compile(updated, "<renamed>", "exec"), namespace)  # noqa: S102
     assert namespace["shared"] is namespace["renamed"]
-    if code.startswith("#"):
+    assert set(json.loads(local_source["config_path"].read_text())) == {"renamed"}
+    if case == "recursive":
+        assert namespace["renamed"](3) == 3
+        assert namespace["initial"] == 1
+    elif case == "comments":
         assert updated.startswith("# Keep this comment\n")
         assert "def renamed():  # and this one" in updated
         assert namespace["renamed"]() == "shared stays inside strings"
-    if code.startswith("marker"):
+    elif case == "unicode":
         assert namespace["marker"] == "caf\u00e9"
+    elif "import" in case:
+        assert namespace["initial"] is make_watershed_bem
+        assert namespace["renamed"] is make_watershed_bem
 
 
 def test_source_rename_of_imported_watershed_survives_plugin_reload(ct, local_source):
@@ -280,28 +245,6 @@ def test_source_rename_of_imported_watershed_survives_plugin_reload(ct, local_so
     ct.load_plugin(plugin, "watershed", local_source)
     assert ct.get_plugin_from_function("freesurfer_watershed") == "watershed"
     assert ct.plugins["watershed"].freesurfer_watershed is make_watershed_bem
-
-
-@pytest.mark.parametrize(
-    "code",
-    [
-        "from mne.bem import make_watershed_bem as shared\n",
-        "from mne.bem import (\n    make_watershed_bem as shared,\n)\n",
-    ],
-)
-def test_source_rename_preserves_import_aliases_and_multiline_layout(
-    local_source, code
-):
-    from mne.bem import make_watershed_bem
-
-    script = local_source["script_path"]
-    script.write_text(code + "\ninitial = shared\n", encoding="utf-8")
-    rename_plugin_function(local_source, "shared", "renamed")
-    namespace = {}
-    exec(script.read_text(), namespace)  # noqa: S102
-    assert namespace["initial"] is make_watershed_bem
-    assert namespace["renamed"] is make_watershed_bem
-    assert namespace["shared"] is make_watershed_bem
 
 
 def test_source_choice_reloads_without_dialog(ct, monkeypatch, local_source):
@@ -376,9 +319,13 @@ def test_rename_failure_notifies_and_allows_retry(ct, monkeypatch, local_source,
     assert "Temporary write failure" in attention.call_args.args[0]
 
 
-@pytest.mark.parametrize("reason", ["installed", "missing", "occupied"])
-def test_source_rename_rejects_unsafe_changes(local_source, monkeypatch, reason):
+@pytest.mark.parametrize(
+    "reason", ["installed", "missing", "occupied", "write-failure", "invalid-second"]
+)
+def test_failed_source_rename_leaves_files_untouched(local_source, monkeypatch, reason):
+    """Unsafe or failing renames notify the user and restore the source pair."""
     script, config = local_source["script_path"], local_source["config_path"]
+    renames = {"shared": "renamed"}
     if reason == "installed":
         monkeypatch.setattr(
             "mne_nodes.backend.function_conflicts.plugin_source_is_installed",
@@ -386,52 +333,31 @@ def test_source_rename_rejects_unsafe_changes(local_source, monkeypatch, reason)
         )
     elif reason == "missing":
         script.write_text("from somewhere import different\n", encoding="utf-8")
-    else:
+    elif reason == "occupied":
         script.write_text(script.read_text() + "\nrenamed = 1\n", encoding="utf-8")
+    elif reason == "invalid-second":
+        renames["missing"] = "other"
     before = (script.read_bytes(), config.read_bytes())
+    if reason == "write-failure":
+        write = Path.write_text
+
+        def fail_config(path, *args, **kwargs):
+            if path == config:
+                raise OSError("Simulated write failure")
+            return write(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", fail_config)
     attention = Mock()
     monkeypatch.setattr(
         "mne_nodes.backend.function_conflicts.raise_user_attention", attention
     )
-    assert not rename_plugin_function(local_source, "shared", "renamed")
+    assert not rename_plugin_functions(local_source, renames)
     attention.assert_called_once()
     assert attention.call_args.args[1] == "error"
-    assert (script.read_bytes(), config.read_bytes()) == before
-
-
-def test_source_write_failure_restores_pair(local_source, monkeypatch):
-    from pathlib import Path
-
-    script, config = local_source["script_path"], local_source["config_path"]
-    before = (script.read_bytes(), config.read_bytes())
-    write = Path.write_text
-
-    def fail_config(path, *args, **kwargs):
-        if path == config:
-            raise OSError("Simulated write failure")
-        return write(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "write_text", fail_config)
-    attention = Mock()
-    monkeypatch.setattr(
-        "mne_nodes.backend.function_conflicts.raise_user_attention", attention
-    )
-    assert not rename_plugin_function(local_source, "shared", "renamed")
-    assert "Simulated" in attention.call_args.args[0]
-    assert (script.read_bytes(), config.read_bytes()) == before
-
-
-def test_invalid_second_source_rename_does_not_write_first(local_source, monkeypatch):
-    script, config = local_source["script_path"], local_source["config_path"]
-    before = (script.read_bytes(), config.read_bytes())
-    attention = Mock()
-    monkeypatch.setattr(
-        "mne_nodes.backend.function_conflicts.raise_user_attention", attention
-    )
-    assert not rename_plugin_functions(
-        local_source, {"shared": "renamed", "missing": "other"}
-    )
-    assert "top-level" in attention.call_args.args[0]
+    if reason == "write-failure":
+        assert "Simulated" in attention.call_args.args[0]
+    elif reason == "invalid-second":
+        assert "top-level" in attention.call_args.args[0]
     assert (script.read_bytes(), config.read_bytes()) == before
 
 

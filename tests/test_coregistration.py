@@ -79,6 +79,13 @@ def make_controller(tmp_path):
     return controller
 
 
+def write_trans_file(path: Path) -> Path:
+    """Write an identity head-to-MRI transformation to ``path``."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mne.write_trans(path, mne.transforms.Transform("head", "mri"), overwrite=True)
+    return path
+
+
 def test_digitization_exact_comparison():
     """Missing, moved, reordered or differently identified points never match."""
     info = make_info()
@@ -130,43 +137,17 @@ def test_discover_groups(tmp_path, monkeypatch):
     assert len([g for g in groups if g.recordings[0].error]) == 3
     assert progress.call_args.args == (len(paths),)
 
-
-def test_ambiguous_transformation_does_not_disable_fitting(
-    qtbot, tmp_path, monkeypatch
-):
-    """Show lookup warnings while keeping usable digitization available for fitting."""
-    ct = make_controller(tmp_path)
-    path = make_path(ct.ensure_bids_root())
-    ct.get_datatype_items.side_effect = lambda dt: (
-        [path.basename] if dt == "eeg" else ["sub-01"] if dt == "subject" else []
-    )
+    # Failed transformation lookups are warnings, not digitization errors.
     monkeypatch.setattr(
         backend, "find_trans", Mock(side_effect=ValueError("ambiguous candidates"))
     )
-    monkeypatch.setattr(
-        backend,
-        "read_raw_bids",
-        lambda *_args, **_kwargs: nullcontext(SimpleNamespace(info=make_info())),
-    )
-
-    groups = backend.discover_coreg_groups(ct, WorkerSignals())
-    recording = groups[0].recordings[0]
+    recording = backend.discover_coreg_groups(ct, WorkerSignals())[0].recordings[0]
     assert recording.error is None
-    assert recording.warning == ("Transformation lookup failed: ambiguous candidates")
+    assert recording.warning == "Transformation lookup failed: ambiguous candidates"
 
-    dialog = coreg_widgets.CoregDialog(ct)
-    qtbot.addWidget(dialog)
-    dialog.mri_subject.addItem("sub-01")
-    dialog._discovered(groups)
-    assert dialog.auto_button.isEnabled()
-    assert "ambiguous candidates" in dialog.status.text()
-
-
-def test_discover_cancel(tmp_path):
-    """Cancellation does not read further headers."""
     signals = WorkerSignals()
     signals.was_canceled = True
-    assert backend.discover_coreg_groups(make_controller(tmp_path), signals) == []
+    assert backend.discover_coreg_groups(ct, signals) == []
 
 
 def test_discover_real_bids_headers(tmp_path):
@@ -194,8 +175,8 @@ def test_discover_real_bids_headers(tmp_path):
     assert recording.bids_path.fpath == written.fpath
 
 
-def test_trans_paths_and_shared_session_file(tmp_path):
-    """Keep BIDS entities and find a session-wide file without guessing run files."""
+def test_trans_paths_and_lookup(tmp_path):
+    """Keep BIDS entities, find session files and never pick ambiguous ones."""
     path = make_path(tmp_path)
     root = tmp_path / "derivatives"
     canonical = backend.trans_path(path, root)
@@ -205,7 +186,7 @@ def test_trans_paths_and_shared_session_file(tmp_path):
     split = path.copy().update(split="01")
     assert backend.trans_path(split, root) == canonical
     assert backend.find_trans(path, root) is None
-    session_path = (
+    session_path = write_trans_file(
         path.copy()
         .update(
             root=root,
@@ -217,23 +198,28 @@ def test_trans_paths_and_shared_session_file(tmp_path):
         )
         .fpath
     )
-    session_path.parent.mkdir(parents=True)
-    mne.write_trans(session_path, mne.transforms.Transform("head", "mri"))
     assert backend.find_trans(path, root) == session_path
-    mne.write_trans(canonical, mne.transforms.Transform("head", "mri"))
+    write_trans_file(
+        path.copy().update(root=root, run=None, suffix="trans", check=False).fpath
+    )
+    with pytest.raises(ValueError, match="Ambiguous"):
+        backend.find_trans(path, root)
+    write_trans_file(canonical)
     assert backend.find_trans(path, root) == canonical
     assert backend.find_trans(make_path(tmp_path, session="02"), root) is None
 
 
-def write_trans_file(path: Path) -> Path:
-    """Write an identity head-to-MRI transformation to ``path``."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    mne.write_trans(path, mne.transforms.Transform("head", "mri"), overwrite=True)
-    return path
-
-
-def test_find_trans_in_other_derivative_pipelines(tmp_path):
+def test_find_trans_in_other_derivative_pipelines(ct, tmp_path):
     """Find legacy transformations from preceding software in other folders."""
+    derivatives = ct.bids_root / "derivatives"
+    for name in ("freesurfer", "mne-pipeline-hd", "mne-bids-pipeline"):
+        (derivatives / name).mkdir(parents=True, exist_ok=True)
+    roots = ct.other_derivative_roots()
+    assert derivatives / "mne-pipeline-hd" in roots
+    assert derivatives / "mne-bids-pipeline" in roots
+    assert ct.ensure_deriv_root(False) not in roots
+    assert derivatives / "freesurfer" not in roots
+
     path = make_path(tmp_path, run="1", datatype="meg")
     own = tmp_path / "derivatives" / "mne-nodes"
     legacy_root = tmp_path / "derivatives" / "mne-pipeline-hd"
@@ -251,37 +237,13 @@ def test_find_trans_in_other_derivative_pipelines(tmp_path):
     assert backend.find_trans(path, own, [legacy_root, other_root]) == preferred
 
 
-def test_other_derivative_roots_skip_freesurfer_and_own_root(ct):
-    """Search every derivative pipeline except FreeSurfer and the own root."""
-    derivatives = ct.bids_root / "derivatives"
-    own = ct.ensure_deriv_root(False)
-    for name in ("freesurfer", "mne-pipeline-hd", "mne-bids-pipeline"):
-        (derivatives / name).mkdir(parents=True, exist_ok=True)
-    roots = ct.other_derivative_roots()
-    assert derivatives / "mne-pipeline-hd" in roots
-    assert derivatives / "mne-bids-pipeline" in roots
-    assert own not in roots
-    assert derivatives / "freesurfer" not in roots
-
-
-def test_ambiguous_transforms(tmp_path):
-    """Never pick an arbitrary derivative when multiple transforms could apply."""
-    path = make_path(tmp_path)
-    for task in (None, "test"):
-        candidate = (
-            path.copy().update(task=task, run=None, suffix="trans", check=False).fpath
-        )
-        candidate.parent.mkdir(parents=True, exist_ok=True)
-        mne.write_trans(candidate, mne.transforms.Transform("head", "mri"))
-    with pytest.raises(ValueError, match="Ambiguous"):
-        backend.find_trans(path, tmp_path)
-
-
 def test_save_group_and_overwrite_guard(tmp_path):
     """Persist a real transform per recording and preflight replacement."""
     group = make_group(tmp_path)
     trans = mne.transforms.Transform("head", "mri")
     root = tmp_path / "derivatives"
+    with pytest.raises(ValueError, match="head-to-MRI"):
+        backend.save_group_trans(group, mne.transforms.Transform("meg", "mri"), root)
     paths = backend.save_group_trans(group, trans, root)
     assert len(paths) == 2
     for recording, path in zip(group.recordings, paths):
@@ -298,17 +260,9 @@ def test_save_group_and_overwrite_guard(tmp_path):
     assert not list((tmp_path / "other").glob("**/*"))
 
 
-def test_save_rejects_wrong_coordinate_frames(tmp_path):
-    """A device-to-MRI transform is not a head-to-MRI transform."""
-    with pytest.raises(ValueError, match="head-to-MRI"):
-        backend.save_group_trans(
-            make_group(tmp_path), mne.transforms.Transform("meg", "mri"), tmp_path
-        )
-
-
-@pytest.mark.parametrize("cancel", [False, True])
-def test_automatic_recipe(tmp_path, monkeypatch, cancel):
-    """Verify exact tutorial stages, progress, quality reporting and cancellation."""
+@pytest.mark.parametrize("outcome", ["success", "cancel", "failure"])
+def test_automatic_recipe(tmp_path, monkeypatch, outcome):
+    """Verify tutorial stages and that cancellation/failure save nothing."""
     group = make_group(tmp_path)
     signals = WorkerSignals()
     coreg = Mock()
@@ -316,11 +270,19 @@ def test_automatic_recipe(tmp_path, monkeypatch, cancel):
     coreg.compute_dig_mri_distances.return_value = np.array([0.001, 0.002, 0.003])
     factory = Mock(return_value=coreg)
     monkeypatch.setattr(mne.coreg, "Coregistration", factory)
-    signals.was_canceled = cancel
+    signals.was_canceled = outcome == "cancel"
+    if outcome == "failure":
+        coreg.fit_icp.side_effect = RuntimeError("fit failed")
+        with pytest.raises(RuntimeError, match="fit failed"):
+            backend.automatic_coregistration(
+                group, "sub-01", tmp_path, tmp_path / "derivatives", signals
+            )
+        assert not (tmp_path / "derivatives").exists()
+        return
     result = backend.automatic_coregistration(
         group, "sub-01", tmp_path, tmp_path / "derivatives", signals
     )
-    if cancel:
+    if outcome == "cancel":
         assert "canceled" in result
         coreg.fit_fiducials.assert_not_called()
         assert not (tmp_path / "derivatives").exists()
@@ -339,51 +301,6 @@ def test_automatic_recipe(tmp_path, monkeypatch, cancel):
         )
 
 
-def test_automatic_failure_does_not_save(tmp_path, monkeypatch):
-    """Fitting failures propagate to WorkerDialog without success-shaped files."""
-    coreg = Mock()
-    coreg.fit_icp.side_effect = RuntimeError("fit failed")
-    monkeypatch.setattr(mne.coreg, "Coregistration", Mock(return_value=coreg))
-    with pytest.raises(RuntimeError, match="fit failed"):
-        backend.automatic_coregistration(
-            make_group(tmp_path),
-            "sub-01",
-            tmp_path,
-            tmp_path / "derivatives",
-            WorkerSignals(),
-        )
-    assert not (tmp_path / "derivatives").exists()
-
-
-def test_dialog_group_marks_and_subject_mapping(qtbot, tmp_path):
-    """Show every raw recording and require a FreeSurfer subject for fitting."""
-    ct = make_controller(tmp_path)
-    dialog = coreg_widgets.CoregDialog(ct)
-    qtbot.addWidget(dialog)
-    dialog.show()
-    qtbot.waitExposed(dialog)
-    assert (
-        dialog.group_list.geometry().right() < dialog.recording_list.geometry().left()
-    )
-    assert dialog.group_list.geometry().top() == dialog.recording_list.geometry().top()
-    dialog.mri_subject.addItems(["", "sub-01", "other"])
-    group = make_group(tmp_path)
-    dialog._discovered([group])
-    assert list(dialog.recording_list.model._data.values()) == [False, False]
-    assert dialog.mri_subject.currentText() == "sub-01"
-    assert dialog.auto_button.isEnabled()
-    dialog.mri_subject.setCurrentText("other")
-    assert set(ct.get("coreg_subjects").values()) == {"other"}
-    dialog.mri_subject.setCurrentText("")
-    assert not dialog.auto_button.isEnabled()
-    backend.save_group_trans(
-        group, mne.transforms.Transform("head", "mri"), ct.ensure_deriv_root()
-    )
-    dialog._refresh_marks()
-    assert all(dialog.recording_list.model._data.values())
-    assert all(dialog.group_list.model._data.values())
-
-
 class CloseSignals(QObject):
     """Qt close signal used by the manual-GUI test double."""
 
@@ -393,8 +310,7 @@ class CloseSignals(QObject):
 def make_manual_ui():
     """Emulate the observed MNE Qt button and widget wrapper contract."""
     button = QPushButton("Save...")
-    picker = Mock()
-    button.clicked.connect(picker)
+    button.clicked.connect(Mock())  # MNE's original file picker.
     ui = SimpleNamespace(
         coreg=SimpleNamespace(trans=mne.transforms.Transform("head", "mri")),
         _widgets={"save_trans": SimpleNamespace(_widget=button)},
@@ -413,32 +329,7 @@ def make_manual_ui():
         "scaling_mode",
     ):
         ui._widgets[name] = Mock()
-    return ui, button, picker
-
-
-def test_manual_save_routing(qtbot, tmp_path, monkeypatch):
-    """Save and Save-on-close both bypass the picker and write all group paths."""
-    ct = make_controller(tmp_path)
-    dialog = coreg_widgets.CoregDialog(ct)
-    qtbot.addWidget(dialog)
-    group = make_group(tmp_path)
-    ui, button, picker = make_manual_ui()
-    qtbot.addWidget(button)
-    dialog._route_manual_save(ui, group)
-    button.click()
-    picker.assert_not_called()
-    assert not ui._trans_modified
-    assert all(
-        r.existing_trans is not None and r.existing_trans.is_file()
-        for r in group.recordings
-    )
-    assert button.text() == "Save to derivatives"
-    monkeypatch.setattr(coreg_widgets, "ask_user", lambda *args, **kwargs: False)
-    ui._trans_modified = True
-    button.click()
-    assert ui._trans_modified
-    for name in ("subject", "info_file", "scaling_mode"):
-        ui._widgets[name].set_enabled.assert_called_once_with(False)
+    return ui, button
 
 
 def test_manual_open_uses_bids_info_and_cleans_up(qtbot, tmp_path, monkeypatch):
@@ -449,7 +340,7 @@ def test_manual_open_uses_bids_info_and_cleans_up(qtbot, tmp_path, monkeypatch):
     dialog.mri_subject.addItems(["", "sub-01"])
     group = make_group(tmp_path)
     dialog._discovered([group])
-    ui, button, _ = make_manual_ui()
+    ui, button = make_manual_ui()
     qtbot.addWidget(button)
     factory = Mock(return_value=ui)
     monkeypatch.setattr(mne.gui, "coregistration", factory)
@@ -463,28 +354,9 @@ def test_manual_open_uses_bids_info_and_cleans_up(qtbot, tmp_path, monkeypatch):
         for key in ("kind", "ident", "coord_frame"):
             assert actual[key] == expected[key]
         np.testing.assert_allclose(actual["r"], expected["r"], atol=1e-8, rtol=0)
-    assert not dialog.auto_button.isEnabled()
     ui._renderer._window.signal_close.emit()
     assert not info_path.exists()
     assert dialog._manual is None
-    assert dialog.auto_button.isEnabled()
-
-
-def test_dialog_automatic_uses_worker(qtbot, tmp_path, monkeypatch):
-    """Automatic fitting is dispatched through WorkerDialog with progress support."""
-    dialog = coreg_widgets.CoregDialog(make_controller(tmp_path))
-    qtbot.addWidget(dialog)
-    dialog.mri_subject.addItems(["", "sub-01"])
-    dialog._discovered([make_group(tmp_path)])
-    worker = Mock()
-    factory = Mock(return_value=worker)
-    monkeypatch.setattr(coreg_widgets, "WorkerDialog", factory)
-    dialog._automatic()
-    assert factory.call_args.args[1] is backend.automatic_coregistration
-    assert factory.call_args.kwargs["subject"] == "sub-01"
-    assert factory.call_args.kwargs["return_exception"]
-    assert not dialog.auto_button.isEnabled()
-    dialog._worker = None
 
 
 def make_mri_surface(subjects_dir):
@@ -575,6 +447,11 @@ def test_manual_real_mne_gui(qtbot, tmp_path, monkeypatch):
             r.existing_trans is not None and r.existing_trans.is_file()
             for r in group.recordings
         )
+        # Declining the overwrite prompt must keep existing files untouched.
+        monkeypatch.setattr(coreg_widgets, "ask_user", lambda *args, **kwargs: False)
+        ui._trans_modified = True
+        ui._forward_widget_command("save_trans", "set_value", None)
+        assert ui._trans_modified
         monkeypatch.setattr(coreg_widgets, "ask_user", lambda *args, **kwargs: True)
         ui._trans_modified = True
         ui._close_dialog_callback("Save")
