@@ -1399,6 +1399,8 @@ class Controller:
 
         def _load(bp):
             bp = bp.copy().update(root=self.bids_root)
+            if bp.extension in (".fif", ".fif.gz"):
+                return mne.io.read_info(bp.fpath)
             with read_raw_bids(bp, extra_params={"preload": False}) as recording:
                 return recording.info
 

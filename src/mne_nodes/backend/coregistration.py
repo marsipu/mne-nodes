@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import mne
 import numpy as np
-from mne_bids import BIDSPath, get_bids_path_from_fname, read_raw_bids
+from mne_bids import BIDSPath, get_bids_path_from_fname
 from mne_bids.config import ALLOWED_DATATYPES
 
 from mne_nodes.backend.execution import WorkerSignals
@@ -178,8 +178,7 @@ def discover_coreg_groups(
         except (OSError, ValueError, RuntimeError) as exc:
             warning = f"Transformation lookup failed: {exc}"
         try:
-            with read_raw_bids(path, extra_params={"preload": False}) as raw:
-                info = raw.info.copy()
+            info = mne.io.read_info(path.fpath)
             if not info["dig"]:
                 error = "No digitization points available."
         except (OSError, ValueError, RuntimeError) as exc:
