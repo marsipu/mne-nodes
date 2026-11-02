@@ -288,7 +288,7 @@ class CodeGenerator:
                         if ip in loaded_data:
                             func_inputs[ip] = ip
                     body += self._indent(f"# Execute function {name}\n", 1)
-                    outputs = ", ".join([op for op in n["outputs"]])
+                    outputs = ", ".join([*n["outputs"]])
                     func_line = ""
                     if len(outputs) > 0:
                         func_line += f"{outputs} = "
