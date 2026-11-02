@@ -31,8 +31,7 @@ def documentation_window(qtbot, qapp, settings, tmp_path):
     set_app_font_size(12)
     pipeline = tmp_path / "documentation.json"
     pipeline.write_text(
-        json.dumps({**default_config, "name": "Documentation demo"}),
-        encoding="utf-8",
+        json.dumps({**default_config, "name": "Documentation demo"}), encoding="utf-8"
     )
     controller = Controller(config_path=pipeline, settings=settings)
     controller.load_plugin_path(
