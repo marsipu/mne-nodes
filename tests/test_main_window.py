@@ -493,7 +493,7 @@ def test_welcome_tour_creation_and_connection_tasks(
         assert completed == [2, 3, 5, 6]
         assert tour._target is viewer.input_node.start_button_proxy
         assert viewer.input_node.start_button.isEnabled()
-        assert not node.start_button.isEnabled()
+        assert node.start_button is None
         assert (
             viewer.mapFromScene(node.sceneBoundingRect()).boundingRect().isEmpty()
             is False

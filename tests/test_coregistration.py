@@ -1,6 +1,5 @@
 """Coregistration discovery, fitting, saving and Qt integration tests."""
 
-from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -114,21 +113,21 @@ def test_discover_groups(tmp_path, monkeypatch):
         make_path(tmp_path, "06"),
         make_path(tmp_path, "01", datatype="meg"),
     ]
-    infos = {p.basename: make_info() for p in paths}
-    infos[paths[2].basename] = make_info(0.001)
-    infos[paths[5].basename] = mne.create_info(["x"], 100, "eeg")
-    infos[paths[6].basename] = mne.create_info(["x"], 100, "eeg")
+    infos = {p.fpath.name: make_info() for p in paths}
+    infos[paths[2].fpath.name] = make_info(0.001)
+    infos[paths[5].fpath.name] = mne.create_info(["x"], 100, "eeg")
+    infos[paths[6].fpath.name] = mne.create_info(["x"], 100, "eeg")
     ct.get_datatype_items.side_effect = lambda dt: [
         p.basename for p in paths if p.datatype == dt
     ]
 
-    def read(path, extra_params):
-        assert extra_params == {"preload": False}
-        if path.run == "06":
+    def read_info(fname):
+        fname = Path(fname)
+        if fname.name == paths[7].fpath.name:
             raise OSError("Cannot read recording")
-        return nullcontext(SimpleNamespace(info=infos[path.basename]))
+        return infos[fname.name]
 
-    monkeypatch.setattr(backend, "read_raw_bids", read)
+    monkeypatch.setattr(backend.mne.io, "read_info", read_info)
     signals = WorkerSignals()
     progress = Mock()
     signals.pgbar_n.connect(progress)
