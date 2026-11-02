@@ -4,48 +4,22 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
-import pytest
 from qtpy.QtGui import QTextCursor
 
-from mne_nodes.gui.code_editor import CodeEditorWidget, CodeFileEditor
+from mne_nodes.gui.code_editor import CodeFileEditor
 
 
-# ToDo: Fix Editor Load/Save
-@pytest.mark.skip(reason="temporarily disabled")
-def test_load_save(qtbot, tmp_path, test_script):
-    # Create the editor widget and load the file
-    widget = CodeEditorWidget(file_path=test_script)
-    qtbot.addWidget(widget)
-    widget.show()
-    # Simulate editing
-    original_code = widget.editor.toPlainText()
-    new_code = "print('Hello, World!')\n"
-    widget.editor.moveCursor(QTextCursor.MoveOperation.End)
-    widget.editor.insertPlainText(new_code)
-    # Save changes
-    widget.editor.save()
-    # Verify file contents
-    with open(test_script, encoding="utf-8") as f:
-        saved_content = f.read()
-    assert saved_content == original_code + new_code
-
-
-def test_insert_code(qtbot, tmp_path, test_code, test_plugin_config, test_script):
-    # Test insertion of code into a specific section
+def test_insert_code(qtbot, test_code, test_script):
+    """Editing a file section saves only that section back into the file."""
     code_func1 = "\n".join(test_code.split("\n")[:4])
     code_func2 = "\n".join(test_code.split("\n")[4:])
-    print(code_func1)
     editor = CodeFileEditor(file_path=test_script, file_section=(0, 4))
     qtbot.addWidget(editor)
-    # Assert only section code is shown
     assert editor.toPlainText() == code_func1
-    # Replace old code
     new_code = "print('Old code replacement!')\n"
     editor.moveCursor(QTextCursor.MoveOperation.End)
     editor.setPlainText(new_code)
-    # Save changes
     editor.save()
-    # Verify file contents
     with open(test_script, encoding="utf-8") as f:
         saved_content = f.read()
     assert saved_content == new_code + code_func2

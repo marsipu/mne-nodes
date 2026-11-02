@@ -24,7 +24,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.widget_registry import get_widget
 from mne_nodes.gui.widgets.dict_widgets import EditDict
-from mne_nodes.gui.widgets.list_widgets import CheckDictList, EditList, SimpleList
+from mne_nodes.gui.widgets.list_widgets import EditList, MarkList, SimpleList
 
 
 class ComboBox(QComboBox):
@@ -110,8 +110,10 @@ class AssignWidget(QWidget):
         else:
             subtitle1, subtitle2 = None, None
 
-        self.items_w = CheckDictList(
-            self.items, self.assignments, extended_selection=True, title=subtitle1
+        self.items_w = MarkList(
+            {item: item in self.assignments for item in self.items},
+            extended_selection=True,
+            title=subtitle1,
         )
         self.items_w.selectionChanged.connect(self.items_selected)
         list_layout.addWidget(self.items_w)
@@ -163,8 +165,9 @@ class AssignWidget(QWidget):
         for item in sel_items:
             self.assignments[item] = sel_prop
 
-        # Inform Model in CheckDict about change
-        self.items_w.content_changed()
+        self.items_w.replace_data(
+            {item: item in self.assignments for item in self.items}
+        )
 
     def show_assignments(self):
         self._assignments_dialog = SimpleDialog(

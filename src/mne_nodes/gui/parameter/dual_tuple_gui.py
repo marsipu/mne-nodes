@@ -36,6 +36,8 @@ class DualTupleGui(Param):
         self.param_widget1.setMinimum(min_val)
         self.param_widget1.setMaximum(max_val)
         self.param_widget1.setSingleStep(step)
+        # Commit typed numbers on Enter or focus loss rather than per keystroke.
+        self.param_widget1.setKeyboardTracking(False)
         if self.unit:
             self.param_widget1.setSuffix(f" {self.unit}")
         self.param_widget1.valueChanged.connect(self._on_widget_changed)
@@ -43,6 +45,7 @@ class DualTupleGui(Param):
         self.param_widget2.setMinimum(min_val)
         self.param_widget2.setMaximum(max_val)
         self.param_widget2.setSingleStep(step)
+        self.param_widget2.setKeyboardTracking(False)
         if self.unit:
             self.param_widget2.setSuffix(f" {self.unit}")
         self.param_widget2.valueChanged.connect(self._on_widget_changed)
