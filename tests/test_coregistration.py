@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import mne
 import numpy as np
+import pyvista
 import pytest
 from mne_bids import BIDSPath, write_raw_bids
 from qtpy.QtCore import QObject, Signal
@@ -430,6 +431,7 @@ def test_manual_real_mne_gui(qtbot, tmp_path, monkeypatch):
     monkeypatch.setattr(
         "mne_nodes.backend.exception_handling.ErrorDialog", CaptureError
     )
+    monkeypatch.setattr(pyvista, "OFF_SCREEN", False)
     dialog._open_manual()
     assert not errors, errors
     ui = dialog._manual
