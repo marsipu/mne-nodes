@@ -6,7 +6,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import pytest
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QSize, Qt
 from qtpy.QtGui import QImage
 
 from mne_nodes.backend.controller import Controller, default_config
@@ -39,7 +39,7 @@ def documentation_window(qtbot, qapp, settings, tmp_path):
     )
     window = MainWindow(controller)
     qtbot.addWidget(window)
-    window.resize(1200, 800)
+    window.setFixedSize(1000, 600)
     window.menuBar().setNativeMenuBar(False)
     window.finalize_controller_setup()
     viewer = window.viewer
@@ -69,13 +69,15 @@ def test_documentation_screenshot(documentation_window, qtbot, scenario):
     window = documentation_window
     if scenario == "pipeline":
         widget = window
+        expected_size = QSize(1000, 600)
         assert len(window.viewer.nodes) == 2
         assert window.statusBar().currentMessage() == "Documentation demo is ready."
     else:
         window.show_node_picker()
         widget = window.node_picker
+        expected_size = QSize(900, 550)
         qtbot.addWidget(widget)
-        widget.resize(900, 550)
+        widget.setFixedSize(expected_size)
         tree = widget.functions_view
         model = tree.model()
         category = model.index(0, 0)
@@ -87,6 +89,7 @@ def test_documentation_screenshot(documentation_window, qtbot, scenario):
 
     qtbot.waitExposed(widget)
     qtbot.waitUntil(lambda: widget.isVisible() and widget.width() > 0)
+    assert widget.size() == expected_size
     widget.repaint()
     image = widget.grab().toImage()
     assert not image.isNull()
@@ -100,4 +103,4 @@ def test_documentation_screenshot(documentation_window, qtbot, scenario):
     assert image.save(str(output), "PNG"), f"Could not save screenshot: {output}"
     saved = QImage(str(output))
     assert not saved.isNull()
-    assert saved.size() == widget.size()
+    assert saved.size() == expected_size

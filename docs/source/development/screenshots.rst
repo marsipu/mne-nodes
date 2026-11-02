@@ -59,7 +59,9 @@ before capturing; do not rely on fixed sleeps. The capture checks PNG saving
 and reloading and normalizes HiDPI images to the widget's logical size.
 Qt widget captures include application content, not desktop window frames,
 the cursor, or macOS's global menu bar; the demo keeps the menu inside the
-main window on every platform.
+main window on every platform. The pipeline is fixed at 1000 by 600 logical
+pixels and the picker at 900 by 550, small enough for all three runner
+displays. Tests assert these exact output dimensions.
 
 These scenarios check that the documented state can be constructed, not
 that every pixel matches a baseline. A failed scenario or missing screenshot
