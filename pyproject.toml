@@ -24,6 +24,7 @@ dependencies = [
     "mne-bids",
     "mne-qt-browser",
     "mne-connectivity",
+    "traitlets",
     # MNE related
     "vtk", # needed for CIs
     "nibabel", # needed for CIs

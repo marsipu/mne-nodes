@@ -663,6 +663,7 @@ class NodeViewer(QGraphicsView):
             pos, checked = node.pos(), node.isChecked()
             self.remove_node(node, force=True)
             self.add_function_node(node=new_node, pos=pos)
+            new_node.setPos(pos)
             new_node.setChecked(checked)
             for port_type, port_name, connected_port in connections:
                 port = new_node.port(
