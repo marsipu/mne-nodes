@@ -19,20 +19,12 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.execution import Process, Worker
 from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
-from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.user_interaction import warning_message
 
 
 class _RunDialog(QDialog):
     def __init__(
-        self,
-        parent,
-        show_buttons,
-        show_console,
-        close_directly,
-        title,
-        blocking,
-        geometry_ratio,
+        self, parent, show_buttons, show_console, close_directly, title, blocking
     ):
         super().__init__(parent)
 
@@ -44,7 +36,6 @@ class _RunDialog(QDialog):
 
         self.init_ui()
         self.start_operation()
-        set_ratio_geometry(geometry_ratio, self)
         if blocking:
             self.exec()
         else:
@@ -167,7 +158,7 @@ class WorkerDialog(_RunDialog):
         self.worker.signals.pgbar_n.connect(self.pgbar_changed)
         self.worker.signals.pgbar_text.connect(self.label_changed)
         super().__init__(
-            parent, show_buttons, show_console, close_directly, title, blocking, 0.4
+            parent, show_buttons, show_console, close_directly, title, blocking
         )
 
     def start_operation(self):
@@ -213,6 +204,11 @@ class WorkerDialog(_RunDialog):
 
 
 class ProcessDialog(_RunDialog):
+    """Run commands and retain their final exit code after process cleanup.
+
+    ``exit_code`` is None until all commands have finished.
+    """
+
     def __init__(
         self,
         commands: list[tuple[str, ...]],
@@ -225,9 +221,10 @@ class ProcessDialog(_RunDialog):
     ):
         self.commands = commands
         self.console = None
+        self.exit_code: int | None = None
 
         super().__init__(
-            parent, show_buttons, show_console, close_directly, title, blocking, 0.5
+            parent, show_buttons, show_console, close_directly, title, blocking
         )
 
     def init_content(self, layout):
@@ -236,7 +233,7 @@ class ProcessDialog(_RunDialog):
             layout.addWidget(self.console)
 
         self.process = Process(self.commands, console=self.console, self_destruct=True)
-        self.process.finished.connect(self.process_finished)
+        self.process.allFinished.connect(self.process_finished)
 
     def start_operation(self):
         self.process.start()
@@ -244,5 +241,6 @@ class ProcessDialog(_RunDialog):
     def cancel(self):
         self.process.kill()
 
-    def process_finished(self):
+    def process_finished(self, exit_code: int):
+        self.exit_code = exit_code
         self.mark_finished()

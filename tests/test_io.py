@@ -149,69 +149,20 @@ def _assert_no_none_keys(value):
             _assert_no_none_keys(nested)
 
 
-def test_load_json_progress_preserves_null_values(tmp_path):
-    payload = {
-        "name": "TestO",
-        "parameters": {
-            "plot_raw": {"annotation_colors": None, "scalings": None, "title": None}
-        },
-        "nested": [{"a": None}, {"b": [1, None, 3]}],
-    }
-    file_path = tmp_path / "config.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
-
-    progress_values = []
-    loaded = load_json_progress(file_path, progress_values.append)
-
-    assert loaded == payload
-    _assert_no_none_keys(loaded)
-    assert progress_values
-    assert progress_values[-1] == 100
-
-
-def test_load_json_progress_no_none_keys_for_nested_maps(tmp_path):
-    payload = {
-        "outer": {"first": {"x": 1}, "second": {"y": None}, "third": {"z": {"k": 42}}}
-    }
-    file_path = tmp_path / "nested.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
-
-    loaded = load_json_progress(file_path, lambda _: None)
-
-    assert loaded["outer"]["first"]["x"] == 1
-    assert loaded["outer"]["second"]["y"] is None
-    assert loaded["outer"]["third"]["z"]["k"] == 42
-    _assert_no_none_keys(loaded)
-
-
-def test_load_json_progress_preserves_native_json_types(tmp_path):
-    payload = {
+def test_load_json_progress(tmp_path):
+    """Native JSON values (incl. nulls) and typed special values are restored."""
+    native = {
         "int": 7,
         "float": 1.25,
         "string": "hello",
         "bool": True,
         "none": None,
         "list": [1, 2.5, "x", False, None],
-        "dict": {"nested_int": 2, "nested_float": 3.75, "nested_none": None},
+        "parameters": {"plot_raw": {"scalings": None, "title": None}},
+        "nested": [{"a": None}, {"b": [1, None, 3]}],
+        "outer": {"first": {"x": 1}, "second": {"y": None}, "third": {"z": {"k": 42}}},
     }
-    file_path = tmp_path / "native_types.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
-
-    loaded = load_json_progress(file_path, lambda _: None)
-
-    assert loaded == payload
-    assert isinstance(loaded["int"], int)
-    assert isinstance(loaded["float"], float)
-    assert isinstance(loaded["string"], str)
-    assert isinstance(loaded["bool"], bool)
-    assert loaded["none"] is None
-    assert isinstance(loaded["list"], list)
-    assert isinstance(loaded["dict"], dict)
-    assert isinstance(loaded["dict"]["nested_float"], float)
-
-
-def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path):
-    payload = {
+    special = {
         "tuple": {"tuple_type": [1, 2, 3]},
         "set": {"set_type": [1, 2, 3]},
         "path": {"path_type": str(Path("some") / "relative" / "path.txt")},
@@ -224,22 +175,27 @@ def test_load_json_progress_restores_special_types_from_type_json_hook(tmp_path)
         "time": {"time_type": time(3, 4, 5).strftime(time_format)},
         "array": {"numpy_array_type": [[1, 2], [3, 4]]},
     }
-    file_path = tmp_path / "special_types.json"
-    file_path.write_text(json.dumps(payload), encoding="utf-8")
+    file_path = tmp_path / "config.json"
+    file_path.write_text(json.dumps(native | special), encoding="utf-8")
 
-    loaded = load_json_progress(file_path, lambda _: None)
+    progress_values = []
+    loaded = load_json_progress(file_path, progress_values.append)
 
-    assert loaded["tuple"] == (1, 2, 3)
-    assert isinstance(loaded["tuple"], tuple)
-    assert loaded["set"] == {1, 2, 3}
-    assert isinstance(loaded["set"], set)
-    assert loaded["path"] == Path("some") / "relative" / "path.txt"
-    assert isinstance(loaded["path"], Path)
-    assert loaded["datetime"] == datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
-    assert isinstance(loaded["datetime"], datetime)
-    assert loaded["date"] == date(2024, 1, 2)
-    assert isinstance(loaded["date"], date)
-    assert loaded["time"] == time(3, 4, 5)
-    assert isinstance(loaded["time"], time)
+    assert progress_values[-1] == 100
+    _assert_no_none_keys(loaded)
+    for key, value in native.items():
+        assert loaded[key] == value
+        assert type(loaded[key]) is type(value)
+    expected = {
+        "tuple": (1, 2, 3),
+        "set": {1, 2, 3},
+        "path": Path("some") / "relative" / "path.txt",
+        "datetime": datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC),
+        "date": date(2024, 1, 2),
+        "time": time(3, 4, 5),
+    }
+    for key, value in expected.items():
+        assert loaded[key] == value
+        assert isinstance(loaded[key], type(value))
     np.testing.assert_array_equal(loaded["array"], np.array([[1, 2], [3, 4]]))
     assert isinstance(loaded["array"], np.ndarray)

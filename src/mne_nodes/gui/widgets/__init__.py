@@ -8,10 +8,10 @@ from .base import Base, BaseList
 from .dict_widgets import BaseDict, EditDict, SimpleDict
 from .list_widgets import (
     CheckDictEditList,
-    CheckDictList,
     CheckList,
     CheckListProgress,
     EditList,
+    MarkList,
     ProgressDelegate,
     SimpleList,
 )
@@ -26,13 +26,13 @@ __all__ = [
     "BaseList",
     "BasePandasTable",
     "CheckDictEditList",
-    "CheckDictList",
     "CheckList",
     "CheckListProgress",
     "ComboBox",
     "EditDict",
     "EditList",
     "EditPandasTable",
+    "MarkList",
     "ProgressDelegate",
     "ShallowTreeWidget",
     "SimpleDialog",

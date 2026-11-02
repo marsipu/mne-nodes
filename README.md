@@ -21,6 +21,10 @@ This package is supposed to be the successor of [mne_pipeline_hd](https://github
 
    or
 
+    - Install the latest pre-release (alpha, beta or release candidate) with `pip install --upgrade --pre mne-nodes`
+
+   or
+
     - Install the development version with `pip install git+https://github.com/marsipu/mne-nodes.git@main`
 
 
@@ -28,6 +32,7 @@ This package is supposed to be the successor of [mne_pipeline_hd](https://github
 Run `pip install --upgrade --no-deps --force-reinstall git+https://github.com/marsipu/mne-nodes.git@main`
 for an update to the development version
 or `pip install --upgrade mne-nodes` for the latest release.
+To opt into pre-releases, use `pip install --upgrade --pre mne-nodes`.
 
 ## Start
 Run `mne_nodes` in the terminal of your conda-environment where you installed mne-python and mne-nodes
