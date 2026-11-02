@@ -245,7 +245,7 @@ def index_parser(index, all_items, groups=None):
 
         elif "-" in index and "," not in index:
             x, y = index.split("-")
-            indices = [x for x in range(int(x), int(y) + 1)]
+            indices = [*range(int(x), int(y) + 1)]
 
         elif "," in index and "-" not in index:
             splits = index.split(",")

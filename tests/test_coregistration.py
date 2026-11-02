@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import mne
 import numpy as np
 import pytest
+import pyvista
 from mne_bids import BIDSPath, write_raw_bids
 from qtpy.QtCore import QObject, Signal
 from qtpy.QtWidgets import QPushButton
