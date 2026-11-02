@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>BIDS dataset requirements &#8212; mne-nodes 0.2.0.dev40+ga0b9959ee documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=75c7c72ae941e8b558d8"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
+
+    <script src="../_static/documentation_options.js?v=4b9da874"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/datasets';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Head-to-MRI coregistration" href="coregistration.html" />
+    <link rel="prev" title="Documentation" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.2" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation" aria-expanded="false" aria-controls="pst-primary-sidebar-modal">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mne-nodes 0.2.0.dev40+ga0b9959ee documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../install/index.html">
+    Install
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Documentation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../development/index.html">
+    Development
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button type="button" class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="External Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/marsipu/mne-nodes" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-fw fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button type="button" class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page" aria-expanded="false" aria-controls="pst-secondary-sidebar-modal">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal" tabindex="-1"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../install/index.html">
+    Install
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Documentation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../development/index.html">
+    Development
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="External Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/marsipu/mne-nodes" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-fw fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button type="button" id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="#">BIDS dataset requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="coregistration.html">Head-to-MRI coregistration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="freesurfer.html">FreeSurfer commands and Python functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="settings.html">Settings</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-house"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Documentation</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">BIDS dataset requirements</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="bids-dataset-requirements">
+<h1>BIDS dataset requirements<a class="headerlink" href="#bids-dataset-requirements" title="Link to this heading">#</a></h1>
+<p>MNE-Nodes expects an existing BIDS dataset, not a directory of arbitrary raw
+recordings. Select the dataset root (the folder containing
+<code class="docutils literal notranslate"><span class="pre">dataset_description.json</span></code>) using <strong>Set BIDS Root</strong>. Preparing or validating a
+BIDS dataset is a separate step: use MNE-BIDS to convert recordings and a BIDS
+validator to check the dataset before processing.</p>
+<section id="raw-data-and-metadata">
+<h2>Raw data and metadata<a class="headerlink" href="#raw-data-and-metadata" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Include <code class="docutils literal notranslate"><span class="pre">dataset_description.json</span></code> with the BIDS-required metadata, including
+<code class="docutils literal notranslate"><span class="pre">Name</span></code> and <code class="docutils literal notranslate"><span class="pre">BIDSVersion</span></code>. MNE-Nodes uses <code class="docutils literal notranslate"><span class="pre">Name</span></code> to identify the dataset.</p></li>
+<li><p>Put recordings in BIDS subject folders, optional session folders, and the
+corresponding <code class="docutils literal notranslate"><span class="pre">meg</span></code>, <code class="docutils literal notranslate"><span class="pre">eeg</span></code>, or <code class="docutils literal notranslate"><span class="pre">ieeg</span></code> datatype folder. Keep BIDS entity
+labels and filenames consistent. Use a recording format supported by the
+installed MNE-Python and MNE-BIDS versions.</p></li>
+<li><p>Keep all required metadata and companion files with the recordings. For example,
+a BrainVision recording needs its header, marker and binary files, not just the
+header. Include the applicable JSON sidecars, channel tables, event tables,
+electrode positions and coordinate-system metadata.</p></li>
+<li><p>Select a writable derivative location (see below). The BIDS root itself needs
+to be writable for dataset-local derivatives and FreeSurfer imports.
+The import and coregistration workflows do not modify raw recordings.</p></li>
+</ul>
+<section id="sample-dataset-import">
+<h3>Sample dataset import<a class="headerlink" href="#sample-dataset-import" title="Link to this heading">#</a></h3>
+<p><strong>BIDS &gt; Add Sample BIDS</strong> and the welcome tour include the sample dataset’s
+anatomy as well as its MEG recordings:</p>
+<ul class="simple">
+<li><p>The T1 image is converted to
+<code class="docutils literal notranslate"><span class="pre">sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz</span></code>, with anatomical landmarks
+in its JSON sidecar.</p></li>
+<li><p>The complete sample FreeSurfer reconstruction, including segmentations,
+surfaces and BEM files, is copied to <code class="docutils literal notranslate"><span class="pre">derivatives/freesurfer/sub-01</span></code>.
+An existing nested <code class="docutils literal notranslate"><span class="pre">derivatives/freesurfer/subjects</span></code> layout is respected.
+Subject-prefixed BEM filenames are renamed to match <code class="docutils literal notranslate"><span class="pre">sub-01</span></code>.</p></li>
+<li><p>The recording’s head-to-MRI transformation is copied to
+<code class="docutils literal notranslate"><span class="pre">derivatives/mne-nodes/sub-01/ses-01/meg/</span></code>, as
+<code class="docutils literal notranslate"><span class="pre">sub-01_ses-01_task-audiovisual_run-1_trans.fif</span></code>.</p></li>
+</ul>
+<p>Selecting the sample MEG recording therefore makes its <code class="docutils literal notranslate"><span class="pre">subject</span></code>, <code class="docutils literal notranslate"><span class="pre">trans</span></code>
+and associated <code class="docutils literal notranslate"><span class="pre">anat</span></code> outputs available. The anatomy image is resolved from
+the recording and is not selected separately.
+Re-importing preserves existing anatomy, reconstructions and transformations.
+The welcome tour detects older raw-only conversions and imports the missing
+auxiliary data.</p>
+<p>The input node exposes <code class="docutils literal notranslate"><span class="pre">anat</span></code> (a matching T1w image), <code class="docutils literal notranslate"><span class="pre">info</span></code> (measurement
+metadata), <code class="docutils literal notranslate"><span class="pre">event_id</span></code> (the event-name-to-code mapping from the BIDS recording),
+and <code class="docutils literal notranslate"><span class="pre">trans</span></code> (a saved head-to-MRI transformation) as connectable outputs.
+These are associated, non-selectable data types: they have no separate tabs in
+the input widget or independent file selections. Select recordings in the EEG,
+MEG or iEEG tabs, or select a recording group, and connect the associated outputs
+to functions that need them. A raw-data connection is not required.</p>
+<p>When the input checklist is rebuilt (for example after loading a pipeline or
+changing datasets), saved file selections absent from the current dataset are
+removed with a warning in the application log. This prevents hidden selections
+from an older dataset from blocking the current recording outputs.
+Availability-only refreshes do not discard selections: if a selected recording
+disappears during a session, its outputs remain disabled with a missing-file
+explanation until the checklist is rebuilt or the selection is cleared.</p>
+</section>
+<section id="associated-auxiliary-data-and-overview">
+<h3>Associated auxiliary data and overview<a class="headerlink" href="#associated-auxiliary-data-and-overview" title="Link to this heading">#</a></h3>
+<p>Use <strong>BIDS &gt; Set BIDS root…</strong> or <strong>Set BIDS Root</strong> on the input node to select
+the dataset. Both entry points use the same folder chooser; canceling leaves
+the current dataset unchanged.
+Reselecting the active root or re-importing sample data refreshes both the
+input checklists and output ports, including newly added anatomical data.
+Valid selections and existing ports and connections are retained when refreshing
+the same dataset.</p>
+<p>Use <strong>BIDS &gt; Data overview…</strong> or <strong>Data overview</strong> on the input node to inspect
+the dataset. The read-only, refreshable table has one row per participant
+recording, identified by its BIDS filename rather than its full path. Columns
+indicate the presence of anatomical candidates, a resolved FreeSurfer subject,
+a head-to-MRI transformation, and an associated empty-room recording using check
+and cross icons. Warning icons distinguish lookup errors from missing data;
+<code class="docutils literal notranslate"><span class="pre">N/A</span></code> indicates that empty-room data does not apply to non-MEG recordings.
+Hover over a cell for details. Columns can be sorted by recording name or
+availability. Anatomy is matched by BIDS subject and compatible session, not
+asserted to be the correct MRI. Dataset totals include unassociated anatomy,
+reconstructions and empty-room recordings, without a separate file-path list.
+Discovery runs in a WorkerDialog with a busy indicator during dataset discovery,
+then a progress bar and recording name while associations are checked. Empty
+datasets finish with zero recordings. Discovery does not load raw signal samples.
+The table uses a model-backed view with cached icons rather than allocating an
+item per cell,
+and does not access the filesystem while painting or sorting.</p>
+<p>Empty-room MEG recordings are associated inputs, not independent selections.
+They have no selection tab and are excluded from participant recording groups.
+The <code class="docutils literal notranslate"><span class="pre">raw_er</span></code> output is compatible with <code class="docutils literal notranslate"><span class="pre">raw</span></code> inputs: connect it, for example,
+to a raw-covariance node to use empty-room data instead of the participant’s raw
+recording. Association lookup follows MNE-BIDS: use <code class="docutils literal notranslate"><span class="pre">AssociatedEmptyRoom</span></code> from
+the MEG sidecar, otherwise its measurement-date matching. A missing, broken or
+ambiguous association disables <code class="docutils literal notranslate"><span class="pre">raw_er</span></code> and is an error during execution.
+<strong>Every</strong> selected recording must have an association; mixing EEG recordings
+with MEG recordings therefore disables this output. Group execution returns one
+empty-room Raw per member, retaining the member order.</p>
+<p>The input node shows <code class="docutils literal notranslate"><span class="pre">raw_er</span></code> only when MEG empty-room data exists in the
+dataset (<code class="docutils literal notranslate"><span class="pre">sub-emptyroom</span></code> or <code class="docutils literal notranslate"><span class="pre">task-noise</span></code>), and <code class="docutils literal notranslate"><span class="pre">subject</span></code> only when a
+FreeSurfer reconstruction exists. Dataset presence alone does not enable these
+outputs: they must also be available for every selected recording. Existing
+wiring is preserved if auxiliary data disappears; the unavailable port is
+hidden and disabled until the data returns.</p>
+<p>Running FreeSurfer reconstruction from anatomical data and skipping completed
+reconstructions across runs are future features, not part of this association
+handling. Existing reconstructions continue to supply the <code class="docutils literal notranslate"><span class="pre">subject</span></code> output.</p>
+<p>Visible outputs are dimmed and disabled when unavailable for the current selection;
+hover over a disabled output for the reason. <code class="docutils literal notranslate"><span class="pre">trans</span></code> requires a transformation
+for <strong>every</strong> selected recording, using the same recording-specific and
+unambiguous session-level lookup as coregistration. <code class="docutils literal notranslate"><span class="pre">subject</span></code> requires a
+matching FreeSurfer reconstruction for every selected recording. Saved
+coregistration subject associations take precedence over <code class="docutils literal notranslate"><span class="pre">sub-&lt;label&gt;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&lt;label&gt;</span></code> name matching. A group must map to one MRI subject when using the
+<code class="docutils literal notranslate"><span class="pre">subject</span></code> output.
+FreeSurfer reconstructions have no separate input tab or selection. The
+<code class="docutils literal notranslate"><span class="pre">subject</span></code> output is derived from the selected recordings and their
+coregistration associations. Subject-based recording groups remain available
+in the Groups tab; they select recordings, not reconstructions.</p>
+<p>Within a pipeline run, output-producing non-method nodes whose inputs depend
+only on the resolved MRI subject are computed once per node and MRI subject.
+This includes chains such as BEM surfaces followed by a BEM solution, or source
+space setup. Recordings mapped to the same reconstruction reuse those results.
+Nodes using recording-dependent inputs (for example <code class="docutils literal notranslate"><span class="pre">info</span></code>, <code class="docutils literal notranslate"><span class="pre">trans</span></code> or raw
+data in a forward solution) still run for each recording. Reused results are
+copied so downstream in-place changes do not alter the cached result.
+The cache is reset for each run, and distinct nodes retain their own parameters
+and results. Existing output-saving behavior is unchanged; this cache does not
+introduce loading or invalidation of derivatives between runs.</p>
+<p>All recording-type outputs require a selection, even when matching data exists
+in the dataset. For example, <code class="docutils literal notranslate"><span class="pre">meg</span></code> is disabled until at least one MEG recording
+is selected directly or through a group; selecting only EEG recordings does not
+enable <code class="docutils literal notranslate"><span class="pre">meg</span></code>. With nothing selected, all input-node outputs are disabled.
+<code class="docutils literal notranslate"><span class="pre">anat</span></code> requires a matching T1w for every selected recording. A session-specific
+T1w is preferred over a subject-level T1w; no match or multiple equally specific
+matches disable the output. Anatomy-dependent functions run in the context of
+selected recordings, and anat-only results are reused for recordings sharing the
+same MRI subject and anatomy image. Other selectable file types follow the same
+rule, and selected files must exist on disk. With no raw recordings selected,
+associated outputs remain disabled.
+Changing selections, saving transformations, changing the derivative root, or
+importing subjects refreshes availability without removing existing connections.
+Checkbox changes reuse the input node’s known datatypes and empty-room inventory
+instead of rescanning all recording files. Association checks still use the
+current selection and stop once an output is known to be unavailable. Use the
+data overview’s <strong>Refresh</strong> or refresh the input node after adding external data
+to rescan the inventory.
+Unavailable connections are retained when saving and reopening a pipeline, but
+cannot be created interactively. Missing or ambiguous transformations and missing
+MRI subjects raise an error during execution rather than silently skipping data.</p>
+</section>
+</section>
+<section id="output-colors">
+<h2>Output colors<a class="headerlink" href="#output-colors" title="Link to this heading">#</a></h2>
+<p>Output ports use an MNE-logo-derived semantic palette on both input and function
+nodes:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Category</p></th>
+<th class="head"><p>HEX</p></th>
+<th class="head"><p>Examples</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Raw sensor data</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#fce104</span></code></p></td>
+<td><p>Raw, MEG, EEG, iEEG, raw_er, info, events and event_id</p></td>
+</tr>
+<tr class="row-odd"><td><p>Processed sensor-space data</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#e6441a</span></code></p></td>
+<td><p>Epochs, evoked responses, ICA, covariance and time-frequency results</p></td>
+</tr>
+<tr class="row-even"><td><p>Raw anatomical/source-space data</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#3348cd</span></code></p></td>
+<td><p>Subject, anatomy and MRI</p></td>
+</tr>
+<tr class="row-odd"><td><p>Processed source-space data</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#01feff</span></code></p></td>
+<td><p>Transformations, forward/inverse operators, source spaces and estimates</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Input-node outputs follow the category order above: raw sensor data, processed
+sensor data, raw anatomy/source data, then processed source data. Types within
+each category use the central datatype registry order; unclassified types come
+last, alphabetically. Refreshing or reopening a pipeline retains this order
+without replacing ports or dropping their connections.</p>
+<p>Disabled outputs retain their category color but are dimmed. Connected and
+hovered outputs retain the same color; temporary connection-compatibility
+highlights still indicate valid and invalid connections. Unclassified outputs
+retain the default port styling. For custom output names, accepted datatype
+aliases supply a color only when their known types belong to one category.</p>
+<p>Input-node datatype tabs reuse this palette as thin, translucent underline
+accents, slightly stronger on the selected tab. The content frame also has a thin,
+muted border matching the selected datatype. Labels and backgrounds retain the
+application theme. The Groups tab and unclassified datatypes remain neutral.</p>
+<p>The palette and datatype assignments are managed centrally in
+<code class="docutils literal notranslate"><span class="pre">mne_nodes.gui.colors</span></code>. This is the shared starting point for future coloring
+of nodes, parameters and other application components; those components are
+not recolored by this change.</p>
+</section>
+<section id="example-dataset-layout">
+<h2>Example dataset layout<a class="headerlink" href="#example-dataset-layout" title="Link to this heading">#</a></h2>
+<p>An example dataset layout is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dataset</span><span class="o">/</span>
+    <span class="n">dataset_description</span><span class="o">.</span><span class="n">json</span>
+    <span class="n">participants</span><span class="o">.</span><span class="n">tsv</span>
+    <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span>
+        <span class="n">ses</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span>
+            <span class="n">meg</span><span class="o">/</span>
+                <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_meg</span><span class="o">.</span><span class="n">fif</span>
+                <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_meg</span><span class="o">.</span><span class="n">json</span>
+                <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_channels</span><span class="o">.</span><span class="n">tsv</span>
+            <span class="n">anat</span><span class="o">/</span>
+                <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_T1w</span><span class="o">.</span><span class="n">nii</span><span class="o">.</span><span class="n">gz</span>
+    <span class="n">derivatives</span><span class="o">/</span>
+        <span class="n">freesurfer</span><span class="o">/</span>
+            <span class="n">subjects</span><span class="o">/</span>
+                <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span>
+                    <span class="n">mri</span><span class="o">/</span>
+                    <span class="n">surf</span><span class="o">/</span>
+                    <span class="n">label</span><span class="o">/</span>
+                    <span class="n">bem</span><span class="o">/</span>
+        <span class="n">mne</span><span class="o">-</span><span class="n">nodes</span><span class="o">/</span>
+            <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span>
+                <span class="n">ses</span><span class="o">-</span><span class="mi">01</span><span class="o">/</span>
+                    <span class="n">meg</span><span class="o">/</span>
+                        <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_epo</span><span class="o">.</span><span class="n">fif</span>
+                        <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_ave</span><span class="o">.</span><span class="n">fif</span>
+                        <span class="n">sub</span><span class="o">-</span><span class="mi">01</span><span class="n">_ses</span><span class="o">-</span><span class="mi">01</span><span class="n">_task</span><span class="o">-</span><span class="n">rest_run</span><span class="o">-</span><span class="mi">01</span><span class="n">_trans</span><span class="o">.</span><span class="n">fif</span>
+</pre></div>
+</div>
+<p>This is an illustrative layout, not a complete list of BIDS-required files.
+An anatomical BIDS image is optional for electrophysiology-only processing.
+FreeSurfer reconstructions are also optional unless an operation needs an MRI
+subject. A T1-weighted image alone is not a FreeSurfer reconstruction.</p>
+</section>
+<section id="derivative-storage">
+<h2>Derivative storage<a class="headerlink" href="#derivative-storage" title="Link to this heading">#</a></h2>
+<p>Open <strong>BIDS &gt; Derivative storage…</strong> to choose between:</p>
+<ul class="simple">
+<li><p><strong>Inside BIDS dataset</strong> (default): outputs go to
+<code class="docutils literal notranslate"><span class="pre">&lt;BIDS-root&gt;/derivatives/mne-nodes</span></code>. This folder is created automatically.</p></li>
+<li><p><strong>Separate derivatives root</strong>: select/create a writable output directory,
+for example on another disk. The selected directory is the derivative root
+itself; MNE-Nodes does not append <code class="docutils literal notranslate"><span class="pre">derivatives</span></code> or <code class="docutils literal notranslate"><span class="pre">mne-nodes</span></code> to it.</p></li>
+</ul>
+<p>The choice is remembered in this device’s settings for the active pipeline.
+Canceling either dialog keeps the previous location. Changing the location
+does not move, copy or delete existing derivatives. Select the old root again
+to reuse those files. Existing explicitly configured roots are retained, even
+if they use an older folder layout. If an explicit root is missing, output
+initialization fails rather than silently saving somewhere else.</p>
+<p>Processing results such as epochs and evoked responses are derivative files,
+not additions to the raw recording folders. Enable a function node’s checkbox
+to save outputs for which the plugin provides a write function. Unchecked nodes
+still pass their results to connected nodes in memory, but do not save them.
+The plugin’s output metadata determines the writer and filename suffix;
+typical MNE outputs use <code class="docutils literal notranslate"><span class="pre">*_epo.fif</span></code> for epochs and <code class="docutils literal notranslate"><span class="pre">*_ave.fif</span></code> for evoked
+responses. Not every output type has a disk writer.</p>
+<p>For recording-level outputs, MNE-Nodes preserves the input BIDS entities
+(subject, session, task, run, etc.) and datatype directory, substitutes the
+output suffix, and uses the selected derivative root. For example, epochs
+from <code class="docutils literal notranslate"><span class="pre">sub-01/ses-01/meg/sub-01_ses-01_task-rest_run-01_meg.fif</span></code> go to
+<code class="docutils literal notranslate"><span class="pre">&lt;derivative-root&gt;/sub-01/ses-01/meg/sub-01_ses-01_task-rest_run-01_epo.fif</span></code>.
+The file format is determined by the writer; these are BIDS-style derivative
+paths, not a guarantee that every plugin output meets a BIDS derivative
+specification.</p>
+<p>Path construction currently retains the input filename extension. For non-FIF
+inputs this can leave a nonstandard extension even when the writer stores FIF
+content; the FIF filenames above illustrate FIF inputs.</p>
+<p>When starting execution at a later node, connected inputs not produced during
+that execution are read from the selected derivative root using the plugin’s
+read function. Save the required upstream outputs first. There is no automatic
+fallback search in previous roots. Outputs are not separated by pipeline name:
+pipelines using the same root and recording/output suffix can target the same
+file. Writer parameters control overwrite behavior.</p>
+<p>Coregistration also reads and writes <code class="docutils literal notranslate"><span class="pre">*_trans.fif</span></code> files under the selected
+derivative root.</p>
+<p>FreeSurfer subjects remain dataset-local, even when a separate processing
+derivative root is configured. MNE-Nodes uses
+<code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer/subjects</span></code> when that directory exists;
+otherwise it uses <code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer</span></code> with subject folders
+directly inside it. If both layouts exist, the nested <code class="docutils literal notranslate"><span class="pre">subjects</span></code> directory
+takes precedence; the two roots are not merged. Discovery, imports,
+coregistration and pipeline <code class="docutils literal notranslate"><span class="pre">subjects_dir</span></code> parameters all use this same root.
+No existing files are moved.</p>
+<p>FreeSurfer’s default <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> is <code class="docutils literal notranslate"><span class="pre">$FREESURFER_HOME/subjects</span></code>, but it can
+be customized (see the <a class="reference external" href="https://surfer.nmr.mgh.harvard.edu/fswiki/SetupConfiguration_Linux">FreeSurfer setup documentation</a>).
+The nested layout is supported, not required by MNE-Nodes.
+Global MNE <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> settings and environment variables are not used
+to locate dataset subjects. If neither layout exists,
+<code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer</span></code> is created when needed.
+Pipeline configuration files can remain
+elsewhere. Plot output is optional, may live outside the dataset, and does not
+trigger a folder prompt; plot-node-driven prompting is not implemented yet.</p>
+</section>
+<section id="importing-existing-freesurfer-subjects">
+<h2>Importing existing FreeSurfer subjects<a class="headerlink" href="#importing-existing-freesurfer-subjects" title="Link to this heading">#</a></h2>
+<p>Use <strong>BIDS &gt; Import FreeSurfer subjects…</strong>, or <strong>Import FreeSurfer subjects…</strong>
+in the coregistration dialog. There are two source-selection options:</p>
+<ul class="simple">
+<li><p><strong>Choose subject folder…</strong> selects one reconstructed subject, for example
+an existing <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR/sub-01</span></code> folder.</p></li>
+<li><p><strong>Choose subjects directory…</strong> lists the subject folders directly inside an
+existing FreeSurfer subjects directory. Select the subjects to copy with the
+checkboxes; All and Clear are available.</p></li>
+</ul>
+<p>Click <strong>Import selected subjects</strong> to copy the selected reconstructions into
+the dataset’s FreeSurfer folder. A candidate must contain <code class="docutils literal notranslate"><span class="pre">mri</span></code>, <code class="docutils literal notranslate"><span class="pre">surf</span></code> and
+<code class="docutils literal notranslate"><span class="pre">label</span></code> directories, matching MNE-Nodes’ subject-discovery rules. This structural
+check does not certify a complete or successful FreeSurfer reconstruction.
+All contents of each selected folder are copied, including additional <code class="docutils literal notranslate"><span class="pre">bem</span></code>
+files if present. The importer does not run FreeSurfer, segment an MRI, generate
+missing head surfaces, rename subjects, or establish an anatomical correspondence.</p>
+<p>Subject folder names are preserved. Names such as <code class="docutils literal notranslate"><span class="pre">sub-01</span></code> or <code class="docutils literal notranslate"><span class="pre">01</span></code> can be
+matched automatically to BIDS subject <code class="docutils literal notranslate"><span class="pre">01</span></code> in coregistration. For other names,
+choose the corresponding FreeSurfer subject explicitly. This association is
+remembered in the pipeline configuration. Verify that the MRI really belongs
+to the participant; a name match is not anatomical validation.</p>
+<p>Imports run in a worker progress dialog and can require substantial disk space.
+Original folders are not modified. Existing destination subjects and duplicate
+names are rejected before copying; there is no merge or overwrite option.
+Sources overlapping the destination are rejected. Each subject is copied to a
+temporary staging folder and published only after copying finishes. A failed or
+canceled subject is cleaned up; already completed subjects remain available.
+Cancellation is checked between subjects and after each copy, not during an
+individual file copy. Refresh or reopen the importer after resolving a conflict.</p>
+</section>
+<section id="coregistration-prerequisites">
+<h2>Coregistration prerequisites<a class="headerlink" href="#coregistration-prerequisites" title="Link to this heading">#</a></h2>
+<p>Head-to-MRI fitting needs usable measurement digitization, including the
+appropriate fiducials and head-shape or electrode points. For EEG/iEEG datasets,
+preserve electrode and coordinate-system sidecars so MNE-BIDS can reconstruct
+the digitization correctly. Recordings without digitization remain visible in
+the coregistration manager, but cannot be fitted or grouped as identical.</p>
+<p>The selected FreeSurfer subject also needs a head surface readable by MNE
+(for example a prepared <code class="docutils literal notranslate"><span class="pre">surf/lh.seghead</span></code> or suitable <code class="docutils literal notranslate"><span class="pre">bem</span></code> head surface).
+The automated fitting recipe estimates MRI fiducials; this also requires the
+FreeSurfer MRI information used by MNE to map template fiducials to the subject.
+An imported folder that passes structural discovery can still lack these files.
+Prepare missing surfaces or MRI metadata with the appropriate MNE/FreeSurfer tools.</p>
+<p>Existing transformations are optional. The coregistration manager finds
+recording-specific <code class="docutils literal notranslate"><span class="pre">*-trans.fif</span></code> derivatives and unambiguous less-specific
+session files. New fits are saved as recording-specific derivatives. Recordings
+share a digitization group only within the same BIDS subject/session and only
+when their digitization matches exactly. Always inspect the resulting alignment.
+See <a class="reference internal" href="coregistration.html"><span class="doc">Head-to-MRI coregistration</span></a> for fitting, saving and reusing transformations.</p>
+</section>
+<section id="changing-datasets">
+<h2>Changing datasets<a class="headerlink" href="#changing-datasets" title="Link to this heading">#</a></h2>
+<p>Switching the BIDS root requires confirmation and clears stale input selections,
+including FreeSurfer selections, coregistration subject mappings and custom
+groups. The derivative and optional plot settings are reset. Files in the
+previous dataset are not moved or deleted. See <a class="reference internal" href="settings.html"><span class="doc">Settings</span></a> for details.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Documentation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="coregistration.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Head-to-MRI coregistration</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal" tabindex="-1"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#raw-data-and-metadata">Raw data and metadata</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-dataset-import">Sample dataset import</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#associated-auxiliary-data-and-overview">Associated auxiliary data and overview</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-colors">Output colors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-dataset-layout">Example dataset layout</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#derivative-storage">Derivative storage</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#importing-existing-freesurfer-subjects">Importing existing FreeSurfer subjects</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coregistration-prerequisites">Coregistration prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#changing-datasets">Changing datasets</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-02 21:54 UTC.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.24.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

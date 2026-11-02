@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>FreeSurfer commands and Python functions &#8212; mne-nodes 0.2.0.dev40+ga0b9959ee documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=75c7c72ae941e8b558d8"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
+
+    <script src="../_static/documentation_options.js?v=4b9da874"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/freesurfer';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Settings" href="settings.html" />
+    <link rel="prev" title="Head-to-MRI coregistration" href="coregistration.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.2" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation" aria-expanded="false" aria-controls="pst-primary-sidebar-modal">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class=" navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">mne-nodes 0.2.0.dev40+ga0b9959ee documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class=" navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../install/index.html">
+    Install
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Documentation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../development/index.html">
+    Development
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button type="button" class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-2"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-2"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-2"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-2">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="External Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/marsipu/mne-nodes" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-fw fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button type="button" class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page" aria-expanded="false" aria-controls="pst-secondary-sidebar-modal">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal" tabindex="-1"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../install/index.html">
+    Install
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="index.html">
+    Documentation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/index.html">
+    API Reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../development/index.html">
+    Development
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item">
+<div class="version-switcher__container dropdown pst-js-only">
+  <button id="pst-version-switcher-button-3"
+    type="button"
+    class="version-switcher__button btn btn-sm dropdown-toggle"
+    data-bs-toggle="dropdown"
+    aria-haspopup="listbox"
+    aria-controls="pst-version-switcher-list-3"
+    aria-label="Version switcher list"
+  >
+    Choose version  <!-- this text may get changed later by javascript -->
+    <span class="caret"></span>
+  </button>
+  <div id="pst-version-switcher-list-3"
+    class="version-switcher__menu dropdown-menu list-group-flush py-0"
+    role="listbox" aria-labelledby="pst-version-switcher-button-3">
+    <!-- dropdown will be populated by javascript on page load -->
+  </div>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="External Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/marsipu/mne-nodes" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-fw fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button type="button" id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">BIDS dataset requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="coregistration.html">Head-to-MRI coregistration</a></li>
+<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="#">FreeSurfer commands and Python functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="settings.html">Settings</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-house"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Documentation</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">FreeSurfer commands and Python functions</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="freesurfer-commands-and-python-functions">
+<h1>FreeSurfer commands and Python functions<a class="headerlink" href="#freesurfer-commands-and-python-functions" title="Link to this heading">#</a></h1>
+<p>Open <strong>BIDS &gt; FreeSurfer setup…</strong> to discover installations and view
+installation instructions. This does not install software or start processing.
+The <code class="docutils literal notranslate"><span class="pre">recon-all</span></code> and <code class="docutils literal notranslate"><span class="pre">make_watershed_bem</span></code> nodes belong to the separate
+<code class="docutils literal notranslate"><span class="pre">mne-nodes_freesurfer</span></code> plugin, not the core application. Install that package
+and it is automatically enabled at startup. Use <strong>Plugins &gt; Manage Plugins</strong>
+to refresh discovery or toggle it, or load
+its <code class="docutils literal notranslate"><span class="pre">src/mne_nodes_freesurfer/freesurfer_config.json</span></code> through
+<strong>Plugins &gt; Load Plugin from Path</strong> without installing it.
+Connect the input node’s
+<code class="docutils literal notranslate"><span class="pre">subject</span></code> port to operate on the MRI subject assigned to each recording.
+Subject-only commands run once per MRI subject per node in a pipeline run.
+<code class="docutils literal notranslate"><span class="pre">recon-all</span></code> can take hours and modifies its subject; it is never run by tests.
+For a new subject, connect the input node’s <code class="docutils literal notranslate"><span class="pre">anat</span></code> port to <code class="docutils literal notranslate"><span class="pre">recon-all</span></code> and
+select a matching recording. The input node resolves the session-specific T1w
+image, falling back to a subject-level T1w, and reports missing or ambiguous
+matches. Code generation passes the image path, not loaded image data. The
+command derives <code class="docutils literal notranslate"><span class="pre">sub-&lt;label&gt;</span></code> from the BIDS image, and outputs that subject
+after successful reconstruction for downstream nodes such as <code class="docutils literal notranslate"><span class="pre">make_watershed_bem</span></code>.</p>
+<section id="automatic-environment-discovery">
+<h2>Automatic environment discovery<a class="headerlink" href="#automatic-environment-discovery" title="Link to this heading">#</a></h2>
+<p>No executable paths need to be configured for a normal installation:</p>
+<ul class="simple">
+<li><p>On Windows, commands run in the default WSL distribution. An interactive
+login Bash shell loads terminal initialization (including <code class="docutils literal notranslate"><span class="pre">.bashrc</span></code>), so
+<code class="docutils literal notranslate"><span class="pre">FREESURFER_HOME</span></code>, <code class="docutils literal notranslate"><span class="pre">PATH</span></code> and <code class="docutils literal notranslate"><span class="pre">FS_LICENSE</span></code> set there are available.</p></li>
+<li><p>FreeSurfer is resolved from that environment, <code class="docutils literal notranslate"><span class="pre">recon-all</span></code> on PATH, or
+standard installation directories under <code class="docutils literal notranslate"><span class="pre">/usr/local/freesurfer</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/opt/freesurfer</span></code> and <code class="docutils literal notranslate"><span class="pre">/Applications/freesurfer</span></code>.</p></li>
+<li><p>Python calls on WSL use the first Python that can import MNE: shell PATH
+first, then Conda’s environment registry and standard Miniconda, Miniforge
+and Anaconda directories. Activating the desired environment in shell startup
+gives it precedence.</p></li>
+<li><p>On Linux/macOS, commands run natively and Python calls use MNE-Nodes’ current
+Python interpreter.</p></li>
+</ul>
+<p>There are no FreeSurfer or Python installation-path settings. To prioritize an
+installation, configure <code class="docutils literal notranslate"><span class="pre">FREESURFER_HOME</span></code> and activate the desired Python
+environment in your shell startup. The setup dialog offers only an optional
+<code class="docutils literal notranslate"><span class="pre">wsl_distribution</span></code> selector; leaving it empty uses the default distribution.
+Discovery is read-only and does not save discovered paths.</p>
+<p>FreeSurfer setup is sourced in the child process, never in the application’s
+environment. <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> is then set to this dataset’s subjects directory
+(see <a class="reference internal" href="settings.html"><span class="doc">Settings</span></a>). Windows absolute file paths, including UNC paths, are
+translated with WSL’s <code class="docutils literal notranslate"><span class="pre">wslpath</span></code>. Arguments remain separate argv tokens;
+shell substitutions, pipelines and redirections are not evaluated.
+Output is streamed to the pipeline console, including the final output lines;
+nonzero exit codes fail the pipeline rather than appearing successful.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
+<p>On Windows, install WSL and a Linux distribution using Microsoft’s
+<a class="reference external" href="https://learn.microsoft.com/windows/wsl/install">WSL instructions</a>.
+Inside that distribution, follow the
+<a class="reference external" href="https://surfer.nmr.mgh.harvard.edu/fswiki/DownloadAndInstall">FreeSurfer installation instructions</a>
+and register a license. Configure FreeSurfer and <code class="docutils literal notranslate"><span class="pre">FS_LICENSE</span></code> in your Linux
+shell startup as described by FreeSurfer.</p>
+<p>For Python calls, install Miniforge/Miniconda inside WSL, then create a dedicated
+environment (a graphical MNE installation is unnecessary for watershed):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="o">-</span><span class="n">n</span> <span class="n">mne</span> <span class="o">--</span><span class="n">override</span><span class="o">-</span><span class="n">channels</span> <span class="o">-</span><span class="n">c</span> <span class="n">conda</span><span class="o">-</span><span class="n">forge</span> <span class="n">mne</span><span class="o">-</span><span class="n">base</span> <span class="n">nibabel</span>
+<span class="n">conda</span> <span class="n">run</span> <span class="o">-</span><span class="n">n</span> <span class="n">mne</span> <span class="n">python</span> <span class="o">-</span><span class="n">c</span> <span class="s2">"import mne; print(mne.__version__)"</span>
+</pre></div>
+</div>
+<p>MNE must be installed inside WSL even when already installed on Windows.
+Local plugin source directories are made importable in the child, including
+sibling modules and relative imports; no separate WSL plugin installation is
+needed. Their dependencies and non-editable installed packages must still be
+installed in the Linux environment. MNE-Nodes itself need not be installed in WSL.
+Compatible MNE/numpy versions on both sides are recommended when returning
+Python objects.</p>
+</section>
+<section id="plugin-configuration">
+<h2>Plugin configuration<a class="headerlink" href="#plugin-configuration" title="Link to this heading">#</a></h2>
+<p>Set <code class="docutils literal notranslate"><span class="pre">&quot;uses_freesurfer&quot;:</span> <span class="pre">true</span></code> for a FreeSurfer-dependent Python function.
+The function importer exposes this as <strong>Run in FreeSurfer environment</strong>.
+It is off by default, preserving existing Python node behavior.
+Functions must be importable module-level callables, not instance methods or
+closures. Parameters/results cross a subprocess boundary through private,
+temporary pickle files; do not pass Qt objects or rely on in-place mutation of
+Python input objects. <code class="docutils literal notranslate"><span class="pre">Path</span></code> values are reconstructed for the receiving OS;
+absolute Windows path strings in arguments are also translated.
+Graphical child-process viewers (for example watershed <code class="docutils literal notranslate"><span class="pre">show=True</span></code>) require
+a working display in the execution OS.</p>
+<p>Commands use the same inputs and parameter widgets as Python nodes, but replace
+the callable with <code class="docutils literal notranslate"><span class="pre">command</span></code> and <code class="docutils literal notranslate"><span class="pre">command_args</span></code>. For example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">"recon-all"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">"command"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"recon-all"</span><span class="p">],</span>
+        <span class="s2">"command_args"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"subject"</span><span class="p">:</span> <span class="s2">"-s"</span><span class="p">,</span>
+            <span class="s2">"anat"</span><span class="p">:</span> <span class="s2">"-i"</span><span class="p">,</span>
+            <span class="s2">"all"</span><span class="p">:</span> <span class="s2">"-all"</span><span class="p">,</span>
+            <span class="s2">"extra_args"</span><span class="p">:</span> <span class="n">null</span>
+        <span class="p">},</span>
+        <span class="s2">"uses_freesurfer"</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+        <span class="s2">"bids_subject_from"</span><span class="p">:</span> <span class="s2">"anat"</span><span class="p">,</span>
+        <span class="s2">"inputs"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"anat"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"accepted_ports"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"anat"</span><span class="p">],</span> <span class="s2">"optional"</span><span class="p">:</span> <span class="n">false</span><span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">"parameters"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"all"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"gui"</span><span class="p">:</span> <span class="s2">"BoolGui"</span><span class="p">,</span> <span class="s2">"default"</span><span class="p">:</span> <span class="n">true</span><span class="p">},</span>
+            <span class="s2">"extra_args"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"gui"</span><span class="p">:</span> <span class="s2">"ListGui"</span><span class="p">,</span> <span class="s2">"default"</span><span class="p">:</span> <span class="p">[]}</span>
+        <span class="p">},</span>
+        <span class="s2">"outputs"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"subject"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"accepted_ports"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"subject"</span><span class="p">]}},</span>
+        <span class="s2">"target"</span><span class="p">:</span> <span class="s2">"file"</span><span class="p">,</span>
+        <span class="s2">"category"</span><span class="p">:</span> <span class="s2">"FreeSurfer"</span><span class="p">,</span>
+        <span class="s2">"class_name"</span><span class="p">:</span> <span class="n">null</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Every supplied input/parameter needs a <code class="docutils literal notranslate"><span class="pre">command_args</span></code> entry. <code class="docutils literal notranslate"><span class="pre">true</span></code> adds a
+standalone flag; <code class="docutils literal notranslate"><span class="pre">false</span></code> and <code class="docutils literal notranslate"><span class="pre">null</span></code> omit it. Lists repeat a named flag for
+each value. A null flag means positional tokens (useful for extra argv).
+Command outputs pass through supplied arguments with matching names after
+successful execution (one value or a tuple in output order); missing output
+arguments raise an error before execution. <code class="docutils literal notranslate"><span class="pre">bids_subject_from</span></code> names an image
+argument whose BIDS subject supplies <code class="docutils literal notranslate"><span class="pre">subject</span></code> as <code class="docutils literal notranslate"><span class="pre">sub-&lt;label&gt;</span></code>.
+That image is required; supplying an explicit subject raises an error.
+Non-FreeSurfer commands can omit <code class="docutils literal notranslate"><span class="pre">uses_freesurfer</span></code>.
+Definitions are currently authored in plugin JSON.
+Command nodes persist and reload with the graph and export to executable
+Python pipelines like function nodes.</p>
+</section>
+<section id="testing-without-an-8-gb-ci-installation">
+<h2>Testing without an 8 GB CI installation<a class="headerlink" href="#testing-without-an-8-gb-ci-installation" title="Link to this heading">#</a></h2>
+<p>The ordinary test suite uses real short Python subprocesses, a synthetic
+FreeSurfer setup script on POSIX, mocked WSL invocation/path conversion,
+and GUI/controller/code-generation tests. It needs no FreeSurfer download or
+license. This tests argument handling, environment isolation, output draining,
+failures, serialization and node persistence on GitHub-hosted CI.</p>
+<p>Optional real integration tests are enabled with
+<code class="docutils literal notranslate"><span class="pre">MNENODES_TEST_FREESURFER=1</span></code> on a machine with FreeSurfer and its license.
+They run a version query and watershed on a temporary copy of the bundled
+fsaverage MRI, verify the three BEM surface files, and remove temporary data.
+A manually triggered job on a self-hosted runner with a persistent FreeSurfer
+installation is suitable for these tests; recon-all is deliberately excluded.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="coregistration.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Head-to-MRI coregistration</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="settings.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Settings</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal" tabindex="-1"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#automatic-environment-discovery">Automatic environment discovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation">Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plugin-configuration">Plugin configuration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-without-an-8-gb-ci-installation">Testing without an 8 GB CI installation</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-02 21:54 UTC.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.24.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
