@@ -9,26 +9,16 @@ on:
 
 jobs:
   screenshots:
-    name: Capture screenshots (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
+    name: Capture screenshots (Linux)
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            platform: linux
-          - runner: windows-latest
-            platform: windows
-          - runner: macos-latest
-            platform: macos
     defaults:
       run:
         shell: bash
     env:
-      MNENODES_SCREENSHOT_DIR: docs/source/_static/screenshots/${{ matrix.platform }}
+      MNENODES_SCREENSHOT_DIR: docs/source/_static/screenshots/linux
       QT_API: pyside6
       QT_SCALE_FACTOR: '1'
     steps:
@@ -52,7 +42,7 @@ jobs:
       - name: Upload screenshots
         uses: actions/upload-artifact@v7
         with:
-          name: docs-screenshots-${{ matrix.platform }}
+          name: docs-screenshots-linux
           path: docs/source/_static/screenshots/
           if-no-files-found: error
 
@@ -82,12 +72,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install PySide6
           pip install -ve ".[docs]"
-    - name: Download screenshots from all operating systems
+    - name: Download Linux screenshots
       uses: actions/download-artifact@v8
       with:
-        pattern: docs-screenshots-*
+        name: docs-screenshots-linux
         path: docs/source/_static/screenshots/
-        merge-multiple: true
     - name: Build docs
       run: |
           cd ./docs
