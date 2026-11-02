@@ -71,10 +71,12 @@ def test_datatype_items(ct, monkeypatch):
         "info",
         "trans",
         "raw_er",
+        "anat",
         "metadata",
         "subject",
     ]
     assert ct.get_datatype_items("metadata") == []
+    assert ct.get_datatype_items("anat") == []
     assert not set(ct.non_selectable_datatypes) & ct.get_all_datatype_items().keys()
 
 
@@ -115,6 +117,85 @@ def test_load_recording_metadata(ct, grouped):
     assert isinstance(trans, mne.transforms.Transform)
     assert trans["from"] == mne.io.constants.FIFF.FIFFV_COORD_HEAD
     assert trans["to"] == mne.io.constants.FIFF.FIFFV_COORD_MRI
+
+
+def test_recording_anat_resolution_and_codegen_cache(ct, monkeypatch):
+    """Use one matched T1w per recording and reuse anat-only work per subject."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from mne_bids import get_bids_path_from_fname
+
+    from mne_nodes.backend.code_generation import CodeGenerator
+
+    recording = get_bids_path_from_fname(next(ct.bids_root.rglob("*_eeg.vhdr")))
+    second = recording.copy().update(task="other", run="99")
+    second.fpath.touch()
+    subject_anat = recording.copy().update(
+        datatype="anat",
+        session=None,
+        task=None,
+        run=None,
+        suffix="T1w",
+        extension=".nii.gz",
+    )
+    subject_anat.directory.mkdir(parents=True, exist_ok=True)
+    subject_anat.fpath.touch()
+    if recording.session is not None:
+        recording_anat = subject_anat.copy().update(session=recording.session)
+        recording_anat.directory.mkdir(parents=True, exist_ok=True)
+        recording_anat.fpath.touch()
+        assert ct.find_recording_anat(recording) == recording_anat
+    else:
+        recording_anat = subject_anat
+    assert ct.load_anat(recording) == recording_anat.fpath
+
+    ambiguous = recording_anat.copy().update(acquisition="highres")
+    ambiguous.directory.mkdir(parents=True, exist_ok=True)
+    ambiguous.fpath.touch()
+    with pytest.raises(ValueError, match="Ambiguous T1w anatomy"):
+        ct.find_recording_anat(recording)
+    ambiguous.fpath.unlink()
+
+    metadata = {
+        "inputs": {"mri": {"accepted_ports": ["anat"], "optional": False}},
+        "parameters": {},
+        "outputs": {"model": {"accepted_ports": ["model"]}},
+        "class_name": None,
+        "plugin": "anatomy_plugin",
+    }
+    ct.function_meta["build_anat_model"] = metadata
+    ct.set(
+        "selected_inputs",
+        {"eeg": [recording.basename, second.basename], "anat": ["ignored.nii.gz"]},
+    )
+    monkeypatch.setattr(CodeGenerator, "_build_header", lambda *args: "")
+    build_model = Mock(return_value="model")
+    code = CodeGenerator(
+        ct,
+        {
+            "file": [
+                {
+                    "name": "build_anat_model",
+                    "function_meta": metadata,
+                    "inputs": {"mri": ["Input-0"]},
+                    "input_ports": {"mri": ["anat"]},
+                    "outputs": {"model": ["model"]},
+                    "checked": False,
+                }
+            ]
+        },
+    ).code
+    assert "# Selection-Type: anat" not in code
+    exec(  # noqa: S102 - Validate generated pipeline execution.
+        compile(code, "<anatomy pipeline>", "exec"),
+        {
+            "ct": ct,
+            "get_bids_path_from_fname": get_bids_path_from_fname,
+            "anatomy_plugin": SimpleNamespace(build_anat_model=build_model),
+        },
+    )
+    build_model.assert_called_once_with(mri=recording_anat.fpath)
 
 
 def test_trans_lookup_availability(ct):

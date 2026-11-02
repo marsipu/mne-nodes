@@ -336,7 +336,7 @@ def test_bids_root_switch_replaces_input_dataset_information(
     assert ct.get("bids_dataset_name") == "sample-dataset"
     assert [
         widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())
-    ] == (["meg", "anat", "Groups"] if tour else ["meg", "Groups"])
+    ] == ["meg", "Groups"]
     model = widget.tab_widget.widget(0).model
     assert model.rowCount() == 1
     assert model.index(0, 0).data() == filename

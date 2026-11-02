@@ -14,7 +14,7 @@ from mne_nodes.gui.node.ports import Port
 
 
 def test_input_outputs_require_selection(nodeviewer):
-    """Outputs are enabled by selections; metadata outputs are not selectable."""
+    """Associated outputs follow recording selection; anat has no checklist."""
     from mne_bids import get_bids_path_from_fname
 
     ct = nodeviewer.ct
@@ -39,9 +39,11 @@ def test_input_outputs_require_selection(nodeviewer):
     ct.input_selection_changed([eeg.basename], "eeg")
     assert node.output(port_name="eeg").isEnabled()
     assert not node.output(port_name="meg").isEnabled()
-    assert not node.output(port_name="anat").isEnabled()
-    ct.input_selection_changed([anat.basename], "anat")
     assert node.output(port_name="anat").isEnabled()
+    assert "anat" not in {
+        node.input_widget.tab_widget.tabText(index)
+        for index in range(node.input_widget.tab_widget.count())
+    }
     assert not node.output(port_name="meg").isEnabled()
     ct.input_selection_changed([meg.basename], "meg")
     assert node.output(port_name="meg").isEnabled()
@@ -50,8 +52,9 @@ def test_input_outputs_require_selection(nodeviewer):
     assert node.output(port_name="meg").isEnabled()
     ct.input_selection_changed([], "meg")
     assert not node.output(port_name="meg").isEnabled()
-    assert node.output(port_name="anat").isEnabled()
+    assert not node.output(port_name="anat").isEnabled()
     assert not node.output(port_name="info").isEnabled()
+    ct.input_selection_changed([eeg.basename], "eeg")
     anat.fpath.unlink()
     ct.refresh_input_outputs()
     assert not node.output(port_name="anat").isEnabled()
@@ -61,7 +64,7 @@ def test_input_outputs_require_selection(nodeviewer):
         for index in range(node.input_widget.tab_widget.count())
     }
     assert {"eeg", "Groups"} <= tabs
-    for data_type in ("event_id", "info", "trans", "subject"):
+    for data_type in ("anat", "event_id", "info", "trans", "subject"):
         assert node.output(port_name=data_type).accepted_ports == [data_type]
         assert data_type not in tabs
 

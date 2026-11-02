@@ -13,10 +13,11 @@ Connect the input node's
 ``subject`` port to operate on the MRI subject assigned to each recording.
 Subject-only commands run once per MRI subject per node in a pipeline run.
 ``recon-all`` can take hours and modifies its subject; it is never run by tests.
-For a new subject, select a T1 image in the input widget's ``anat`` tab and
-connect the input node's ``anat`` port to ``recon-all``. Code generation passes
-the image path, not loaded image data. The command derives ``sub-<label>`` from
-the BIDS image, and outputs that subject
+For a new subject, connect the input node's ``anat`` port to ``recon-all`` and
+select a matching recording. The input node resolves the session-specific T1w
+image, falling back to a subject-level T1w, and reports missing or ambiguous
+matches. Code generation passes the image path, not loaded image data. The
+command derives ``sub-<label>`` from the BIDS image, and outputs that subject
 after successful reconstruction for downstream nodes such as ``make_watershed_bem``.
 
 Automatic environment discovery

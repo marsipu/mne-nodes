@@ -9,7 +9,6 @@ import nibabel as nib
 import numpy as np
 import pytest
 from mne_bids import BIDSPath
-from qtpy.QtCore import Qt
 
 from mne_nodes.backend import data_import
 from mne_nodes.backend.coregistration import trans_path
@@ -101,7 +100,7 @@ def test_sample_import_exposes_anatomy_and_associated_outputs(
     assert nib.load(image).shape == (4, 4, 4)
     sidecar = image.with_name("sub-01_ses-01_T1w.json")
     assert "AnatomicalLandmarkCoordinates" in json.loads(sidecar.read_text())
-    assert image.name in ct.get_datatype_items("anat")
+    assert ct.find_recording_anat(recording).fpath == image
     expected = trans_path(recording, root / "derivatives" / "mne-nodes")
     assert ct.find_recording_trans(recording) == expected
     transform = mne.read_trans(expected)
@@ -111,6 +110,7 @@ def test_sample_import_exposes_anatomy_and_associated_outputs(
     unavailable = ct.input_output_availability()
     assert "subject" not in unavailable
     assert "trans" not in unavailable
+    assert "anat" not in unavailable
     assert sample_import.call_args.kwargs["fs_subject"] == "sample"
 
 
@@ -216,7 +216,7 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     window.finalize_controller_setup()
     node = window.viewer.input_node
     metadata = node.output(port_name="info")
-    assert "anat" not in [port.name for port in node.outputs]
+    assert "anat" in [port.name for port in node.outputs]
     controller.input_selection_changed([recording.basename], "meg")
     target = tmp_path / "sample-bids" if action.endswith("-new") else root
     target.mkdir(exist_ok=True)
@@ -237,24 +237,17 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     assert node.output(port_name="info") is metadata
     tabs = node.input_widget.tab_widget
     tab_names = [tabs.tabText(index) for index in range(tabs.count())]
-    assert tab_names.count("anat") == 1
+    assert tab_names.count("anat") == 0
     assert [port.name for port in node.outputs].count("anat") == 1
     assert "subject" not in tab_names
     assert "trans" not in tab_names
-    anatomy = tabs.widget(tab_names.index("anat"))
-    expected_name = "sub-01_ses-01_T1w.nii.gz"
-    assert anatomy.model.index(0, 0).data() == expected_name
-    assert not node.output(port_name="anat").isEnabled()
-    anatomy.model.setData(
-        anatomy.model.index(0, 0), Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole
-    )
-    assert controller.get("selected_inputs")["anat"] == [expected_name]
-    assert node.output(port_name="anat").isEnabled()
+    assert node.output(port_name="anat").isEnabled() == (target == root)
+    assert "anat" not in controller.get("selected_inputs")
     if target == root:
         assert controller.get("selected_inputs")["meg"] == [recording.basename]
     else:
         assert not controller.get("selected_inputs")["meg"]
-    # Re-selecting and restoring the graph must retain one anatomy tab and port.
+    # Re-selecting and restoring the graph must retain the associated anatomy port.
     controller.input_selection_changed([recording.basename], "meg")
     assert node.output(port_name="subject").isEnabled()
     assert node.output(port_name="trans").isEnabled()
@@ -263,4 +256,4 @@ def test_clean_input_node_refresh_after_import_or_root_selection(
     restored = window.viewer.input_node
     assert restored.output(port_name="anat").isEnabled()
     tabs = restored.input_widget.tab_widget
-    assert [tabs.tabText(index) for index in range(tabs.count())].count("anat") == 1
+    assert [tabs.tabText(index) for index in range(tabs.count())].count("anat") == 0

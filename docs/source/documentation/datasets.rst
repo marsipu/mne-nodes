@@ -41,19 +41,20 @@ anatomy as well as its MEG recordings:
   ``derivatives/mne-nodes/sub-01/ses-01/meg/``, as
   ``sub-01_ses-01_task-audiovisual_run-1_trans.fif``.
 
-Selecting the sample MEG recording therefore makes its ``subject`` and ``trans``
-outputs available. Select the T1 image separately to enable ``anat``.
+Selecting the sample MEG recording therefore makes its ``subject``, ``trans``
+and associated ``anat`` outputs available. The anatomy image is resolved from
+the recording and is not selected separately.
 Re-importing preserves existing anatomy, reconstructions and transformations.
 The welcome tour detects older raw-only conversions and imports the missing
 auxiliary data.
 
-The input node exposes ``info`` (measurement metadata), ``event_id`` (the
-event-name-to-code mapping from the BIDS recording), and ``trans`` (a saved
-head-to-MRI transformation) as connectable outputs.
-These are non-selectable data types: they have no separate tabs in the input
-widget or independent file selections. Select recordings in the EEG, MEG or
-iEEG tabs, or select a recording group, and connect the metadata outputs to
-functions that need them. A raw-data connection is not required.
+The input node exposes ``anat`` (a matching T1w image), ``info`` (measurement
+metadata), ``event_id`` (the event-name-to-code mapping from the BIDS recording),
+and ``trans`` (a saved head-to-MRI transformation) as connectable outputs.
+These are associated, non-selectable data types: they have no separate tabs in
+the input widget or independent file selections. Select recordings in the EEG,
+MEG or iEEG tabs, or select a recording group, and connect the associated outputs
+to functions that need them. A raw-data connection is not required.
 
 When the input checklist is rebuilt (for example after loading a pipeline or
 changing datasets), saved file selections absent from the current dataset are
@@ -142,11 +143,13 @@ All recording-type outputs require a selection, even when matching data exists
 in the dataset. For example, ``meg`` is disabled until at least one MEG recording
 is selected directly or through a group; selecting only EEG recordings does not
 enable ``meg``. With nothing selected, all input-node outputs are disabled.
-``anat`` likewise requires a selected anatomical file in the anatomy tab;
-selecting raw recordings does not automatically select anatomy. Other selectable
-file types follow the same rule, and selected files must exist on disk.
-With no raw recordings selected, metadata and subject outputs remain disabled
-even when anatomical files are selected.
+``anat`` requires a matching T1w for every selected recording. A session-specific
+T1w is preferred over a subject-level T1w; no match or multiple equally specific
+matches disable the output. Anatomy-dependent functions run in the context of
+selected recordings, and anat-only results are reused for recordings sharing the
+same MRI subject and anatomy image. Other selectable file types follow the same
+rule, and selected files must exist on disk. With no raw recordings selected,
+associated outputs remain disabled.
 Changing selections, saving transformations, changing the derivative root, or
 importing subjects refreshes availability without removing existing connections.
 Checkbox changes reuse the input node's known datatypes and empty-room inventory

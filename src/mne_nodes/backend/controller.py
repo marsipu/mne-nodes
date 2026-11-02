@@ -128,7 +128,7 @@ class Controller:
         self.disk_interval = 10  # seconds
         # raw datatypes
         self.raw_types = ["eeg", "meg", "ieeg"]
-        self.non_selectable_datatypes = ["event_id", "info", "trans", "raw_er"]
+        self.non_selectable_datatypes = ["event_id", "info", "trans", "raw_er", "anat"]
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
         self._process_count = 0
@@ -1068,7 +1068,7 @@ class Controller:
         bids_dt = [
             dt for dt in get_datatypes(bids_root) if dt not in excluded_datatypes
         ]
-        bids_dt += self.non_selectable_datatypes
+        bids_dt += [dt for dt in self.non_selectable_datatypes if dt not in bids_dt]
         # Optional associated outputs retain their identity and saved connections.
         bids_dt += ["subject"]
         return bids_dt
@@ -1305,6 +1305,14 @@ class Controller:
                         )
                 except (OSError, ValueError, RuntimeError) as error:
                     unavailable["trans"] = str(error)
+        anatomy_candidates = self._get_datatype_candidates("anat")
+        if "anat" not in unavailable:
+            for recording in recordings:
+                try:
+                    self._match_recording_anat(recording, anatomy_candidates)
+                except (FileNotFoundError, ValueError) as error:
+                    unavailable["anat"] = str(error)
+                    break
         for scope, selected in self.get("selected_inputs").items():
             if scope not in self.scopes or not selected:
                 continue
@@ -1403,10 +1411,13 @@ class Controller:
         return _load(items)
 
     def load_anat(self, items: BIDSPath | list[BIDSPath]) -> Path | list[Path]:
-        """Return selected BIDS anatomy image paths without loading image data."""
+        """Return matching T1w paths for recordings without loading image data."""
 
         def _load(bp: BIDSPath) -> Path:
-            path = bp.copy().update(root=self.bids_root, datatype="anat").fpath
+            if bp.datatype == "anat":
+                path = bp.copy().update(root=self.bids_root).fpath
+            else:
+                path = self.find_recording_anat(bp).fpath
             if not path.is_file():
                 raise FileNotFoundError(f"Anatomy image is missing: {path}.")
             return path
@@ -1414,6 +1425,41 @@ class Controller:
         if isinstance(items, list):
             return [_load(bp) for bp in items]
         return _load(items)
+
+    def find_recording_anat(self, recording: BIDSPath) -> BIDSPath:
+        """Find the matching session-specific or subject-level T1w anatomy."""
+        return self._match_recording_anat(
+            recording, self._get_datatype_candidates("anat")
+        )
+
+    @staticmethod
+    def _match_recording_anat(
+        recording: BIDSPath, candidates: list[BIDSPath]
+    ) -> BIDSPath:
+        """Choose the most specific unambiguous T1w candidate for a recording."""
+        matching = [
+            path
+            for path in candidates
+            if path.subject == recording.subject
+            and path.suffix == "T1w"
+            and path.session in (None, recording.session)
+        ]
+        if recording.session is not None:
+            session_specific = [
+                path for path in matching if path.session == recording.session
+            ]
+            if session_specific:
+                matching = session_specific
+        if not matching:
+            raise FileNotFoundError(
+                f"No matching T1w anatomy (missing) for {recording.basename}."
+            )
+        if len(matching) > 1:
+            paths = ", ".join(sorted(str(path.fpath) for path in matching))
+            raise ValueError(
+                f"Ambiguous T1w anatomy for {recording.basename}: {paths}."
+            )
+        return matching[0]
 
     def load_subject(self, subject):
         result = subject in self.get_datatype_items("subject")

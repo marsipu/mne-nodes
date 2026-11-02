@@ -246,6 +246,11 @@ class CodeGenerator:
                         for param, ports in n.get("input_ports", {}).items()
                         if "raw_er" in ports
                     } & dataset_inputs
+                    anatomy_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if "anat" in ports
+                    } & dataset_inputs
                     recording_inputs = {
                         param
                         for param, ports in n.get("input_ports", {}).items()
@@ -290,9 +295,11 @@ class CodeGenerator:
                             body += self._indent("_recording_raw = raw\n", 1)
                             loaded_data.add("_recording_raw")
                             loaded_data.update({"raw", "event_id"})
-                        elif ip == "anat":
+                        elif ip == "anat" or ip in anatomy_inputs:
                             body += self._indent(f"anat = ct.load_anat({source})\n", 1)
                             loaded_data.add("anat")
+                            subject_data.add("anat")
+                            func_inputs[ip] = "anat"
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
                             body += self._indent(
@@ -392,12 +399,16 @@ class CodeGenerator:
                         cached_values = ", ".join(
                             dict.fromkeys([*n["outputs"], *sorted(subject_data)])
                         )
-                        body += self._indent(
-                            f"_subject_key = ({target!r}, {name!r}, "
-                            f"ct.load_recording_subject({source}))\n"
-                            "if _subject_key not in _subject_cache:\n",
-                            1,
-                        )
+                        subject_key = f"_subject_key = ({target!r}, {name!r})\n"
+                        if "subject" in subject_data:
+                            subject_key += "_subject_key += (subject,)\n"
+                        if "anat" in subject_data:
+                            subject_key += (
+                                "_subject_key += "
+                                "(tuple(anat) if isinstance(anat, list) else anat,)\n"
+                            )
+                        subject_key += "if _subject_key not in _subject_cache:\n"
+                        body += self._indent(subject_key, 1)
                         body += self._indent(func_line, 2)
                         body += self._indent(
                             f"_subject_cache[_subject_key] = "
