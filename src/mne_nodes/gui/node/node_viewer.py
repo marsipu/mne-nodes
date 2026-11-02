@@ -10,7 +10,17 @@ from collections import OrderedDict
 from typing import TypeGuard
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from qtpy.QtCore import (
+    QMimeData,
+    QPoint,
+    QPointF,
+    QProcess,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    Signal,
+)
 from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
@@ -750,6 +760,92 @@ class NodeViewer(QGraphicsView):
 
         return node_sequence
 
+    def get_selected_node_sequence(self, nodes=None):
+        """Build a combined execution sequence for selected nodes and descendants."""
+        nodes = list(nodes if nodes is not None else self.selected_nodes())
+        selected = set(nodes)
+        roots = []
+        for node in nodes:
+            pending = [
+                upstream
+                for connected in node.connected_input_nodes().values()
+                for upstream in connected
+            ]
+            visited = set()
+            has_selected_ancestor = False
+            while pending:
+                upstream = pending.pop()
+                if upstream in visited:
+                    continue
+                visited.add(upstream)
+                if upstream in selected:
+                    has_selected_ancestor = True
+                    break
+                pending.extend(
+                    ancestor
+                    for connected in upstream.connected_input_nodes().values()
+                    for ancestor in connected
+                )
+            if not has_selected_ancestor:
+                roots.append(node)
+
+        node_sequence = {"file": [], "group": []}
+        seen = {"file": set(), "group": set()}
+        for node in roots:
+            for target, descriptions in self.get_node_sequence(node).items():
+                for description in descriptions:
+                    if description["name"] not in seen[target]:
+                        node_sequence[target].append(description)
+                        seen[target].add(description["name"])
+        return node_sequence
+
+    def mark_dirty(self, node):
+        """Mark a node and all of its downstream function nodes for rerun."""
+        pending = [node]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            if isinstance(current, FunctionNode):
+                current.dirty = True
+            pending.extend(
+                downstream
+                for connected in current.connected_output_nodes().values()
+                for downstream in connected
+            )
+
+    def start_nodes(self, nodes):
+        """Run the selected nodes and their downstream nodes."""
+        node_sequence = self.get_selected_node_sequence(nodes)
+        process = self.ct.start(node_sequence)
+        if process is not None and hasattr(process, "allFinished"):
+            executed_names = {
+                description["name"]
+                for descriptions in node_sequence.values()
+                for description in descriptions
+                if description.get("checked", True)
+            }
+            process.allFinished.connect(
+                lambda exit_code, exit_status: self._mark_sequence_clean(
+                    executed_names
+                )
+                if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
+                else None
+            )
+        return node_sequence
+
+    def _mark_sequence_clean(self, node_names):
+        """Clear rerun indicators for nodes that completed successfully."""
+        for node in self.nodes.values():
+            if node.name not in node_names:
+                continue
+            node.dirty = False
+            if isinstance(node, FunctionNode):
+                for parameter_name in node.parameter_frames:
+                    node.set_parameter_dirty(parameter_name, False)
+
     ####################################################################################
     # Frontend
     ####################################################################################
@@ -921,6 +1017,13 @@ class NodeViewer(QGraphicsView):
         self.RMB_state = False
 
         menu = QMenu(self)
+        if self.selected_nodes():
+            menu.addSeparator()
+            start_action = QAction("Start selected nodes", menu)
+            start_action.triggered.connect(
+                lambda: self.start_nodes(self.selected_nodes())
+            )
+            menu.addAction(start_action)
         for category, cat_dict in self.ct.get_functions_categorized().items():
             category_menu = menu.addMenu(category)
             for sub_category, func_list in cat_dict.items():
