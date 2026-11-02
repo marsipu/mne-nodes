@@ -175,6 +175,10 @@ are preserved until explicitly edited or re-analyzed. Imported functions and
 configured class methods are available even if the script has no function
 definitions. Additional tabs expose existing package configuration and metadata
 (``pyproject.toml``, ``README.md`` and ``LICENSE``), without recreating the package.
+After renaming or deleting a function, use **Re-analyze Code** before saving to
+remove its old node configuration. Re-analysis preserves explicit imported
+bindings, Python aliases, and configured external functions and class methods;
+an absent local definition alone is not treated as an import.
 
 Local projects and editable-install source trees are edited in place.
 Ordinary installed package files are never edited in the Python environment.

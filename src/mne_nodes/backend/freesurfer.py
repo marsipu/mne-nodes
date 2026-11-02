@@ -5,15 +5,17 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from inspect import unwrap
+from inspect import getmodule, unwrap
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
 from typing import Any
 
 from mne_nodes import iswin
 from mne_nodes.backend.execution import WorkerSignals
+from mne_nodes.backend.plugin_package import plugin_source_is_installed
 
 
 def is_freesurfer_subject(path: Path) -> bool:
@@ -272,8 +274,9 @@ def run_freesurfer_function(
     """Execute an importable Python function in the FreeSurfer child environment.
 
     Trusted, private temporary pickle files preserve MNE/numpy results. The
-    child Python must have compatible dependencies and the function's module
-    installed. Qt objects, closures and live GUI state must not be passed.
+    Local source modules are made importable in the child. Installed modules
+    require compatible child dependencies. Qt objects, closures and live GUI
+    state must not be passed.
     """
     from mne_nodes.backend._freesurfer_worker import PathPickler
 
@@ -294,11 +297,24 @@ def run_freesurfer_function(
     def translate_values(value: Any) -> Any:
         if isinstance(value, str) and iswin and PureWindowsPath(value).is_absolute():
             return translate(value)
-        if isinstance(value, dict):
+        # Container subclasses such as MNE Info must retain their pickle protocol.
+        if type(value) is dict:
             return {key: translate_values(item) for key, item in value.items()}
-        if isinstance(value, (tuple, list)):
+        if type(value) in (tuple, list):
             return type(value)(translate_values(item) for item in value)
         return value
+
+    import_root = ""
+    source = getattr(getmodule(function), "__file__", None)
+    if source is not None:
+        source_path = Path(source).resolve()
+        if not source_path.is_relative_to(
+            Path(sysconfig.get_path("stdlib")).resolve()
+        ) and not plugin_source_is_installed(source_path):
+            depth = len(function.__module__.split(".")) - 1
+            if source_path.stem == "__init__":
+                depth += 1
+            import_root = translate(str(source_path.parents[depth]))
 
     worker = Path(__file__).with_name("_freesurfer_worker.py")
     with TemporaryDirectory(prefix="mne-nodes-freesurfer-") as directory:
@@ -316,6 +332,7 @@ def run_freesurfer_function(
                 request,
                 response,
                 "wsl" if iswin else "native",
+                import_root,
             ],
             subjects_dir,
             runtime=runtime,

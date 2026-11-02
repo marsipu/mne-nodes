@@ -25,7 +25,7 @@ class FunctionNode(BaseNode):
             checkbox = "Save"
         else:
             checkbox = None
-        super().__init__(ct, checkbox=checkbox, startable=True, **kwargs)
+        super().__init__(ct, checkbox=checkbox, startable=False, **kwargs)
         # Set Tooltip
         self.setToolTip(func_meta.get("description", ""))
         # Initialize inputs and outputs

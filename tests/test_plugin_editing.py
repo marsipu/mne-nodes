@@ -494,18 +494,37 @@ def test_editor_saves_source_configuration_and_package_files(qtbot, source):
     editor.close()
 
 
-def test_editor_keeps_imported_function_configuration(qtbot, source):
-    source.script_path.write_text("from math import sqrt\n", encoding="utf-8")
-    source.config_path.write_text(json.dumps({"sqrt": CONFIG["transform"]}))
+@pytest.mark.parametrize("local_code", ["", CODE.replace("transform", "renamed")])
+def test_editor_keeps_imported_function_configuration(qtbot, source, ct, local_code):
+    source.script_path.write_text(
+        "from math import sqrt\nsquare_root = sqrt\n" + local_code, encoding="utf-8"
+    )
+    config = {
+        name: json.loads(json.dumps(CONFIG["transform"]))
+        for name in ("sqrt", "square_root", "transform", "renamed")
+    }
+    config["cos"] = {**CONFIG["transform"], "module_name": "math"}
+    config["upper"] = {
+        **CONFIG["transform"],
+        "module_name": "builtins",
+        "class_name": "str",
+    }
+    source.config_path.write_text(json.dumps(config))
     editor = FunctionImporter(source=source)
     qtbot.addWidget(editor)
     editor.reanalyze()
-    assert set(editor.func_config) == {"sqrt"}
+    expected = {"sqrt", "square_root", "cos", "upper"}
+    if local_code:
+        expected.add("renamed")
+    assert set(editor.func_config) == expected
     editor.function_cmbx.setCurrentText("sqrt")
     assert editor.current_func == "sqrt"
     editor.func_config["sqrt"]["target"] = "group"
     assert editor.save()
     assert json.loads(source.config_path.read_text())["sqrt"]["target"] == "group"
+    ct.load_plugin_path(source.config_path)
+    assert set(ct.get_func_by_input("value")) >= expected
+    assert "transform" not in ct.get_func_by_input("value")
     editor.close()
 
 

@@ -6,6 +6,7 @@ import pickle
 import shutil
 import subprocess
 import sys
+from importlib import import_module
 from pathlib import Path
 from types import ModuleType
 
@@ -163,6 +164,8 @@ def test_native_setup_isolated_and_arguments_literal(tmp_path, monkeypatch, caps
 
 
 def test_python_worker_result_and_path_pickling(tmp_path, monkeypatch):
+    import mne
+
     monkeypatch.setattr(freesurfer, "iswin", False)
     monkeypatch.setattr(
         freesurfer,
@@ -174,6 +177,38 @@ def test_python_worker_result_and_path_pickling(tmp_path, monkeypatch):
         json.loads, {"s": '{"value": [1, 2]}'}, tmp_path, runtime=runtime
     )
     assert result == {"value": [1, 2]}
+    info = mne.create_info(["MEG001", "MEG002"], 1000, "mag")
+    info["bads"] = ["MEG002"]
+    result = freesurfer.run_freesurfer_function(
+        mne.pick_info, {"info": info, "sel": [0, 1]}, tmp_path, runtime=runtime
+    )
+    assert isinstance(result, mne.Info)
+    assert result["bads"] == ["MEG002"]
+    package = tmp_path / "local_fs_fixture"
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "helper.py").write_text(
+        "from dataclasses import dataclass\n"
+        "@dataclass\n"
+        "class Payload:\n"
+        "    value: int\n",
+        encoding="utf-8",
+    )
+    (package / "functions.py").write_text(
+        "from .helper import Payload\n"
+        "def transform(payload):\n"
+        "    return payload.value\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    function = import_module("local_fs_fixture.functions").transform
+    payload = import_module("local_fs_fixture.helper").Payload(42)
+    assert (
+        freesurfer.run_freesurfer_function(
+            function, {"payload": payload}, tmp_path, runtime=runtime
+        )
+        == 42
+    )
     path_file = tmp_path / "paths.pkl"
     with path_file.open("wb") as stream:
         PathPickler(stream, lambda text: text + "-translated").dump(tmp_path)

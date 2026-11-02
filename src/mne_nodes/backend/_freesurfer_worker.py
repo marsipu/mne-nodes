@@ -22,7 +22,9 @@ class PathPickler(pickle.Pickler):
 
 def main() -> None:
     """Load a private request, invoke the callable and persist its result."""
-    request, response, mode = sys.argv[1:]
+    request, response, mode, import_root = sys.argv[1:]
+    if import_root:
+        sys.path.insert(0, import_root)
     with open(request, "rb") as stream:
         module, qualname, kwargs = pickle.load(stream)
     function = importlib.import_module(module)

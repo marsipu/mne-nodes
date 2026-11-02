@@ -68,8 +68,10 @@ environment (a graphical MNE installation is unnecessary for watershed)::
     conda run -n mne python -c "import mne; print(mne.__version__)"
 
 MNE must be installed inside WSL even when already installed on Windows.
-Custom Python functions also need their importable package/dependencies installed
-in the Linux environment. MNE-Nodes itself need not be installed in WSL.
+Local plugin source directories are made importable in the child, including
+sibling modules and relative imports; no separate WSL plugin installation is
+needed. Their dependencies and non-editable installed packages must still be
+installed in the Linux environment. MNE-Nodes itself need not be installed in WSL.
 Compatible MNE/numpy versions on both sides are recommended when returning
 Python objects.
 

@@ -346,7 +346,6 @@ class FunctionImporter(QDialog):
         self._original: dict[Path, str] = {}
         self.package_editors: dict[Path, QPlainTextEdit] = {}
         self.source_editor: QPlainTextEdit | None = None
-        self._imported_functions: set[str] = set()
         self._reload_pending = register_on_save
         # Check code parameter
         # Attributes
@@ -551,9 +550,29 @@ class FunctionImporter(QDialog):
     def analyze_code(self, code):
         # Analyze the code to extract inputs and parameters
         function_defs = self._parse_functions(code, allow_empty=self.source is not None)
-        function_names = {
-            func.name for func in function_defs
-        } | self._imported_functions
+        function_names = {func.name for func in function_defs}
+        for node in ast.parse(code).body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                function_names.update(
+                    alias.asname or alias.name.split(".")[0] for alias in node.names
+                )
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = (
+                    node.targets if isinstance(node, ast.Assign) else [node.target]
+                )
+                function_names.update(
+                    name.id
+                    for target in targets
+                    for name in ast.walk(target)
+                    if isinstance(name, ast.Name) and isinstance(name.ctx, ast.Store)
+                )
+        function_names.update(
+            name
+            for name, config in self.func_config.items()
+            if config.get("module_name")
+            or config.get("class_name")
+            or "command" in config
+        )
         self.func_config = {
             name: config
             for name, config in self.func_config.items()
@@ -968,10 +987,7 @@ class FunctionImporter(QDialog):
             self.tab_widget.addTab(editor, path.name)
             if path == source.script_path:
                 self.source_editor = editor
-        definitions = self._parse_functions(self.get_code(), allow_empty=True)
-        self._imported_functions = set(self.func_config) - {
-            func.name for func in definitions
-        }
+        self._parse_functions(self.get_code(), allow_empty=True)
         self._saved_config = json.dumps(
             self.func_config, sort_keys=True, cls=TypedJSONEncoder
         )
