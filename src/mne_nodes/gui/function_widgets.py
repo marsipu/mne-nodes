@@ -270,10 +270,15 @@ class ParameterConfiguration(QDialog):
             return None
         types, none_select = split_type_hint(param["annotation"])
         gui_type = types[0]
+        if gui_type == "Sequence":
+            gui_type = "list"
+        default = param["default"]
+        if default is inspect.Parameter.empty:
+            default = [] if gui_type == "list" else None
         gui = default_type_guis.get(gui_type, MultiTypeGui)(
             data=self.config,
             name=name,
-            default=param["default"],
+            default=default,
             none_select=none_select,
             groupbox_layout=False,
         )
@@ -291,7 +296,8 @@ class ParameterConfiguration(QDialog):
         config_items = {
             name: {"default": param.default, "annotation": param.annotation}
             for name, param in inspect.signature(gui_class).parameters.items()
-            if param.default != inspect.Parameter.empty
+            if param.kind
+            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
         }
         if len(config_items) == 0:
             self.specific_label.hide()

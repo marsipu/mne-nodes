@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from packaging.utils import canonicalize_name
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,
@@ -14,11 +15,12 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.backend.exception_handling import get_exception_tuple
-from mne_nodes.backend.package_utils import install_local_plugin
+from mne_nodes.backend.package_utils import install_local_plugin, uninstall_pip_packages
 from mne_nodes.backend.plugin_package import (
     copy_plugin_source,
     get_plugin_source,
     initialize_plugin_repository,
+    plugin_source_is_installed,
 )
 from mne_nodes.gui.dialogs import ErrorDialog
 from mne_nodes.gui.function_widgets import FunctionImporter
@@ -50,7 +52,8 @@ class PluginManagerDlg(QDialog):
     * **Remove** – unregisters the plugin from the project without deleting
         its files or uninstalling its distribution.
     * **Edit** opens local source and configuration; installed distributions
-      must first be copied to a local project.
+      without editable source offer **Copy to edit** instead.
+    * **Uninstall** removes an installed distribution using pip.
 
     Parameters
     ----------
@@ -126,7 +129,7 @@ class PluginManagerDlg(QDialog):
             )
         for record in self.ct.installed_plugins.values():
             if "error" in record and record.get("plugin_name") not in plugin_meta:
-                card, _actions = self._card(
+                card, actions = self._card(
                     record["entry_point_name"],
                     "error",
                     "Nodes unavailable",
@@ -134,6 +137,7 @@ class PluginManagerDlg(QDialog):
                     f"{record.get('version', '')}".strip(),
                     [record["error"]],
                 )
+                self._add_uninstall_button(card, actions, record["distribution_name"])
                 self._rows_layout.addWidget(card)
 
     def _discover_plugins(self) -> None:
@@ -248,6 +252,23 @@ class PluginManagerDlg(QDialog):
             card.setToolTip(str(meta["config_path"]))
 
         edit_bt = QPushButton("Edit...", card)
+        try:
+            override = self.ct.settings.get("plugin_config", {}).get(plugin_name)
+            source = get_plugin_source(meta, override)
+        except (OSError, ValueError, TypeError) as error:
+            edit_bt.setEnabled(False)
+            edit_bt.setToolTip(str(error))
+        else:
+            if source.installed:
+                edit_bt.setEnabled(False)
+                edit_bt.setToolTip(
+                    "Only local or editable plugin sources can be edited directly."
+                )
+                copy_bt = QPushButton("Copy to edit...", card)
+                copy_bt.clicked.connect(
+                    lambda _checked, pn=plugin_name: self._edit_plugin(pn)
+                )
+                actions.addWidget(copy_bt)
         edit_bt.clicked.connect(lambda _checked, pn=plugin_name: self._edit_plugin(pn))
         actions.addWidget(edit_bt)
 
@@ -264,14 +285,78 @@ class PluginManagerDlg(QDialog):
         remove_bt.setEnabled(not installed)
         if installed:
             remove_bt.setToolTip(
-                "Installed plugins remain discoverable. Disable the plugin instead."
+                "Installed plugins remain discoverable. Disable or uninstall instead."
             )
         remove_bt.clicked.connect(
             lambda _checked, pn=plugin_name: self._remove_plugin(pn)
         )
         actions.addWidget(remove_bt)
+        for distribution in dict.fromkeys(
+            record["distribution_name"] for record in registrations
+        ):
+            self._add_uninstall_button(card, actions, distribution)
 
         return card
+
+    def _add_uninstall_button(
+        self, card: QFrame, actions: QHBoxLayout, distribution_name: str
+    ) -> None:
+        button = QPushButton("Uninstall...", card)
+        button.setToolTip(
+            f"Uninstall {distribution_name} from this Python environment."
+        )
+        button.clicked.connect(
+            lambda _checked, name=distribution_name: self._uninstall_distribution(name)
+        )
+        actions.addWidget(button)
+
+    def _uninstall_distribution(self, distribution_name: str) -> None:
+        question = (
+            f"Uninstall package '{distribution_name}' from this Python environment "
+            "using pip?\nAll plugins supplied by this package will be unavailable, "
+            "and their active nodes will be removed. Other software using this "
+            "environment may also be affected. Local editable source files "
+            "will not be deleted."
+        )
+        if not ask_user(question, parent=self):
+            return
+        try:
+            registrations = {
+                identity: record
+                for identity, record in self.ct.installed_plugins.items()
+                if canonicalize_name(record["distribution_name"])
+                == canonicalize_name(distribution_name)
+            }
+            plugin_meta = self.ct.get("plugin_meta", {})
+            plugins_to_remove = set()
+            for record in registrations.values():
+                name = record.get("plugin_name")
+                if name not in plugin_meta:
+                    continue
+                meta = plugin_meta[name]
+                if meta.get("plugin_type") == "path":
+                    paths = {
+                        **meta,
+                        **self.ct.settings.get("plugin_config", {}).get(name, {}),
+                    }
+                    if not any(
+                        plugin_source_is_installed(Path(paths[key]))
+                        for key in ("config_path", "script_path")
+                        if paths.get(key)
+                    ):
+                        continue
+                plugins_to_remove.add(name)
+            uninstall_pip_packages([distribution_name], parent=self)
+            for name in plugins_to_remove:
+                self.ct.remove_plugin(name)
+            for identity in registrations:
+                self.ct.installed_plugins.pop(identity, None)
+            self.ct.discover_installed_plugins()
+        except Exception:  # noqa: BLE001
+            ErrorDialog(
+                get_exception_tuple(), self, "Could not uninstall the plugin package."
+            ).open()
+        self._refresh_rows()
 
     def _edit_plugin(self, plugin_name: str) -> None:
         editor = None

@@ -7,10 +7,66 @@ from qtpy.QtCore import QMimeData, QPointF, Qt, QUrl
 from qtpy.QtGui import QDropEvent
 
 from mne_nodes.backend.plugin_package import PluginPackageMetadata
-from mne_nodes.gui.function_widgets import FunctionImporter
+from mne_nodes.gui.function_widgets import FunctionImporter, ParameterConfiguration
 from mne_nodes.gui.gui_utils import is_function_import_mime
+from mne_nodes.gui.parameter import BoolGui, CheckListGui, ComboGui, ListGui
+from mne_nodes.gui.widgets.list_widgets import EditList
+from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 CODE = "def transform(raw, scale=2):\n    result = raw * scale\n    return result\n"
+
+
+@pytest.mark.parametrize("gui_class", [ComboGui, CheckListGui])
+@pytest.mark.parametrize("existing_options", [None, ["first", "second"]])
+def test_parameter_configuration_required_options(qtbot, gui_class, existing_options):
+    """Required option sequences can be edited and reused by parameter GUIs."""
+    config = {"gui": gui_class.__name__}
+    if existing_options is not None:
+        config["options"] = existing_options.copy()
+    dialog = ParameterConfiguration("choice", config)
+    qtbot.addWidget(dialog)
+    widgets = {
+        dialog.specific_gui_config_layout.itemAt(index)
+        .widget()
+        .name: dialog.specific_gui_config_layout.itemAt(index).widget()
+        for index in range(dialog.specific_gui_config_layout.count())
+    }
+    assert "options" in widgets
+    options = widgets["options"]
+    assert isinstance(options, ListGui)
+    assert not options.none_select
+    assert options.value == (existing_options or [])
+    assert "kwargs" not in widgets
+    if gui_class is ComboGui:
+        assert isinstance(widgets["editable"], BoolGui)
+        assert widgets["editable"].value is False
+    else:
+        assert isinstance(widgets["one_check"], BoolGui)
+        assert widgets["one_check"].value is False
+
+    options.open_dialog()
+    list_dialog = options.findChild(SimpleDialog)
+    edit_list = list_dialog.findChild(EditList)
+    row = edit_list.model.rowCount()
+    edit_list.model.insertRow(row)
+    assert edit_list.model.setData(
+        edit_list.model.index(row, 0), "third", Qt.ItemDataRole.EditRole
+    )
+    list_dialog.close()
+    expected_options = [*(existing_options or []), "third"]
+    assert config["options"] == expected_options
+    dialog.close()
+    reopened = ParameterConfiguration("choice", config)
+    qtbot.addWidget(reopened)
+    assert (
+        reopened.specific_gui_config_layout.itemAt(0).widget().value == expected_options
+    )
+    default = "third" if gui_class is ComboGui else []
+    widget = gui_class(
+        data={}, name="choice", options=config["options"], default=default
+    )
+    qtbot.addWidget(widget)
+    assert list(widget.options) == config["options"]
 
 
 @pytest.fixture

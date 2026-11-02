@@ -89,7 +89,7 @@ def install_pip_packages(
     )
 
     importlib.invalidate_caches()
-    _raise_on_install_failure(dlg, package_names)
+    _raise_on_pip_failure(dlg, package_names, "installation")
 
     return dlg
 
@@ -108,14 +108,19 @@ def install_local_plugin(
 def uninstall_pip_packages(
     package_names: list, parent: QWidget | None = None
 ) -> ProcessDialog:
+    """Uninstall distributions and report failed or incomplete pip processes."""
+    if not package_names:
+        raise ValueError("No package names provided for uninstallation.")
     dlg = ProcessDialog(
         commands=[(sys.executable, "-m", "pip", "uninstall", "-y", *package_names)],
         parent=parent,
         title=f"Uninstalling Packages {', '.join(package_names)}",
+        close_directly=False,
         blocking=True,
     )
 
     importlib.invalidate_caches()
+    _raise_on_pip_failure(dlg, package_names, "uninstallation")
 
     return dlg
 
@@ -150,19 +155,21 @@ def install_github_package(
     )
 
     importlib.invalidate_caches()
-    _raise_on_install_failure(dlg, [repo_url])
+    _raise_on_pip_failure(dlg, [repo_url], "installation")
 
     return dlg
 
 
-def _raise_on_install_failure(dialog: ProcessDialog, packages: list[str]) -> None:
+def _raise_on_pip_failure(
+    dialog: ProcessDialog, packages: list[str], operation: str
+) -> None:
     """Raise an error when a pip process did not complete successfully."""
     package_list = ", ".join(packages)
     if dialog.exit_code is None:
-        raise RuntimeError(f"Package installation did not complete: {package_list}")
+        raise RuntimeError(f"Package {operation} did not complete: {package_list}")
     if dialog.exit_code != 0:
         raise RuntimeError(
-            f"Package installation failed with exit code "
+            f"Package {operation} failed with exit code "
             f"{dialog.exit_code}: {package_list}"
         )
 

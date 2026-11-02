@@ -7,12 +7,13 @@ import sys
 from dataclasses import replace
 
 import pytest
-from qtpy.QtWidgets import QDialog
+from qtpy.QtWidgets import QDialog, QPushButton
 
 from mne_nodes.backend.package_utils import (
     install_github_package,
     install_local_plugin,
     install_pip_packages,
+    uninstall_pip_packages,
 )
 from mne_nodes.backend.plugin_package import (
     PluginPackageMetadata,
@@ -173,13 +174,17 @@ def test_local_installation_mode(qtbot, tmp_path, source, info, monkeypatch, edi
 
 
 @pytest.mark.parametrize("exit_code", [0, 7])
-@pytest.mark.parametrize("kind", ["pip", "github", "local"])
+@pytest.mark.parametrize("kind", ["pip", "github", "local", "uninstall"])
 def test_install_result_after_process_cleanup(
     qtbot, monkeypatch, tmp_path, kind, exit_code
 ):
     """Installation results remain available after Qt deletes the process."""
 
     def run_test_command(**kwargs):
+        if kind == "uninstall":
+            assert kwargs["commands"] == [
+                (sys.executable, "-m", "pip", "uninstall", "-y", "example-plugin")
+            ]
         kwargs["commands"] = [
             (sys.executable, "-c", f"import sys; sys.exit({exit_code})")
         ]
@@ -202,16 +207,25 @@ def test_install_result_after_process_cleanup(
             return install_github_package("https://github.com/owner/plugin")
         if kind == "local":
             return install_local_plugin(tmp_path)
+        if kind == "uninstall":
+            return uninstall_pip_packages(["example-plugin"])
         return install_pip_packages(["example-plugin"])
 
     if exit_code:
+        operation = "uninstallation" if kind == "uninstall" else "installation"
         with pytest.raises(
-            RuntimeError, match=f"installation failed with exit code {exit_code}"
+            RuntimeError, match=f"{operation} failed with exit code {exit_code}"
         ):
             install()
     else:
         dialog = install()
         assert dialog.exit_code == 0
+
+
+def test_uninstall_requires_package_names():
+    """An empty request must not launch pip."""
+    with pytest.raises(ValueError, match="No package names"):
+        uninstall_pip_packages([])
 
 
 def test_real_editable_install_links_source_without_changing_environment(
@@ -291,6 +305,120 @@ def test_edit_local_plugin_saves_and_reloads(main_window, source, errors, disabl
     manager._edit_plugin("edit_fixture")
     assert len(errors) == 1
     assert len(_editors(manager)) == open_editors
+    manager.close()
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_manager_edit_action_matches_source(
+    main_window, source, monkeypatch, installed
+):
+    """Only local/editable source has a direct Edit action."""
+    ct = main_window.controller
+    ct.load_plugin_path(source.config_path)
+    monkeypatch.setattr(
+        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source",
+        lambda *args: replace(source, installed=installed),
+    )
+    manager = PluginManagerDlg(main_window, ct)
+    card = manager._make_row(
+        "edit_fixture", ct.get("plugin_meta")["edit_fixture"], False
+    )
+    buttons = {button.text(): button for button in card.findChildren(QPushButton)}
+    assert buttons["Edit..."].isEnabled() is not installed
+    assert ("Copy to edit..." in buttons) is installed
+    source.script_path.unlink()
+    monkeypatch.setattr(
+        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source", get_plugin_source
+    )
+    unavailable = manager._make_row(
+        "edit_fixture", ct.get("plugin_meta")["edit_fixture"], False
+    )
+    edit = next(
+        button
+        for button in unavailable.findChildren(QPushButton)
+        if button.text() == "Edit..."
+    )
+    assert not edit.isEnabled()
+    assert "missing" in edit.toolTip()
+    card.deleteLater()
+    unavailable.deleteLater()
+    manager.close()
+
+
+@pytest.mark.parametrize("outcome", ["success", "cancel", "failure"])
+@pytest.mark.parametrize(
+    "registration", ["entry_point", "installed_path", "local_path", "broken"]
+)
+def test_manager_uninstalls_installed_distribution(
+    main_window, source, monkeypatch, errors, outcome, registration
+):
+    """Uninstall is available for installed plugins, including failed imports."""
+    ct = main_window.controller
+    broken = registration == "broken"
+    if not broken:
+        ct.load_plugin_path(source.config_path)
+        meta = ct.get("plugin_meta")["edit_fixture"]
+        ct.set_dict_value(
+            "plugin_meta",
+            "edit_fixture",
+            {
+                **meta,
+                "plugin_type": "entry_point"
+                if registration == "entry_point"
+                else "path",
+            },
+        )
+    monkeypatch.setattr(
+        "mne_nodes.gui.parameter.plugin_manager.plugin_source_is_installed",
+        lambda path: registration == "installed_path",
+    )
+    record = {
+        "distribution_name": "mne-nodes_edit-fixture",
+        "entry_point_name": "edit_fixture",
+        "module_name": "mne_nodes_edit_fixture",
+        "version": "0.1.0",
+    }
+    if broken:
+        record["error"] = "Import failed"
+    else:
+        record["plugin_name"] = "edit_fixture"
+    identity = "mne-nodes-edit-fixture:edit_fixture"
+    ct.installed_plugins = {identity: record}
+    monkeypatch.setattr(ct, "discover_installed_plugins", lambda: None)
+    questions = []
+
+    def confirm(question, **kwargs):
+        questions.append(question)
+        return outcome != "cancel"
+
+    monkeypatch.setattr("mne_nodes.gui.parameter.plugin_manager.ask_user", confirm)
+    calls = []
+
+    def uninstall(packages, **kwargs):
+        calls.append(packages)
+        if outcome == "failure":
+            raise RuntimeError("pip failed")
+
+    monkeypatch.setattr(
+        "mne_nodes.gui.parameter.plugin_manager.uninstall_pip_packages", uninstall
+    )
+    manager = PluginManagerDlg(main_window, ct)
+    card = manager._rows_layout.itemAt(manager._rows_layout.count() - 1).widget()
+    buttons = {button.text(): button for button in card.findChildren(QPushButton)}
+    assert buttons["Uninstall..."].isEnabled()
+    if not broken:
+        assert not buttons["Remove"].isEnabled()
+    buttons["Uninstall..."].click()
+    assert len(questions) == 1
+    assert record["distribution_name"] in questions[0]
+    assert calls == ([] if outcome == "cancel" else [[record["distribution_name"]]])
+    assert len(errors) == (1 if outcome == "failure" else 0)
+    assert (identity in ct.installed_plugins) is (outcome != "success")
+    if not broken:
+        retained = outcome != "success" or registration == "local_path"
+        assert ("edit_fixture" in ct.plugins) is retained
+        assert ("edit_fixture" in ct.get("plugin_meta")) is retained
+    assert source.script_path.is_file()
     manager.close()
 
 

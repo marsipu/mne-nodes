@@ -25,6 +25,10 @@ after editing a function. Code text requires a plugin name. Plugin names must
 be ASCII Python module names (identifiers, not keywords). Module imports,
 decorators and other supporting code are preserved.
 
+Use a parameter's settings dialog to select its GUI and edit its configuration.
+For ``ComboGui`` and ``CheckListGui``, edit the required ``options`` list under
+**Specific GUI Configuration** to set the available choices.
+
 On the first **Save**, complete the package metadata dialog and choose the
 project root directory. Supply a distribution name, version (initially
 ``0.1.0``), description, author/copyright holder and an explicit license choice.
@@ -127,8 +131,15 @@ Explicitly disabled plugins stay disabled across discovery, restarts and
 project changes on this device. Existing path-based registrations are preserved
 instead of being replaced by installed versions. **Manage Plugins** can disable
 plugins without uninstalling packages or deleting files. Installed plugins remain
-discoverable, so use Disable rather than Remove; Remove is available for other
-registrations. A missing or broken selected entry
+discoverable, so use **Disable** to keep an installation without loading it.
+**Uninstall...** runs pip in the application's Python environment after
+confirmation, removing the distribution and all its plugin registrations,
+including failed imports. This also removes active nodes supplied by that
+installation, but leaves local editable source files intact.
+Independent path-based registrations of local copies are kept.
+Pip failures are reported without removing the registrations.
+**Remove** is available for non-installed registrations only.
+A missing or broken selected entry
 point is reported, not silently skipped. A repository URL in package metadata
 does not cause an installed plugin to be reloaded from GitHub.
 
@@ -167,8 +178,9 @@ definitions. Additional tabs expose existing package configuration and metadata
 
 Local projects and editable-install source trees are edited in place.
 Ordinary installed package files are never edited in the Python environment.
-For these packages, **Edit...** offers to copy the plugin into a new local
-project first. The copy includes sibling helper modules and resources.
+For these packages, **Edit...** is disabled; **Copy to edit...** offers to copy
+the plugin into a new local project first.
+The copy includes sibling helper modules and resources.
 Choose appropriate metadata, preserving the original licensing and attribution.
 Saving the copy switches this project's registration to the local copy, while
 leaving the original installation unchanged.
