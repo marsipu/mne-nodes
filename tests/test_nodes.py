@@ -420,6 +420,15 @@ def test_selected_node_sequence(qtbot, ct):
         shared.get_description()[0]["name"],
     ]
 
+    cycle_a, cycle_b = [
+        viewer.add_function_node("test_filter") for _ in range(2)
+    ]
+    cycle_a.output(port_name="raw").connect_to(cycle_b.input(port_name="raw"))
+    cycle_b.output(port_name="raw").connect_to(cycle_a.input(port_name="raw"))
+    for selected_nodes in ([cycle_a], [cycle_a, cycle_b]):
+        with pytest.raises(RuntimeError, match="cycle"):
+            viewer.get_selected_node_sequence(selected_nodes)
+
 
 def test_parameter_change_marks_downstream_nodes_dirty(qtbot, ct):
     from mne_nodes.gui.node.node_viewer import NodeViewer

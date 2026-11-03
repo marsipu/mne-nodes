@@ -1002,6 +1002,7 @@ class NodeViewer(QGraphicsView):
     def get_selected_node_sequence(self, nodes=None):
         """Build a combined execution sequence for selected nodes and descendants."""
         nodes = list(nodes if nodes is not None else self.selected_nodes())
+        self._resolve_execution_order(nodes)
         selected = set(nodes)
         roots = []
         for node in nodes:
