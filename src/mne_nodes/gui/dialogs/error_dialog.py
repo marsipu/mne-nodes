@@ -78,7 +78,7 @@ class ErrorDialog(QDialog):
         layout.addWidget(QLabel("Traceback"))
         self.display = QTextEdit()
         self.display.setAccessibleName("Error traceback")
-        self.display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.display.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
         self.display.setFont(
             QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         )
