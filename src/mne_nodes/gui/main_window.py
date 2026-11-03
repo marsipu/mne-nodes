@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(console_wrap_action)
         self.console_wrap_action = console_wrap_action
 
-        settings_action = QAction("&Settings...", parent=self)
+        settings_action = QAction("&Settings", parent=self)
         settings_action.triggered.connect(self.show_settings)
         self.menuBar().addAction(settings_action)
 
