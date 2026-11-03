@@ -33,7 +33,7 @@ from rich.ansi import AnsiDecoder
 from mne_nodes.backend.execution import Process
 from mne_nodes.backend.settings import Settings
 from mne_nodes.backend.streams import init_streams
-from mne_nodes.gui.user_interaction import ask_user
+from mne_nodes.gui.dialogs.user_interaction import ask_user
 from mne_nodes.logger import logger
 
 

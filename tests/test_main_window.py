@@ -79,8 +79,8 @@ def test_settings_dialog(main_window, qtbot):
 
     from mne_nodes.backend.settings import Settings, settings_config
     from mne_nodes.gui.code_editor import HIGHLIGHT_COLORS, CodeEditor
+    from mne_nodes.gui.dialogs.settings_dialog import SettingsDlg
     from mne_nodes.gui.gui_theme import get_palette
-    from mne_nodes.gui.settings_dialog import SettingsDlg
 
     editor = CodeEditor()
     qtbot.addWidget(editor)

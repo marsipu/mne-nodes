@@ -23,9 +23,9 @@ from mne_nodes.backend.plugin_package import (
     plugin_source_is_installed,
 )
 from mne_nodes.gui.dialogs import ErrorDialog
+from mne_nodes.gui.dialogs.plugin_package import request_package_metadata
+from mne_nodes.gui.dialogs.user_interaction import ask_user, get_user_input
 from mne_nodes.gui.function_widgets import FunctionImporter
-from mne_nodes.gui.plugin_package import request_package_metadata
-from mne_nodes.gui.user_interaction import ask_user, get_user_input
 from mne_nodes.logger import logger
 
 _STATUS_COLORS = {

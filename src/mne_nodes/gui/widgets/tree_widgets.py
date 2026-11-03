@@ -19,7 +19,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes.backend.settings import Settings
-from mne_nodes.gui.user_interaction import get_user_input, raise_user_attention
+from mne_nodes.gui.dialogs.user_interaction import get_user_input, raise_user_attention
 from mne_nodes.gui.widget_models.tree_models import ShallowTreeModel, TreeModel
 from mne_nodes.gui.widgets.base import Base
 from mne_nodes.gui.widgets.list_widgets import CheckList

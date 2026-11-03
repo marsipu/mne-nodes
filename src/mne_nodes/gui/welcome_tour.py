@@ -46,10 +46,10 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.data_import import load_sample_bids, sample_bids_has_anatomy
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.plugin_package import PluginPackageMetadata, plugin_module_name
+from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
+from mne_nodes.gui.dialogs.user_interaction import ask_user
 from mne_nodes.gui.gui_theme import WELCOME_TOUR_STYLE
 from mne_nodes.gui.node.node_viewer import ARROW_KEY_DIRECTIONS
-from mne_nodes.gui.run_widgets import WorkerDialog
-from mne_nodes.gui.user_interaction import ask_user
 
 if TYPE_CHECKING:
     from mne_nodes.backend.controller import Controller

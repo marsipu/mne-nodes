@@ -38,6 +38,18 @@ Console output uses Rich for logging and progress, and ansi2html for GUI
 rendering. ANSI conversion runs in the stream worker; the GUI receives bounded
 batches rather than an update for every write.
 
+To try the error dialog and its reporting flow, run
+`conda run -n mnedev python -m development.error_dialog_tester` (or
+`python -m development.error_dialog_tester` in your development environment).
+The helper raises an intentional error without reading any data. Try copying
+the traceback, optionally including real system diagnostics, and opening the
+editable, redacted report preview with **Open GitHub issue…**. No pipeline is
+loaded, so plugin and dataset summaries are unavailable. Diagnostics are collected
+in a worker dialog so the interface stays responsive while system info is gathered.
+**Copy report and open GitHub** opens a real issue draft in your browser; it does
+not submit an issue.
+Cancel the preview to avoid opening the browser, and do not submit demo reports.
+
 Tests default to `mne_nodes.gui_mode = False`, including during collection and
 controller setup, so backend tests do not open JSON/plugin-loading progress
 dialogs. This does not prevent `pytest-qt` tests from constructing and exercising

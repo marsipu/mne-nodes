@@ -24,10 +24,10 @@ from mne_nodes.backend.plugin_package import (
     initialize_plugin_repository,
     plugin_source_is_installed,
 )
+from mne_nodes.gui.dialogs.plugin_manager import PluginManagerDlg
+from mne_nodes.gui.dialogs.plugin_package import LocalPluginInstallDialog
+from mne_nodes.gui.dialogs.run_dialogs import ProcessDialog
 from mne_nodes.gui.function_widgets import FunctionImporter
-from mne_nodes.gui.parameter.plugin_manager import PluginManagerDlg
-from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
-from mne_nodes.gui.run_widgets import ProcessDialog
 
 CODE = "def transform(value, scale=2):\n    result = value * scale\n    return result\n"
 CONFIG = {
@@ -60,7 +60,7 @@ def source(tmp_path, info):
 @pytest.fixture
 def errors(monkeypatch):
     captured = []
-    for module in ("function_widgets", "parameter.plugin_manager", "main_window"):
+    for module in ("function_widgets", "dialogs.plugin_manager", "main_window"):
         monkeypatch.setattr(
             f"mne_nodes.gui.{module}.ErrorDialog.open",
             lambda self: captured.append(self.windowTitle()),
@@ -316,7 +316,7 @@ def test_manager_edit_action_matches_source(
     ct = main_window.controller
     ct.load_plugin_path(source.config_path)
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source",
+        "mne_nodes.gui.dialogs.plugin_manager.get_plugin_source",
         lambda *args: replace(source, installed=installed),
     )
     manager = PluginManagerDlg(main_window, ct)
@@ -328,7 +328,7 @@ def test_manager_edit_action_matches_source(
     assert ("Copy to edit..." in buttons) is installed
     source.script_path.unlink()
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source", get_plugin_source
+        "mne_nodes.gui.dialogs.plugin_manager.get_plugin_source", get_plugin_source
     )
     unavailable = manager._make_row(
         "edit_fixture", ct.get("plugin_meta")["edit_fixture"], False
@@ -369,7 +369,7 @@ def test_manager_uninstalls_installed_distribution(
             },
         )
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.plugin_source_is_installed",
+        "mne_nodes.gui.dialogs.plugin_manager.plugin_source_is_installed",
         lambda path: registration == "installed_path",
     )
     record = {
@@ -391,7 +391,7 @@ def test_manager_uninstalls_installed_distribution(
         questions.append(question)
         return outcome != "cancel"
 
-    monkeypatch.setattr("mne_nodes.gui.parameter.plugin_manager.ask_user", confirm)
+    monkeypatch.setattr("mne_nodes.gui.dialogs.plugin_manager.ask_user", confirm)
     calls = []
 
     def uninstall(packages, **kwargs):
@@ -400,7 +400,7 @@ def test_manager_uninstalls_installed_distribution(
             raise RuntimeError("pip failed")
 
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.uninstall_pip_packages", uninstall
+        "mne_nodes.gui.dialogs.plugin_manager.uninstall_pip_packages", uninstall
     )
     manager = PluginManagerDlg(main_window, ct)
     card = manager._rows_layout.itemAt(manager._rows_layout.count() - 1).widget()
@@ -616,29 +616,29 @@ def test_installed_plugin_edit_makes_local_copy_without_touching_original(
     original_meta = ct.get("plugin_meta")["edit_fixture"].copy()
     original_source = get_plugin_source(original_meta)
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.get_plugin_source",
+        "mne_nodes.gui.dialogs.plugin_manager.get_plugin_source",
         lambda *args: replace(original_source, installed=True),
     )
     manager = PluginManagerDlg(main_window, ct)
 
     # Cancelling the copy leaves the registration unchanged.
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.ask_user", lambda *args, **kwargs: False
+        "mne_nodes.gui.dialogs.plugin_manager.ask_user", lambda *args, **kwargs: False
     )
     manager._edit_plugin("edit_fixture")
     assert not _editors(manager)
     assert ct.get("plugin_meta")["edit_fixture"] == original_meta
 
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.ask_user", lambda *args, **kwargs: True
+        "mne_nodes.gui.dialogs.plugin_manager.ask_user", lambda *args, **kwargs: True
     )
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.request_package_metadata",
+        "mne_nodes.gui.dialogs.plugin_manager.request_package_metadata",
         lambda *args: info,
     )
     destination = tmp_path / "local_copy"
     monkeypatch.setattr(
-        "mne_nodes.gui.parameter.plugin_manager.get_user_input",
+        "mne_nodes.gui.dialogs.plugin_manager.get_user_input",
         lambda *args, **kwargs: destination,
     )
     manager._edit_plugin("edit_fixture")

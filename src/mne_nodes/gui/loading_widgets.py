@@ -32,10 +32,10 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.exception_handling import gui_error
 from mne_nodes.backend.pipeline_utils import get_n_jobs
 from mne_nodes.backend.settings import Settings
+from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
+from mne_nodes.gui.dialogs.user_interaction import warning_message
 from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.parameter import ComboGui
-from mne_nodes.gui.run_widgets import WorkerDialog
-from mne_nodes.gui.user_interaction import warning_message
 from mne_nodes.gui.widgets.dict_widgets import EditDict
 from mne_nodes.gui.widgets.list_widgets import CheckList, MarkList, SimpleList
 from mne_nodes.gui.widgets.misc_widgets import AssignWidget

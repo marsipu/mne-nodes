@@ -26,9 +26,9 @@ from mne_nodes.gui.colors import (
     CATEGORY_DATATYPES,
     datatype_color,
 )
-from mne_nodes.gui.data_overview import DataOverviewDialog
+from mne_nodes.gui.dialogs.data_overview import DataOverviewDialog
+from mne_nodes.gui.dialogs.user_interaction import get_user_input
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.gui.user_interaction import get_user_input
 from mne_nodes.gui.widgets.list_widgets import CheckListProgress
 from mne_nodes.gui.widgets.tree_widgets import CustomGroupTreeWidget, ShallowTreeWidget
 from mne_nodes.logger import logger

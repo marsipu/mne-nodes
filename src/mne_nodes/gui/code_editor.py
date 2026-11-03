@@ -23,7 +23,7 @@ from qtpy.QtWidgets import QPlainTextEdit, QPushButton, QTextEdit, QVBoxLayout, 
 
 from mne_nodes.backend.pipeline_utils import change_file_section
 from mne_nodes.backend.settings import Settings
-from mne_nodes.gui.user_interaction import get_user_input
+from mne_nodes.gui.dialogs.user_interaction import get_user_input
 from mne_nodes.logger import logger
 
 # Color palettes for the syntax highlighter, inspired by common editor themes.

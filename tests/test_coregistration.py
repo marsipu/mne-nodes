@@ -15,7 +15,7 @@ from qtpy.QtWidgets import QPushButton
 from mne_nodes.backend import coregistration as backend
 from mne_nodes.backend.controller import Controller
 from mne_nodes.backend.execution import WorkerSignals
-from mne_nodes.gui import coreg_widgets
+from mne_nodes.gui.dialogs import coreg_dialog
 
 
 def make_info(offset=0.0):
@@ -335,7 +335,7 @@ def make_manual_ui():
 def test_manual_open_uses_bids_info_and_cleans_up(qtbot, tmp_path, monkeypatch):
     """Non-FIF BIDS digitization survives export; resources live until actual close."""
     ct = make_controller(tmp_path)
-    dialog = coreg_widgets.CoregDialog(ct)
+    dialog = coreg_dialog.CoregDialog(ct)
     qtbot.addWidget(dialog)
     dialog.mri_subject.addItems(["", "sub-01"])
     group = make_group(tmp_path)
@@ -414,7 +414,7 @@ def test_manual_real_mne_gui(qtbot, tmp_path, monkeypatch):
     """Exercise the installed MNE Qt save and close hooks on a synthetic MRI."""
     ct = make_controller(tmp_path)
     make_mri_surface(ct.ensure_subjects_dir())
-    dialog = coreg_widgets.CoregDialog(ct)
+    dialog = coreg_dialog.CoregDialog(ct)
     qtbot.addWidget(dialog)
     dialog.mri_subject.addItems(["", "sub-01"])
     group = make_group(tmp_path)
@@ -449,11 +449,11 @@ def test_manual_real_mne_gui(qtbot, tmp_path, monkeypatch):
             for r in group.recordings
         )
         # Declining the overwrite prompt must keep existing files untouched.
-        monkeypatch.setattr(coreg_widgets, "ask_user", lambda *args, **kwargs: False)
+        monkeypatch.setattr(coreg_dialog, "ask_user", lambda *args, **kwargs: False)
         ui._trans_modified = True
         ui._forward_widget_command("save_trans", "set_value", None)
         assert ui._trans_modified
-        monkeypatch.setattr(coreg_widgets, "ask_user", lambda *args, **kwargs: True)
+        monkeypatch.setattr(coreg_dialog, "ask_user", lambda *args, **kwargs: True)
         ui._trans_modified = True
         ui._close_dialog_callback("Save")
         assert not errors, errors
