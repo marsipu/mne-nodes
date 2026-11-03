@@ -157,6 +157,7 @@ def test_codegen_routes_empty_room_to_raw_parameters(
     )
     monkeypatch.setattr(CodeGenerator, "_build_header", lambda *args: "")
     code = CodeGenerator(ct, {target: nodes}).code
+    ct.settings.set("keep_plots_open", False)
     exec(  # noqa: S102 - Exercise generated pipeline code.
         compile(code, "<empty-room pipeline>", "exec"),
         {

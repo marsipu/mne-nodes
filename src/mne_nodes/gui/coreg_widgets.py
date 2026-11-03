@@ -328,12 +328,13 @@ class CoregDialog(QDialog):
                     subject=self.mri_subject.currentText(),
                     subjects_dir=self.ct.ensure_subjects_dir(interactive=False),
                     trans=self._selected_trans(),
-                    show=True,
+                    show=False,
                     block=False,
                 )
                 self._manual = ui
                 self._route_manual_save(ui, group)
                 ui._renderer._window.signal_close.connect(self._manual_closed)
+                ui._renderer.show()
             except Exception:
                 if self._manual is not None:
                     self._manual.close()

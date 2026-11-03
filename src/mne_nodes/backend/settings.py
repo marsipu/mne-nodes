@@ -40,6 +40,12 @@ default_device_settings = {
     "save_ram": 1,  # Memory optimization flag
     "enable_cuda": 0,  # GPU usage flag
     "screen_name": None,  # Preferred screen / monitor name
+    "app_theme": "auto",  # UI theme (auto/light/dark/high_contrast)
+    "app_style": "fusion",  # Qt style
+    "app_font": "Calibri",  # Default application font family
+    "app_font_size": 12,  # Default application font size
+    "keep_plots_open": True,  # Keep plot windows open after a pipeline finished
+    "pipe_layout": "curved",  # Node-viewer pipe style (curved/straight/angle/routed)
     "first_start": True,  # Flag indicating if this is the first start of the application
 }
 default_device_settings.update(

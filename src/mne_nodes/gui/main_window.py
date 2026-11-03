@@ -243,6 +243,20 @@ class MainWindow(QMainWindow):
         settings_action.triggered.connect(self.show_settings)
         self.menuBar().addAction(settings_action)
 
+        # Settings Menu
+        self.keep_plots_action = QAction(
+            "&Keep Plots Open",
+            parent=self,
+            checkable=True,
+            statusTip="Keep plot windows open after a pipeline run has finished.",
+        )
+        self.keep_plots_action.setChecked(bool(self.settings.get("keep_plots_open")))
+        self.keep_plots_action.toggled.connect(
+            lambda checked: self.settings.set("keep_plots_open", checked)
+        )
+        settings_menu = self.menuBar().addMenu("&Settings")
+        settings_menu.addAction(self.keep_plots_action)
+
         welcome_tour_action = QAction(
             "&Restart Welcome Tour",
             parent=self,
