@@ -158,7 +158,10 @@ class WorkerDialog(_RunDialog):
         )
 
     def start_operation(self):
-        QTimer.singleShot(0, self.worker.start)
+        QTimer.singleShot(0, self._start_worker)
+
+    def _start_worker(self):
+        self.worker.start()
 
     def init_content(self, layout):
         self.progress_label = QLabel()
