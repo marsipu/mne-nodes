@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>BIDS dataset requirements &#8212; mne-nodes 0.2.0.dev43+g668de20bb documentation</title>
+    <title>BIDS dataset requirements &#8212; mne-nodes 0.2.0.dev44+gbd763c85c documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
-    <script src="../_static/documentation_options.js?v=854704f7"></script>
+    <script src="../_static/documentation_options.js?v=eb7121a5"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/datasets';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.2.0.dev43+g668de20bb documentation</p>
+    <p class="title logo__title">mne-nodes 0.2.0.dev44+gbd763c85c documentation</p>
   
 </a></div>
     
@@ -717,19 +717,41 @@ pipelines using the same root and recording/output suffix can target the same
 file. Writer parameters control overwrite behavior.</p>
 <p>Coregistration also reads and writes <code class="docutils literal notranslate"><span class="pre">*_trans.fif</span></code> files under the selected
 derivative root.</p>
-<p>FreeSurfer subjects remain dataset-local, even when a separate processing
-derivative root is configured. MNE-Nodes uses
+<p>FreeSurfer subjects default to a dataset-local directory, independently of the
+processing derivative root. MNE-Nodes uses
 <code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer/subjects</span></code> when that directory exists;
 otherwise it uses <code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer</span></code> with subject folders
 directly inside it. If both layouts exist, the nested <code class="docutils literal notranslate"><span class="pre">subjects</span></code> directory
 takes precedence; the two roots are not merged. Discovery, imports,
 coregistration and pipeline <code class="docutils literal notranslate"><span class="pre">subjects_dir</span></code> parameters all use this same root.
 No existing files are moved.</p>
+<p>Use <strong>BIDS &gt; FreeSurfer subjects directory…</strong> to choose a different directory,
+including outside the dataset, or restore <strong>Dataset default</strong>. Select the
+directory containing subject folders, not an individual subject. The exact
+chosen directory is used; nested <code class="docutils literal notranslate"><span class="pre">subjects</span></code> discovery applies only to the
+default. Choices are remembered separately for each BIDS root on this device,
+including across restarts and dataset switches. Missing chosen directories
+cause an error when used rather than silently reverting to the default.
+Discovery, imports, coregistration and pipeline execution use the chosen
+directory. Changing it does not move or delete existing files.</p>
 <p>FreeSurfer’s default <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> is <code class="docutils literal notranslate"><span class="pre">$FREESURFER_HOME/subjects</span></code>, but it can
 be customized (see the <a class="reference external" href="https://surfer.nmr.mgh.harvard.edu/fswiki/SetupConfiguration_Linux">FreeSurfer setup documentation</a>).
 The nested layout is supported, not required by MNE-Nodes.
-Global MNE <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> settings and environment variables are not used
-to locate dataset subjects. If neither layout exists,
+Existing MNE <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> settings and inherited environment variables are
+not used to locate dataset subjects. Instead, the controller sets
+<code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> in the MNE-Nodes process to the active dataset’s FreeSurfer
+directory at startup and when selecting or preparing a dataset. Child processes
+inherit this value. MNE-Python uses this environment variable before its saved
+configuration when a function’s <code class="docutils literal notranslate"><span class="pre">subjects_dir</span></code> argument is omitted or
+<code class="docutils literal notranslate"><span class="pre">None</span></code>. An explicit argument still takes precedence.</p>
+<p>Plugin functions that call MNE-Python can normally omit <code class="docutils literal notranslate"><span class="pre">subjects_dir</span></code> or
+leave it as <code class="docutils literal notranslate"><span class="pre">None</span></code>; no function-configuration entry is needed for this.
+Functions requiring an explicit path can read <code class="docutils literal notranslate"><span class="pre">os.environ[&quot;SUBJECTS_DIR&quot;]</span></code>.
+Existing <code class="docutils literal notranslate"><span class="pre">subjects_dir</span></code> entries under function <code class="docutils literal notranslate"><span class="pre">parameters</span></code> continue to
+receive the active subjects-directory path from the controller.</p>
+<p>This only changes the running process and its children: MNE-Python’s saved
+configuration, the parent shell and other applications remain untouched.
+If neither layout exists,
 <code class="docutils literal notranslate"><span class="pre">&lt;dataset&gt;/derivatives/freesurfer</span></code> is created when needed.
 Pipeline configuration files can remain
 elsewhere. Plot output is optional, may live outside the dataset, and does not
@@ -882,7 +904,7 @@ previous dataset are not moved or deleted. See <a class="reference internal" hre
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 20:50 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 21:13 UTC.
       <br/>
     
   </p>

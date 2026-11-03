@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Settings &#8212; mne-nodes 0.2.0.dev43+g668de20bb documentation</title>
+    <title>Settings &#8212; mne-nodes 0.2.0.dev44+gbd763c85c documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
-    <script src="../_static/documentation_options.js?v=854704f7"></script>
+    <script src="../_static/documentation_options.js?v=eb7121a5"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/settings';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.2.0.dev43+g668de20bb documentation</p>
+    <p class="title logo__title">mne-nodes 0.2.0.dev44+gbd763c85c documentation</p>
   
 </a></div>
     
@@ -443,11 +443,26 @@
 <p>FreeSurfer/WSL setup uses automatic environment discovery without installation-path
 settings. <strong>BIDS &gt; FreeSurfer setup…</strong> provides a discovery check and an optional
 WSL distribution selector; see <a class="reference internal" href="freesurfer.html"><span class="doc">FreeSurfer commands and Python functions</span></a>.</p>
-<p>There are two different ways, application settings are stored in MNE-Nodes.
-It depends on whether the settings is device-specific or project-specific.
-For device-specific settings, such as the number of jobs or whether cuda is enabled, are stored either with <em>Settings</em> in a JSON file located in an OS-dependent directory.
-The user-specific settings are used to store user preferences, such as the image format or the appearance of the GUI.
-These settings are stored in the configuration file used to configure a project.</p>
+<p>Open <strong>Settings…</strong> in the menu bar to change the application theme, Qt style,
+font, font size, startup window size, node pipe style, and console word wrapping.
+Settings are grouped into <strong>Appearance</strong>, <strong>Node Editor</strong>, and <strong>Console</strong> tabs.
+Descriptions below each setting explain its effect. Changes are saved
+immediately; appearance and startup window-size changes require a restart.
+Pipe style and console wrapping apply immediately and stay synchronized with
+the corresponding <strong>View</strong> menu controls.</p>
+<p>Device-specific preferences are stored by <code class="docutils literal notranslate"><span class="pre">Settings</span></code> in <code class="docutils literal notranslate"><span class="pre">settings.json</span></code> in
+the platform’s application configuration directory. <code class="docutils literal notranslate"><span class="pre">MNENODES_SETTINGS_DIR</span></code>
+can override this directory (or specify a JSON file directly). Pipeline-specific
+parameters remain in the pipeline configuration file.</p>
+<p>The packaged <code class="docutils literal notranslate"><span class="pre">src/mne_nodes/resources/settings.toml</span></code> defines the settings
+dialog’s widget types, defaults, labels, descriptions, tabs, restart requirements,
+and widget options. Each setting’s <code class="docutils literal notranslate"><span class="pre">tab</span></code> field assigns its tab; tabs and rows
+follow their first appearance in the TOML file.
+Font families and Qt styles are discovered on the current
+device. Add editable settings there rather than hard-coding dialog rows or
+duplicating their defaults in Python. Internal state such as recent paths and
+plugin configuration is not exposed in the dialog. User values remain in JSON;
+the TOML file describes the available settings and is not modified by the GUI.</p>
 <section id="dataset-and-output-folders">
 <h2>Dataset and output folders<a class="headerlink" href="#dataset-and-output-folders" title="Link to this heading">#</a></h2>
 <p>See <a class="reference internal" href="datasets.html"><span class="doc">BIDS dataset requirements</span></a> for the dataset layout and FreeSurfer import options.</p>
@@ -463,13 +478,17 @@ the dataset. The chosen directory is used directly, without a pipeline-name
 subfolder. Existing files are not moved or deleted when changing roots.
 Explicit roots from older settings are retained. A missing explicit root causes
 an error rather than silently redirecting outputs.</p>
-<p>FreeSurfer subjects are stored in
+<p>FreeSurfer subjects default to
 <code class="docutils literal notranslate"><span class="pre">&lt;BIDS-root&gt;/derivatives/freesurfer/subjects</span></code> when that directory exists;
 otherwise <code class="docutils literal notranslate"><span class="pre">&lt;BIDS-root&gt;/derivatives/freesurfer</span></code> is used directly.
 The nested layout takes precedence if both exist; roots are not merged.
-This location is independent of the processing derivative root and cannot be
-selected separately. MNE-Nodes neither reads nor modifies the global MNE
-<code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> setting for this purpose. The directory is created when a
+This location is independent of the processing derivative root.
+Use <strong>BIDS &gt; FreeSurfer subjects directory…</strong> to choose another existing
+directory or restore <strong>Dataset default</strong>. The chosen directory is used directly
+and remembered separately for each BIDS dataset on this device. Existing files
+are not moved; missing chosen directories cause an error rather than a fallback.
+MNE-Nodes sets the process-local <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code> environment variable without
+modifying MNE-Python’s saved configuration. The default directory is created when a
 FreeSurfer operation needs it (using the direct layout for a new dataset);
 existing segmentations and new imports use the same resolved directory.</p>
 <p>Changing the BIDS root asks for confirmation and resets all input selections,
@@ -579,7 +598,7 @@ Disable it to let pipeline processes exit right away.</p>
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 20:50 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 21:13 UTC.
       <br/>
     
   </p>
