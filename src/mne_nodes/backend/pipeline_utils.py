@@ -175,8 +175,7 @@ def init_plotting() -> None:
     show = plt.show
 
     def show_nonblocking(*args, **kwargs):
-        if kwargs.get("block") is None:
-            kwargs["block"] = False
+        kwargs["block"] = False
         return show(*args, **kwargs)
 
     plt.show = show_nonblocking

@@ -44,7 +44,8 @@ def test_init_plotting_keeps_show_nonblocking_without_interactive_mode(monkeypat
     assert not plt.isinteractive()
     plt.show()
     plt.show(block=None)
-    assert calls == [{"block": False}, {"block": False}]
+    plt.show(block=True)
+    assert calls == [{"block": False}, {"block": False}, {"block": False}]
 
 
 PLOT_PLUGIN_CODE = '''
