@@ -168,6 +168,94 @@ def _get_func_param_kwargs(func, params):
     return kwargs
 
 
+def init_plotting() -> None:
+    """Show Matplotlib figures without blocking the pipeline execution."""
+    import matplotlib.pyplot as plt
+
+    show = plt.show
+
+    def show_nonblocking(*args, **kwargs):
+        kwargs["block"] = False
+        return show(*args, **kwargs)
+
+    plt.show = show_nonblocking
+
+
+def open_plot_windows() -> list:
+    """Return the visible top-level Qt windows of the current process.
+
+    This includes MNE's Qt raw browser, PyVista/MNE 3D figures and Matplotlib
+    figures using a Qt backend.
+    """
+    if "qtpy" not in sys.modules:
+        return []
+    from qtpy.QtCore import Qt
+    from qtpy.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return []
+    window_types = (Qt.WindowType.Window, Qt.WindowType.Dialog)
+    return [
+        widget
+        for widget in app.topLevelWidgets()
+        if widget.isVisible() and widget.windowType() in window_types
+    ]
+
+
+def wait_for_plots(poll_interval: int = 200) -> None:
+    """Block until the user closed all plot windows opened by this process.
+
+    Parameters
+    ----------
+    poll_interval : int
+        Interval in milliseconds to check for remaining open windows.
+    """
+    plt = sys.modules.get("matplotlib.pyplot")
+    non_qt_matplotlib = (
+        plt is not None
+        and plt.get_fignums()
+        and plt.get_backend().lower().startswith(("gtk", "macosx", "tk", "wx"))
+    )
+    windows = open_plot_windows()
+    if non_qt_matplotlib:
+        if windows:
+            plt.show(block=False)
+        else:
+            print("Waiting for Matplotlib figures to be closed...", flush=True)
+            plt.show(block=True)
+    windows = open_plot_windows()
+    if len(windows) == 0:
+        return
+    from qtpy.QtCore import QEventLoop, QTimer
+
+    print(f"Waiting for {len(windows)} plot window(s) to be closed...", flush=True)
+    loop = QEventLoop()
+    timer = QTimer()
+    timer.setInterval(poll_interval)
+    timer.timeout.connect(
+        lambda: (
+            None
+            if open_plot_windows() or (non_qt_matplotlib and plt.get_fignums())
+            else loop.quit()
+        )
+    )
+    timer.start()
+    matplotlib_timer = None
+    if non_qt_matplotlib:
+        matplotlib_timer = QTimer()
+        matplotlib_timer.setInterval(10)
+        matplotlib_timer.timeout.connect(
+            lambda: plt.pause(0.001) if plt.get_fignums() else None
+        )
+        matplotlib_timer.start()
+    loop.exec()
+    timer.stop()
+    if matplotlib_timer is not None:
+        matplotlib_timer.stop()
+    print("All plot windows closed.", flush=True)
+
+
 def is_test():
     return "PYTEST_CURRENT_TEST" in os.environ
 
