@@ -213,13 +213,14 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
 
 @pytest.mark.parametrize("rich_output", [False, True, None])
 def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
-    """The File menu exports Python, Jupyter, and complete-project files."""
+    """The File menu exports Python, Jupyter notebooks, and project files."""
+    import json
     import zipfile
 
     paths = iter(
         [
             tmp_path / "pipeline.py",
-            tmp_path / "pipeline_jupyter.py",
+            tmp_path / "pipeline_jupyter",
             tmp_path / "pipeline_project.zip",
         ]
     )
@@ -235,7 +236,7 @@ def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
     actions = {action.text(): action for action in file_menu.actions()}
 
     actions["Export Python Script..."].trigger()
-    actions["Export Jupyter Script..."].trigger()
+    actions["Export Jupyter Notebook..."].trigger()
     actions["Export Complete Project..."].trigger()
 
     if rich_output is None:
@@ -243,9 +244,17 @@ def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
         return
 
     script = (tmp_path / "pipeline.py").read_text()
-    jupyter_script = (tmp_path / "pipeline_jupyter.py").read_text()
+    notebook = json.loads((tmp_path / "pipeline_jupyter.ipynb").read_text())
     assert "Controller(config_path=" in script
-    assert jupyter_script.startswith("# %%\n")
+    assert notebook["nbformat"] == 4
+    assert notebook["cells"]
+    assert all(cell["cell_type"] == "code" and cell["id"] for cell in notebook["cells"])
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert "Controller(config_path=" in notebook_code
     with zipfile.ZipFile(tmp_path / "pipeline_project.zip") as archive:
         assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
             archive.namelist()
@@ -253,7 +262,7 @@ def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
         project_script = archive.read("pipeline.py").decode()
         assert "os.chdir(project_root)" in project_script
         assert "mne-nodes" in archive.read("requirements.txt").decode()
-    for code in (script, jupyter_script, project_script):
+    for code in (script, notebook_code, project_script):
         assert ("process_log" in code) == rich_output
         assert ("_log." in code) == rich_output
         compile(code, "<exported-pipeline>", "exec")

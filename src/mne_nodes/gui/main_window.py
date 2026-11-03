@@ -131,11 +131,11 @@ class MainWindow(QMainWindow):
         )
         export_python_action.triggered.connect(self.export_python_script)
         export_jupyter_action = QAction(
-            "Export Jupyter Script...",
+            "Export Jupyter Notebook...",
             parent=self,
-            statusTip="Export the generated execution code as a Jupyter script.",
+            statusTip="Export the generated execution code as a Jupyter notebook.",
         )
-        export_jupyter_action.triggered.connect(self.export_jupyter_script)
+        export_jupyter_action.triggered.connect(self.export_jupyter_notebook)
         export_project_action = QAction(
             "Export Complete Project...",
             parent=self,
@@ -556,15 +556,15 @@ class MainWindow(QMainWindow):
         )
         self.statusBar().showMessage(f"Code exported to {script_path}.")
 
-    def export_jupyter_script(self, _checked=False):
+    def export_jupyter_notebook(self, _checked=False):
         node_sequence = self._export_node_sequence()
         if node_sequence is None:
             return
         script_path = get_user_input(
-            "Select a file for the generated Jupyter script.",
+            "Select a file for the generated Jupyter notebook.",
             input_type="file_new",
-            file_filter="Python files (*.py)",
-            default_suffix="py",
+            file_filter="Jupyter notebooks (*.ipynb)",
+            default_suffix="ipynb",
             parent=self,
         )
         if script_path is None:
@@ -573,15 +573,15 @@ class MainWindow(QMainWindow):
         if rich_output is None:
             return
         script_path = Path(script_path)
-        if script_path.suffix.lower() != ".py":
-            script_path = script_path.with_suffix(".py")
+        if script_path.suffix.lower() != ".ipynb":
+            script_path = script_path.with_suffix(".ipynb")
         script_path.write_text(
             CodeGenerator(
                 self.controller, node_sequence, rich_output=rich_output
-            ).jupyter_script,
+            ).jupyter_notebook,
             encoding="utf-8",
         )
-        self.statusBar().showMessage(f"Jupyter script exported to {script_path}.")
+        self.statusBar().showMessage(f"Jupyter notebook exported to {script_path}.")
 
     def export_complete_project(self, _checked=False):
         node_sequence = self._export_node_sequence()

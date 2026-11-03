@@ -34,6 +34,37 @@ class CodeGenerator:
         code = re.sub(r"(?m)^(# (?:Target|Selection-Type):)", r"# %%\n\1", self.code)
         return f"# %%\n{code}"
 
+    @property
+    def jupyter_notebook(self):
+        """Return the generated code as a Jupyter notebook document."""
+        cells = re.split(r"(?m)^# %%\s*$", self.jupyter_script)
+        notebook_cells = [
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "id": f"cell-{index}",
+                "metadata": {},
+                "outputs": [],
+                "source": cell.lstrip("\n").splitlines(keepends=True),
+            }
+            for index, cell in enumerate(cells)
+            if cell.strip()
+        ]
+        notebook = {
+            "cells": notebook_cells,
+            "metadata": {
+                "kernelspec": {
+                    "display_name": "Python 3",
+                    "language": "python",
+                    "name": "python3",
+                },
+                "language_info": {"name": "python"},
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+        return json.dumps(notebook, indent=2)
+
     @staticmethod
     def tab(num_tabs=1, tab_size=4):
         """Return a string of tabs for indentation."""
