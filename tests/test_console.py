@@ -83,9 +83,7 @@ def test_console_stream(qtbot):
         assert "CRLF progress 100%\n" in text
         assert "\x1b" not in text
 
-        console.push_stdout(
-            "\x1b[31mPrior red\n\r\x1b[0m10%\r100% reset-state\n"
-        )
+        console.push_stdout("\x1b[31mPrior red\n\r\x1b[0m10%\r100% reset-state\n")
         qtbot.waitUntil(lambda: "100% reset-state" in console.toPlainText())
         assert console.stream_worker._ansi_decoders["stdout"].style.color is None
 
