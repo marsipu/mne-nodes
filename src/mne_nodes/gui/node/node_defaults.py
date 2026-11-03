@@ -13,6 +13,7 @@ defaults = {
         "color": (23, 32, 41, 255),
         "selected_color": (255, 255, 255, 30),
         "border_color": (74, 84, 85, 255),
+        "dirty_border_color": (255, 120, 40, 255),
         "selected_border_color": (254, 207, 42, 255),
         "text_color": (255, 255, 255, 180),
     },
