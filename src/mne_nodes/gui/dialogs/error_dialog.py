@@ -2,7 +2,7 @@
 
 from functools import partial
 
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QTimer, Qt
 from qtpy.QtGui import QFontDatabase
 from qtpy.QtWidgets import (
     QApplication,
@@ -141,10 +141,17 @@ class ErrorDialog(QDialog):
             self._diagnostics_worker.progress_bar.setRange(0, 0)
             self._diagnostics_worker.progress_bar.show()
             self._diagnostics_worker.thread_finished.connect(
-                partial(self._diagnostics_collected, report)
+                partial(self._schedule_diagnostics_collected, report)
             )
             return
         IssueReportDialog(report, self).exec()
+
+    def _schedule_diagnostics_collected(
+        self, report: str, diagnostics: object
+    ) -> None:
+        QTimer.singleShot(
+            0, partial(self._diagnostics_collected, report, diagnostics)
+        )
 
     def _diagnostics_collected(self, report: str, diagnostics: object) -> None:
         from mne_nodes.backend.exception_handling import ExceptionTuple
