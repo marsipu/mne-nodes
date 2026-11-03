@@ -2,7 +2,7 @@
 
 from functools import partial
 
-from qtpy.QtCore import QTimer, Qt
+from qtpy.QtCore import Qt, QTimer
 from qtpy.QtGui import QFontDatabase
 from qtpy.QtWidgets import (
     QApplication,
@@ -146,12 +146,8 @@ class ErrorDialog(QDialog):
             return
         IssueReportDialog(report, self).exec()
 
-    def _schedule_diagnostics_collected(
-        self, report: str, diagnostics: object
-    ) -> None:
-        QTimer.singleShot(
-            0, partial(self._diagnostics_collected, report, diagnostics)
-        )
+    def _schedule_diagnostics_collected(self, report: str, diagnostics: object) -> None:
+        QTimer.singleShot(0, partial(self._diagnostics_collected, report, diagnostics))
 
     def _diagnostics_collected(self, report: str, diagnostics: object) -> None:
         from mne_nodes.backend.exception_handling import ExceptionTuple
