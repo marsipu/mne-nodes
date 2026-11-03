@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Settings &#8212; mne-nodes 0.2.0.dev41+gaf34383a2 documentation</title>
+    <title>Settings &#8212; mne-nodes 0.2.0.dev42+g3962b6910 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
-    <script src="../_static/documentation_options.js?v=96ff4d68"></script>
+    <script src="../_static/documentation_options.js?v=7491aa6f"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/settings';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.2.0.dev41+gaf34383a2 documentation</p>
+    <p class="title logo__title">mne-nodes 0.2.0.dev42+g3962b6910 documentation</p>
   
 </a></div>
     
@@ -487,7 +487,18 @@ such roots retain the pipeline-name subfolder layout for exports. Setting
 <code class="docutils literal notranslate"><span class="pre">plot_root</span></code> to <code class="docutils literal notranslate"><span class="pre">None</span></code> disables that optional location.</p>
 <p>The welcome tour uses its packaged pipeline name, <code class="docutils literal notranslate"><span class="pre">Welcome</span></code>.
 If a different BIDS root is selected when starting the tour, the sample BIDS
-dataset is prepared in that destination before the tour’s input node is loaded.</p>
+dataset is prepared in that destination before the tour’s input node is loaded.
+Explicitly assigned output roots remain supported; legacy plot roots still use
+their config-name subfolder.</p>
+</section>
+<section id="plot-windows">
+<h2>Plot windows<a class="headerlink" href="#plot-windows" title="Link to this heading">#</a></h2>
+<p>Pipelines run in a separate process. Plot windows opened by a pipeline, such as
+the Qt raw browser, Matplotlib figures or PyVista 3D figures, would close as
+soon as this process finishes. With <strong>Settings &gt; Keep Plots Open</strong> enabled
+(device setting <code class="docutils literal notranslate"><span class="pre">keep_plots_open</span></code>, enabled by default), the process instead
+waits after the pipeline finished until all of its plot windows were closed.
+Disable it to let pipeline processes exit right away.</p>
 </section>
 </section>
 
@@ -539,6 +550,7 @@ dataset is prepared in that destination before the tour’s input node is loaded
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-and-output-folders">Dataset and output folders</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-windows">Plot windows</a></li>
 </ul>
   </nav></div>
 
@@ -567,7 +579,7 @@ dataset is prepared in that destination before the tour’s input node is loaded
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-02 22:01 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 18:50 UTC.
       <br/>
     
   </p>
