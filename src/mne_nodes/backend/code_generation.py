@@ -12,10 +12,19 @@ from mne_nodes.logger import logger
 
 
 class CodeGenerator:
-    def __init__(self, controller, node_sequence, portable=False):
+    """Generate pipeline code with optional framed progress output.
+
+    Formatting defaults to enabled for application runs. Exports pass the
+    user's choice explicitly.
+    """
+
+    def __init__(
+        self, controller, node_sequence, portable=False, *, rich_output: bool = True
+    ):
         self.ct = controller
         self.node_sequence = node_sequence
         self.portable = portable
+        self.rich_output = rich_output
 
         self.code = self.generate_code()
 
@@ -137,10 +146,18 @@ class CodeGenerator:
         suffix = suffix or suffix_for_ports([write_port, output_name]) or output_name
         return write_func, suffix
 
-    @staticmethod
-    def _timed_call(name, func_line):
-        """Wrap a function call line in a framed progress block."""
-        return f"with _log.function({name!r}):\n    {func_line}\n"
+    def _logged_call(self, kind, name, code, source=None):
+        """Optionally wrap code in a framed progress block."""
+        if not self.rich_output:
+            return code.rstrip("\n") + "\n"
+        args = repr(name)
+        if source is not None:
+            args += f", {source}"
+        return f"with _log.{kind}({args}):\n{self._indent(code)}"
+
+    def _timed_call(self, name, func_line):
+        """Optionally frame a node function call."""
+        return self._logged_call("function", name, func_line)
 
     def _indent(self, code, num_tabs=1):
         """Indent a code string by a given number of tabs."""
@@ -253,12 +270,13 @@ class CodeGenerator:
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         import_function_names = set()
-        body = (
-            "from copy import deepcopy\n\n"
-            "from mne_nodes.backend import process_log as _log\n\n"
-            "_subject_cache = {}\n"
-            f"_pipeline_start = _log.pipeline_start({self.ct.name!r})\n\n"
-        )
+        body = "from copy import deepcopy\n\n"
+        if self.rich_output:
+            body += "from mne_nodes.backend import process_log as _log\n\n"
+        body += "_subject_cache = {}\n"
+        if self.rich_output:
+            body += f"_pipeline_start = _log.pipeline_start({self.ct.name!r})\n"
+        body += "\n"
         # Iterate nodes
         for target, nodes in self.node_sequence.items():
             if len(nodes) == 0:
@@ -281,11 +299,13 @@ class CodeGenerator:
                 if target == "group":
                     body += f"group = ct.get_group_by('{selection_type}')\n"
                 body += f"_items = ct.get('selected_inputs')['{selection_type}']\n"
-                body += "for _index, item in enumerate(_items, 1):\n"
-                body += self._indent(
-                    f"_log.item_start({selection_type!r}, item, _index, len(_items))\n",
-                    1,
-                )
+                if self.rich_output:
+                    body += "for _index, item in enumerate(_items, 1):\n"
+                    body += self._indent(
+                        f"_log.item_start({selection_type!r}, item, _index, len(_items))\n"
+                    )
+                else:
+                    body += "for item in _items:\n"
                 # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     body += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
@@ -344,8 +364,11 @@ class CodeGenerator:
                         if ip == "raw_er" or ip in empty_room_inputs:
                             if "raw_er" not in loaded_data:
                                 body += self._indent(
-                                    "with _log.loading('empty-room raw'):\n    "
-                                    f"raw_er = ct.load_raw_er({source})\n",
+                                    self._logged_call(
+                                        "loading",
+                                        "empty-room raw",
+                                        f"raw_er = ct.load_raw_er({source})",
+                                    ),
                                     1,
                                 )
                                 loaded_data.add("raw_er")
@@ -354,8 +377,11 @@ class CodeGenerator:
                         if ip in recording_inputs:
                             if "_recording_raw" not in loaded_data:
                                 body += self._indent(
-                                    "with _log.loading('raw'):\n    "
-                                    f"_recording_raw, event_id = ct.load_raw({source})\n",
+                                    self._logged_call(
+                                        "loading",
+                                        "raw",
+                                        f"_recording_raw, event_id = ct.load_raw({source})",
+                                    ),
                                     1,
                                 )
                                 loaded_data.update({"_recording_raw", "event_id"})
@@ -367,8 +393,11 @@ class CodeGenerator:
                         # Load selected data-types (if not already loaded)
                         if ip in ("raw", "event_id"):
                             body += self._indent(
-                                "with _log.loading('raw'):\n    "
-                                f"raw, event_id = ct.load_raw({source})\n",
+                                self._logged_call(
+                                    "loading",
+                                    "raw",
+                                    f"raw, event_id = ct.load_raw({source})",
+                                ),
                                 1,
                             )
                             body += self._indent("_recording_raw = raw\n", 1)
@@ -376,7 +405,9 @@ class CodeGenerator:
                             loaded_data.update({"raw", "event_id"})
                         elif ip == "anat" or ip in anatomy_inputs:
                             body += self._indent(
-                                f"with _log.loading('anat'):\n    anat = ct.load_anat({source})\n",
+                                self._logged_call(
+                                    "loading", "anat", f"anat = ct.load_anat({source})"
+                                ),
                                 1,
                             )
                             loaded_data.add("anat")
@@ -385,22 +416,32 @@ class CodeGenerator:
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
                             body += self._indent(
-                                "with _log.loading('info'):\n    "
-                                f"info = ct.load_info({source}, raw={raw_arg})\n",
+                                self._logged_call(
+                                    "loading",
+                                    "info",
+                                    f"info = ct.load_info({source}, raw={raw_arg})",
+                                ),
                                 1,
                             )
                             loaded_data.add("info")
                         elif ip == "subject":
                             body += self._indent(
-                                "with _log.loading('subject'):\n    "
-                                f"subject = ct.load_recording_subject({source})\n",
+                                self._logged_call(
+                                    "loading",
+                                    "subject",
+                                    f"subject = ct.load_recording_subject({source})",
+                                ),
                                 1,
                             )
                             loaded_data.add("subject")
                             subject_data.add("subject")
                         elif ip == "trans":
                             body += self._indent(
-                                f"with _log.loading('trans'):\n    trans = ct.load_trans({source})\n",
+                                self._logged_call(
+                                    "loading",
+                                    "trans",
+                                    f"trans = ct.load_trans({source})",
+                                ),
                                 1,
                             )
                             loaded_data.add("trans")
@@ -429,15 +470,23 @@ class CodeGenerator:
                                 )
                                 # This assumes, that the file-path is always the first argument in a load-function
                                 body += self._indent(
-                                    f"with _log.loading({load_name!r}, data_path):\n    "
-                                    f"{load_name} = {read_call}(data_path, **read_kwargs)\n",
+                                    self._logged_call(
+                                        "loading",
+                                        load_name,
+                                        f"{load_name} = {read_call}(data_path, **read_kwargs)",
+                                        source="data_path",
+                                    ),
                                     1,
                                 )
                             else:
                                 body += self._indent(
                                     f"data_path = [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]\n"
-                                    f"with _log.loading({load_name!r}, data_path):\n    "
-                                    f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in data_path]\n",
+                                    + self._logged_call(
+                                        "loading",
+                                        load_name,
+                                        f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in data_path]",
+                                        source="data_path",
+                                    ),
                                     1,
                                 )
                             loaded_data.add(load_name)
@@ -505,9 +554,14 @@ class CodeGenerator:
                             f"deepcopy(({cached_values},))\n",
                             2,
                         )
+                        cached_log = (
+                            f"    _log.function_cached({name!r})\n"
+                            if self.rich_output
+                            else ""
+                        )
                         body += self._indent(
                             "else:\n"
-                            f"    _log.function_cached({name!r})\n"
+                            f"{cached_log}"
                             f"    {cached_values}, = "
                             "deepcopy(_subject_cache[_subject_key])\n",
                             1,
@@ -548,10 +602,11 @@ class CodeGenerator:
                                 )
                             # Write function's own parameters serve as its kwargs.
                             body += self._indent(
-                                f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n"
-                                f"_log.save({op!r}, data_path)\n",
+                                f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n",
                                 1,
                             )
+                            if self.rich_output:
+                                body += self._indent(f"_log.save({op!r}, data_path)\n")
                             write_func_meta = self.ct.get_function_meta(write_func)
                             if write_func_meta["class_name"] is not None:
                                 # Called on the produced instance directly.
@@ -571,7 +626,8 @@ class CodeGenerator:
                                 )
                     loaded_data.update(n["outputs"])
 
-        body += "\n_log.pipeline_finished(_pipeline_start)\n"
+        if self.rich_output:
+            body += "\n_log.pipeline_finished(_pipeline_start)\n"
         # Create header with function bindings resolved from loaded plugins.
         header = self._build_header(import_function_names)
         footer = (
@@ -583,8 +639,10 @@ class CodeGenerator:
         return header + body + footer
 
 
-def export_project(controller, node_sequence, archive_path, node_config):
-    """Write a portable project archive containing a script and its inputs."""
+def export_project(
+    controller, node_sequence, archive_path, node_config, *, rich_output: bool = False
+):
+    """Write a portable project, optionally including framed progress output."""
     archive_path = Path(archive_path)
     project_config = deepcopy(controller._config)
     project_config["node_config"] = node_config
@@ -649,7 +707,9 @@ def export_project(controller, node_sequence, archive_path, node_config):
                 raise ValueError(f"Invalid plugin requirement '{requirement}'.")
             requirements.add(requirement)
 
-    script = CodeGenerator(controller, node_sequence, portable=True).code
+    script = CodeGenerator(
+        controller, node_sequence, portable=True, rich_output=rich_output
+    ).code
     config_json = json.dumps(project_config, indent=4, cls=TypedJSONEncoder)
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:

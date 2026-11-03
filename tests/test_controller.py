@@ -289,8 +289,9 @@ def test_discard_segmentation_checks_preserves_subject_groups(ct):
 
 @pytest.mark.parametrize("target", ["file", "group"])
 @pytest.mark.parametrize("mutate_before_solve", [False, True])
+@pytest.mark.parametrize("rich_output", [False, True])
 def test_codegen_reuses_subject_derivatives_within_run(
-    ct, monkeypatch, target, mutate_before_solve
+    ct, monkeypatch, target, mutate_before_solve, rich_output
 ):
     """Share MRI-only chains, but keep recording results and node parameters apart."""
     from types import SimpleNamespace
@@ -390,7 +391,8 @@ def test_codegen_reuses_subject_derivatives_within_run(
         observe_alias=lambda surface_alias: aliases.append(surface_alias.copy()),
     )
     monkeypatch.setattr(CodeGenerator, "_build_header", lambda *args: "")
-    code = CodeGenerator(ct, {target: nodes}).code
+    code = CodeGenerator(ct, {target: nodes}, rich_output=rich_output).code
+    assert ("_log." in code) == rich_output
 
     def run():
         exec(  # noqa: S102 - Validate generated pipeline execution.
@@ -670,10 +672,12 @@ def test_export_project_bundles_path_plugins(
         assert "module-plugin" in requirements
         script = archive.read("pipeline.py").decode()
         ast.parse(script)
+        assert "process_log" not in script
+        assert "_log." not in script
         assert "MNENODES_SETTINGS_DIR" in script
         assert "MNENODES_BIDS_ROOT" in script
         assert script.index("ct = Controller") < script.index(
-            "settings.set('deriv_root'"
+            "settings.set(key, folder)"
         )
         assert "settings.set('plot_root_is_config_specific', True)" in script
         config = json.loads(archive.read("pipeline.json"))
@@ -1309,7 +1313,8 @@ def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
 
 @pytest.mark.timeout(180)
 @pytest.mark.parametrize("storage", ["memory", "local", "external"])
-def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage):
+@pytest.mark.parametrize("rich_output", [False, True])
+def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage, rich_output):
     from mne_nodes.backend.code_generation import CodeGenerator
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from tests.conftest import _add_complex_nodes, create_test_controller
@@ -1347,7 +1352,9 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage):
         for node in sequence:
             node["checked"] = storage != "memory"
 
-    generated_code = CodeGenerator(ct, node_sequence).code
+    generated_code = CodeGenerator(ct, node_sequence, rich_output=rich_output).code
+    assert ("process_log" in generated_code) == rich_output
+    assert ("_log." in generated_code) == rich_output
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
     generated_code = generated_code.replace(
         "# Load controller\n",

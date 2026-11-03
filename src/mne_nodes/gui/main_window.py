@@ -11,7 +11,7 @@ from pathlib import Path
 import mne
 from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, Signal
 from qtpy.QtGui import QAction, QActionGroup, QKeySequence
-from qtpy.QtWidgets import QApplication, QDialog, QMainWindow
+from qtpy.QtWidgets import QApplication, QDialog, QMainWindow, QMessageBox
 
 from mne_nodes import iswin
 from mne_nodes.backend.code_generation import CodeGenerator, export_project
@@ -514,6 +514,23 @@ class MainWindow(QMainWindow):
         self.controller.flush()
         return node_sequence
 
+    def _export_rich_output(self) -> bool | None:
+        """Choose export formatting, or return None to cancel the export."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Export formatting")
+        box.setText("Include rich-formatted progress output in the exported script?")
+        plain = box.addButton("Plain output", QMessageBox.ButtonRole.AcceptRole)
+        rich = box.addButton("Rich output", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(plain)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked == plain:
+            return False
+        if clicked == rich:
+            return True
+        return None
+
     def export_python_script(self, _checked=False):
         node_sequence = self._export_node_sequence()
         if node_sequence is None:
@@ -526,11 +543,15 @@ class MainWindow(QMainWindow):
         )
         if script_path is None:
             return
+        rich_output = self._export_rich_output()
+        if rich_output is None:
+            return
         script_path = Path(script_path)
         if script_path.suffix.lower() != ".py":
             script_path = script_path.with_suffix(".py")
         script_path.write_text(
-            CodeGenerator(self.controller, node_sequence).code, encoding="utf-8"
+            CodeGenerator(self.controller, node_sequence, rich_output=rich_output).code,
+            encoding="utf-8",
         )
         self.statusBar().showMessage(f"Code exported to {script_path}.")
 
@@ -546,11 +567,16 @@ class MainWindow(QMainWindow):
         )
         if script_path is None:
             return
+        rich_output = self._export_rich_output()
+        if rich_output is None:
+            return
         script_path = Path(script_path)
         if script_path.suffix.lower() != ".py":
             script_path = script_path.with_suffix(".py")
         script_path.write_text(
-            CodeGenerator(self.controller, node_sequence).jupyter_script,
+            CodeGenerator(
+                self.controller, node_sequence, rich_output=rich_output
+            ).jupyter_script,
             encoding="utf-8",
         )
         self.statusBar().showMessage(f"Jupyter script exported to {script_path}.")
@@ -567,12 +593,19 @@ class MainWindow(QMainWindow):
         )
         if archive_path is None:
             return
+        rich_output = self._export_rich_output()
+        if rich_output is None:
+            return
         archive_path = Path(archive_path)
         if archive_path.suffix.lower() != ".zip":
             archive_path = archive_path.with_suffix(".zip")
         try:
             export_project(
-                self.controller, node_sequence, archive_path, self.viewer.to_dict()
+                self.controller,
+                node_sequence,
+                archive_path,
+                self.viewer.to_dict(),
+                rich_output=rich_output,
             )
         except (OSError, ValueError, KeyError, TypeError):
             ErrorDialog(

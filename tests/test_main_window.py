@@ -211,7 +211,8 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
     assert calls == [{"force": True}]
 
 
-def test_export_actions(main_window, monkeypatch, tmp_path):
+@pytest.mark.parametrize("rich_output", [False, True, None])
+def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
     """The File menu exports Python, Jupyter, and complete-project files."""
     import zipfile
 
@@ -225,6 +226,7 @@ def test_export_actions(main_window, monkeypatch, tmp_path):
     monkeypatch.setattr(
         "mne_nodes.gui.main_window.get_user_input", lambda *args, **kwargs: next(paths)
     )
+    monkeypatch.setattr(main_window, "_export_rich_output", lambda: rich_output)
     file_menu = next(
         menu
         for menu in main_window.menuBar().findChildren(QMenu)
@@ -236,14 +238,25 @@ def test_export_actions(main_window, monkeypatch, tmp_path):
     actions["Export Jupyter Script..."].trigger()
     actions["Export Complete Project..."].trigger()
 
-    assert "Controller(config_path=" in (tmp_path / "pipeline.py").read_text()
-    assert (tmp_path / "pipeline_jupyter.py").read_text().startswith("# %%\n")
+    if rich_output is None:
+        assert not list(tmp_path.glob("pipeline*"))
+        return
+
+    script = (tmp_path / "pipeline.py").read_text()
+    jupyter_script = (tmp_path / "pipeline_jupyter.py").read_text()
+    assert "Controller(config_path=" in script
+    assert jupyter_script.startswith("# %%\n")
     with zipfile.ZipFile(tmp_path / "pipeline_project.zip") as archive:
         assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
             archive.namelist()
         )
-        assert "os.chdir(project_root)" in archive.read("pipeline.py").decode()
+        project_script = archive.read("pipeline.py").decode()
+        assert "os.chdir(project_root)" in project_script
         assert "mne-nodes" in archive.read("requirements.txt").decode()
+    for code in (script, jupyter_script, project_script):
+        assert ("process_log" in code) == rich_output
+        assert ("_log." in code) == rich_output
+        compile(code, "<exported-pipeline>", "exec")
 
 
 def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
