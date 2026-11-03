@@ -248,7 +248,11 @@ def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
     assert "Controller(config_path=" in script
     assert notebook["nbformat"] == 4
     assert notebook["cells"]
-    assert all(cell["cell_type"] == "code" and cell["id"] for cell in notebook["cells"])
+    assert all(
+        cell["cell_type"] in {"code", "markdown"} and cell["id"]
+        for cell in notebook["cells"]
+    )
+    assert notebook["cells"][0]["cell_type"] == "markdown"
     notebook_code = "\n".join(
         "".join(cell["source"])
         for cell in notebook["cells"]

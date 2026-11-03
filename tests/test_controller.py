@@ -1241,6 +1241,7 @@ def test_expose_plugin_functions(tmp_path, monkeypatch, with_script):
 
 def test_codegen_submodule_function_executes(ct, monkeypatch):
     """Generated plugin calls resolve to the configured submodule function."""
+    import json
     from types import ModuleType
     from unittest.mock import Mock
 
@@ -1262,7 +1263,11 @@ def test_codegen_submodule_function_executes(ct, monkeypatch):
         plugin, "bem_plugin", {"config_path": {"make_watershed_bem": func_meta}}
     )
     assert plugin.make_watershed_bem is make_watershed_bem
-    ct.set("selected_inputs", {"eeg": [ct.get_datatype_items("eeg")[0]]})
+    selected_items = ct.get_datatype_items("eeg")
+    selected_items = (
+        selected_items[:2] if len(selected_items) > 1 else selected_items * 2
+    )
+    ct.set("selected_inputs", {"eeg": selected_items})
     node_sequence = {
         "file": [
             {
@@ -1276,16 +1281,51 @@ def test_codegen_submodule_function_executes(ct, monkeypatch):
         ],
         "group": [],
     }
-    code = CodeGenerator(ct, node_sequence).code
+    generator = CodeGenerator(ct, node_sequence)
+    notebook = json.loads(generator.jupyter_notebook)
+    assert any(
+        cell["cell_type"] == "markdown"
+        and "#### `make_watershed_bem`" in "".join(cell["source"])
+        for cell in notebook["cells"]
+    )
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    function_cells = [
+        cell
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "# Execute function " in "".join(cell["source"])
+    ]
+    assert len(function_cells) == len(selected_items)
+    assert "_notebook_states" not in notebook_code
+    assert sum(
+        cell["cell_type"] == "markdown"
+        and "".join(cell["source"]).startswith("#### Item ")
+        for cell in notebook["cells"]
+    ) == len(selected_items)
+    compile(notebook_code, "<generated-notebook>", "exec")
+
     watershed = Mock()
     monkeypatch.setattr(plugin, "make_watershed_bem", watershed)
     monkeypatch.setattr(ct, "load_recording_subject", lambda bp: "fsaverage")
     monkeypatch.setattr("mne_nodes.backend.controller.Controller", lambda **kwargs: ct)
     monkeypatch.setattr(mne_nodes, "gui_mode", False)
 
-    exec(compile(code, "<generated-pipeline>", "exec"), {})  # noqa: S102
+    notebook_namespace = {}
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            exec(  # noqa: S102
+                compile("".join(cell["source"]), "<generated-notebook-cell>", "exec"),
+                notebook_namespace,
+            )
 
-    watershed.assert_called_once_with(subject="fsaverage")
+    assert watershed.call_count == len(selected_items)
+    assert all(
+        call.kwargs == {"subject": "fsaverage"} for call in watershed.call_args_list
+    )
 
 
 @pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
@@ -1538,6 +1578,7 @@ def test_relocated_plugin_identity_survives_restart(
 
 
 def test_codegen_multi_type_read_write(ct, caplog):
+    import json
     import logging
 
     from mne_nodes.backend.code_generation import CodeGenerator
@@ -1614,6 +1655,24 @@ def test_codegen_multi_type_read_write(ct, caplog):
     assert "suffix='ave'" in code
     assert "write_evokeds" in code
     assert "grand_average(" in code
+    notebook = json.loads(gen.jupyter_notebook)
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert (
+        len(
+            [
+                cell
+                for cell in notebook["cells"]
+                if cell["cell_type"] == "code"
+                and "# Execute function " in "".join(cell["source"])
+            ]
+        )
+        == 2
+    )
+    compile(notebook_code, "<generated-group-notebook>", "exec")
 
     node = node_sequence["group"][0]
     node["inputs"] = {"all_inst": ["unknown_node"]}

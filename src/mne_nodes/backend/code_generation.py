@@ -1,6 +1,7 @@
 import importlib.metadata
 import json
 import re
+import textwrap
 import zipfile
 from copy import deepcopy
 from pathlib import Path
@@ -36,22 +37,9 @@ class CodeGenerator:
 
     @property
     def jupyter_notebook(self):
-        """Return the generated code as a Jupyter notebook document."""
-        cells = re.split(r"(?m)^# %%\s*$", self.jupyter_script)
-        notebook_cells = [
-            {
-                "cell_type": "code",
-                "execution_count": None,
-                "id": f"cell-{index}",
-                "metadata": {},
-                "outputs": [],
-                "source": cell.lstrip("\n").splitlines(keepends=True),
-            }
-            for index, cell in enumerate(cells)
-            if cell.strip()
-        ]
+        """Return the generated code as a structured Jupyter notebook."""
         notebook = {
-            "cells": notebook_cells,
+            "cells": self._notebook_cells,
             "metadata": {
                 "kernelspec": {
                     "display_name": "Python 3",
@@ -298,6 +286,37 @@ class CodeGenerator:
     def generate_code(self):
         """Convert a list of instructions to a Python code string."""
         self.ct.discard_legacy_segmentation_checks()
+        notebook_cells = [
+            {
+                "cell_type": "markdown",
+                "id": "cell-0",
+                "metadata": {},
+                "source": [
+                    "# MNE-Nodes pipeline\n",
+                    "\n",
+                    (
+                        "Run the code cells from top to bottom. Each function has "
+                        "its own cell and runs over the selected inputs.\n"
+                    ),
+                ],
+            }
+        ]
+
+        def add_notebook_cell(cell_type, source):
+            notebook_cells.append(
+                {
+                    "cell_type": cell_type,
+                    "id": f"cell-{len(notebook_cells)}",
+                    "metadata": {},
+                    "source": source.splitlines(keepends=True),
+                    **(
+                        {"execution_count": None, "outputs": []}
+                        if cell_type == "code"
+                        else {}
+                    ),
+                }
+            )
+
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         import_function_names = set()
@@ -308,11 +327,13 @@ class CodeGenerator:
         if self.rich_output:
             body += f"_pipeline_start = _log.pipeline_start({self.ct.name!r})\n"
         body += "\n"
+        notebook_prelude = body
         # Iterate nodes
         for target, nodes in self.node_sequence.items():
             if len(nodes) == 0:
                 continue
             body += f"# Target: {target}\n"
+            add_notebook_cell("markdown", f"## Target: {target}\n")
             for selection_type in [
                 key
                 for key, items in self.ct.get("selected_inputs").items()
@@ -330,6 +351,12 @@ class CodeGenerator:
                 if target == "group":
                     body += f"group = ct.get_group_by('{selection_type}')\n"
                 body += f"_items = ct.get('selected_inputs')['{selection_type}']\n"
+                add_notebook_cell("markdown", f"### Selection: {selection_type}\n")
+                if target == "group":
+                    add_notebook_cell(
+                        "code", f"group = ct.get_group_by({selection_type!r})\n"
+                    )
+                notebook_node_codes = []
                 if self.rich_output:
                     body += "for _index, item in enumerate(_items, 1):\n"
                     body += self._indent(
@@ -340,10 +367,11 @@ class CodeGenerator:
                 # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     body += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
-                else:
+                elif target == "group":
                     # For group-data, load member bids-paths as a list
                     body += self._indent("members = group[item]\n", 1)
                 for n in nodes:
+                    node_start = len(body)
                     name = n["name"]
                     func_meta = n["function_meta"]
                     base_name = self.base_func_name(name)
@@ -656,6 +684,28 @@ class CodeGenerator:
                                     1,
                                 )
                     loaded_data.update(n["outputs"])
+                    node_code = body[node_start:]
+                    if node_code:
+                        notebook_node_codes.append((name, node_code))
+
+                selected_items = self.ct.get("selected_inputs")[selection_type]
+                for item_index, item in enumerate(selected_items, 1):
+                    add_notebook_cell("markdown", f"#### Item {item_index}: `{item}`\n")
+                    item_setup = f"item = {item!r}\n"
+                    if self.rich_output:
+                        item_setup += (
+                            f"_log.item_start({selection_type!r}, item, "
+                            f"{item_index}, {len(selected_items)})\n"
+                        )
+                    if target == "file" and selection_type in data_types:
+                        item_setup += "bp = get_bids_path_from_fname(item)\n"
+                    elif target == "group":
+                        item_setup += "members = group[item]\n"
+                    add_notebook_cell("code", item_setup)
+
+                    for name, node_code in notebook_node_codes:
+                        add_notebook_cell("markdown", f"##### `{name}`\n")
+                        add_notebook_cell("code", textwrap.dedent(node_code))
 
         if self.rich_output:
             body += "\n_log.pipeline_finished(_pipeline_start)\n"
@@ -666,6 +716,25 @@ class CodeGenerator:
             "# Keep plot windows open until closed (if enabled in settings)\n"
             "ct.wait_for_plots()\n"
         )
+
+        setup = header + notebook_prelude
+        notebook_cells.insert(
+            1,
+            {
+                "cell_type": "code",
+                "id": "cell-1",
+                "metadata": {},
+                "execution_count": None,
+                "outputs": [],
+                "source": setup.splitlines(keepends=True),
+            },
+        )
+        if self.rich_output:
+            add_notebook_cell("code", "_log.pipeline_finished(_pipeline_start)\n")
+        add_notebook_cell("code", footer)
+        for index, cell in enumerate(notebook_cells):
+            cell["id"] = f"cell-{index}"
+        self._notebook_cells = notebook_cells
 
         return header + body + footer
 
