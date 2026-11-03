@@ -110,6 +110,7 @@ def test_alias_generated_pipeline_calls_original(ct, monkeypatch):
     generator = CodeGenerator(ct, sequence)
     assert generator._qualified_call("other_shared", set()) == "second.shared"
     monkeypatch.setattr("mne_nodes.backend.controller.Controller", lambda **kwargs: ct)
+    ct.settings.set("keep_plots_open", False)
     exec(compile(generator.code, "<alias-pipeline>", "exec"), {})  # noqa: S102
     plugin.shared.assert_called_once()
 
