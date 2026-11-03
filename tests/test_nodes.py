@@ -11,6 +11,7 @@ from qtpy.QtCore import QPointF, Qt
 
 from mne_nodes.gui.gui_utils import mouseDrag
 from mne_nodes.gui.node.ports import Port
+from tests.conftest import _add_complex_nodes
 
 
 def test_input_outputs_require_selection(nodeviewer):
