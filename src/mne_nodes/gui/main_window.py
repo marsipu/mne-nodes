@@ -27,6 +27,7 @@ from mne_nodes.gui.freesurfer_widgets import (
     FreeSurferSetupDialog,
 )
 from mne_nodes.gui.function_widgets import FunctionImporter
+from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
@@ -374,7 +375,20 @@ class MainWindow(QMainWindow):
         self.settings_dialog.open()
 
     def _apply_setting(self, name: str, value: object) -> None:
-        if name == "pipe_layout":
+        if name in ("app_theme", "app_style"):
+            set_app_theme()
+            if name == "app_theme":
+                from mne_nodes.gui.code_editor import resolve_theme
+
+                theme = resolve_theme()
+                for widget in QApplication.allWidgets():
+                    highlighter = getattr(widget, "highlighter", None)
+                    set_theme = getattr(highlighter, "set_theme", None)
+                    if callable(set_theme):
+                        set_theme(theme)
+        elif name in ("app_font", "app_font_size"):
+            set_app_font_size()
+        elif name == "pipe_layout":
             self.viewer.pipe_layout = value
             for action in self.pipe_style_group.actions():
                 action.setChecked(action.data() == value)

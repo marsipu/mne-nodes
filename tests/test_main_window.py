@@ -73,9 +73,16 @@ def test_main_window_lifecycle(settings, qtbot, tmp_path):
 
 def test_settings_dialog(main_window, qtbot):
     """Editing TOML-defined preferences persists without changing other settings."""
+    from qtpy.QtGui import QPalette
+    from qtpy.QtWidgets import QApplication
+
     from mne_nodes.backend.settings import Settings, settings_config
+    from mne_nodes.gui.code_editor import HIGHLIGHT_COLORS, CodeEditor
+    from mne_nodes.gui.gui_theme import get_palette
     from mne_nodes.gui.settings_dialog import SettingsDlg
 
+    editor = CodeEditor()
+    qtbot.addWidget(editor)
     settings = main_window.settings
     settings.set("unrelated_setting", {"keep": [1, 2, 3]})
     settings.set("app_font_size", 15)
@@ -99,6 +106,14 @@ def test_settings_dialog(main_window, qtbot):
     }
     for name, value in values.items():
         dialog.widgets[name].value = value
+    app = QApplication.instance()
+    assert app.style().objectName() == "fusion"
+    assert app.font().families()[0] == "DejaVu Sans"
+    assert app.font().pointSize() == 16
+    assert app.palette().color(QPalette.ColorRole.Window) == get_palette("dark").color(
+        QPalette.ColorRole.Window
+    )
+    assert editor.highlighter.colors == HIGHLIGHT_COLORS["dark"]
     assert main_window.viewer.pipe_layout == "straight"
     dialog.close()
 

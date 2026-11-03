@@ -5,8 +5,7 @@ tab = "Appearance"
 gui_type = "ComboGui"
 default = "auto"
 alias = "Application theme"
-description = "Use the system theme automatically, or choose a fixed theme."
-restart_required = true
+description = "Use the system theme automatically, or choose a fixed theme. Applied immediately."
 [app_theme.gui_kwargs]
 options = ["auto", "light", "dark", "high_contrast"]
 
@@ -15,26 +14,23 @@ tab = "Appearance"
 gui_type = "ComboGui"
 default = "fusion"
 alias = "Application style"
-description = "Choose a Qt widget style available on this device."
 options_source = "styles"
-restart_required = true
+description = "Choose a Qt widget style available on this device. Applied immediately."
 
 [app_font]
 tab = "Appearance"
 gui_type = "ComboGui"
 default = "Calibri"
 alias = "Application font"
-description = "Choose the default application font family."
 options_source = "fonts"
-restart_required = true
+description = "Choose the default application font family. Applied immediately."
 
 [app_font_size]
 tab = "Appearance"
 gui_type = "IntGui"
 default = 12
 alias = "Font size"
-description = "Set the default application font size in points."
-restart_required = true
+description = "Set the default application font size in points. Applied immediately."
 [app_font_size.gui_kwargs]
 min_val = 5
 max_val = 36
