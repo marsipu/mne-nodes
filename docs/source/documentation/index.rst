@@ -1,5 +1,16 @@
+Documentation
+=============
+
+.. toctree::
+   :maxdepth: 1
+
+   datasets
+   coregistration
+   freesurfer
+   settings
+
 Error reporting
-===============
+---------------
 
 The error dialog offers **Copy traceback** to copy the original, unredacted
 traceback as plain text.

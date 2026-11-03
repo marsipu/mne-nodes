@@ -28,8 +28,7 @@ default_device_settings = {
     "deriv_root": None,  # BIDS derivatives root directory
     "plot_root": None,  # Plot export root directory
     "plot_root_is_config_specific": False,  # Root already includes the config name
-    "fs_path": None,  # FREESURFER_HOME (legacy / optional)
-    "wls_mne_path": None,  # Legacy WSL MNE path
+    "wsl_distribution": None,  # None uses the default WSL distribution
     "use_qthread": 1,  # Kept for backwards compatibility
     "save_ram": 1,  # Memory optimization flag
     "enable_cuda": 0,  # GPU usage flag
@@ -39,6 +38,8 @@ default_device_settings = {
     "app_style": "fusion",  # Qt style
     "app_font": "Calibri",  # Default application font family
     "app_font_size": 12,  # Default application font size
+    "keep_plots_open": True,  # Keep plot windows open after a pipeline finished
+    "pipe_layout": "curved",  # Node-viewer pipe style (curved/straight/angle/routed)
     "first_start": True,  # Flag indicating if this is the first start of the application
 }
 

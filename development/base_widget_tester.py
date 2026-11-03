@@ -22,10 +22,10 @@ from qtpy.QtWidgets import (
 from mne_nodes.gui.widgets.dict_widgets import EditDict, SimpleDict
 from mne_nodes.gui.widgets.list_widgets import (
     CheckDictEditList,
-    CheckDictList,
     CheckList,
     CheckListProgress,
     EditList,
+    MarkList,
     SimpleList,
 )
 from mne_nodes.gui.widgets.misc_widgets import AssignWidget
@@ -105,12 +105,16 @@ class BaseWidgetTester(QWidget):
             CheckList(data=deepcopy(data["checklist"]), checked=[], title="CheckList"),
         )
         self._add_tab(
-            "CheckDictList",
-            CheckDictList(
-                data=deepcopy(data["checkdict"]),
-                check_dict={"item1": "value1", "item3": "value3"},
+            "MarkList",
+            MarkList(
+                data={"item1": True, "item2": False, "item3": "pending"},
+                mark_icons={
+                    True: "SP_DialogApplyButton",
+                    False: "SP_DialogCancelButton",
+                    "pending": "SP_BrowserReload",
+                },
                 extended_selection=True,
-                title="CheckDictList",
+                title="MarkList",
             ),
         )
         self._add_tab(

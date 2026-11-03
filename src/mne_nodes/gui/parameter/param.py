@@ -1,8 +1,9 @@
 """Base parameter GUI class."""
 
 from collections.abc import MutableMapping
+from pathlib import Path
 from types import NoneType
-from typing import Any
+from typing import Any, get_args
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget
@@ -10,6 +11,15 @@ from qtpy.QtWidgets import QCheckBox, QGroupBox, QHBoxLayout, QLabel, QWidget
 from mne_nodes.backend.controller import Controller
 from mne_nodes.backend.settings import Settings
 from mne_nodes.logger import logger
+
+_NEIGHBORING_TYPES: dict[type, type] = {
+    int: float,
+    float: int,
+    tuple: list,
+    list: tuple,
+    Path: str,
+    str: Path,
+}
 
 
 class Param(QWidget):
@@ -27,7 +37,9 @@ class Param(QWidget):
     alias : str | None
         Display name shown in the GUI. Defaults to *name*.
     default : object | None
-        Value used when *name* is not present in *data* or has the wrong type.
+        Value used when *name* is not present in *data* or cannot be converted
+        from a neighboring type (int/float, tuple/list, or str/Path).
+        Floats are converted to integers only if they are integral.
     unit : str | None
         Unit label displayed alongside the value.
     groupbox_layout : bool
@@ -192,6 +204,24 @@ class Param(QWidget):
         dt = self.data_type
         if self.none_select:
             dt = dt | NoneType
+        if not isinstance(value, dt):
+            target_types = get_args(dt) or (dt,)
+            for target_type, source_type in _NEIGHBORING_TYPES.items():
+                if (
+                    target_type not in target_types
+                    or not isinstance(value, source_type)
+                    or isinstance(value, bool)
+                ):
+                    continue
+                if target_type is int and not value.is_integer():
+                    continue
+                try:
+                    value = target_type(value)
+                except (TypeError, ValueError, OverflowError) as error:
+                    logger.warning(
+                        f"Could not convert parameter {name} to {target_type}: {error}"
+                    )
+                break
         if not isinstance(value, dt):
             logger.warning(
                 f"Data for {name} has to be of type {dt}, "

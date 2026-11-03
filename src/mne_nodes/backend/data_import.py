@@ -4,15 +4,24 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+from pathlib import Path
+from shutil import copy2, copytree
+from tempfile import TemporaryDirectory
+
 import mne
 from mne.datasets import sample
 from mne_bids import (
     BIDSPath,
+    get_anat_landmarks,
     make_dataset_description,
+    write_anat,
     write_meg_calibration,
     write_meg_crosstalk,
     write_raw_bids,
 )
+
+from mne_nodes.backend.coregistration import trans_path
+from mne_nodes.backend.freesurfer import is_freesurfer_subject
 
 datasets = {
     "testing": {
@@ -46,7 +55,7 @@ datasets = {
 }
 
 
-def load_sample_bids(bids_root):
+def load_sample_bids(bids_root: str | Path) -> None:
     """Load the MNE sample data organized in BIDS format.
     Code modified from https://mne.tools/mne-bids/stable/auto_examples/convert_mne_sample.html."""
     # Load sample data
@@ -96,6 +105,7 @@ def load_sample_bids(bids_root):
 
     write_meg_calibration(cal_fname, bids_path)
     write_meg_crosstalk(ct_fname, bids_path)
+    _copy_sample_anatomy(data_path, bids_path, raw.info)
 
     how_to_acknowledge = """\
     If you reference this dataset in a publication, please acknowledge its \
@@ -141,3 +151,87 @@ def load_sample_bids(bids_root):
         overwrite=True,
     )
     print("Sample data successfully written to BIDS format.")
+
+
+def _copy_sample_anatomy(data_path: Path, recording: BIDSPath, info: mne.Info) -> None:
+    """Make the sample reconstruction, T1w image and transform discoverable."""
+    source = data_path / "subjects" / "sample"
+    transform = data_path / "MEG" / "sample" / "sample_audvis_raw-trans.fif"
+    image = source / "mri" / "T1.mgz"
+    if not is_freesurfer_subject(source):
+        raise ValueError(
+            f"The sample FreeSurfer reconstruction is incomplete: {source}"
+        )
+    for path in (image, transform):
+        if not path.is_file():
+            raise FileNotFoundError(f"Required sample anatomy file is missing: {path}")
+    root = recording.root
+    if root is None:
+        raise ValueError("A BIDS root is required to import sample anatomy.")
+    subjects_dir = root / "derivatives" / "freesurfer"
+    if (subjects_dir / "subjects").is_dir():
+        subjects_dir /= "subjects"
+    subject = f"sub-{recording.subject}"
+    destination = subjects_dir / subject
+    if subjects_dir.resolve().is_relative_to(source.resolve()):
+        raise ValueError("The sample import destination must not be inside its source.")
+    if destination.exists():
+        if not is_freesurfer_subject(destination):
+            raise ValueError(
+                f"Existing FreeSurfer subject is incomplete: {destination}"
+            )
+    else:
+        print("Copying sample FreeSurfer reconstruction...")
+        subjects_dir.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(
+            prefix=".mne-nodes-import-", dir=subjects_dir
+        ) as folder:
+            staged = Path(folder) / subject
+            copytree(source, staged)
+            # MNE looks up scalp and BEM files using the FreeSurfer subject name.
+            for path in (staged / "bem").rglob("sample-*"):
+                if path.is_file():
+                    path.rename(
+                        path.with_name(path.name.replace("sample-", f"{subject}-", 1))
+                    )
+            staged.rename(destination)
+    anatomy = recording.copy().update(
+        datatype="anat", task=None, run=None, suffix="T1w", extension=".nii.gz"
+    )
+    if not anatomy.fpath.exists():
+        print("Writing sample T1w anatomy...")
+        landmarks = get_anat_landmarks(
+            image,
+            info,
+            transform,
+            fs_subject="sample",
+            fs_subjects_dir=data_path / "subjects",
+        )
+        write_anat(image, anatomy, landmarks=landmarks, overwrite=False)
+    destination_trans = trans_path(recording, root / "derivatives" / "mne-nodes")
+    if not destination_trans.exists():
+        destination_trans.parent.mkdir(parents=True, exist_ok=True)
+        copy2(transform, destination_trans)
+
+
+def sample_bids_has_anatomy(bids_root: Path) -> bool:
+    """Check whether a converted sample has its discoverable auxiliary data."""
+    recording = BIDSPath(
+        root=bids_root,
+        subject="01",
+        session="01",
+        task="audiovisual",
+        run="1",
+        datatype="meg",
+    )
+    subjects_dir = bids_root / "derivatives" / "freesurfer"
+    if (subjects_dir / "subjects").is_dir():
+        subjects_dir /= "subjects"
+    anatomy = recording.copy().update(
+        datatype="anat", task=None, run=None, suffix="T1w", extension=".nii.gz"
+    )
+    return (
+        is_freesurfer_subject(subjects_dir / "sub-01")
+        and anatomy.fpath.is_file()
+        and trans_path(recording, bids_root / "derivatives" / "mne-nodes").is_file()
+    )

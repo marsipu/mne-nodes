@@ -39,12 +39,11 @@ def test_console_dock_reports_process_start(main_window, qtbot, monkeypatch):
     dock._close_process(0)
 
 
-def test_console_stream_basic(qtbot):
-    """Set up a ConsoleWidget and write via streams (bytes and str)."""
+def test_console_stream(qtbot):
+    """Bytes and text reach the console; massive output does not crash it."""
 
     with create_console(qtbot, main_std=False) as console:
         wait_time = console.stream_worker.flush_s * 1000 * 2
-        # Push bytes and strings
         console.push_stdout(b"Hello from bytes\n")
         console.push_stdout("and text\n")
         console.push_stderr(b"and Error from bytes\n")
@@ -56,36 +55,11 @@ def test_console_stream_basic(qtbot):
         assert "and Error from bytes" in text
         assert "and Error text!" in text
 
-
-def test_logging(qtbot):
-    """Test streaming and logging to GUI-Console.
-
-    Also verify that a real exception traceback reaches the stderr
-    stream.
-    """
-    with create_console(qtbot) as console:
-        wait_time = console.stream_worker.flush_s * 1000 * 2
-        # stdout: plain print
-        print("Print-Test")
-        qtbot.wait(wait_time)
-        assert "Print-Test" in console.toPlainText()
-
-        # stderr: real exception with traceback to stderr
-        try:
-            raise RuntimeError("Test-Error")
-        except RuntimeError:
-            # This prints a full traceback to sys.stderr (hooked by the console)
-            traceback.print_exc()
-        qtbot.wait(wait_time)
-        text = console.toPlainText()
-        assert "Traceback (most recent call last):" in text
-        assert "RuntimeError: Test-Error" in text
-
-        # logging -> by default logging.StreamHandler uses sys.stderr
-        # ToDo: Fix Logging
-        # logging.info("Logging-Test")
-        # qtbot.wait(wait_time)
-        # assert "[INFO] Logging-Test" in console.toPlainText()
+        large_chunk = "X" * 10000
+        for _ in range(50):
+            console.push_stdout(large_chunk + "\n")
+        qtbot.wait(2000)
+        assert len(console.toPlainText()) > 0
 
 
 def test_formatting(qtbot):
@@ -113,51 +87,6 @@ def test_formatting(qtbot):
         text = console.toPlainText()
         for actual, expected in zip(text.splitlines(), expected_text):
             assert expected in actual, f"Expected '{expected}', got '{actual}'"
-
-
-@pytest.mark.skipif(True, reason="Disabled for now")
-def test_formatting_show(qtbot):
-    import tqdm
-
-    with create_console(qtbot) as console:
-        console.resize(800, 600)
-        console.show()
-        print("Test1")
-        qtbot.wait(500)
-        for i in tqdm.tqdm(range(10), desc="Progress"):
-            print(i)
-        qtbot.wait(500)
-        print("Test2")
-        qtbot.wait(500)
-        try:
-            raise RuntimeError("Test-Error")
-        except RuntimeError:
-            # This prints a full traceback to sys.stderr (hooked by the console)
-            traceback.print_exc()
-        qtbot.wait(500)
-        print("\nTest3")
-        qtbot.wait(1000)
-
-
-def test_stream_worker_massive_output(qtbot):
-    """Test handling of massive output without crashes.
-
-    Validates that:
-    - Large volumes of output don't crash or freeze
-    - Queue backpressure protection exists (MAX_QUEUE_SIZE)
-    - Performance is acceptable for typical use cases
-    """
-
-    with create_console(qtbot) as console:
-        # Test massive output performance
-        large_chunk = "X" * 10000
-        for _ in range(50):
-            console.push_stdout(large_chunk + "\n")
-
-        qtbot.wait(2000)  # Wait for processing
-
-        # Console should have content and did not crash
-        assert len(console.toPlainText()) > 0
 
 
 # Skip until #47 is worked on

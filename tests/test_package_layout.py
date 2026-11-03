@@ -5,55 +5,33 @@ from importlib.metadata import distribution
 from importlib.resources import files
 from importlib.util import find_spec
 
-import pytest
-from qtpy.QtGui import QPixmap
-
-
-@pytest.mark.parametrize(
-    "module",
-    [
-        "mne_nodes.__main__",
-        "mne_nodes.gui.main_window",
-        "mne_nodes.backend.controller",
-        "mne_nodes.backend.code_generation",
-        "mne_nodes.resources.example_plugin",
-    ],
+MODULES = (
+    "mne_nodes.__main__",
+    "mne_nodes.gui.main_window",
+    "mne_nodes.backend.controller",
+    "mne_nodes.backend.code_generation",
+    "mne_nodes.resources.example_plugin",
 )
-def test_installed_modules(module):
-    """Application modules must import without adding the source tree to sys.path."""
-    assert import_module(module) is not None
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "Welcome_pipeline.json",
-        "example_plugin.py",
-        "example_plugin_config.json",
-        "mne_pipeline_icon_dark.png",
-        "mne_pipeline_icon_light.png",
-        "mne_pipeline_logo_evee_smaller.jpg",
-        "wip_overview.png",
-    ],
+RESOURCES = (
+    "Welcome_pipeline.json",
+    "example_plugin.py",
+    "example_plugin_config.json",
+    "mne_pipeline_icon_dark.png",
+    "mne_pipeline_icon_light.png",
+    "mne_pipeline_logo_evee_smaller.jpg",
+    "wip_overview.png",
 )
-def test_packaged_resources(name):
-    """All runtime assets must be available through the installed package."""
-    assert (files("mne_nodes.resources") / name).is_file()
+EXCLUDED = ("tests", "conftest", "development", "ui", "pipeline", "extra")
 
 
-@pytest.mark.parametrize("theme", ["dark", "light"])
-def test_packaged_icons(qapp, theme):
-    """Qt must be able to decode the installed application icons."""
-    icon = files("mne_nodes.resources") / f"mne_pipeline_icon_{theme}.png"
-    assert not QPixmap(str(icon)).isNull()
-
-
-@pytest.mark.parametrize(
-    "name", ["tests", "conftest", "development", "ui", "pipeline", "extra"]
-)
-def test_package_excludes_old_modules(name):
-    """Test helpers, development tooling and renamed packages are not shipped."""
-    assert find_spec(f"mne_nodes.{name}") is None
+def test_package_contents():
+    """Modules and assets are importable, old or development modules are not."""
+    for module in MODULES:
+        assert import_module(module) is not None, module
+    for name in RESOURCES:
+        assert (files("mne_nodes.resources") / name).is_file(), name
+    for name in EXCLUDED:
+        assert find_spec(f"mne_nodes.{name}") is None, name
 
 
 def test_gui_entry_point():

@@ -46,6 +46,16 @@ in a worker dialog so the interface stays responsive while system info is gather
 not submit an issue.
 Cancel the preview to avoid opening the browser, and do not submit demo reports.
 
+Tests default to `mne_nodes.gui_mode = False`, including during collection and
+controller setup, so backend tests do not open JSON/plugin-loading progress
+dialogs. This does not prevent `pytest-qt` tests from constructing and exercising
+widgets directly. Tests needing application-level GUI routing (dialogs,
+notifications or welcome-tour initialization) can request the `gui_mode` fixture
+or use `@pytest.mark.gui_mode`. The marker enables GUI mode before any fixture
+setup and also works on classes or modules; the fixture enables it when that
+fixture runs. Mode changes are restored after each test. Prefer opting in only
+for tests that need these GUI code paths, and mock unrelated prompts as usual.
+
 The module path has changed from `mne_nodes.pipeline` to `mne_nodes.backend`.
 Update external plugins and scripts that import this module. The
 `mne_nodes.gui` module path, package name and `mne_nodes` launch command
