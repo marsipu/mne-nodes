@@ -1,6 +1,6 @@
 """Dialogs for running backend processes."""
 
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import QTimer, Qt, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
@@ -158,7 +158,7 @@ class WorkerDialog(_RunDialog):
         )
 
     def start_operation(self):
-        self.worker.start()
+        QTimer.singleShot(0, self.worker.start)
 
     def init_content(self, layout):
         self.progress_label = QLabel()
