@@ -924,9 +924,7 @@ class NodeViewer(QGraphicsView):
 
     def _resolve_execution_order(self, start_nodes):
         downstream = self._collect_nodes(start_nodes, "out")
-        start_ancestors = self._collect_nodes(
-            start_nodes, "in", include_start=False
-        )
+        start_ancestors = self._collect_nodes(start_nodes, "in", include_start=False)
         dependencies = self._collect_nodes(list(downstream.values()), "in")
         selected = OrderedDict(downstream)
         for node_id, dep_node in dependencies.items():

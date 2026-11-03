@@ -399,17 +399,13 @@ def test_selected_node_sequence(qtbot, ct):
     join_meta = deepcopy(ct.get_function_meta("test_filter"))
     join_meta["inputs"]["raw_b"] = deepcopy(join_meta["inputs"]["raw"])
     ct.function_meta["test_join"] = join_meta
-    upstream_a, selected_a, upstream_b, selected_b = [
+    upstream_a, selected_a, upstream_b, selected_b = (
         viewer.add_function_node("test_filter") for _ in range(4)
-    ]
+    )
     shared = viewer.add_function_node("test_join")
-    upstream_a.output(port_name="raw").connect_to(
-        selected_a.input(port_name="raw")
-    )
+    upstream_a.output(port_name="raw").connect_to(selected_a.input(port_name="raw"))
     selected_a.output(port_name="raw").connect_to(shared.input(port_name="raw"))
-    upstream_b.output(port_name="raw").connect_to(
-        selected_b.input(port_name="raw")
-    )
+    upstream_b.output(port_name="raw").connect_to(selected_b.input(port_name="raw"))
     selected_b.output(port_name="raw").connect_to(shared.input(port_name="raw_b"))
     sequence = viewer.get_selected_node_sequence([selected_a, selected_b])
     names = [node["name"] for node in sequence["file"]]
@@ -420,9 +416,7 @@ def test_selected_node_sequence(qtbot, ct):
         shared.get_description()[0]["name"],
     ]
 
-    cycle_a, cycle_b = [
-        viewer.add_function_node("test_filter") for _ in range(2)
-    ]
+    cycle_a, cycle_b = (viewer.add_function_node("test_filter") for _ in range(2))
     cycle_a.output(port_name="raw").connect_to(cycle_b.input(port_name="raw"))
     cycle_b.output(port_name="raw").connect_to(cycle_a.input(port_name="raw"))
     for selected_nodes in ([cycle_a], [cycle_a, cycle_b]):
