@@ -34,6 +34,7 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import debug_mode
+from mne_nodes.gui.dialogs.user_interaction import raise_user_attention
 from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node.base_node import BaseNode
 from mne_nodes.gui.node.function_node import CommandNode, FunctionNode
@@ -44,7 +45,6 @@ from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
 from mne_nodes.gui.node.routing import separate_overlaps
-from mne_nodes.gui.user_interaction import raise_user_attention
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
 

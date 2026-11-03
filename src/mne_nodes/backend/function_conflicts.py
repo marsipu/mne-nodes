@@ -14,7 +14,7 @@ from mne_nodes.backend.plugin_package import (
     normalize_source_encoding,
     plugin_source_is_installed,
 )
-from mne_nodes.gui.user_interaction import raise_user_attention
+from mne_nodes.gui.dialogs.user_interaction import raise_user_attention
 
 
 def can_rename_plugin_source(plugin_meta: dict) -> bool:

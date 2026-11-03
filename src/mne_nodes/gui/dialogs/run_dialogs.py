@@ -1,10 +1,6 @@
-"""
-Authors: Martin Schulz <dev@mgschulz.de>
-License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
-"""
+"""Dialogs for running backend processes."""
 
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
@@ -19,7 +15,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.execution import Process, Worker
 from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
-from mne_nodes.gui.user_interaction import warning_message
+from mne_nodes.gui.dialogs.user_interaction import warning_message
 
 
 class _RunDialog(QDialog):
@@ -162,6 +158,9 @@ class WorkerDialog(_RunDialog):
         )
 
     def start_operation(self):
+        QTimer.singleShot(0, self._start_worker)
+
+    def _start_worker(self):
         self.worker.start()
 
     def init_content(self, layout):
@@ -197,6 +196,10 @@ class WorkerDialog(_RunDialog):
 
     def cancel(self):
         self.worker.cancel()
+
+    def reject(self):
+        """Apply the same running-worker close guard to Escape."""
+        self.close()
 
     def on_closed(self):
         self.thread_finished.emit(self.return_value)

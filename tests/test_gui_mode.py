@@ -6,7 +6,7 @@ import pytest
 
 import mne_nodes
 from mne_nodes.backend.io import load_json
-from mne_nodes.gui import user_interaction
+from mne_nodes.gui.dialogs import user_interaction
 
 
 @pytest.mark.parametrize(

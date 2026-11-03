@@ -13,7 +13,7 @@ from mne_nodes.backend.function_conflicts import (
     rename_plugin_function,
     rename_plugin_functions,
 )
-from mne_nodes.gui.function_conflicts import FunctionConflictDialog
+from mne_nodes.gui.dialogs.function_conflicts import FunctionConflictDialog
 
 
 def _plugin(name, result):

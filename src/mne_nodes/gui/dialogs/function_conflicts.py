@@ -1,4 +1,4 @@
-"""Explicit resolution of function names shared by different plugins."""
+"""Dialog for resolving function names shared by different plugins."""
 
 import keyword
 

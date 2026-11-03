@@ -9,8 +9,8 @@ from copy import deepcopy
 from qtpy.QtWidgets import QFrame, QGroupBox, QScrollArea, QVBoxLayout, QWidget
 
 from mne_nodes.gui.code_editor import CodeEditorWidget
+from mne_nodes.gui.dialogs.user_interaction import raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.gui.user_interaction import raise_user_attention
 from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 
@@ -32,7 +32,7 @@ class FunctionNode(BaseNode):
         for input_name, input_kwargs in func_meta["inputs"].items():
             accepted_ports = [input_name, *input_kwargs.get("accepted_ports", [])]
             if input_name == "raw":
-                accepted_ports += [*ct.raw_types]
+                accepted_ports += [*ct.raw_datatypes]
             optional = input_kwargs.get("optional", False)
             # Don't warn for existing ports since ports might be supplied via **kwargs
             self.add_input(
@@ -45,7 +45,7 @@ class FunctionNode(BaseNode):
         for output_name, output_kwargs in func_meta["outputs"].items():
             accepted_ports = [output_name, *output_kwargs.get("accepted_ports", [])]
             if output_name == "raw":
-                accepted_ports += [*ct.raw_types]
+                accepted_ports += [*ct.raw_datatypes]
             optional = output_kwargs.get("optional", False)
             self.add_output(
                 output_name,

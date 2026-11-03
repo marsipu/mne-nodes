@@ -56,6 +56,13 @@ from mne_nodes.backend.plugin_package import (
 )
 from mne_nodes.gui.code_editor import PythonHighlighter
 from mne_nodes.gui.dialogs import ErrorDialog
+from mne_nodes.gui.dialogs.plugin_package import request_package_metadata
+from mne_nodes.gui.dialogs.user_interaction import (
+    ask_user,
+    ask_user_custom,
+    get_user_input,
+    raise_user_attention,
+)
 from mne_nodes.gui.gui_utils import edit_font
 from mne_nodes.gui.parameter import (
     BoolGui,
@@ -79,13 +86,6 @@ from mne_nodes.gui.parameter import (
     SliderGui,
     StringGui,
     TupleGui,
-)
-from mne_nodes.gui.plugin_package import request_package_metadata
-from mne_nodes.gui.user_interaction import (
-    ask_user,
-    ask_user_custom,
-    get_user_input,
-    raise_user_attention,
 )
 from mne_nodes.logger import logger
 

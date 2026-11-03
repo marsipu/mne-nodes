@@ -61,8 +61,8 @@ from mne_nodes.backend.package_utils import (
 )
 from mne_nodes.backend.pipeline_utils import wait_for_plots
 from mne_nodes.backend.settings import Settings
-from mne_nodes.gui.function_conflicts import resolve_function_conflicts
-from mne_nodes.gui.user_interaction import (
+from mne_nodes.gui.dialogs.function_conflicts import resolve_function_conflicts
+from mne_nodes.gui.dialogs.user_interaction import (
     ask_user,
     ask_user_custom,
     get_user_input,
@@ -110,6 +110,8 @@ class Controller:
         Settings object to use for device-dependent settings.
     """
 
+    raw_datatypes: tuple[str, ...] = ("eeg", "meg", "ieeg")
+
     def __init__(
         self, config_path: str | Path | None = None, settings: Settings | None = None
     ):
@@ -128,7 +130,7 @@ class Controller:
         self.lock_timeout = 5  # seconds
         self.disk_interval = 10  # seconds
         # raw datatypes
-        self.raw_types = ["eeg", "meg", "ieeg"]
+        self.raw_types = list(self.raw_datatypes)
         self.non_selectable_datatypes = ["event_id", "info", "trans", "raw_er", "anat"]
         # possible scopes for grouping and selection
         self.scopes = ["subject", "session", "run", "task", "custom"]
@@ -1737,7 +1739,7 @@ class Controller:
     def get_func_by_input(self, input_name: str) -> list:
         """Get the function name(s) associated with a specific input
         name."""
-        input_name = "raw" if input_name in self.raw_types else input_name
+        input_name = "raw" if input_name in self.raw_datatypes else input_name
         associated_functions = [
             func_name
             for func_name, func_meta in self.function_meta.items()
@@ -1752,7 +1754,7 @@ class Controller:
     def get_func_by_output(self, output_name: str) -> list:
         """Get the function name(s) associated with a specific output
         name."""
-        output_name = "raw" if output_name in self.raw_types else output_name
+        output_name = "raw" if output_name in self.raw_datatypes else output_name
         associated_functions = [
             func_name
             for func_name, func_meta in self.function_meta.items()
