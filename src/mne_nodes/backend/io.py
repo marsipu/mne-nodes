@@ -17,7 +17,9 @@ import ijson
 import numpy as np
 import pandas as pd
 from qtpy.QtWidgets import QApplication
-from tqdm import tqdm
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import Progress
 
 
 def encode_tuples(input_dict: dict[str, Any]) -> dict[str, Any]:
@@ -259,23 +261,24 @@ def json_load_dialog(file_path, parent=None) -> dict:
     return data
 
 
-def load_json_tqdm(file_path: os.PathLike) -> dict:
+def load_json_console(file_path: os.PathLike) -> dict:
     """
-    Load a JSON file and print its contents to the console.
+    Load a JSON file with Rich progress output.
 
     Parameters
     ----------
     file_path : os.PathLike
         Path to the JSON file.
     """
-    pbar = tqdm(total=100, desc=f"Loading JSON file '{Path(file_path).name}'...")
-
-    def update_progress(value: int) -> None:
-        pbar.update(value - pbar.n)
-
-    data = load_json_progress(file_path, update_progress)
-    pbar.close()
-    return data
+    with Progress(
+        console=Console(stderr=True), redirect_stdout=False, redirect_stderr=False
+    ) as progress:
+        task = progress.add_task(
+            escape(f"Loading JSON file '{Path(file_path).name}'..."), total=100
+        )
+        return load_json_progress(
+            file_path, lambda value: progress.update(task, completed=value)
+        )
 
 
 def load_json(file_path: os.PathLike | str, no_gui: bool = False) -> dict:
@@ -284,4 +287,4 @@ def load_json(file_path: os.PathLike | str, no_gui: bool = False) -> dict:
     if gui_mode and not no_gui:
         return json_load_dialog(file_path)
     else:
-        return load_json_tqdm(file_path)
+        return load_json_console(file_path)
