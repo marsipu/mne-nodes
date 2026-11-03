@@ -28,23 +28,39 @@ def _wait_for_console_output(qtbot, get_text, expected_substrings, timeout_s=5.0
 
 
 def test_process(qtbot):
+    """Unbuffered stdout/stderr reach the console while the process still runs."""
     console = ConsoleWidget()
     qtbot.addWidget(console)
     console.show()
     process = Process(console=console, self_destruct=False)
+    assert process.processEnvironment().value("MNE_NODES_GUI_CONSOLE") == "1"
     process.start(
         sys.executable,
         [
-            "-u",
             "-c",
-            "import sys; print('TEST_OUT'); print('TEST_ERR', file=sys.stderr)",
+            (
+                "import sys, time\n"
+                "from mne_nodes.backend import process_log as log\n"
+                "log.pipeline_start()\n"
+                "with log.function('step'):\n"
+                "    print('TEST_OUT')\n"
+                "    print('TEST_ERR', file=sys.stderr)\n"
+                "    time.sleep(30)\n"
+            ),
         ],
     )
     console_text = _wait_for_console_output(
-        qtbot, console.toPlainText, ["TEST_OUT", "TEST_ERR"]
+        qtbot, console.toPlainText, ["TEST_OUT", "TEST_ERR"], timeout_s=15
     )
+    assert process.state() != Process.ProcessState.NotRunning
+    process.kill()
+    process.waitForFinished(5000)
     assert "TEST_OUT" in console_text, "Stdout not captured in console"
     assert "TEST_ERR" in console_text, "Stderr not captured in console"
+    # Function output is indented inside the function's frame.
+    assert "▶ step" in console_text
+    assert "│ TEST_OUT" in console_text
+    assert "\x1b" not in console_text
 
 
 def test_process_dialog_waits_for_all_commands(qtbot):

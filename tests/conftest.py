@@ -7,7 +7,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 import faulthandler
 import json
 from datetime import UTC, datetime
-from os import mkdir
+from os import environ, mkdir
 from os.path import isdir
 from pathlib import Path
 from shutil import copytree
@@ -119,6 +119,9 @@ def isolated_settings(tmp_path, monkeypatch, application_gui_mode):
     from mne_nodes.backend.settings import Settings
 
     monkeypatch.setenv("MNENODES_SETTINGS_DIR", str(tmp_path))
+    monkeypatch.setenv("SUBJECTS_DIR", environ.get("SUBJECTS_DIR", ""))
+    if not environ["SUBJECTS_DIR"]:
+        monkeypatch.delenv("SUBJECTS_DIR")
     monkeypatch.setattr("mne_nodes.backend.controller.get_plugin_entry_points", list)
     settings = Settings()
     settings.set("log_file_path", tmp_path / "mne_nodes.log")

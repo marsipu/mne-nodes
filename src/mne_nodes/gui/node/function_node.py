@@ -6,7 +6,7 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 from copy import deepcopy
 
-from qtpy.QtWidgets import QGroupBox, QScrollArea, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QFrame, QGroupBox, QScrollArea, QVBoxLayout, QWidget
 
 from mne_nodes.gui.code_editor import CodeEditorWidget
 from mne_nodes.gui.node.base_node import BaseNode
@@ -56,6 +56,7 @@ class FunctionNode(BaseNode):
             )
         # Initialize the parameters
         self.parameter_guis = {}
+        self.parameter_frames = {}
         self.param_box = QGroupBox("Parameters")
         if len(func_meta["parameters"]) > 5:
             box_layout = QVBoxLayout(self.param_box)
@@ -76,9 +77,36 @@ class FunctionNode(BaseNode):
             parameter_gui = gui(
                 data=self.ct, name=param_name, function_name=self.name, **param_kwargs
             )
-            layout.addWidget(parameter_gui)
+            parameter_frame = QFrame()
+            parameter_layout = QVBoxLayout(parameter_frame)
+            parameter_layout.setContentsMargins(2, 2, 2, 2)
+            parameter_layout.setSpacing(0)
+            parameter_layout.addWidget(parameter_gui)
+            layout.addWidget(parameter_frame)
             self.parameter_guis[param_name] = parameter_gui
+            self.parameter_frames[param_name] = parameter_frame
+            parameter_gui.paramChanged.connect(
+                lambda _value, name=param_name: self._parameter_changed(name)
+            )
         self.add_widget(self.param_box)
+
+    def _parameter_changed(self, parameter_name):
+        """Mark this parameter and its dependent nodes for rerun."""
+        self.set_parameter_dirty(parameter_name, True)
+        if self.viewer is not None:
+            self.viewer.mark_dirty(self)
+        else:
+            self.dirty = True
+
+    def set_parameter_dirty(self, parameter_name, dirty):
+        """Show whether a parameter has changed since its node last ran."""
+        frame = self.parameter_frames.get(parameter_name)
+        if frame is None:
+            return
+        frame.setObjectName("changedParameter" if dirty else "")
+        frame.setStyleSheet(
+            "QFrame#changedParameter { border: 2px solid #ff7828; }" if dirty else ""
+        )
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)

@@ -143,7 +143,15 @@ def set_app_theme():
 def set_app_font_size(font_size=None):
     app = QApplication.instance()
     font = QFont()
-    font.setFamilies(["Segoe UI", "Noto Sans", "Open Sans", "DejaVu Sans"])
+    font.setFamilies(
+        [
+            Settings().get("app_font"),
+            "Segoe UI",
+            "Noto Sans",
+            "Open Sans",
+            "DejaVu Sans",
+        ]
+    )
     font.setPointSize(font_size or Settings().get("app_font_size"))
     app.setFont(font)
 

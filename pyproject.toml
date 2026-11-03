@@ -43,6 +43,7 @@ dependencies = [
     "tqdm",
     "filelock",
     "rich",
+    "ansi2html>=1.9.5",
     "docstring_parser",
     "ijson",
     "packaging>=24.2",

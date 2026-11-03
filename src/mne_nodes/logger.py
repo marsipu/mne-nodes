@@ -9,6 +9,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from rich.console import Console
+from rich.logging import RichHandler
+
 from mne_nodes.backend.settings import Settings
 
 _LOGGER_NAME = "mne_nodes"
@@ -43,6 +46,10 @@ def init_logging(debug_mode: bool = False) -> None:
     duplicate outputs when called multiple times (e.g., in tests).
     """
     logger = get_logger()
+    for handler in list(logger.handlers):
+        if handler.name in {"console", "file"}:
+            logger.removeHandler(handler)
+            handler.close()
     if debug_mode:
         logger.setLevel(logging.DEBUG)
         fmt = "{asctime} [{levelname}] {module}.{funcName}: {message}"
@@ -53,9 +60,15 @@ def init_logging(debug_mode: bool = False) -> None:
     # Format console handler
     date_fmt = "%H:%M:%S"
     formatter = logging.Formatter(fmt, date_fmt, style="{")
-    console_handler = logging.StreamHandler()
+    console_handler = RichHandler(
+        console=Console(stderr=True),
+        show_time=debug_mode,
+        show_path=debug_mode,
+        log_time_format=date_fmt,
+    )
     console_handler.set_name("console")
-    console_handler.setFormatter(formatter)
+    console_fmt = "{module}.{funcName}: {message}" if debug_mode else "{message}"
+    console_handler.setFormatter(logging.Formatter(console_fmt, style="{"))
     logger.addHandler(console_handler)
 
     # Format file handler

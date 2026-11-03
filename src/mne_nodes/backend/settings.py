@@ -7,17 +7,24 @@ GitHub: https://github.com/marsipu/mne-nodes
 import json
 import os
 import sys
+import tomllib
 from copy import deepcopy
+from importlib.resources import files
 from pathlib import Path
 from types import NoneType
 from typing import Any
 
 from filelock import FileLock, Timeout
 
+from mne_nodes import resources
 from mne_nodes.backend.io import TypedJSONEncoder, type_json_hook
 
+settings_config: dict[str, dict[str, Any]] = tomllib.loads(
+    (files(resources) / "settings.toml").read_text(encoding="utf-8")
+)
+
 # Default device specific settings (formerly partly stored in QSettings)
-# NOTE: Add new keys here when introducing additional persistent settings.
+# User-editable defaults and descriptions are defined in resources/settings.toml.
 # Keep values JSON-serializable (TypedJSONEncoder handles Path objects).
 default_device_settings = {
     "config_path": None,  # Last used project config file
@@ -26,21 +33,25 @@ default_device_settings = {
     "log_file_path": None,  # Optional custom log file path
     "bids_root": None,  # BIDS root directory
     "deriv_root": None,  # BIDS derivatives root directory
+    "subjects_dirs": {},  # FreeSurfer directory overrides keyed by BIDS root
     "plot_root": None,  # Plot export root directory
     "plot_root_is_config_specific": False,  # Root already includes the config name
     "wsl_distribution": None,  # None uses the default WSL distribution
     "use_qthread": 1,  # Kept for backwards compatibility
     "save_ram": 1,  # Memory optimization flag
     "enable_cuda": 0,  # GPU usage flag
-    "screen_ratio": 0.8,  # GUI screen ratio preference
     "screen_name": None,  # Preferred screen / monitor name
     "app_theme": "auto",  # UI theme (auto/light/dark/high_contrast)
     "app_style": "fusion",  # Qt style
     "app_font": "Calibri",  # Default application font family
     "app_font_size": 12,  # Default application font size
+    "keep_plots_open": True,  # Keep plot windows open after a pipeline finished
     "pipe_layout": "curved",  # Node-viewer pipe style (curved/straight/angle/routed)
     "first_start": True,  # Flag indicating if this is the first start of the application
 }
+default_device_settings.update(
+    {name: details["default"] for name, details in settings_config.items()}
+)
 
 
 def _platform_settings_path() -> Path:
@@ -111,6 +122,10 @@ class Settings:
         os.replace(tmp, self.settings_path)
 
     # ------------------------- Public API ---------------------------
+    def __contains__(self, key: str) -> bool:
+        """Return whether a setting has a persisted value."""
+        return key in self._load()
+
     def default(self, name: str) -> Any:
         return self._defaults.get(name)
 
