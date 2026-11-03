@@ -105,9 +105,7 @@ class FunctionNode(BaseNode):
             return
         frame.setObjectName("changedParameter" if dirty else "")
         frame.setStyleSheet(
-            "QFrame#changedParameter { border: 2px solid #ff7828; }"
-            if dirty
-            else ""
+            "QFrame#changedParameter { border: 2px solid #ff7828; }" if dirty else ""
         )
 
     def mouseDoubleClickEvent(self, event):

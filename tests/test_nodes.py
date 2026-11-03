@@ -388,23 +388,10 @@ def test_selected_node_sequence(qtbot, ct):
         for node in downstream_sequence[target]
     ]
     sequence = viewer.get_selected_node_sequence([epochs_node, filter_node])
-    names = [
-        node["name"]
-        for target in ("file", "group")
-        for node in sequence[target]
-    ]
+    names = [node["name"] for target in ("file", "group") for node in sequence[target]]
 
-    assert downstream_names == [
-        "test_epochs",
-        "test_evokeds",
-        "test_plot_evokeds",
-    ]
-    assert names == [
-        "test_filter",
-        "test_epochs",
-        "test_evokeds",
-        "test_plot_evokeds",
-    ]
+    assert downstream_names == ["test_epochs", "test_evokeds", "test_plot_evokeds"]
+    assert names == ["test_filter", "test_epochs", "test_evokeds", "test_plot_evokeds"]
 
 
 def test_parameter_change_marks_downstream_nodes_dirty(qtbot, ct):

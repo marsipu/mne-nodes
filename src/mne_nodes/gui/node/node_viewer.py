@@ -1059,11 +1059,11 @@ class NodeViewer(QGraphicsView):
                 if description.get("checked", True)
             }
             process.allFinished.connect(
-                lambda exit_code, exit_status: self._mark_sequence_clean(
-                    executed_names
+                lambda exit_code, exit_status: (
+                    self._mark_sequence_clean(executed_names)
+                    if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
+                    else None
                 )
-                if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
-                else None
             )
         return node_sequence
 
