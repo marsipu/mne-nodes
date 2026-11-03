@@ -284,8 +284,7 @@ class ConsoleWidget(QPlainTextEdit):
 
     @busy_state
     def _on_progress(self, line: str, finished: bool):
-        if self._progress_line is not None:
-            self._remove_last_line()
+        self._remove_last_line()
         self.add_text(line)
         if finished:
             self.textCursor().insertBlock()

@@ -83,6 +83,14 @@ def test_console_stream(qtbot):
         assert "CRLF progress 100%\n" in text
         assert "\x1b" not in text
 
+        console.push_stdout("Initial 0%")
+        qtbot.waitUntil(lambda: "Initial 0%" in console.toPlainText())
+        console.push_stdout("\rFinal 100%\n")
+        qtbot.waitUntil(lambda: "Final 100%" in console.toPlainText())
+        text = console.toPlainText()
+        assert "Initial 0%" not in text
+        assert text.count("Final 100%") == 1
+
         ticks = []
         timer = QTimer(console)
         timer.timeout.connect(lambda: ticks.append(True))
