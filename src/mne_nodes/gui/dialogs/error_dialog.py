@@ -126,7 +126,7 @@ class ErrorDialog(QDialog):
         report = "### Error\n\n" + anonymize_report(text)
         if self.include_diagnostics.isChecked():
             # Execution imports the error dialogs, so defer this import.
-            from mne_nodes.gui.run_widgets import WorkerDialog
+            from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
 
             main_window = get_widget("main_window")
             controller = getattr(main_window, "controller", None)

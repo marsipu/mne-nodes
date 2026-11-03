@@ -9,8 +9,8 @@ from copy import deepcopy
 from qtpy.QtWidgets import QFrame, QGroupBox, QScrollArea, QVBoxLayout, QWidget
 
 from mne_nodes.gui.code_editor import CodeEditorWidget
+from mne_nodes.gui.dialogs.user_interaction import raise_user_attention
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.gui.user_interaction import raise_user_attention
 from mne_nodes.gui.widgets.misc_widgets import SimpleDialog
 
 

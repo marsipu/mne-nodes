@@ -1,4 +1,4 @@
-"""Metadata editor for newly saved plugin distributions."""
+"""Dialogs and metadata prompts for plugin packages."""
 
 from shutil import which
 

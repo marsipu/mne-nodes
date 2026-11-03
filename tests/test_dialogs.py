@@ -117,8 +117,8 @@ def test_error_dialog_layout(qtbot):
 
 @pytest.mark.parametrize("dismiss_worker", [False, True])
 def test_diagnostics_worker_keeps_ui_responsive(qtbot, monkeypatch, dismiss_worker):
-    from mne_nodes.gui import run_widgets
-    from mne_nodes.gui.run_widgets import WorkerDialog
+    from mne_nodes.gui.dialogs import run_dialogs
+    from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
 
     started = Event()
     release = Event()
@@ -140,7 +140,7 @@ def test_diagnostics_worker_keeps_ui_responsive(qtbot, monkeypatch, dismiss_work
     dialog.include_diagnostics.setChecked(True)
     monkeypatch.setattr(error_dialog, "collect_diagnostics", collect)
     monkeypatch.setattr(
-        run_widgets, "warning_message", lambda *args, **kwargs: warnings.append(args)
+        run_dialogs, "warning_message", lambda *args, **kwargs: warnings.append(args)
     )
     monkeypatch.setattr(
         IssueReportDialog,

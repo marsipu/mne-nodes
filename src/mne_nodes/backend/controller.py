@@ -61,8 +61,8 @@ from mne_nodes.backend.package_utils import (
 )
 from mne_nodes.backend.pipeline_utils import wait_for_plots
 from mne_nodes.backend.settings import Settings
-from mne_nodes.gui.function_conflicts import resolve_function_conflicts
-from mne_nodes.gui.user_interaction import (
+from mne_nodes.gui.dialogs.function_conflicts import resolve_function_conflicts
+from mne_nodes.gui.dialogs.user_interaction import (
     ask_user,
     ask_user_custom,
     get_user_input,

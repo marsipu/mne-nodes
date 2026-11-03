@@ -1,4 +1,4 @@
-"""Dialogs for copying FreeSurfer subjects into the current dataset."""
+"""Dialogs for FreeSurfer setup and subject import."""
 
 from pathlib import Path
 
@@ -25,8 +25,8 @@ from mne_nodes.backend.freesurfer import (
     is_freesurfer_subject,
 )
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.run_widgets import WorkerDialog
-from mne_nodes.gui.user_interaction import get_user_input, warning_message
+from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
+from mne_nodes.gui.dialogs.user_interaction import get_user_input, warning_message
 from mne_nodes.gui.widgets.list_widgets import CheckList
 
 

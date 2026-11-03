@@ -1,8 +1,4 @@
-"""
-Authors: Martin Schulz <dev@mgschulz.de>
-License: BSD 3-Clause
-GitHub: https://github.com/marsipu/mne-nodes
-"""
+"""Coregistration dialog."""
 
 from functools import partial
 from pathlib import Path
@@ -27,9 +23,9 @@ from mne_nodes.backend.coregistration import (
 )
 from mne_nodes.backend.exception_handling import ExceptionTuple, gui_error
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.freesurfer_widgets import FreeSurferImportDialog
-from mne_nodes.gui.run_widgets import WorkerDialog
-from mne_nodes.gui.user_interaction import ask_user, warning_message
+from mne_nodes.gui.dialogs.freesurfer_dialogs import FreeSurferImportDialog
+from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
+from mne_nodes.gui.dialogs.user_interaction import ask_user, warning_message
 from mne_nodes.gui.widgets.list_widgets import MarkList
 
 

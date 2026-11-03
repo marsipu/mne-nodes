@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from packaging.utils import canonicalize_name
 from qtpy.QtWidgets import QWidget
 
-from mne_nodes.gui.run_widgets import ProcessDialog
+from mne_nodes.gui.dialogs.run_dialogs import ProcessDialog
 from mne_nodes.logger import logger
 
 

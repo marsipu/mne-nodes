@@ -1,4 +1,4 @@
-"""Dataset-wide, read-only auxiliary-data overview."""
+"""Dialog and table model for a read-only auxiliary-data overview."""
 
 from qtpy.QtCore import (
     QAbstractTableModel,
@@ -26,7 +26,7 @@ from mne_nodes.backend.data_overview import (
 )
 from mne_nodes.backend.exception_handling import ExceptionTuple, gui_error
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.run_widgets import WorkerDialog
+from mne_nodes.gui.dialogs.run_dialogs import WorkerDialog
 
 _ROOT_INDEX = QModelIndex()
 

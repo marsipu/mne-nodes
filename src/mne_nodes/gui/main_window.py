@@ -20,28 +20,28 @@ from mne_nodes.backend.package_utils import install_local_plugin
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
 from mne_nodes.backend.plugin_package import find_plugin_project
 from mne_nodes.gui.console import ConsoleDock, ConsoleWidget
-from mne_nodes.gui.coreg_widgets import CoregDialog
-from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
-from mne_nodes.gui.freesurfer_widgets import (
+from mne_nodes.gui.dialogs.coreg_dialog import CoregDialog
+from mne_nodes.gui.dialogs.data_overview import DataOverviewDialog
+from mne_nodes.gui.dialogs.freesurfer_dialogs import (
     FreeSurferImportDialog,
     FreeSurferSetupDialog,
 )
-from mne_nodes.gui.function_widgets import FunctionImporter
-from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
-from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
-from mne_nodes.gui.node.node_picker import NodePicker
-from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
-from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
-from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
-from mne_nodes.gui.settings_dialog import SettingsDlg
-from mne_nodes.gui.user_interaction import (
+from mne_nodes.gui.dialogs.node_picker import NodePicker
+from mne_nodes.gui.dialogs.plugin_package import LocalPluginInstallDialog
+from mne_nodes.gui.dialogs.run_dialogs import ProcessDialog, WorkerDialog
+from mne_nodes.gui.dialogs.settings_dialog import SettingsDlg
+from mne_nodes.gui.dialogs.user_interaction import (
     ask_user,
     ask_user_custom,
     get_user_input,
     information_message,
     raise_user_attention,
 )
+from mne_nodes.gui.function_widgets import FunctionImporter
+from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
+from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
+from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.widget_registry import widget_registry
 
 
@@ -576,7 +576,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Plugin loaded from GitHub URL '{plugin_url}'.")
 
     def manage_plugins(self):
-        from mne_nodes.gui.parameter.plugin_manager import PluginManagerDlg
+        from mne_nodes.gui.dialogs.plugin_manager import PluginManagerDlg
 
         PluginManagerDlg(self, self.controller)
 

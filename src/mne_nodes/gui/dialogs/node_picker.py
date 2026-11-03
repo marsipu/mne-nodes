@@ -1,8 +1,4 @@
-"""
-Authors: Martin Schulz <dev@mgschulz.de>
-License: BSD 3-Clause
-GitHub: https://github.com/marsipu/mne-nodes
-"""
+"""Dialog for browsing and selecting available function nodes."""
 
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (

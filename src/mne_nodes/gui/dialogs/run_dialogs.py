@@ -1,8 +1,4 @@
-"""
-Authors: Martin Schulz <dev@mgschulz.de>
-License: BSD 3-Clause
-Github: https://github.com/marsipu/mne-nodes
-"""
+"""Dialogs for running backend processes."""
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QFont
@@ -19,7 +15,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.exception_handling import ExceptionTuple
 from mne_nodes.backend.execution import Process, Worker
 from mne_nodes.gui.console import ConsoleWidget, MainConsoleWidget
-from mne_nodes.gui.user_interaction import warning_message
+from mne_nodes.gui.dialogs.user_interaction import warning_message
 
 
 class _RunDialog(QDialog):
