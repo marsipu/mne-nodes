@@ -10,6 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import mne
 import pytest
 
 from mne_nodes.backend.controller import Controller
@@ -941,6 +942,12 @@ def test_input_directory_change(ct, tmp_path, monkeypatch, action, prompt_for_pa
     ct.bids_root = None if prompt_for_path else new_directory
 
     assert len(confirmations) == (0 if action == "unchanged" else 1)
+    expected_subjects_dir = (
+        new_directory / "derivatives" / "freesurfer"
+        if action == "accept"
+        else old_subjects_dir
+    )
+    assert os.environ["SUBJECTS_DIR"] == str(expected_subjects_dir)
     if action == "accept":
         expected_selections = {}
         assert ct.bids_root == new_directory
@@ -1011,11 +1018,15 @@ def test_explicit_derivatives_root_protects_outputs(ct, tmp_path, monkeypatch):
     assert ct.deriv_root == external
 
 
-def test_freesurfer_directory_is_dataset_local(ct, tmp_path, monkeypatch):
+@pytest.mark.parametrize("nested", [False, True])
+def test_freesurfer_directory_is_dataset_local(ct, tmp_path, monkeypatch, nested):
     """Ignore device/global subjects settings and derive the folder from the dataset."""
     external = tmp_path / "global-subjects"
     external.mkdir()
     ct.settings.set("subjects_dir", external)
+    mne.set_config("SUBJECTS_DIR", str(external), home_dir=tmp_path, set_env=False)
+    mne_config = Path(mne.get_config_path(home_dir=tmp_path))
+    original_config = mne_config.read_bytes()
     monkeypatch.setenv("SUBJECTS_DIR", str(external))
     monkeypatch.setattr(
         "mne_nodes.backend.controller.mne.set_config",
@@ -1024,9 +1035,22 @@ def test_freesurfer_directory_is_dataset_local(ct, tmp_path, monkeypatch):
     assert ct.subjects_dir is None
     assert ct.get_datatype_items("subject") == []
     expected = ct.bids_root / "derivatives" / "freesurfer"
+    if nested:
+        expected /= "subjects"
+        expected.mkdir(parents=True)
+    reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
+    assert os.environ["SUBJECTS_DIR"] == str(expected)
+    assert reloaded.bids_root == ct.bids_root
     assert ct.ensure_subjects_dir(False) == expected
     assert ct.subjects_dir == expected
-    assert os.environ["SUBJECTS_DIR"] == str(external)
+    assert os.environ["SUBJECTS_DIR"] == str(expected)
+    assert mne.get_config("SUBJECTS_DIR", home_dir=tmp_path) == str(expected)
+    assert mne.utils.get_subjects_dir() == expected
+    assert mne.utils.get_subjects_dir(external) == external
+    assert mne_config.read_bytes() == original_config
+    assert mne.get_config("SUBJECTS_DIR", home_dir=tmp_path, use_env=False) == str(
+        external
+    )
     assert ct.settings.get("subjects_dir") == external
     custom = ct.deriv_root / "custom"
     custom.mkdir()
@@ -1038,8 +1062,43 @@ def test_freesurfer_directory_is_dataset_local(ct, tmp_path, monkeypatch):
     for folder in ("mri", "surf", "label"):
         (expected / "sub-01" / folder).mkdir(parents=True)
     assert ct.get_datatype_items("subject") == ["sub-01"]
-    with pytest.raises(AttributeError):
-        ct.subjects_dir = external
+    ct.subjects_dir = expected
+    ct.subjects_dir = external
+    assert ct.ensure_subjects_dir(False) == external
+    assert os.environ["SUBJECTS_DIR"] == str(external)
+    assert ct.parameter("subjects_dir", "unused") == external
+    assert ct.get_datatype_items("subject") == []
+    reloaded = Controller(config_path=ct.config_path, settings=ct.settings)
+    assert reloaded.subjects_dir == external
+    missing = tmp_path / "missing-subjects"
+    with pytest.raises(ValueError, match="subjects_dir"):
+        ct.subjects_dir = missing
+    assert ct.subjects_dir == external
+    assert os.environ["SUBJECTS_DIR"] == str(external)
+    assert not missing.exists()
+
+    original_root = ct.bids_root
+    other_dataset = tmp_path / "other-dataset"
+    other_dataset.mkdir()
+    ct.bids_root = other_dataset
+    assert ct.subjects_dir is None
+    assert os.environ["SUBJECTS_DIR"] == str(
+        other_dataset / "derivatives" / "freesurfer"
+    )
+    ct.subjects_dir = expected
+    ct.bids_root = original_root
+    assert ct.subjects_dir == external
+    assert os.environ["SUBJECTS_DIR"] == str(external)
+    external.rmdir()
+    with pytest.raises(ValueError, match="subjects_dir"):
+        ct.ensure_subjects_dir(False)
+    assert not external.exists()
+    assert os.environ["SUBJECTS_DIR"] == str(external)
+    ct.subjects_dir = None
+    assert ct.ensure_subjects_dir(False) == expected
+    assert os.environ["SUBJECTS_DIR"] == str(expected)
+    assert ct.get_datatype_items("subject") == ["sub-01"]
+    assert mne_config.read_bytes() == original_config
 
 
 def test_load_missing_plugin_metadata(ct, tmp_path, monkeypatch):

@@ -34,6 +34,10 @@ repository root. Pytest discovers only `tests/` and uses importlib import mode;
 it does not add `src/` to the import path. Configuration lives in `pyproject.toml`.
 CI tests a non-editable installation to catch missing modules and resources.
 
+Console output uses Rich for logging and progress, and ansi2html for GUI
+rendering. ANSI conversion runs in the stream worker; the GUI receives bounded
+batches rather than an update for every write.
+
 To try the error dialog and its reporting flow, run
 `conda run -n mnedev python -m development.error_dialog_tester` (or
 `python -m development.error_dialog_tester` in your development environment).

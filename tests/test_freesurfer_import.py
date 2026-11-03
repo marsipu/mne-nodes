@@ -30,14 +30,18 @@ def test_subject_discovery(tmp_path):
         freesurfer.find_freesurfer_subjects(tmp_path / "absent")
 
 
-@pytest.mark.parametrize("nested", [False, True])
-def test_copy_preserves_source_and_all_contents(ct, tmp_path, nested):
+@pytest.mark.parametrize("layout", ["direct", "nested", "custom"])
+def test_copy_preserves_source_and_all_contents(ct, tmp_path, layout):
     """Copies become discoverable dataset subjects without changing originals."""
     sources = [make_subject(tmp_path / "external", name) for name in ("01", "02")]
     expected = ct.bids_root / "derivatives" / "freesurfer"
-    if nested:
+    if layout == "nested":
         expected /= "subjects"
         expected.mkdir(parents=True)
+    elif layout == "custom":
+        expected = tmp_path / "chosen-subjects"
+        expected.mkdir()
+        ct.subjects_dir = expected
     destination = ct.ensure_subjects_dir()
     assert destination == expected
     signals = WorkerSignals()

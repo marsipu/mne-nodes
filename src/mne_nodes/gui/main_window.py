@@ -4,11 +4,12 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import os
 import sys
 from pathlib import Path
 
 import mne
-from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
+from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, Signal
 from qtpy.QtGui import QAction, QActionGroup, QKeySequence
 from qtpy.QtWidgets import QApplication, QDialog, QMainWindow
 
@@ -18,7 +19,7 @@ from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.package_utils import install_local_plugin
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
 from mne_nodes.backend.plugin_package import find_plugin_project
-from mne_nodes.gui.console import ConsoleDock
+from mne_nodes.gui.console import ConsoleDock, ConsoleWidget
 from mne_nodes.gui.coreg_widgets import CoregDialog
 from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
@@ -27,11 +28,13 @@ from mne_nodes.gui.freesurfer_widgets import (
     FreeSurferSetupDialog,
 )
 from mne_nodes.gui.function_widgets import FunctionImporter
+from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.settings_dialog import SettingsDlg
 from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
@@ -60,6 +63,7 @@ class MainWindow(QMainWindow):
         self._controller = controller
         self.settings = controller.settings
         self.node_picker = None
+        self.settings_dialog = None
         self.setAcceptDrops(True)
 
         # Initialize properties
@@ -135,6 +139,11 @@ class MainWindow(QMainWindow):
         overview_action = QAction("&Data overview...", parent=self)
         overview_action.triggered.connect(self.show_data_overview)
         bids_menu.addAction(overview_action)
+        subjects_directory_action = QAction(
+            "FreeSurfer subjects &directory...", parent=self
+        )
+        subjects_directory_action.triggered.connect(self.change_subjects_dir)
+        bids_menu.addAction(subjects_directory_action)
         import_subjects_action = QAction("&Import FreeSurfer subjects...", parent=self)
         import_subjects_action.triggered.connect(self.import_freesurfer_subjects)
         bids_menu.addAction(import_subjects_action)
@@ -226,21 +235,23 @@ class MainWindow(QMainWindow):
             self.pipe_style_group.addAction(action)
             pipe_style_menu.addAction(action)
         self.pipe_style_group.triggered.connect(self.set_pipe_layout)
-
-        # Settings Menu
-        self.keep_plots_action = QAction(
-            "&Keep Plots Open",
+        console_wrap_action = QAction(
+            "Console &Word Wrap",
             parent=self,
             checkable=True,
-            statusTip="Keep plot windows open after a pipeline run has finished.",
+            statusTip="Wrap long lines in the console instead of scrolling.",
         )
-        self.keep_plots_action.setChecked(bool(self.settings.get("keep_plots_open")))
-        self.keep_plots_action.toggled.connect(
-            lambda checked: self.settings.set("keep_plots_open", checked)
-        )
-        settings_menu = self.menuBar().addMenu("&Settings")
-        settings_menu.addAction(self.keep_plots_action)
+        console_wrap_action.setChecked(bool(self.settings.get("console_word_wrap")))
+        console_wrap_action.toggled.connect(self.set_console_word_wrap)
+        view_menu.addAction(console_wrap_action)
+        self.console_wrap_action = console_wrap_action
 
+        # Settings Menu
+        settings_action = QAction("&Settings", parent=self)
+        settings_action.triggered.connect(self.show_settings)
+        self.menuBar().addAction(settings_action)
+
+        # Help Menu
         welcome_tour_action = QAction(
             "&Restart Welcome Tour",
             parent=self,
@@ -265,7 +276,7 @@ class MainWindow(QMainWindow):
                     break
 
     def import_freesurfer_subjects(self):
-        """Open the dataset-local FreeSurfer subject importer."""
+        """Open the FreeSurfer subject importer for the active directory."""
         dialog = FreeSurferImportDialog(self.controller, self)
         dialog.subjects_imported.connect(self._refresh_dataset_inputs)
         dialog.open()
@@ -294,8 +305,8 @@ class MainWindow(QMainWindow):
         """Choose dataset-local or separate storage for processing derivatives."""
         local = ask_user_custom(
             "Where should processing derivatives be stored? "
-            "Existing files will not be moved. FreeSurfer subjects remain "
-            "in the dataset's FreeSurfer subjects directory.",
+            "Existing files will not be moved. The FreeSurfer subjects "
+            "directory will not change.",
             buttons=["Inside BIDS dataset", "Separate derivatives root"],
             parent=self,
         )
@@ -322,6 +333,43 @@ class MainWindow(QMainWindow):
             f"Derivatives: {self.controller.deriv_root}. "
             "Existing files have not been moved."
         )
+        self.controller.refresh_input_outputs()
+
+    def change_subjects_dir(self) -> None:
+        """Choose a FreeSurfer subjects directory for the active BIDS dataset."""
+        local = ask_user_custom(
+            "Where should FreeSurfer subjects be stored for this dataset? "
+            f"Current directory: {self.controller.subjects_dir or 'dataset default'}. "
+            "Existing files will not be moved.",
+            buttons=["Dataset default", "Choose directory"],
+            parent=self,
+        )
+        if local is None:
+            return
+        root = None
+        if not local:
+            root = get_user_input(
+                "Select a FreeSurfer subjects directory (containing subject folders).",
+                "folder",
+                parent=self,
+                cancel_allowed=True,
+            )
+            if root is None:
+                return
+        try:
+            self.controller.subjects_dir = root
+        except (OSError, ValueError, RuntimeError):
+            ErrorDialog(
+                get_exception_tuple(),
+                self,
+                "Could not set FreeSurfer subjects directory.",
+            ).open()
+            return
+        self.statusBar().showMessage(
+            f"FreeSurfer subjects: {os.environ['SUBJECTS_DIR']}. "
+            "Existing files have not been moved."
+        )
+        self._refresh_dataset_inputs()
         self.controller.refresh_input_outputs()
 
     def finalize_controller_setup(self):
@@ -353,8 +401,47 @@ class MainWindow(QMainWindow):
     def set_pipe_layout(self, action):
         """Apply and persist the pipe style chosen in the View menu."""
         layout = action.data()
-        self.viewer.pipe_layout = layout
         self.settings.set("pipe_layout", layout)
+        self._apply_setting("pipe_layout", layout)
+
+    def set_console_word_wrap(self, enabled: bool) -> None:
+        """Apply and persist console word wrapping for all open consoles."""
+        self.settings.set("console_word_wrap", enabled)
+        self._apply_setting("console_word_wrap", enabled)
+
+    def show_settings(self) -> None:
+        """Open the TOML-configured application settings dialog."""
+        if self.settings_dialog is None:
+            self.settings_dialog = SettingsDlg(self.settings, self)
+            self.settings_dialog.setting_changed.connect(self._apply_setting)
+        self.settings_dialog.read_settings()
+        self.settings_dialog.open()
+
+    def _apply_setting(self, name: str, value: object) -> None:
+        if name in ("app_theme", "app_style"):
+            set_app_theme()
+            if name == "app_theme":
+                from mne_nodes.gui.code_editor import resolve_theme
+
+                theme = resolve_theme()
+                for widget in QApplication.allWidgets():
+                    highlighter = getattr(widget, "highlighter", None)
+                    set_theme = getattr(highlighter, "set_theme", None)
+                    if callable(set_theme):
+                        set_theme(theme)
+        elif name in ("app_font", "app_font_size"):
+            set_app_font_size()
+        elif name == "pipe_layout":
+            self.viewer.pipe_layout = value
+            for action in self.pipe_style_group.actions():
+                action.setChecked(action.data() == value)
+        elif name == "console_word_wrap":
+            enabled = bool(value)
+            with QSignalBlocker(self.console_wrap_action):
+                self.console_wrap_action.setChecked(enabled)
+            for widget in QApplication.allWidgets():
+                if isinstance(widget, ConsoleWidget):
+                    widget.set_word_wrap(enabled)
 
     def show_node_picker(self):
         """Show the categorized node picker dialog."""

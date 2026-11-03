@@ -123,6 +123,11 @@ class CodeGenerator:
         suffix = suffix or suffix_for_ports([write_port, output_name]) or output_name
         return write_func, suffix
 
+    @staticmethod
+    def _timed_call(name, func_line):
+        """Wrap a function call line in a framed progress block."""
+        return f"with _log.function({name!r}):\n    {func_line}\n"
+
     def _indent(self, code, num_tabs=1):
         """Indent a code string by a given number of tabs."""
         indent_str = self.tab(num_tabs)
@@ -192,7 +197,12 @@ class CodeGenerator:
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         import_function_names = set()
-        body = "from copy import deepcopy\n\n_subject_cache = {}\n\n"
+        body = (
+            "from copy import deepcopy\n\n"
+            "from mne_nodes.backend import process_log as _log\n\n"
+            "_subject_cache = {}\n"
+            f"_pipeline_start = _log.pipeline_start({self.ct.name!r})\n\n"
+        )
         # Iterate nodes
         for target, nodes in self.node_sequence.items():
             if len(nodes) == 0:
@@ -214,7 +224,12 @@ class CodeGenerator:
                 body += f"# Selection-Type: {selection_type}\n"
                 if target == "group":
                     body += f"group = ct.get_group_by('{selection_type}')\n"
-                body += f"for item in ct.get('selected_inputs')['{selection_type}']:\n"
+                body += f"_items = ct.get('selected_inputs')['{selection_type}']\n"
+                body += "for _index, item in enumerate(_items, 1):\n"
+                body += self._indent(
+                    f"_log.item_start({selection_type!r}, item, _index, len(_items))\n",
+                    1,
+                )
                 # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     body += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
@@ -273,7 +288,9 @@ class CodeGenerator:
                         if ip == "raw_er" or ip in empty_room_inputs:
                             if "raw_er" not in loaded_data:
                                 body += self._indent(
-                                    f"raw_er = ct.load_raw_er({source})\n", 1
+                                    "with _log.loading('empty-room raw'):\n    "
+                                    f"raw_er = ct.load_raw_er({source})\n",
+                                    1,
                                 )
                                 loaded_data.add("raw_er")
                             func_inputs[ip] = "raw_er"
@@ -281,6 +298,7 @@ class CodeGenerator:
                         if ip in recording_inputs:
                             if "_recording_raw" not in loaded_data:
                                 body += self._indent(
+                                    "with _log.loading('raw'):\n    "
                                     f"_recording_raw, event_id = ct.load_raw({source})\n",
                                     1,
                                 )
@@ -293,31 +311,41 @@ class CodeGenerator:
                         # Load selected data-types (if not already loaded)
                         if ip in ("raw", "event_id"):
                             body += self._indent(
-                                f"raw, event_id = ct.load_raw({source})\n", 1
+                                "with _log.loading('raw'):\n    "
+                                f"raw, event_id = ct.load_raw({source})\n",
+                                1,
                             )
                             body += self._indent("_recording_raw = raw\n", 1)
                             loaded_data.add("_recording_raw")
                             loaded_data.update({"raw", "event_id"})
                         elif ip == "anat" or ip in anatomy_inputs:
-                            body += self._indent(f"anat = ct.load_anat({source})\n", 1)
+                            body += self._indent(
+                                f"with _log.loading('anat'):\n    anat = ct.load_anat({source})\n",
+                                1,
+                            )
                             loaded_data.add("anat")
                             subject_data.add("anat")
                             func_inputs[ip] = "anat"
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
                             body += self._indent(
-                                f"info = ct.load_info({source}, raw={raw_arg})\n", 1
+                                "with _log.loading('info'):\n    "
+                                f"info = ct.load_info({source}, raw={raw_arg})\n",
+                                1,
                             )
                             loaded_data.add("info")
                         elif ip == "subject":
                             body += self._indent(
-                                f"subject = ct.load_recording_subject({source})\n", 1
+                                "with _log.loading('subject'):\n    "
+                                f"subject = ct.load_recording_subject({source})\n",
+                                1,
                             )
                             loaded_data.add("subject")
                             subject_data.add("subject")
                         elif ip == "trans":
                             body += self._indent(
-                                f"trans = ct.load_trans({source})\n", 1
+                                f"with _log.loading('trans'):\n    trans = ct.load_trans({source})\n",
+                                1,
                             )
                             loaded_data.add("trans")
                         else:
@@ -345,12 +373,15 @@ class CodeGenerator:
                                 )
                                 # This assumes, that the file-path is always the first argument in a load-function
                                 body += self._indent(
+                                    f"with _log.loading({load_name!r}, data_path):\n    "
                                     f"{load_name} = {read_call}(data_path, **read_kwargs)\n",
                                     1,
                                 )
                             else:
                                 body += self._indent(
-                                    f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]]\n",
+                                    f"data_path = [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]\n"
+                                    f"with _log.loading({load_name!r}, data_path):\n    "
+                                    f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in data_path]\n",
                                     1,
                                 )
                             loaded_data.add(load_name)
@@ -412,7 +443,7 @@ class CodeGenerator:
                             )
                         subject_key += "if _subject_key not in _subject_cache:\n"
                         body += self._indent(subject_key, 1)
-                        body += self._indent(func_line, 2)
+                        body += self._indent(self._timed_call(name, func_line), 2)
                         body += self._indent(
                             f"_subject_cache[_subject_key] = "
                             f"deepcopy(({cached_values},))\n",
@@ -420,13 +451,14 @@ class CodeGenerator:
                         )
                         body += self._indent(
                             "else:\n"
+                            f"    _log.function_cached({name!r})\n"
                             f"    {cached_values}, = "
                             "deepcopy(_subject_cache[_subject_key])\n",
                             1,
                         )
                         subject_data.update(n["outputs"])
                     else:
-                        body += self._indent(func_line, 1)
+                        body += self._indent(self._timed_call(name, func_line), 1)
                         # Other live values may alias inputs mutated by this call.
                         if supplied_values & (subject_data - {"subject"}):
                             subject_data.intersection_update({"subject"})
@@ -460,7 +492,8 @@ class CodeGenerator:
                                 )
                             # Write function's own parameters serve as its kwargs.
                             body += self._indent(
-                                f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n",
+                                f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n"
+                                f"_log.save({op!r}, data_path)\n",
                                 1,
                             )
                             write_func_meta = self.ct.get_function_meta(write_func)
@@ -482,6 +515,7 @@ class CodeGenerator:
                                 )
                     loaded_data.update(n["outputs"])
 
+        body += "\n_log.pipeline_finished(_pipeline_start)\n"
         # Create header with function bindings resolved from loaded plugins.
         header = self._build_header(import_function_names)
         footer = (
