@@ -294,8 +294,8 @@ file. Writer parameters control overwrite behavior.
 Coregistration also reads and writes ``*_trans.fif`` files under the selected
 derivative root.
 
-FreeSurfer subjects remain dataset-local, even when a separate processing
-derivative root is configured. MNE-Nodes uses
+FreeSurfer subjects default to a dataset-local directory, independently of the
+processing derivative root. MNE-Nodes uses
 ``<dataset>/derivatives/freesurfer/subjects`` when that directory exists;
 otherwise it uses ``<dataset>/derivatives/freesurfer`` with subject folders
 directly inside it. If both layouts exist, the nested ``subjects`` directory
@@ -303,12 +303,37 @@ takes precedence; the two roots are not merged. Discovery, imports,
 coregistration and pipeline ``subjects_dir`` parameters all use this same root.
 No existing files are moved.
 
+Use **BIDS > FreeSurfer subjects directory...** to choose a different directory,
+including outside the dataset, or restore **Dataset default**. Select the
+directory containing subject folders, not an individual subject. The exact
+chosen directory is used; nested ``subjects`` discovery applies only to the
+default. Choices are remembered separately for each BIDS root on this device,
+including across restarts and dataset switches. Missing chosen directories
+cause an error when used rather than silently reverting to the default.
+Discovery, imports, coregistration and pipeline execution use the chosen
+directory. Changing it does not move or delete existing files.
+
 FreeSurfer's default ``SUBJECTS_DIR`` is ``$FREESURFER_HOME/subjects``, but it can
 be customized (see the `FreeSurfer setup documentation
 <https://surfer.nmr.mgh.harvard.edu/fswiki/SetupConfiguration_Linux>`_).
 The nested layout is supported, not required by MNE-Nodes.
-Global MNE ``SUBJECTS_DIR`` settings and environment variables are not used
-to locate dataset subjects. If neither layout exists,
+Existing MNE ``SUBJECTS_DIR`` settings and inherited environment variables are
+not used to locate dataset subjects. Instead, the controller sets
+``SUBJECTS_DIR`` in the MNE-Nodes process to the active dataset's FreeSurfer
+directory at startup and when selecting or preparing a dataset. Child processes
+inherit this value. MNE-Python uses this environment variable before its saved
+configuration when a function's ``subjects_dir`` argument is omitted or
+``None``. An explicit argument still takes precedence.
+
+Plugin functions that call MNE-Python can normally omit ``subjects_dir`` or
+leave it as ``None``; no function-configuration entry is needed for this.
+Functions requiring an explicit path can read ``os.environ["SUBJECTS_DIR"]``.
+Existing ``subjects_dir`` entries under function ``parameters`` continue to
+receive the active subjects-directory path from the controller.
+
+This only changes the running process and its children: MNE-Python's saved
+configuration, the parent shell and other applications remain untouched.
+If neither layout exists,
 ``<dataset>/derivatives/freesurfer`` is created when needed.
 Pipeline configuration files can remain
 elsewhere. Plot output is optional, may live outside the dataset, and does not

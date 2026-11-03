@@ -191,10 +191,8 @@ class Param(QWidget):
         """Load and validate the value stored under *name* in the data source."""
         if isinstance(self.data, Controller):
             value = self.data.parameter(name, function_name=self.function_name)
-        elif isinstance(self.data, dict):
+        elif isinstance(self.data, (dict, Settings)):
             value = self.data.get(name, self.default)
-        elif isinstance(self.data, Settings) and name in self.data:
-            value = self.data.get(name)
         else:
             logger.warning(
                 f"Parameter {name} not found in data source, using default value."

@@ -25,8 +25,6 @@ domain_name = "https://github.com/marsipu/mne-nodes"
 
 def main() -> None:
     # ToDo: Change Debug mode initialization (command-line, enviroment-variable, settings)
-    init_logging(mne_nodes.debug_mode())
-    logger.info("Starting MNE-Nodes...")
     # Set gui_mode to true since starting as module always means gui-mode
     mne_nodes.gui_mode = True
     # Create QApplication
@@ -44,6 +42,8 @@ def main() -> None:
 
     # Initialize streams from stdout/stderr into Qt
     init_streams()
+    init_logging(mne_nodes.debug_mode())
+    logger.info("Starting MNE-Nodes...")
 
     # Show Qt-binding
     logger.info(f"Using {qtpy.API_NAME} {qtpy.QT_VERSION}")

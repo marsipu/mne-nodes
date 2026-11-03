@@ -174,14 +174,16 @@ def test_controller_wait_for_plots_setting(ct, monkeypatch, keep_plots_open):
     assert calls == ([True] if keep_plots_open else [])
 
 
-def test_keep_plots_open_action(main_window):
-    """The settings menu toggles the device setting."""
-    action = main_window.keep_plots_action
-    assert action.isChecked() == main_window.settings.get("keep_plots_open")
-    action.setChecked(False)
+def test_keep_plots_open_setting(main_window):
+    """The settings dialog persists the plot-waiting preference."""
+    main_window.show_settings()
+    widget = main_window.settings_dialog.widgets["keep_plots_open"]
+    assert widget.value == main_window.settings.get("keep_plots_open")
+    widget.value = False
     assert main_window.settings.get("keep_plots_open") is False
-    action.setChecked(True)
+    widget.value = True
     assert main_window.settings.get("keep_plots_open") is True
+    main_window.settings_dialog.close()
 
 
 def _write_meg_bids(bids_root):

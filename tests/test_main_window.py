@@ -71,19 +71,82 @@ def test_main_window_lifecycle(settings, qtbot, tmp_path):
     assert controller.viewer is None
 
 
+def test_settings_dialog(main_window, qtbot):
+    """Editing TOML-defined preferences persists without changing other settings."""
+    from qtpy.QtGui import QPalette
+    from qtpy.QtWidgets import QApplication
+
+    from mne_nodes.backend.settings import Settings, settings_config
+    from mne_nodes.gui.code_editor import HIGHLIGHT_COLORS, CodeEditor
+    from mne_nodes.gui.gui_theme import get_palette
+    from mne_nodes.gui.settings_dialog import SettingsDlg
+
+    editor = CodeEditor()
+    qtbot.addWidget(editor)
+    settings = main_window.settings
+    settings.set("unrelated_setting", {"keep": [1, 2, 3]})
+    settings.set("app_font_size", 15)
+    settings.remove("console_word_wrap")
+    previous = settings.settings_path.read_bytes()
+    main_window.show_settings()
+    dialog = main_window.settings_dialog
+    assert set(dialog.widgets) == set(settings_config)
+    assert settings.settings_path.read_bytes() == previous
+    assert dialog.widgets["app_font_size"].value == 15
+    assert dialog.widgets["console_word_wrap"].value is True
+
+    values = {
+        "app_theme": "dark",
+        "app_style": "fusion",
+        "app_font": "DejaVu Sans",
+        "app_font_size": 16,
+        "screen_ratio": 0.65,
+        "pipe_layout": "straight",
+        "console_word_wrap": False,
+    }
+    for name, value in values.items():
+        dialog.widgets[name].value = value
+    app = QApplication.instance()
+    assert app.style().objectName() == "fusion"
+    assert app.font().families()[0] == "DejaVu Sans"
+    assert app.font().pointSize() == 16
+    assert app.palette().color(QPalette.ColorRole.Window) == get_palette("dark").color(
+        QPalette.ColorRole.Window
+    )
+    assert editor.highlighter.colors == HIGHLIGHT_COLORS["dark"]
+    assert main_window.viewer.pipe_layout == "straight"
+    dialog.close()
+
+    restored_settings = Settings()
+    restored = SettingsDlg(restored_settings)
+    qtbot.addWidget(restored)
+    for name, value in values.items():
+        assert restored_settings.get(name) == value
+        assert restored.widgets[name].value == value
+    assert restored_settings.get("unrelated_setting") == {"keep": [1, 2, 3]}
+
+    main_window.set_console_word_wrap(True)
+    main_window.show_settings()
+    assert dialog.widgets["console_word_wrap"].value is True
+    dialog.close()
+
+
 @pytest.mark.parametrize(
     "case", ["local", "separate", "cancel", "no_folder", "missing_folder"]
 )
-def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case):
-    """Derivative storage switches roots; cancel or invalid input changes nothing."""
+@pytest.mark.parametrize("storage", ["deriv_root", "subjects_dir"])
+def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case, storage):
+    """Storage switches roots; cancel or invalid input changes nothing."""
     ct = main_window.controller
     external = tmp_path / "separate-derivatives"
     external.mkdir()
     ct.ensure_deriv_root(False)
+    ct.ensure_subjects_dir(False)
     if case == "local":
-        ct.deriv_root = external
-    previous = ct.ensure_deriv_root(False)
-    subjects_dir = ct.ensure_subjects_dir(False)
+        setattr(ct, storage, external)
+    previous = getattr(ct, storage)
+    unchanged_storage = "subjects_dir" if storage == "deriv_root" else "deriv_root"
+    unchanged = getattr(ct, unchanged_storage)
     choice = {"local": True, "cancel": None}.get(case, False)
     folder = {"separate": external, "missing_folder": tmp_path / "missing"}.get(case)
     monkeypatch.setattr(
@@ -94,13 +157,15 @@ def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case):
     )
     error_dialog = Mock()
     monkeypatch.setattr("mne_nodes.gui.main_window.ErrorDialog", error_dialog)
-    main_window.change_deriv_root()
+    getattr(main_window, f"change_{storage}")()
     expected = {
-        "local": ct.bids_root / "derivatives" / "mne-nodes",
+        "local": ct.bids_root
+        / "derivatives"
+        / ("mne-nodes" if storage == "deriv_root" else "freesurfer"),
         "separate": external,
     }.get(case, previous)
-    assert ct.ensure_deriv_root(False) == expected
-    assert ct.subjects_dir == subjects_dir
+    assert getattr(ct, storage) == expected
+    assert getattr(ct, unchanged_storage) == unchanged
     assert error_dialog.called == (case == "missing_folder")
 
 

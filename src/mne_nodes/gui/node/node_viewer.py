@@ -82,7 +82,7 @@ class NodeViewer(QGraphicsView):
     PortDisconnected = Signal(Port, Port)
     DataDropped = Signal(QMimeData, QPointF)
 
-    MovedNodes = Signal(dict)
+    MovedNodes = Signal(object)
     ConnectionChanged = Signal(list, list)
     InsertNode = Signal(object, str, dict)
     NodeNameChanged = Signal(str, str)
@@ -302,7 +302,7 @@ class NodeViewer(QGraphicsView):
         return self._nodes_moving
 
     def redraw_pipes(self):
-        """Redraw all connected pipes, e.g. after the pipe layout changed.
+        """Redraw completed connections, excluding the cursor-driven live pipe.
 
         Routed pipes are routed together, so that overlapping parallel
         segments can be spread apart by ``defaults["pipes"]["padding"]``.
@@ -311,7 +311,9 @@ class NodeViewer(QGraphicsView):
         pipes = [
             pipe
             for pipe in self.all_pipes()
-            if pipe.input_port is not None and pipe.output_port is not None
+            if pipe is not self._LIVE_PIPE
+            and pipe.input_port is not None
+            and pipe.output_port is not None
         ]
         if self._pipe_layout != "routed" or self._nodes_moving:
             for pipe in pipes:
@@ -1947,10 +1949,12 @@ class NodeViewer(QGraphicsView):
             return
         start_port = selected_port
         self._start_port = start_port
-        if start_port.port_type == "in":
-            self._LIVE_PIPE.input_port = start_port
-        elif start_port.port_type == "out":
-            self._LIVE_PIPE.output_port = start_port
+        self._LIVE_PIPE.input_port = (
+            start_port if start_port.port_type == "in" else None
+        )
+        self._LIVE_PIPE.output_port = (
+            start_port if start_port.port_type == "out" else None
+        )
         self._LIVE_PIPE.setVisible(True)
         self._set_live_connection_port_highlights(start_port)
         origin_pos = self._origin_pos or self._previous_pos
@@ -1970,9 +1974,11 @@ class NodeViewer(QGraphicsView):
 
         Notes
         -----
-        This hides the pipe item used for drawing the live connection.
+        This hides the live pipe and clears its temporary port references.
         """
         self._clear_live_connection_port_highlights()
+        self._LIVE_PIPE.input_port = None
+        self._LIVE_PIPE.output_port = None
         self._LIVE_PIPE.reset_path()
         self._LIVE_PIPE.setVisible(False)
         self._LIVE_PIPE.shift_selected = False
