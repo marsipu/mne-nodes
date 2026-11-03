@@ -539,6 +539,7 @@ class MainWindow(QMainWindow):
             "Select a file for the generated Python script.",
             input_type="file_new",
             file_filter="Python files (*.py)",
+            default_suffix="py",
             parent=self,
         )
         if script_path is None:
@@ -563,6 +564,7 @@ class MainWindow(QMainWindow):
             "Select a file for the generated Jupyter script.",
             input_type="file_new",
             file_filter="Python files (*.py)",
+            default_suffix="py",
             parent=self,
         )
         if script_path is None:
@@ -589,6 +591,7 @@ class MainWindow(QMainWindow):
             "Select a ZIP file for the complete project.",
             input_type="file_new",
             file_filter="ZIP archives (*.zip)",
+            default_suffix="zip",
             parent=self,
         )
         if archive_path is None:

@@ -279,12 +279,14 @@ def _get_open_file(prompt, parent=None, file_filter=None):
     return (selected[0] if selected else ""), True
 
 
-def _get_save_file(prompt, parent=None, file_filter=None):
+def _get_save_file(prompt, parent=None, file_filter=None, default_suffix=None):
     dialog = QFileDialog(parent, prompt)
     dialog.setFileMode(QFileDialog.FileMode.AnyFile)
     dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
     if file_filter:
         dialog.setNameFilter(file_filter)
+    if default_suffix:
+        dialog.setDefaultSuffix(default_suffix)
 
     ok = dialog.exec() == QDialog.DialogCode.Accepted
     if not ok:
@@ -301,6 +303,7 @@ def get_user_input(
     cancel_allowed=True,
     exit_on_cancel=False,
     parent=None,
+    default_suffix=None,
 ) -> str | os.PathLike | None:
     """Get user input either via GUI or terminal, supporting string and path
     input.
@@ -320,6 +323,8 @@ def get_user_input(
         If True, the app exits after cancel. Defaults to False.
     parent : QWidget | None, optional
         Set the parent of the modal widget.
+    default_suffix : str | None, optional
+        Extension to append when a new filename has no suffix, e.g. "json".
 
     Returns
     -------
@@ -345,7 +350,10 @@ def get_user_input(
             )
         elif input_type == "file_new":
             user_input, ok = _get_save_file(
-                prompt, parent=parent, file_filter=file_filter
+                prompt,
+                parent=parent,
+                file_filter=file_filter,
+                default_suffix=default_suffix,
             )
         else:
             raise ValueError(type_error_message)
@@ -405,11 +413,14 @@ def get_user_input(
             cancel_allowed=cancel_allowed,
             exit_on_cancel=exit_on_cancel,
             parent=parent,
+            default_suffix=default_suffix,
         )
 
     # Convert path-strings to Path-objects
     if input_type in ["folder", "file", "file_new"] and user_input is not None:
         user_input = Path(user_input)
+        if input_type == "file_new" and default_suffix and not user_input.suffix:
+            user_input = user_input.with_suffix(f".{default_suffix.lstrip('.')}")
 
     return user_input
 

@@ -751,11 +751,14 @@ def test_fresh_controller_prompts(settings, tmp_path, monkeypatch):
 
     bids_root = tmp_path / "bids"
     bids_root.mkdir()
-    inputs = iter([bids_root, tmp_path, "demo_pipeline"])
-    monkeypatch.setattr(
-        "mne_nodes.backend.controller.get_user_input",
-        lambda *args, **kwargs: next(inputs),
-    )
+    inputs = iter([bids_root, tmp_path / "demo_pipeline.json"])
+    input_requests = []
+
+    def user_input(prompt, input_type="string", **kwargs):
+        input_requests.append({"input_type": input_type, **kwargs})
+        return next(inputs)
+
+    monkeypatch.setattr("mne_nodes.backend.controller.get_user_input", user_input)
     monkeypatch.setattr("mne_nodes.backend.controller.ask_user", lambda *a, **k: True)
     controller.set("name", "test")
     controller.bids_root = None
@@ -768,8 +771,15 @@ def test_fresh_controller_prompts(settings, tmp_path, monkeypatch):
     assert subjects_dir == bids_root / "derivatives" / "freesurfer"
 
     saved_path = Controller(settings=settings).new_config()
-    assert saved_path == tmp_path / "demo_pipeline_pipeline.json"
+    assert saved_path == tmp_path / "demo_pipeline.json"
     assert saved_path.exists()
+    assert json.loads(saved_path.read_text(encoding="utf-8"))["name"] == "demo_pipeline"
+    assert [request["input_type"] for request in input_requests] == [
+        "folder",
+        "file_new",
+    ]
+    assert input_requests[-1]["file_filter"] == "JSON files (*.json)"
+    assert input_requests[-1]["default_suffix"] == "json"
 
 
 @pytest.mark.parametrize("action", ["load", "new", "save_as"])
@@ -1279,7 +1289,7 @@ def test_codegen_submodule_function_executes(ct, monkeypatch):
 
 
 @pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
-def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
+def test_config_file_actions_roundtrip(ct, tmp_path, monkeypatch, save_as_method):
     """New, save, save-as/export and load preserve the complete pipeline state."""
     new_config_path = tmp_path / "new_config.json"
     export_path = tmp_path / "pipeline_roundtrip.json"
@@ -1298,7 +1308,16 @@ def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
 
     ct.save_config()
     assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
-    getattr(ct, save_as_method)(export_path)
+    requests = []
+
+    def save_path(*args, **kwargs):
+        requests.append(kwargs)
+        return export_path
+
+    monkeypatch.setattr("mne_nodes.backend.controller.get_user_input", save_path)
+    getattr(ct, save_as_method)()
+    assert len(requests) == 1
+    assert requests[0]["input_type"] == "file_new"
     assert ct.config_path == export_path
     assert json.loads(export_path.read_text(encoding="utf-8"))["name"] == "draft"
 
@@ -1307,6 +1326,17 @@ def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
     ct.load_config(export_path)
 
     assert ct.get("name") == "draft"
+    assert ct.get("parameters") == roundtrip_parameters
+    assert ct.get("node_config") == roundtrip_nodes
+
+    saved_config = export_path.read_bytes()
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.get_user_input", lambda *args, **kwargs: None
+    )
+    assert ct.new_config() is None
+    assert getattr(ct, save_as_method)() is None
+    assert ct.config_path == export_path
+    assert export_path.read_bytes() == saved_config
     assert ct.get("parameters") == roundtrip_parameters
     assert ct.get("node_config") == roundtrip_nodes
 
