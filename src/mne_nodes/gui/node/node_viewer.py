@@ -100,6 +100,7 @@ class NodeViewer(QGraphicsView):
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
         self._input_node: InputNode | None = None
         self._function_nodes: dict[str, FunctionNode] = {}
+        self._dirty_revisions: dict[FunctionNode, int] = {}
         self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._pipe_redraw_pending = False
@@ -556,6 +557,7 @@ class NodeViewer(QGraphicsView):
             function_name = node.name
             if function_name in self.function_nodes:
                 del self.function_nodes[function_name]
+            self._dirty_revisions.pop(node, None)
         elif isinstance(node, InputNode):
             self._input_node = None
         # Ensure all node internals are explicitly torn down.
@@ -1041,6 +1043,9 @@ class NodeViewer(QGraphicsView):
             visited.add(current)
             if isinstance(current, FunctionNode):
                 current.dirty = True
+                self._dirty_revisions[current] = (
+                    self._dirty_revisions.get(current, 0) + 1
+                )
             pending.extend(
                 downstream
                 for connected in current.connected_output_nodes().values()
@@ -1050,26 +1055,32 @@ class NodeViewer(QGraphicsView):
     def start_nodes(self, nodes):
         """Run the selected nodes and their downstream nodes."""
         node_sequence = self.get_selected_node_sequence(nodes)
+        executed_nodes = {
+            self.function_nodes[description["name"]]
+            for descriptions in node_sequence.values()
+            for description in descriptions
+        }
+        node_revisions = {
+            node: self._dirty_revisions.get(node, 0) for node in executed_nodes
+        }
         process = self.ct.start(node_sequence)
         if process is not None and hasattr(process, "allFinished"):
-            executed_names = {
-                description["name"]
-                for descriptions in node_sequence.values()
-                for description in descriptions
-            }
             process.allFinished.connect(
                 lambda exit_code, exit_status: (
-                    self._mark_sequence_clean(executed_names)
+                    self._mark_sequence_clean(node_revisions)
                     if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
                     else None
                 )
             )
         return node_sequence
 
-    def _mark_sequence_clean(self, node_names):
+    def _mark_sequence_clean(self, node_revisions):
         """Clear rerun indicators for nodes that completed successfully."""
-        for node in self.nodes.values():
-            if node.name not in node_names:
+        for node, revision in node_revisions.items():
+            if (
+                self.nodes.get(node.id) is not node
+                or self._dirty_revisions.get(node, 0) != revision
+            ):
                 continue
             node.dirty = False
             if isinstance(node, FunctionNode):

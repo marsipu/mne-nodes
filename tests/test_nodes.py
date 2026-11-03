@@ -446,13 +446,27 @@ def test_parameter_change_marks_downstream_nodes_dirty(qtbot, ct):
         frame.styleSheet() for frame in epochs_node.parameter_frames.values()
     )
 
-    viewer._mark_sequence_clean(
-        {"test_filter", "test_epochs", "test_evokeds", "test_plot_evokeds"}
-    )
+    executed_revisions = {
+        node: viewer._dirty_revisions[node]
+        for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    }
+    viewer._mark_sequence_clean(executed_revisions)
     assert not any(
         node.dirty for node in (filter_node, epochs_node, evokeds_node, plot_node)
     )
     assert not filter_node.parameter_frames["l_freq"].styleSheet()
+
+    filter_node.parameter_guis["l_freq"].value = 1.0
+    executed_revisions = {
+        node: viewer._dirty_revisions[node]
+        for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    }
+    filter_node.parameter_guis["l_freq"].value = 2.0
+    viewer._mark_sequence_clean(executed_revisions)
+    assert all(
+        node.dirty for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    )
+    assert filter_node.parameter_frames["l_freq"].styleSheet()
 
 
 def test_multiple_func_nodes(nodeviewer):
