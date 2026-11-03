@@ -80,7 +80,7 @@ class ErrorDialog(QDialog):
         layout.addWidget(QLabel("Traceback"))
         self.display = QTextEdit()
         self.display.setAccessibleName("Error traceback")
-        self.display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.display.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
         self.display.setFont(
             QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         )
@@ -133,16 +133,18 @@ class ErrorDialog(QDialog):
             main_window = get_widget("main_window")
             controller = getattr(main_window, "controller", None)
             self.issue_bt.setEnabled(False)
-            worker = WorkerDialog(
+            self._diagnostics_worker = WorkerDialog(
                 self,
                 partial(collect_diagnostics, controller),
                 return_exception=True,
                 title="Collecting diagnostics…",
             )
-            worker.setWindowTitle("Collecting diagnostics")
-            worker.progress_bar.setRange(0, 0)
-            worker.progress_bar.show()
-            worker.thread_finished.connect(partial(self._diagnostics_collected, report))
+            self._diagnostics_worker.setWindowTitle("Collecting diagnostics")
+            self._diagnostics_worker.progress_bar.setRange(0, 0)
+            self._diagnostics_worker.progress_bar.show()
+            self._diagnostics_worker.thread_finished.connect(
+                partial(self._diagnostics_collected, report)
+            )
             return
         IssueReportDialog(report, self).exec()
 
