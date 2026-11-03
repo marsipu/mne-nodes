@@ -70,6 +70,8 @@ def test_console_stream(qtbot):
         console.push_stdout("\x1b]8;id=1;https://example.com")
         console.push_stdout("\x1b")
         console.push_stdout("\\Link\x1b]8;;\x1b\\\n")
+        console.push_stdout("\rCRLF progress 100%\r")
+        console.push_stdout("\n")
         console.push_stdout("<b>literal &lt; & text</b>\n  indented\n")
         qtbot.waitUntil(lambda: "indented" in console.toPlainText())
         text = console.toPlainText()
@@ -78,6 +80,7 @@ def test_console_stream(qtbot):
         assert "<b>literal &lt; & text</b>" in text
         assert "Link\n" in text
         assert "https://example.com" not in text
+        assert "CRLF progress 100%\n" in text
         assert "\x1b" not in text
 
         ticks = []

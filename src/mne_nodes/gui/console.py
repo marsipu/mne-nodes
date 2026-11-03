@@ -88,6 +88,7 @@ class StreamWorker(QRunnable):
         }
         self._ansi_decoders = {kind: AnsiDecoder() for kind in self._decoders}
         self._incomplete = dict.fromkeys(self._decoders, "")
+        self._carriage_return = dict.fromkeys(self._decoders, "")
         self._converter = Ansi2HTMLConverter(inline=True)
         QThreadPool.globalInstance().start(self)
 
@@ -179,7 +180,11 @@ class StreamWorker(QRunnable):
             if match := self._RE_INCOMPLETE.search(data):
                 self._incomplete[kind] = match.group()
                 data = data[: match.start()]
-            data = self._RE_CONTROL.sub("", data).replace("\r\n", "\n")
+            data = self._carriage_return[kind] + self._RE_CONTROL.sub("", data)
+            self._carriage_return[kind] = "\r" if data.endswith("\r") else ""
+            if self._carriage_return[kind]:
+                data = data[:-1]
+            data = data.replace("\r\n", "\n")
             for index, part in enumerate(data.split("\r")):
                 if index:
                     self._progress_mode = True
