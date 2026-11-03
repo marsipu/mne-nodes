@@ -920,8 +920,13 @@ class NodeViewer(QGraphicsView):
         RuntimeError
             If the connections between the selected nodes contain a cycle.
         """
-        downstream = self._collect_nodes([node], "out")
-        start_ancestors = self._collect_nodes([node], "in", include_start=False)
+        return self._resolve_execution_order([node])
+
+    def _resolve_execution_order(self, start_nodes):
+        downstream = self._collect_nodes(start_nodes, "out")
+        start_ancestors = self._collect_nodes(
+            start_nodes, "in", include_start=False
+        )
         dependencies = self._collect_nodes(list(downstream.values()), "in")
         selected = OrderedDict(downstream)
         for node_id, dep_node in dependencies.items():
@@ -974,9 +979,12 @@ class NodeViewer(QGraphicsView):
         group-level nodes. Handling of different node types and
         activated/deactivated nodes should be done in Controller.
         """
+        return self._get_node_sequence(self.resolve_execution_order(node))
+
+    def _get_node_sequence(self, execution_order):
         node_sequence = {"file": [], "group": []}
         effective_targets = {}
-        for exec_node in self.resolve_execution_order(node):
+        for exec_node in execution_order:
             description, target = exec_node.get_description()
             upstream_group = any(
                 effective_targets.get(up_node.id) == "group"
@@ -1020,15 +1028,8 @@ class NodeViewer(QGraphicsView):
             if not has_selected_ancestor:
                 roots.append(node)
 
-        node_sequence = {"file": [], "group": []}
-        seen = {"file": set(), "group": set()}
-        for node in roots:
-            for target, descriptions in self.get_node_sequence(node).items():
-                for description in descriptions:
-                    if description["name"] not in seen[target]:
-                        node_sequence[target].append(description)
-                        seen[target].add(description["name"])
-        return node_sequence
+        execution_order = self._resolve_execution_order(roots)
+        return self._get_node_sequence(execution_order)
 
     def mark_dirty(self, node):
         """Mark a node and all of its downstream function nodes for rerun."""
