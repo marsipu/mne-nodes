@@ -178,6 +178,9 @@ class Process(QProcess):
         environment.insert("PYTHONUNBUFFERED", "1")
         environment.insert("PYTHONIOENCODING", "utf-8")
         environment.insert("FORCE_COLOR", "1")
+        environment.insert(
+            "MNE_NODES_GUI_CONSOLE", "1" if self.console is not None else "0"
+        )
         self.setProcessEnvironment(environment)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)

@@ -265,13 +265,22 @@ def load_json_console(file_path: os.PathLike) -> dict:
     """
     Load a JSON file with Rich progress output.
 
+    GUI-captured output uses ANSI rendering, not the legacy Win32 console API.
+
     Parameters
     ----------
     file_path : os.PathLike
         Path to the JSON file.
     """
+    gui_console = os.environ.get("MNE_NODES_GUI_CONSOLE") == "1"
     with Progress(
-        console=Console(stderr=True), redirect_stdout=False, redirect_stderr=False
+        console=Console(
+            stderr=True,
+            force_terminal=True if gui_console else None,
+            legacy_windows=False if gui_console else None,
+        ),
+        redirect_stdout=False,
+        redirect_stderr=False,
     ) as progress:
         task = progress.add_task(
             escape(f"Loading JSON file '{Path(file_path).name}'..."), total=100

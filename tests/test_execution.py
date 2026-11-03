@@ -33,6 +33,7 @@ def test_process(qtbot):
     qtbot.addWidget(console)
     console.show()
     process = Process(console=console, self_destruct=False)
+    assert process.processEnvironment().value("MNE_NODES_GUI_CONSOLE") == "1"
     process.start(
         sys.executable,
         [

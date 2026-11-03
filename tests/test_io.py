@@ -7,6 +7,8 @@ GitHub: https://github.com/marsipu/mne-nodes
 import json
 import multiprocessing
 import os
+import subprocess
+import sys
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from queue import Empty
@@ -203,3 +205,35 @@ def test_load_json_progress(tmp_path):
         assert isinstance(loaded[key], type(value))
     np.testing.assert_array_equal(loaded["array"], np.array([[1, 2], [3, 4]]))
     assert isinstance(loaded["array"], np.ndarray)
+
+
+def test_load_json_console_forces_terminal_progress_for_gui_process(
+    monkeypatch, tmp_path
+):
+    """Piped GUI progress contains ANSI styles rather than Win32 console output."""
+    monkeypatch.setenv("MNE_NODES_GUI_CONSOLE", "1")
+    monkeypatch.setenv("PYTHONIOENCODING", "utf-8")
+    file_path = tmp_path / "config.json"
+    file_path.write_text('{"loaded": true}', encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; from pathlib import Path; "
+                "from mne_nodes.backend.io import load_json_console; "
+                "assert load_json_console(Path(sys.argv[1])) == {'loaded': True}"
+            ),
+            str(file_path),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+        timeout=30,
+    )
+
+    assert "Loading JSON file 'config.json'" in result.stderr
+    assert "100%" in result.stderr
+    assert "\x1b[" in result.stderr
+    assert "\u2501" in result.stderr

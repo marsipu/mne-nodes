@@ -146,7 +146,8 @@ class StreamWorker(QRunnable):
 
     def _to_html(self, data: str, kind: str) -> str:
         decoder = self._ansi_decoders[kind]
-        if "\x1b" in data or decoder.style:
+        styled_output = "\x1b" in data or bool(decoder.style)
+        if styled_output:
             # ansi2html converts fragments independently; Rich retains SGR state
             # between fragments without keeping the entire output history.
             styled = decoder.style.render(data, color_system="truecolor")
@@ -155,7 +156,7 @@ class StreamWorker(QRunnable):
             text = self._converter.convert(styled, full=False)
         else:
             text = escape(data)
-        color = "color:red;" if kind == "stderr" else ""
+        color = "color:red;" if kind == "stderr" and not styled_output else ""
         return f'<span style="{color}white-space:pre-wrap;">{text}</span>'
 
     # QRunnable run ------------------------------------------------------
