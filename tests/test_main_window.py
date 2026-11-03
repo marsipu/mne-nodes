@@ -134,16 +134,19 @@ def test_settings_dialog(main_window, qtbot):
 @pytest.mark.parametrize(
     "case", ["local", "separate", "cancel", "no_folder", "missing_folder"]
 )
-def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case):
-    """Derivative storage switches roots; cancel or invalid input changes nothing."""
+@pytest.mark.parametrize("storage", ["deriv_root", "subjects_dir"])
+def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case, storage):
+    """Storage switches roots; cancel or invalid input changes nothing."""
     ct = main_window.controller
     external = tmp_path / "separate-derivatives"
     external.mkdir()
     ct.ensure_deriv_root(False)
+    ct.ensure_subjects_dir(False)
     if case == "local":
-        ct.deriv_root = external
-    previous = ct.ensure_deriv_root(False)
-    subjects_dir = ct.ensure_subjects_dir(False)
+        setattr(ct, storage, external)
+    previous = getattr(ct, storage)
+    unchanged_storage = "subjects_dir" if storage == "deriv_root" else "deriv_root"
+    unchanged = getattr(ct, unchanged_storage)
     choice = {"local": True, "cancel": None}.get(case, False)
     folder = {"separate": external, "missing_folder": tmp_path / "missing"}.get(case)
     monkeypatch.setattr(
@@ -154,13 +157,15 @@ def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case):
     )
     error_dialog = Mock()
     monkeypatch.setattr("mne_nodes.gui.main_window.ErrorDialog", error_dialog)
-    main_window.change_deriv_root()
+    getattr(main_window, f"change_{storage}")()
     expected = {
-        "local": ct.bids_root / "derivatives" / "mne-nodes",
+        "local": ct.bids_root
+        / "derivatives"
+        / ("mne-nodes" if storage == "deriv_root" else "freesurfer"),
         "separate": external,
     }.get(case, previous)
-    assert ct.ensure_deriv_root(False) == expected
-    assert ct.subjects_dir == subjects_dir
+    assert getattr(ct, storage) == expected
+    assert getattr(ct, unchanged_storage) == unchanged
     assert error_dialog.called == (case == "missing_folder")
 
 

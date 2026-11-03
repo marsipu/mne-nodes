@@ -33,6 +33,7 @@ default_device_settings = {
     "log_file_path": None,  # Optional custom log file path
     "bids_root": None,  # BIDS root directory
     "deriv_root": None,  # BIDS derivatives root directory
+    "subjects_dirs": {},  # FreeSurfer directory overrides keyed by BIDS root
     "plot_root": None,  # Plot export root directory
     "plot_root_is_config_specific": False,  # Root already includes the config name
     "wsl_distribution": None,  # None uses the default WSL distribution

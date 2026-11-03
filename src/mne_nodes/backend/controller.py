@@ -136,6 +136,7 @@ class Controller:
         # Initialize config_path here without prompting. Interactive setup is
         # handled explicitly via ensure_* methods after QApplication startup.
         self._initialize_startup_config_path(config_path)
+        self._update_subjects_dir_env()
         # Initialize plugins
         self.load_recent_plugins()
 
@@ -541,6 +542,7 @@ class Controller:
             reprompt_on_none=True,
         )
         if previous_root == new_root:
+            self._update_subjects_dir_env()
             self._bids_root_confirmation_pending = False
             dataset_name = self._read_bids_dataset_name(new_root)
             self.set("bids_dataset_name", dataset_name)
@@ -564,6 +566,7 @@ class Controller:
         """Select one dataset and discard state associated with the previous root."""
         self._bids_root_confirmation_pending = False
         self.settings.set("bids_root", new_root)
+        self._update_subjects_dir_env()
         dataset_name = self._read_bids_dataset_name(new_root)
         self.set("bids_dataset_name", dataset_name)
         self._reset_input_directory_state()
@@ -607,15 +610,42 @@ class Controller:
 
     @property
     def subjects_dir(self) -> Path | None:
-        """Dataset-local FreeSurfer subjects directory, preferring nested layouts."""
+        """Configured FreeSurfer directory or the existing dataset-local default."""
         bids_root = self.bids_root
         if bids_root is None:
             return None
+        configured = self.settings.get("subjects_dirs", {}).get(
+            str(bids_root.resolve())
+        )
+        if configured is not None:
+            return Path(configured)
         subjects_dir = bids_root / "derivatives" / "freesurfer"
         nested = subjects_dir / "subjects"
         if nested.is_dir():
             return nested
         return subjects_dir if subjects_dir.is_dir() else None
+
+    @subjects_dir.setter
+    def subjects_dir(self, value: str | Path | None) -> None:
+        """Remember a dataset's chosen directory, or restore its default with None."""
+        root = None
+        if value is not None:
+            root = self._validate_existing_dir(value, key="subjects_dir").resolve()
+        bids_root = self.ensure_bids_root(interactive=False)
+        overrides = self.settings.get("subjects_dirs", {})
+        key = str(bids_root.resolve())
+        if root is None:
+            overrides.pop(key, None)
+        else:
+            overrides[key] = root
+        self.settings.set("subjects_dirs", overrides)
+        self._update_subjects_dir_env()
+
+    def _update_subjects_dir_env(self) -> None:
+        bids_root = self.bids_root
+        if bids_root is not None:
+            subjects_dir = self.subjects_dir or bids_root / "derivatives" / "freesurfer"
+            os.environ["SUBJECTS_DIR"] = str(subjects_dir)
 
     def other_derivative_roots(self) -> list[Path]:
         """Return derivative pipeline folders besides the configured root.
@@ -736,7 +766,7 @@ class Controller:
                 )
                 self.set("bids_dataset_name", self._read_bids_dataset_name(active_root))
             self._bids_root_confirmation_pending = False
-        return self._ensure_setting_path(
+        bids_root = self._ensure_setting_path(
             key="bids_root",
             prompt="Please select/create a folder for the bids-root.",
             missing_message=(
@@ -745,6 +775,8 @@ class Controller:
             ),
             interactive=interactive,
         )
+        self._update_subjects_dir_env()
+        return bids_root
 
     def _confirm_config_bids_root(self, *, interactive: bool) -> None:
         if interactive and self._bids_root_confirmation_pending:
@@ -776,8 +808,13 @@ class Controller:
         return root
 
     def ensure_subjects_dir(self, interactive: bool = True) -> Path:
-        """Create the dataset's FreeSurfer folder without global MNE settings."""
+        """Validate a chosen FreeSurfer directory or create the dataset-local default."""
         bids_root = self.ensure_bids_root(interactive=interactive)
+        configured = self.settings.get("subjects_dirs", {}).get(
+            str(bids_root.resolve())
+        )
+        if configured is not None:
+            return self._validate_existing_dir(configured, key="subjects_dir")
         self.ensure_deriv_root(interactive=False)
         subjects_dir = self.subjects_dir or bids_root / "derivatives" / "freesurfer"
         if not subjects_dir.resolve().is_relative_to(bids_root.resolve()):

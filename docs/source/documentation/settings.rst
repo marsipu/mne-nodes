@@ -45,13 +45,17 @@ subfolder. Existing files are not moved or deleted when changing roots.
 Explicit roots from older settings are retained. A missing explicit root causes
 an error rather than silently redirecting outputs.
 
-FreeSurfer subjects are stored in
+FreeSurfer subjects default to
 ``<BIDS-root>/derivatives/freesurfer/subjects`` when that directory exists;
 otherwise ``<BIDS-root>/derivatives/freesurfer`` is used directly.
 The nested layout takes precedence if both exist; roots are not merged.
-This location is independent of the processing derivative root and cannot be
-selected separately. MNE-Nodes neither reads nor modifies the global MNE
-``SUBJECTS_DIR`` setting for this purpose. The directory is created when a
+This location is independent of the processing derivative root.
+Use **BIDS > FreeSurfer subjects directory...** to choose another existing
+directory or restore **Dataset default**. The chosen directory is used directly
+and remembered separately for each BIDS dataset on this device. Existing files
+are not moved; missing chosen directories cause an error rather than a fallback.
+MNE-Nodes sets the process-local ``SUBJECTS_DIR`` environment variable without
+modifying MNE-Python's saved configuration. The default directory is created when a
 FreeSurfer operation needs it (using the direct layout for a new dataset);
 existing segmentations and new imports use the same resolved directory.
 

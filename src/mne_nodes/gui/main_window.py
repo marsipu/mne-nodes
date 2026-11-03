@@ -4,6 +4,7 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -138,6 +139,11 @@ class MainWindow(QMainWindow):
         overview_action = QAction("&Data overview...", parent=self)
         overview_action.triggered.connect(self.show_data_overview)
         bids_menu.addAction(overview_action)
+        subjects_directory_action = QAction(
+            "FreeSurfer subjects &directory...", parent=self
+        )
+        subjects_directory_action.triggered.connect(self.change_subjects_dir)
+        bids_menu.addAction(subjects_directory_action)
         import_subjects_action = QAction("&Import FreeSurfer subjects...", parent=self)
         import_subjects_action.triggered.connect(self.import_freesurfer_subjects)
         bids_menu.addAction(import_subjects_action)
@@ -270,7 +276,7 @@ class MainWindow(QMainWindow):
                     break
 
     def import_freesurfer_subjects(self):
-        """Open the dataset-local FreeSurfer subject importer."""
+        """Open the FreeSurfer subject importer for the active directory."""
         dialog = FreeSurferImportDialog(self.controller, self)
         dialog.subjects_imported.connect(self._refresh_dataset_inputs)
         dialog.open()
@@ -299,8 +305,8 @@ class MainWindow(QMainWindow):
         """Choose dataset-local or separate storage for processing derivatives."""
         local = ask_user_custom(
             "Where should processing derivatives be stored? "
-            "Existing files will not be moved. FreeSurfer subjects remain "
-            "in the dataset's FreeSurfer subjects directory.",
+            "Existing files will not be moved. The FreeSurfer subjects "
+            "directory will not change.",
             buttons=["Inside BIDS dataset", "Separate derivatives root"],
             parent=self,
         )
@@ -327,6 +333,43 @@ class MainWindow(QMainWindow):
             f"Derivatives: {self.controller.deriv_root}. "
             "Existing files have not been moved."
         )
+        self.controller.refresh_input_outputs()
+
+    def change_subjects_dir(self) -> None:
+        """Choose a FreeSurfer subjects directory for the active BIDS dataset."""
+        local = ask_user_custom(
+            "Where should FreeSurfer subjects be stored for this dataset? "
+            f"Current directory: {self.controller.subjects_dir or 'dataset default'}. "
+            "Existing files will not be moved.",
+            buttons=["Dataset default", "Choose directory"],
+            parent=self,
+        )
+        if local is None:
+            return
+        root = None
+        if not local:
+            root = get_user_input(
+                "Select a FreeSurfer subjects directory (containing subject folders).",
+                "folder",
+                parent=self,
+                cancel_allowed=True,
+            )
+            if root is None:
+                return
+        try:
+            self.controller.subjects_dir = root
+        except (OSError, ValueError, RuntimeError):
+            ErrorDialog(
+                get_exception_tuple(),
+                self,
+                "Could not set FreeSurfer subjects directory.",
+            ).open()
+            return
+        self.statusBar().showMessage(
+            f"FreeSurfer subjects: {os.environ['SUBJECTS_DIR']}. "
+            "Existing files have not been moved."
+        )
+        self._refresh_dataset_inputs()
         self.controller.refresh_input_outputs()
 
     def finalize_controller_setup(self):
