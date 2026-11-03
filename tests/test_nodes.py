@@ -220,7 +220,7 @@ def test_subject_output_uses_recordings_without_segmentation_tab(nodeviewer):
         assert ct.selected_recordings() == ([recording] if enabled else [])
 
 
-def test_port_connections(nodeviewer):
+def test_port_connections(nodeviewer, qtbot, capfd):
     """Connect by mouse, validate port types, slice wires and delete nodes."""
     ct = nodeviewer.ct
     ct.input_selection_changed(ct.get_datatype_items("eeg")[:1], "eeg")
@@ -230,6 +230,25 @@ def test_port_connections(nodeviewer):
     port1 = node1.output(port_name="eeg")
     port2 = node2.input(port_name="raw")
     assert port1.connected(port2)
+    # Alternating drag directions must not leave a hidden, connected live pipe.
+    for port in (port1, port2, port1):
+        nodeviewer.start_live_connection(port)
+        live_pipe = nodeviewer._LIVE_PIPE
+        assert (live_pipe.input_port is not None) == (port.port_type == "in")
+        assert (live_pipe.output_port is not None) == (port.port_type == "out")
+        nodeviewer.redraw_pipes()
+        nodeviewer.end_live_connection()
+        assert live_pipe.input_port is None
+        assert live_pipe.output_port is None
+        for layout in ("curved", "straight", "angle", "routed"):
+            nodeviewer.pipe_layout = layout
+            node2.setPos(node2.pos() + QPointF(10, 10))
+            nodeviewer.redraw_pipes()
+    moved_nodes = {node2: node2.xy_pos}
+    with qtbot.waitSignal(nodeviewer.MovedNodes) as signal:
+        nodeviewer.MovedNodes.emit(moved_nodes)
+    assert signal.args == [moved_nodes]
+    assert "Cannot copy-convert" not in capfd.readouterr().err
     port1.disconnect_from(port2)
     assert not port1.connected(port2)
     assert nodeviewer._ports_can_connect(port1, port2)
