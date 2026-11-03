@@ -8,7 +8,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
-    QScrollArea,
     QStyleFactory,
     QTabWidget,
     QVBoxLayout,
@@ -47,12 +46,9 @@ class SettingsDlg(QDialog):
         for name, details in settings_config.items():
             tab = details["tab"]
             if tab not in tab_layouts:
-                scroll = QScrollArea()
-                scroll.setWidgetResizable(True)
                 content = QWidget()
                 tab_layouts[tab] = QVBoxLayout(content)
-                scroll.setWidget(content)
-                tabs.addTab(scroll, tab)
+                tabs.addTab(content, tab)
             content_layout = tab_layouts[tab]
             kwargs = details.get("gui_kwargs", {}).copy()
             source = details.get("options_source")
@@ -72,14 +68,12 @@ class SettingsDlg(QDialog):
                 alias=details["alias"],
                 description=description,
                 parent_widget=content_layout.parentWidget(),
+                groupbox_layout=False,
                 **kwargs,
             )
             widget.paramChanged.connect(partial(self.setting_changed.emit, name))
             self.widgets[name] = widget
             content_layout.addWidget(widget)
-            label = QLabel(description)
-            label.setWordWrap(True)
-            content_layout.addWidget(label)
         for content_layout in tab_layouts.values():
             content_layout.addStretch()
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)

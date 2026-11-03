@@ -66,3 +66,10 @@ gui_type = "BoolGui"
 default = true
 alias = "Console word wrap"
 description = "Wrap long lines in all consoles instead of scrolling horizontally. Applied immediately."
+
+[keep_plots_open]
+tab = "Plots"
+gui_type = "BoolGui"
+default = true
+alias = "Keep Plots open"
+description = "If plots are immediately closed or kept open until closed manually."
