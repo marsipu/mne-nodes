@@ -23,7 +23,7 @@ from mne_nodes.backend.io import (
     time_format,
     type_json_hook,
 )
-from mne_nodes.backend.settings import Settings
+from mne_nodes.backend.settings import Settings, settings_config
 
 
 def test_json_serialization(parameter_values):
@@ -64,6 +64,10 @@ def test_settings(parameter_values):
     qtbot is needed to initialize the QApplication.
     """
     settings = Settings()
+    for name, details in settings_config.items():
+        assert settings.default(name) == details["default"]
+        settings.remove(name)
+        assert settings.get(name) == details["default"]
     for k, v in parameter_values.items():
         if k not in ["int", "float", "string", "bool", "tuple", "path"]:
             continue

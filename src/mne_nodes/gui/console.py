@@ -31,6 +31,7 @@ from qtpy.QtWidgets import (
 from rich.ansi import AnsiDecoder
 
 from mne_nodes.backend.execution import Process
+from mne_nodes.backend.settings import Settings
 from mne_nodes.backend.streams import init_streams
 from mne_nodes.gui.user_interaction import ask_user
 from mne_nodes.logger import logger
@@ -228,7 +229,7 @@ class ConsoleWidget(QPlainTextEdit):
     def __init__(self):
         super().__init__()
         self.setReadOnly(True)
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.set_word_wrap(Settings().get("console_word_wrap"))
         self.setFont(QFont("Consolas", 12))
         self._progress_line: str | None = None
         self.autoscroll = True
@@ -239,6 +240,11 @@ class ConsoleWidget(QPlainTextEdit):
         self.destroyed.connect(lambda _=None: self.stop_streams())
 
     # Streams ------------------------------------------------------------
+    def set_word_wrap(self, enabled: bool) -> None:
+        """Wrap long lines at the widget width or scroll horizontally."""
+        mode = QPlainTextEdit.LineWrapMode
+        self.setLineWrapMode(mode.WidgetWidth if enabled else mode.NoWrap)
+
     def push_stdout(self, text):
         self.stream_worker.push(text, "stdout")
 

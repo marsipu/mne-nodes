@@ -9,9 +9,18 @@ from inspect import signature
 from os.path import isdir
 from pathlib import Path
 
-from qtpy.QtCore import QObject, QProcess, QRunnable, QThreadPool, Signal, Slot
+from qtpy.QtCore import (
+    QObject,
+    QProcess,
+    QProcessEnvironment,
+    QRunnable,
+    QThreadPool,
+    Signal,
+    Slot,
+)
 
 from mne_nodes.backend.exception_handling import get_exception_tuple
+from mne_nodes.backend.process_log import BOLD, GRAY, GREEN, RED, style
 from mne_nodes.logger import logger
 
 
@@ -164,18 +173,30 @@ class Process(QProcess):
         if working_directory is not None and isdir(working_directory):
             self.setWorkingDirectory(str(working_directory))
         self.self_destruct = self_destruct
+        environment = QProcessEnvironment.systemEnvironment()
+        # Unbuffered output makes print() reach the console immediately.
+        environment.insert("PYTHONUNBUFFERED", "1")
+        environment.insert("PYTHONIOENCODING", "utf-8")
+        environment.insert("FORCE_COLOR", "1")
+        self.setProcessEnvironment(environment)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)
         self.stateChanged.connect(
             lambda state: self._write_stdout(
-                f"Process {self.proc_id} state changed to {state.value}"
+                style(f"Process {self.proc_id}: {state.name}\n", GRAY)
             )
         )
         self.finished.connect(self.handle_finished)
 
     def handle_finished(self, code, status):
+        ok = code == 0 and status == QProcess.ExitStatus.NormalExit
         self._write_stdout(
-            f"Process {self.proc_id} finished with exit code {code} and status {status.value}."
+            style(
+                f"Process {self.proc_id} finished with exit code {code} "
+                f"({status.name}).\n",
+                BOLD,
+                GREEN if ok else RED,
+            )
         )
         # Start next process if necessary
         if len(self.commands) > 0:

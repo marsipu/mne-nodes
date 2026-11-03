@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 import mne
-from qtpy.QtCore import QMimeData, QProcess, Qt, Signal
+from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, Signal
 from qtpy.QtGui import QAction, QActionGroup, QKeySequence
 from qtpy.QtWidgets import QApplication, QDialog, QMainWindow
 
@@ -18,7 +18,7 @@ from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.package_utils import install_local_plugin
 from mne_nodes.backend.pipeline_utils import _run_from_script, restart_program
 from mne_nodes.backend.plugin_package import find_plugin_project
-from mne_nodes.gui.console import ConsoleDock
+from mne_nodes.gui.console import ConsoleDock, ConsoleWidget
 from mne_nodes.gui.coreg_widgets import CoregDialog
 from mne_nodes.gui.data_overview import DataOverviewDialog
 from mne_nodes.gui.dialogs import ErrorDialog, SysInfoMsg
@@ -32,6 +32,7 @@ from mne_nodes.gui.node.node_picker import NodePicker
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.plugin_package import LocalPluginInstallDialog
 from mne_nodes.gui.run_widgets import ProcessDialog, WorkerDialog
+from mne_nodes.gui.settings_dialog import SettingsDlg
 from mne_nodes.gui.user_interaction import (
     ask_user,
     ask_user_custom,
@@ -60,6 +61,7 @@ class MainWindow(QMainWindow):
         self._controller = controller
         self.settings = controller.settings
         self.node_picker = None
+        self.settings_dialog = None
         self.setAcceptDrops(True)
 
         # Initialize properties
@@ -226,6 +228,20 @@ class MainWindow(QMainWindow):
             self.pipe_style_group.addAction(action)
             pipe_style_menu.addAction(action)
         self.pipe_style_group.triggered.connect(self.set_pipe_layout)
+        console_wrap_action = QAction(
+            "Console &Word Wrap",
+            parent=self,
+            checkable=True,
+            statusTip="Wrap long lines in the console instead of scrolling.",
+        )
+        console_wrap_action.setChecked(bool(self.settings.get("console_word_wrap")))
+        console_wrap_action.toggled.connect(self.set_console_word_wrap)
+        view_menu.addAction(console_wrap_action)
+        self.console_wrap_action = console_wrap_action
+
+        settings_action = QAction("&Settings...", parent=self)
+        settings_action.triggered.connect(self.show_settings)
+        self.menuBar().addAction(settings_action)
 
         welcome_tour_action = QAction(
             "&Restart Welcome Tour",
@@ -339,8 +355,34 @@ class MainWindow(QMainWindow):
     def set_pipe_layout(self, action):
         """Apply and persist the pipe style chosen in the View menu."""
         layout = action.data()
-        self.viewer.pipe_layout = layout
         self.settings.set("pipe_layout", layout)
+        self._apply_setting("pipe_layout", layout)
+
+    def set_console_word_wrap(self, enabled: bool) -> None:
+        """Apply and persist console word wrapping for all open consoles."""
+        self.settings.set("console_word_wrap", enabled)
+        self._apply_setting("console_word_wrap", enabled)
+
+    def show_settings(self) -> None:
+        """Open the TOML-configured application settings dialog."""
+        if self.settings_dialog is None:
+            self.settings_dialog = SettingsDlg(self.settings, self)
+            self.settings_dialog.setting_changed.connect(self._apply_setting)
+        self.settings_dialog.read_settings()
+        self.settings_dialog.open()
+
+    def _apply_setting(self, name: str, value: object) -> None:
+        if name == "pipe_layout":
+            self.viewer.pipe_layout = value
+            for action in self.pipe_style_group.actions():
+                action.setChecked(action.data() == value)
+        elif name == "console_word_wrap":
+            enabled = bool(value)
+            with QSignalBlocker(self.console_wrap_action):
+                self.console_wrap_action.setChecked(enabled)
+            for widget in QApplication.allWidgets():
+                if isinstance(widget, ConsoleWidget):
+                    widget.set_word_wrap(enabled)
 
     def show_node_picker(self):
         """Show the categorized node picker dialog."""

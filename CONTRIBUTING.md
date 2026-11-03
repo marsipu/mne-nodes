@@ -38,12 +38,6 @@ Console output uses Rich for logging and progress, and ansi2html for GUI
 rendering. ANSI conversion runs in the stream worker; the GUI receives bounded
 batches rather than an update for every write.
 
-MNE-Nodes remains BSD-3-Clause licensed. The separately installed ansi2html
-dependency is LGPLv3+: using it does not relicense MNE-Nodes. Redistributors
-bundling ansi2html must also comply with its LGPL terms, including preserving
-its license notices, providing the required corresponding source, and allowing
-users to replace the library. Do not copy its implementation into this package.
-
 Tests default to `mne_nodes.gui_mode = False`, including during collection and
 controller setup, so backend tests do not open JSON/plugin-loading progress
 dialogs. This does not prevent `pytest-qt` tests from constructing and exercising

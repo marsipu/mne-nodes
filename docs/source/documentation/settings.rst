@@ -4,11 +4,28 @@ FreeSurfer/WSL setup uses automatic environment discovery without installation-p
 settings. **BIDS > FreeSurfer setup...** provides a discovery check and an optional
 WSL distribution selector; see :doc:`freesurfer`.
 
-There are two different ways, application settings are stored in MNE-Nodes.
-It depends on whether the settings is device-specific or project-specific.
-For device-specific settings, such as the number of jobs or whether cuda is enabled, are stored either with *Settings* in a JSON file located in an OS-dependent directory.
-The user-specific settings are used to store user preferences, such as the image format or the appearance of the GUI.
-These settings are stored in the configuration file used to configure a project.
+Open **Settings...** in the menu bar to change the application theme, Qt style,
+font, font size, startup window size, node pipe style, and console word wrapping.
+Settings are grouped into **Appearance**, **Node Editor**, and **Console** tabs.
+Descriptions below each setting explain its effect. Changes are saved
+immediately; appearance and startup window-size changes require a restart.
+Pipe style and console wrapping apply immediately and stay synchronized with
+the corresponding **View** menu controls.
+
+Device-specific preferences are stored by ``Settings`` in ``settings.json`` in
+the platform's application configuration directory. ``MNENODES_SETTINGS_DIR``
+can override this directory (or specify a JSON file directly). Pipeline-specific
+parameters remain in the pipeline configuration file.
+
+The packaged ``src/mne_nodes/resources/settings.toml`` defines the settings
+dialog's widget types, defaults, labels, descriptions, tabs, restart requirements,
+and widget options. Each setting's ``tab`` field assigns its tab; tabs and rows
+follow their first appearance in the TOML file.
+Font families and Qt styles are discovered on the current
+device. Add editable settings there rather than hard-coding dialog rows or
+duplicating their defaults in Python. Internal state such as recent paths and
+plugin configuration is not exposed in the dialog. User values remain in JSON;
+the TOML file describes the available settings and is not modified by the GUI.
 
 Dataset and output folders
 --------------------------

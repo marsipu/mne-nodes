@@ -71,6 +71,51 @@ def test_main_window_lifecycle(settings, qtbot, tmp_path):
     assert controller.viewer is None
 
 
+def test_settings_dialog(main_window, qtbot):
+    """Editing TOML-defined preferences persists without changing other settings."""
+    from mne_nodes.backend.settings import Settings, settings_config
+    from mne_nodes.gui.settings_dialog import SettingsDlg
+
+    settings = main_window.settings
+    settings.set("unrelated_setting", {"keep": [1, 2, 3]})
+    settings.set("app_font_size", 15)
+    settings.remove("console_word_wrap")
+    previous = settings.settings_path.read_bytes()
+    main_window.show_settings()
+    dialog = main_window.settings_dialog
+    assert set(dialog.widgets) == set(settings_config)
+    assert settings.settings_path.read_bytes() == previous
+    assert dialog.widgets["app_font_size"].value == 15
+    assert dialog.widgets["console_word_wrap"].value is True
+
+    values = {
+        "app_theme": "dark",
+        "app_style": "fusion",
+        "app_font": "DejaVu Sans",
+        "app_font_size": 16,
+        "screen_ratio": 0.65,
+        "pipe_layout": "straight",
+        "console_word_wrap": False,
+    }
+    for name, value in values.items():
+        dialog.widgets[name].value = value
+    assert main_window.viewer.pipe_layout == "straight"
+    dialog.close()
+
+    restored_settings = Settings()
+    restored = SettingsDlg(restored_settings)
+    qtbot.addWidget(restored)
+    for name, value in values.items():
+        assert restored_settings.get(name) == value
+        assert restored.widgets[name].value == value
+    assert restored_settings.get("unrelated_setting") == {"keep": [1, 2, 3]}
+
+    main_window.set_console_word_wrap(True)
+    main_window.show_settings()
+    assert dialog.widgets["console_word_wrap"].value is True
+    dialog.close()
+
+
 @pytest.mark.parametrize(
     "case", ["local", "separate", "cancel", "no_folder", "missing_folder"]
 )
