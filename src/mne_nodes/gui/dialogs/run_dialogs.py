@@ -1,6 +1,6 @@
 """Dialogs for running backend processes."""
 
-from qtpy.QtCore import QTimer, Qt, Signal
+from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QDialog,
