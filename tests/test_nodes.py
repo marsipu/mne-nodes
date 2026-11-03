@@ -11,6 +11,7 @@ from qtpy.QtCore import QPointF, Qt
 
 from mne_nodes.gui.gui_utils import mouseDrag
 from mne_nodes.gui.node.ports import Port
+from tests.conftest import _add_complex_nodes
 
 
 def test_input_outputs_require_selection(nodeviewer):
@@ -389,6 +390,102 @@ def test_exec_order(qtbot, ct):
     )
     with pytest.raises(RuntimeError, match="cycle"):
         viewer.get_node_sequence(in_node)
+
+
+def test_selected_node_sequence(qtbot, ct):
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    _add_complex_nodes(viewer)
+
+    filter_node = viewer.node(node_name="test_filter")
+    epochs_node = viewer.node(node_name="test_epochs")
+    downstream_sequence = viewer.get_node_sequence(epochs_node)
+    downstream_names = [
+        node["name"]
+        for target in ("file", "group")
+        for node in downstream_sequence[target]
+    ]
+    sequence = viewer.get_selected_node_sequence([epochs_node, filter_node])
+    names = [node["name"] for target in ("file", "group") for node in sequence[target]]
+
+    assert downstream_names == ["test_epochs", "test_evokeds", "test_plot_evokeds"]
+    assert names == ["test_filter", "test_epochs", "test_evokeds", "test_plot_evokeds"]
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    join_meta = deepcopy(ct.get_function_meta("test_filter"))
+    join_meta["inputs"]["raw_b"] = deepcopy(join_meta["inputs"]["raw"])
+    ct.function_meta["test_join"] = join_meta
+    upstream_a, selected_a, upstream_b, selected_b = (
+        viewer.add_function_node("test_filter") for _ in range(4)
+    )
+    shared = viewer.add_function_node("test_join")
+    upstream_a.output(port_name="raw").connect_to(selected_a.input(port_name="raw"))
+    selected_a.output(port_name="raw").connect_to(shared.input(port_name="raw"))
+    upstream_b.output(port_name="raw").connect_to(selected_b.input(port_name="raw"))
+    selected_b.output(port_name="raw").connect_to(shared.input(port_name="raw_b"))
+    sequence = viewer.get_selected_node_sequence([selected_a, selected_b])
+    names = [node["name"] for node in sequence["file"]]
+
+    assert names == [
+        selected_a.get_description()[0]["name"],
+        selected_b.get_description()[0]["name"],
+        shared.get_description()[0]["name"],
+    ]
+
+    cycle_a, cycle_b = (viewer.add_function_node("test_filter") for _ in range(2))
+    cycle_a.output(port_name="raw").connect_to(cycle_b.input(port_name="raw"))
+    cycle_b.output(port_name="raw").connect_to(cycle_a.input(port_name="raw"))
+    for selected_nodes in ([cycle_a], [cycle_a, cycle_b]):
+        with pytest.raises(RuntimeError, match="cycle"):
+            viewer.get_selected_node_sequence(selected_nodes)
+
+
+def test_parameter_change_marks_downstream_nodes_dirty(qtbot, ct):
+    from mne_nodes.gui.node.node_viewer import NodeViewer
+
+    viewer = NodeViewer(ct)
+    qtbot.addWidget(viewer)
+    _add_complex_nodes(viewer)
+
+    filter_node = viewer.node(node_name="test_filter")
+    epochs_node = viewer.node(node_name="test_epochs")
+    evokeds_node = viewer.node(node_name="test_evokeds")
+    plot_node = viewer.node(node_name="test_plot_evokeds")
+
+    filter_node.parameter_guis["l_freq"].value = 0.5
+
+    assert all(
+        node.dirty for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    )
+    assert filter_node.parameter_frames["l_freq"].styleSheet()
+    assert not any(
+        frame.styleSheet() for frame in epochs_node.parameter_frames.values()
+    )
+
+    executed_revisions = {
+        node: viewer._dirty_revisions[node]
+        for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    }
+    viewer._mark_sequence_clean(executed_revisions)
+    assert not any(
+        node.dirty for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    )
+    assert not filter_node.parameter_frames["l_freq"].styleSheet()
+
+    filter_node.parameter_guis["l_freq"].value = 1.0
+    executed_revisions = {
+        node: viewer._dirty_revisions[node]
+        for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    }
+    filter_node.parameter_guis["l_freq"].value = 2.0
+    viewer._mark_sequence_clean(executed_revisions)
+    assert all(
+        node.dirty for node in (filter_node, epochs_node, evokeds_node, plot_node)
+    )
+    assert filter_node.parameter_frames["l_freq"].styleSheet()
 
 
 def test_multiple_func_nodes(nodeviewer):
