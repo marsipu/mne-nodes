@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Documentation &#8212; mne-nodes 0.2.0.dev44+gbd763c85c documentation</title>
+    <title>Documentation &#8212; mne-nodes 0.2.0.dev45+g1ecd1549a documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
-    <script src="../_static/documentation_options.js?v=eb7121a5"></script>
+    <script src="../_static/documentation_options.js?v=ed946a00"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/index';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.2.0.dev44+gbd763c85c documentation</p>
+    <p class="title logo__title">mne-nodes 0.2.0.dev45+g1ecd1549a documentation</p>
   
 </a></div>
     
@@ -238,6 +238,10 @@
     </div>
   
 
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page" aria-expanded="false" aria-controls="pst-secondary-sidebar-modal">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
   
 </div>
 
@@ -441,6 +445,23 @@
 <li class="toctree-l1"><a class="reference internal" href="settings.html">Settings</a></li>
 </ul>
 </div>
+<section id="error-reporting">
+<h2>Error reporting<a class="headerlink" href="#error-reporting" title="Link to this heading">#</a></h2>
+<p>The error dialog offers <strong>Copy traceback</strong> to copy the original, unredacted
+traceback as plain text.</p>
+<p><strong>Open GitHub issue…</strong> opens an editable report preview. The unchecked diagnostic
+option adds MNE system information, loaded plugins and dataset selection counts.
+Custom plugins are anonymized; dataset names, paths and subject identifiers are
+not collected. System-information collection does not check for updates.</p>
+<p>Reports redact local usernames, hostnames, filesystem paths, email addresses,
+IPv4 addresses and URLs. Automatic redaction cannot recognize every private
+detail in exception messages or source code; relative filenames and other
+identifiers may remain. Review and edit the preview before sharing it.</p>
+<p>Confirming the preview opens a draft in the mne-nodes GitHub repository and
+copies the reviewed report to the clipboard. Nothing is submitted automatically.
+If the report is too long to prefill the issue, paste it from the clipboard.
+Cancelling the preview does not open a browser or change the clipboard.</p>
+</section>
 </section>
 
 
@@ -478,6 +499,24 @@
             
             
               
+                <dialog id="pst-secondary-sidebar-modal" tabindex="-1"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#error-reporting">Error reporting</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -501,7 +540,7 @@
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 21:13 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 23:44 UTC.
       <br/>
     
   </p>
