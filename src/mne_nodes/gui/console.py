@@ -79,7 +79,7 @@ class StreamWorker(QRunnable):
         self.chunk_len: int = 0
         self._pending_progress = None
         self._progress_mode = False
-        self._progress_text = ""
+        self._progress_html = ""
         self._progress_kind = None
         self.last_emitted: float = time.monotonic()
         self._stopping = False
@@ -138,9 +138,9 @@ class StreamWorker(QRunnable):
         ):
             self._emit_chunk(force=True)
             self._wait_for_render()
-            line, kind, finished = self._pending_progress
+            line, finished = self._pending_progress
             self._render_ready.clear()
-            self.signals.progress_ready.emit(self._to_html(line, kind), finished)
+            self.signals.progress_ready.emit(line, finished)
             self._pending_progress = None
             self.last_emitted = time.monotonic()
 
@@ -190,14 +190,14 @@ class StreamWorker(QRunnable):
             for index, part in enumerate(data.split("\r")):
                 if index:
                     self._progress_mode = True
-                    self._progress_text = ""
+                    self._progress_html = ""
                     self._progress_kind = kind
                 if not part:
                     continue
                 if self._progress_mode and kind == self._progress_kind:
                     line, newline, part = part.partition("\n")
-                    self._progress_text += line
-                    self._pending_progress = (self._progress_text, kind, bool(newline))
+                    self._progress_html += self._to_html(line, kind)
+                    self._pending_progress = (self._progress_html, bool(newline))
                     self._emit_progress(force=bool(newline))
                     if not newline:
                         continue
