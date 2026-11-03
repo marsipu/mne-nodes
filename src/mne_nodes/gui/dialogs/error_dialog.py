@@ -20,7 +20,6 @@ from qtpy.QtWidgets import (
 
 from mne_nodes.backend.issue_reporting import anonymize_report, collect_diagnostics
 from mne_nodes.gui.dialogs.issue_report_dialog import IssueReportDialog
-from mne_nodes.gui.gui_utils import set_ratio_geometry
 from mne_nodes.gui.widget_registry import get_widget
 from mne_nodes.logger import logger
 
@@ -42,7 +41,6 @@ class ErrorDialog(QDialog):
             self.traceback_text = f"{self.traceback_text.rstrip()}\n{error_line}\n"
 
         self.error_name = error_name
-        set_ratio_geometry((0.55, 0.6), self)
         self.init_ui()
 
     def init_ui(self) -> None:
@@ -80,7 +78,7 @@ class ErrorDialog(QDialog):
         layout.addWidget(QLabel("Traceback"))
         self.display = QTextEdit()
         self.display.setAccessibleName("Error traceback")
-        self.display.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.display.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self.display.setFont(
             QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         )
