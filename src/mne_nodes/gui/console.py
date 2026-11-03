@@ -397,6 +397,7 @@ class ConsoleDock(QDockWidget):
         process.started.connect(self.process_started)
         # Start process
         process.start(program, arguments)
+        return process
 
     def _close_process(self, process_idx):
         process = self.processes[process_idx]

@@ -14,6 +14,7 @@ from qtpy.QtCore import (
     QMimeData,
     QPoint,
     QPointF,
+    QProcess,
     QRect,
     QRectF,
     QSize,
@@ -99,6 +100,7 @@ class NodeViewer(QGraphicsView):
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
         self._input_node: InputNode | None = None
         self._function_nodes: dict[str, FunctionNode] = {}
+        self._dirty_revisions: dict[FunctionNode, int] = {}
         self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._pipe_redraw_pending = False
@@ -555,6 +557,7 @@ class NodeViewer(QGraphicsView):
             function_name = node.name
             if function_name in self.function_nodes:
                 del self.function_nodes[function_name]
+            self._dirty_revisions.pop(node, None)
         elif isinstance(node, InputNode):
             self._input_node = None
         # Ensure all node internals are explicitly torn down.
@@ -919,8 +922,11 @@ class NodeViewer(QGraphicsView):
         RuntimeError
             If the connections between the selected nodes contain a cycle.
         """
-        downstream = self._collect_nodes([node], "out")
-        start_ancestors = self._collect_nodes([node], "in", include_start=False)
+        return self._resolve_execution_order([node])
+
+    def _resolve_execution_order(self, start_nodes):
+        downstream = self._collect_nodes(start_nodes, "out")
+        start_ancestors = self._collect_nodes(start_nodes, "in", include_start=False)
         dependencies = self._collect_nodes(list(downstream.values()), "in")
         selected = OrderedDict(downstream)
         for node_id, dep_node in dependencies.items():
@@ -973,9 +979,12 @@ class NodeViewer(QGraphicsView):
         group-level nodes. Handling of different node types and
         activated/deactivated nodes should be done in Controller.
         """
+        return self._get_node_sequence(self.resolve_execution_order(node))
+
+    def _get_node_sequence(self, execution_order):
         node_sequence = {"file": [], "group": []}
         effective_targets = {}
-        for exec_node in self.resolve_execution_order(node):
+        for exec_node in execution_order:
             description, target = exec_node.get_description()
             upstream_group = any(
                 effective_targets.get(up_node.id) == "group"
@@ -989,6 +998,94 @@ class NodeViewer(QGraphicsView):
                 node_sequence[target].append(description)
 
         return node_sequence
+
+    def get_selected_node_sequence(self, nodes=None):
+        """Build a combined execution sequence for selected nodes and descendants."""
+        nodes = list(nodes if nodes is not None else self.selected_nodes())
+        self._resolve_execution_order(nodes)
+        selected = set(nodes)
+        roots = []
+        for node in nodes:
+            pending = [
+                upstream
+                for connected in node.connected_input_nodes().values()
+                for upstream in connected
+            ]
+            visited = set()
+            has_selected_ancestor = False
+            while pending:
+                upstream = pending.pop()
+                if upstream in visited:
+                    continue
+                visited.add(upstream)
+                if upstream in selected:
+                    has_selected_ancestor = True
+                    break
+                pending.extend(
+                    ancestor
+                    for connected in upstream.connected_input_nodes().values()
+                    for ancestor in connected
+                )
+            if not has_selected_ancestor:
+                roots.append(node)
+
+        execution_order = self._resolve_execution_order(roots)
+        return self._get_node_sequence(execution_order)
+
+    def mark_dirty(self, node):
+        """Mark a node and all of its downstream function nodes for rerun."""
+        pending = [node]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            if isinstance(current, FunctionNode):
+                current.dirty = True
+                self._dirty_revisions[current] = (
+                    self._dirty_revisions.get(current, 0) + 1
+                )
+            pending.extend(
+                downstream
+                for connected in current.connected_output_nodes().values()
+                for downstream in connected
+            )
+
+    def start_nodes(self, nodes):
+        """Run the selected nodes and their downstream nodes."""
+        node_sequence = self.get_selected_node_sequence(nodes)
+        executed_nodes = {
+            self.function_nodes[description["name"]]
+            for descriptions in node_sequence.values()
+            for description in descriptions
+        }
+        node_revisions = {
+            node: self._dirty_revisions.get(node, 0) for node in executed_nodes
+        }
+        process = self.ct.start(node_sequence)
+        if process is not None and hasattr(process, "allFinished"):
+            process.allFinished.connect(
+                lambda exit_code, exit_status: (
+                    self._mark_sequence_clean(node_revisions)
+                    if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
+                    else None
+                )
+            )
+        return node_sequence
+
+    def _mark_sequence_clean(self, node_revisions):
+        """Clear rerun indicators for nodes that completed successfully."""
+        for node, revision in node_revisions.items():
+            if (
+                self.nodes.get(node.id) is not node
+                or self._dirty_revisions.get(node, 0) != revision
+            ):
+                continue
+            node.dirty = False
+            if isinstance(node, FunctionNode):
+                for parameter_name in node.parameter_frames:
+                    node.set_parameter_dirty(parameter_name, False)
 
     ####################################################################################
     # Frontend
@@ -1161,6 +1258,20 @@ class NodeViewer(QGraphicsView):
         self.RMB_state = False
 
         menu = QMenu(self)
+        if self.selected_nodes():
+            menu.addSeparator()
+            start_action = QAction("Start selected nodes", menu)
+            start_action.setEnabled(
+                any(
+                    values
+                    for datatype, values in self.ct.get("selected_inputs").items()
+                    if datatype not in self.ct.non_selectable_datatypes
+                )
+            )
+            start_action.triggered.connect(
+                lambda: self.start_nodes(self.selected_nodes())
+            )
+            menu.addAction(start_action)
         for category, cat_dict in self.ct.get_functions_categorized().items():
             category_menu = menu.addMenu(category)
             for sub_category, func_list in cat_dict.items():
