@@ -1250,6 +1250,13 @@ class NodeViewer(QGraphicsView):
         if self.selected_nodes():
             menu.addSeparator()
             start_action = QAction("Start selected nodes", menu)
+            start_action.setEnabled(
+                any(
+                    values
+                    for datatype, values in self.ct.get("selected_inputs").items()
+                    if datatype not in self.ct.non_selectable_datatypes
+                )
+            )
             start_action.triggered.connect(
                 lambda: self.start_nodes(self.selected_nodes())
             )
