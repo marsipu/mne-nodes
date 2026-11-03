@@ -1058,7 +1058,6 @@ class NodeViewer(QGraphicsView):
                 description["name"]
                 for descriptions in node_sequence.values()
                 for description in descriptions
-                if description.get("checked", True)
             }
             process.allFinished.connect(
                 lambda exit_code, exit_status: (
