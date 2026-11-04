@@ -154,7 +154,7 @@ def create_test_controller(settings, tmp_path, monkeypatch):
             return "test"
         if input_type == "folder":
             return tmp_path
-        if input_type == "file":
+        if input_type in ("file", "file_new"):
             return tmp_path / "test_config.json"
         raise RuntimeError(f"Unknown input type: '{input_type}' for dummy function")
 

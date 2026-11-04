@@ -4,10 +4,12 @@ License: BSD 3-Clause
 GitHub: https://github.com/marsipu/mne-nodes
 """
 
+import ast
 import json
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import mne
@@ -287,8 +289,9 @@ def test_discard_segmentation_checks_preserves_subject_groups(ct):
 
 @pytest.mark.parametrize("target", ["file", "group"])
 @pytest.mark.parametrize("mutate_before_solve", [False, True])
+@pytest.mark.parametrize("rich_output", [False, True])
 def test_codegen_reuses_subject_derivatives_within_run(
-    ct, monkeypatch, target, mutate_before_solve
+    ct, monkeypatch, target, mutate_before_solve, rich_output
 ):
     """Share MRI-only chains, but keep recording results and node parameters apart."""
     from types import SimpleNamespace
@@ -388,7 +391,8 @@ def test_codegen_reuses_subject_derivatives_within_run(
         observe_alias=lambda surface_alias: aliases.append(surface_alias.copy()),
     )
     monkeypatch.setattr(CodeGenerator, "_build_header", lambda *args: "")
-    code = CodeGenerator(ct, {target: nodes}).code
+    code = CodeGenerator(ct, {target: nodes}, rich_output=rich_output).code
+    assert ("_log." in code) == rich_output
 
     def run():
         exec(  # noqa: S102 - Validate generated pipeline execution.
@@ -630,8 +634,6 @@ def test_plugin_import_reload_and_remove(ct, test_plugin_config, test_script):
     change_file_section(test_script, (start, end), new_test_code)
     ct.reload_plugins()
     assert ct.plugins["test_module"].test_func1(2) == 8
-
-    # Removing unregisters the plugin without deleting its files
     ct.settings.set("disabled_plugins", ["test_module"])
     ct.remove_plugin("test_module")
     assert test_plugin_config.is_file()
@@ -640,6 +642,48 @@ def test_plugin_import_reload_and_remove(ct, test_plugin_config, test_script):
     assert "test_module" not in ct.get("plugin_meta")
     assert "test_module" not in ct.settings.get("plugin_config", {})
     assert "test_module" not in ct.settings.get("disabled_plugins", [])
+
+
+def test_export_project_bundles_path_plugins(
+    tmp_path, ct, test_plugin_config, monkeypatch
+):
+    from mne_nodes.backend.code_generation import export_project
+
+    ct.load_plugin_path(test_plugin_config)
+    ct._config["plugin_meta"]["github_plugin"] = {
+        "plugin_type": "github",
+        "plugin_github": "https://github.com/example/github-plugin.git",
+    }
+    ct._config["plugin_meta"]["module_plugin"] = {"plugin_type": "module"}
+    monkeypatch.setattr(
+        "mne_nodes.backend.code_generation.importlib.metadata.packages_distributions",
+        lambda: {"module_plugin": ["module-plugin"]},
+    )
+    archive_path = tmp_path / "pipeline_project.zip"
+    export_project(ct, {"file": [], "group": []}, archive_path, {})
+
+    with zipfile.ZipFile(archive_path) as archive:
+        names = set(archive.namelist())
+        assert "plugins/test_module/test_module.py" in names
+        assert "plugins/test_module/test_module_config.json" in names
+        requirements = archive.read("requirements.txt").decode()
+        assert "mne-nodes" in requirements
+        assert "git+https://github.com/example/github-plugin.git" in requirements
+        assert "module-plugin" in requirements
+        script = archive.read("pipeline.py").decode()
+        ast.parse(script)
+        assert "process_log" not in script
+        assert "_log." not in script
+        assert "MNENODES_SETTINGS_DIR" in script
+        assert "MNENODES_BIDS_ROOT" in script
+        assert script.index("ct = Controller") < script.index(
+            "settings.set(key, folder)"
+        )
+        assert "settings.set('plot_root_is_config_specific', True)" in script
+        config = json.loads(archive.read("pipeline.json"))
+        plugin = config["plugin_meta"]["test_module"]
+        assert plugin["config_path"] == "plugins/test_module/test_module_config.json"
+        assert plugin["script_path"] == "plugins/test_module/test_module.py"
 
 
 def test_config_persistence_and_switch(tmp_path, ct, monkeypatch):
@@ -707,11 +751,14 @@ def test_fresh_controller_prompts(settings, tmp_path, monkeypatch):
 
     bids_root = tmp_path / "bids"
     bids_root.mkdir()
-    inputs = iter([bids_root, tmp_path, "demo_pipeline"])
-    monkeypatch.setattr(
-        "mne_nodes.backend.controller.get_user_input",
-        lambda *args, **kwargs: next(inputs),
-    )
+    inputs = iter([bids_root, tmp_path / "demo_pipeline.json"])
+    input_requests = []
+
+    def user_input(prompt, input_type="string", **kwargs):
+        input_requests.append({"input_type": input_type, **kwargs})
+        return next(inputs)
+
+    monkeypatch.setattr("mne_nodes.backend.controller.get_user_input", user_input)
     monkeypatch.setattr("mne_nodes.backend.controller.ask_user", lambda *a, **k: True)
     controller.set("name", "test")
     controller.bids_root = None
@@ -724,8 +771,15 @@ def test_fresh_controller_prompts(settings, tmp_path, monkeypatch):
     assert subjects_dir == bids_root / "derivatives" / "freesurfer"
 
     saved_path = Controller(settings=settings).new_config()
-    assert saved_path == tmp_path / "demo_pipeline_pipeline.json"
+    assert saved_path == tmp_path / "demo_pipeline.json"
     assert saved_path.exists()
+    assert json.loads(saved_path.read_text(encoding="utf-8"))["name"] == "demo_pipeline"
+    assert [request["input_type"] for request in input_requests] == [
+        "folder",
+        "file_new",
+    ]
+    assert input_requests[-1]["file_filter"] == "JSON files (*.json)"
+    assert input_requests[-1]["default_suffix"] == "json"
 
 
 @pytest.mark.parametrize("action", ["load", "new", "save_as"])
@@ -1187,6 +1241,7 @@ def test_expose_plugin_functions(tmp_path, monkeypatch, with_script):
 
 def test_codegen_submodule_function_executes(ct, monkeypatch):
     """Generated plugin calls resolve to the configured submodule function."""
+    import json
     from types import ModuleType
     from unittest.mock import Mock
 
@@ -1208,7 +1263,11 @@ def test_codegen_submodule_function_executes(ct, monkeypatch):
         plugin, "bem_plugin", {"config_path": {"make_watershed_bem": func_meta}}
     )
     assert plugin.make_watershed_bem is make_watershed_bem
-    ct.set("selected_inputs", {"eeg": [ct.get_datatype_items("eeg")[0]]})
+    selected_items = ct.get_datatype_items("eeg")
+    selected_items = (
+        selected_items[:2] if len(selected_items) > 1 else selected_items * 2
+    )
+    ct.set("selected_inputs", {"eeg": selected_items})
     node_sequence = {
         "file": [
             {
@@ -1222,20 +1281,55 @@ def test_codegen_submodule_function_executes(ct, monkeypatch):
         ],
         "group": [],
     }
-    code = CodeGenerator(ct, node_sequence).code
+    generator = CodeGenerator(ct, node_sequence)
+    notebook = json.loads(generator.jupyter_notebook)
+    assert any(
+        cell["cell_type"] == "markdown"
+        and "#### `make_watershed_bem`" in "".join(cell["source"])
+        for cell in notebook["cells"]
+    )
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    function_cells = [
+        cell
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "# Execute function " in "".join(cell["source"])
+    ]
+    assert len(function_cells) == len(selected_items)
+    assert "_notebook_states" not in notebook_code
+    assert sum(
+        cell["cell_type"] == "markdown"
+        and "".join(cell["source"]).startswith("#### Item ")
+        for cell in notebook["cells"]
+    ) == len(selected_items)
+    compile(notebook_code, "<generated-notebook>", "exec")
+
     watershed = Mock()
     monkeypatch.setattr(plugin, "make_watershed_bem", watershed)
     monkeypatch.setattr(ct, "load_recording_subject", lambda bp: "fsaverage")
     monkeypatch.setattr("mne_nodes.backend.controller.Controller", lambda **kwargs: ct)
     monkeypatch.setattr(mne_nodes, "gui_mode", False)
 
-    exec(compile(code, "<generated-pipeline>", "exec"), {})  # noqa: S102
+    notebook_namespace = {}
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            exec(  # noqa: S102
+                compile("".join(cell["source"]), "<generated-notebook-cell>", "exec"),
+                notebook_namespace,
+            )
 
-    watershed.assert_called_once_with(subject="fsaverage")
+    assert watershed.call_count == len(selected_items)
+    assert all(
+        call.kwargs == {"subject": "fsaverage"} for call in watershed.call_args_list
+    )
 
 
 @pytest.mark.parametrize("save_as_method", ["save_config_as", "export_pipeline"])
-def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
+def test_config_file_actions_roundtrip(ct, tmp_path, monkeypatch, save_as_method):
     """New, save, save-as/export and load preserve the complete pipeline state."""
     new_config_path = tmp_path / "new_config.json"
     export_path = tmp_path / "pipeline_roundtrip.json"
@@ -1254,7 +1348,16 @@ def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
 
     ct.save_config()
     assert json.loads(new_config_path.read_text(encoding="utf-8"))["name"] == "draft"
-    getattr(ct, save_as_method)(export_path)
+    requests = []
+
+    def save_path(*args, **kwargs):
+        requests.append(kwargs)
+        return export_path
+
+    monkeypatch.setattr("mne_nodes.backend.controller.get_user_input", save_path)
+    getattr(ct, save_as_method)()
+    assert len(requests) == 1
+    assert requests[0]["input_type"] == "file_new"
     assert ct.config_path == export_path
     assert json.loads(export_path.read_text(encoding="utf-8"))["name"] == "draft"
 
@@ -1266,10 +1369,22 @@ def test_config_file_actions_roundtrip(ct, tmp_path, save_as_method):
     assert ct.get("parameters") == roundtrip_parameters
     assert ct.get("node_config") == roundtrip_nodes
 
+    saved_config = export_path.read_bytes()
+    monkeypatch.setattr(
+        "mne_nodes.backend.controller.get_user_input", lambda *args, **kwargs: None
+    )
+    assert ct.new_config() is None
+    assert getattr(ct, save_as_method)() is None
+    assert ct.config_path == export_path
+    assert export_path.read_bytes() == saved_config
+    assert ct.get("parameters") == roundtrip_parameters
+    assert ct.get("node_config") == roundtrip_nodes
+
 
 @pytest.mark.timeout(180)
 @pytest.mark.parametrize("storage", ["memory", "local", "external"])
-def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage):
+@pytest.mark.parametrize("rich_output", [False, True])
+def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage, rich_output):
     from mne_nodes.backend.code_generation import CodeGenerator
     from mne_nodes.gui.node.node_viewer import NodeViewer
     from tests.conftest import _add_complex_nodes, create_test_controller
@@ -1307,7 +1422,9 @@ def test_codegen_pipeline(qtbot, tmp_path, monkeypatch, settings, storage):
         for node in sequence:
             node["checked"] = storage != "memory"
 
-    generated_code = CodeGenerator(ct, node_sequence).code
+    generated_code = CodeGenerator(ct, node_sequence, rich_output=rich_output).code
+    assert ("process_log" in generated_code) == rich_output
+    assert ("_log." in generated_code) == rich_output
     validation_config_path = Path(__file__).parent / "validation_functions_config.json"
     generated_code = generated_code.replace(
         "# Load controller\n",
@@ -1461,6 +1578,7 @@ def test_relocated_plugin_identity_survives_restart(
 
 
 def test_codegen_multi_type_read_write(ct, caplog):
+    import json
     import logging
 
     from mne_nodes.backend.code_generation import CodeGenerator
@@ -1537,6 +1655,24 @@ def test_codegen_multi_type_read_write(ct, caplog):
     assert "suffix='ave'" in code
     assert "write_evokeds" in code
     assert "grand_average(" in code
+    notebook = json.loads(gen.jupyter_notebook)
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert (
+        len(
+            [
+                cell
+                for cell in notebook["cells"]
+                if cell["cell_type"] == "code"
+                and "# Execute function " in "".join(cell["source"])
+            ]
+        )
+        == 2
+    )
+    compile(notebook_code, "<generated-group-notebook>", "exec")
 
     node = node_sequence["group"][0]
     node["inputs"] = {"all_inst": ["unknown_node"]}

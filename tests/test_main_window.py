@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QMenu
 
 from mne_nodes.backend.io import type_json_hook
 from mne_nodes.gui.main_window import MainWindow
@@ -187,6 +188,105 @@ def test_replacing_input_node_removes_previous_dataset(main_window):
     assert [item for item in viewer.scene().items() if isinstance(item, InputNode)] == [
         node
     ]
+
+
+def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
+    """The Help action must start a tour even after the first session."""
+    calls = []
+    ct.settings.set("first_start", False)
+    monkeypatch.setattr(
+        ct, "initialize_welcome_tour", lambda **kwargs: calls.append(kwargs)
+    )
+    help_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&Help"
+    )
+    action = next(
+        action
+        for action in help_menu.actions()
+        if action.text() == "&Restart Welcome Tour"
+    )
+    action.trigger()
+    assert calls == [{"force": True}]
+
+
+@pytest.mark.parametrize("rich_output", [False, True, None])
+def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
+    """The File menu exports Python, Jupyter notebooks, and project files."""
+    import json
+    import zipfile
+
+    paths = iter(
+        [
+            tmp_path / "pipeline.py",
+            tmp_path / "pipeline_jupyter",
+            tmp_path / "pipeline_project.zip",
+        ]
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *args, **kwargs: next(paths)
+    )
+    monkeypatch.setattr(main_window, "_export_rich_output", lambda: rich_output)
+    file_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&File"
+    )
+    actions = {action.text(): action for action in file_menu.actions()}
+
+    actions["Export Python Script..."].trigger()
+    actions["Export Jupyter Notebook..."].trigger()
+    actions["Export Complete Project..."].trigger()
+
+    if rich_output is None:
+        assert not list(tmp_path.glob("pipeline*"))
+        return
+
+    script = (tmp_path / "pipeline.py").read_text()
+    notebook = json.loads((tmp_path / "pipeline_jupyter.ipynb").read_text())
+    assert "Controller(config_path=" in script
+    assert notebook["nbformat"] == 4
+    assert notebook["cells"]
+    assert all(
+        cell["cell_type"] in {"code", "markdown"} and cell["id"]
+        for cell in notebook["cells"]
+    )
+    assert notebook["cells"][0]["cell_type"] == "markdown"
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert "Controller(config_path=" in notebook_code
+    with zipfile.ZipFile(tmp_path / "pipeline_project.zip") as archive:
+        assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
+            archive.namelist()
+        )
+        project_script = archive.read("pipeline.py").decode()
+        assert "os.chdir(project_root)" in project_script
+        assert "mne-nodes" in archive.read("requirements.txt").decode()
+    for code in (script, notebook_code, project_script):
+        assert ("process_log" in code) == rich_output
+        assert ("_log." in code) == rich_output
+        compile(code, "<exported-pipeline>", "exec")
+
+
+def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
+    """Invoking the action during a tour must not replace its plugin snapshot."""
+    from types import SimpleNamespace
+
+    tour = SimpleNamespace(_finished=False, finish=lambda **kwargs: None)
+    ct.welcome_tour = tour
+
+    def unexpected_start(*args, **kwargs):
+        pytest.fail("An active tour must not be started again.")
+
+    monkeypatch.setattr(
+        "mne_nodes.gui.welcome_tour.start_welcome_tour", unexpected_start
+    )
+    main_window.restart_welcome_tour()
+    assert ct.welcome_tour is tour
 
 
 def test_app_start(ct, main_window, qtbot):

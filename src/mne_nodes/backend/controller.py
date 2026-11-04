@@ -182,9 +182,7 @@ class Controller:
             sys.exit(0)
         if ans:
             logger.info("Creating new pipeline file.")
-            name, config_path = self._prompt_pipeline_path(
-                "Please enter a name for this pipeline"
-            )
+            name, config_path = self._prompt_pipeline_path("Save the new pipeline file")
             if config_path is None:
                 raise RuntimeError("Pipeline path initialization failed.")
             config = {"name": name, **deepcopy(default_config)}
@@ -219,21 +217,18 @@ class Controller:
         return folder / f"{name}_pipeline.json"
 
     def _prompt_pipeline_path(self, message: str) -> tuple[str | None, Path | None]:
-        folder = self._as_path(
+        config_path = self._as_path(
             get_user_input(
-                "Select the folder for the pipeline file",
-                input_type="folder",
+                message,
+                input_type="file_new",
+                file_filter="JSON files (*.json)",
+                default_suffix="json",
                 cancel_allowed=True,
             )
         )
-        if folder is None:
+        if config_path is None:
             return None, None
-        pipeline_name = get_user_input(
-            message, input_type="string", cancel_allowed=True
-        )
-        if pipeline_name is None:
-            return None, None
-        return str(pipeline_name), self._pipeline_name_to_path(pipeline_name, folder)
+        return config_path.stem, config_path
 
     def _normalize_config_path(self, config_path: Any) -> Path:
         config_path = self._as_path(config_path)
@@ -2646,7 +2641,7 @@ class Controller:
         """Create a new pipeline file and make it the active project pipeline."""
         if config_path is None:
             pipeline_name, config_path = self._prompt_pipeline_path(
-                "Please enter a name for this pipeline"
+                "Save the new pipeline file"
             )
             if config_path is None:
                 logger.warning("New pipeline cancelled by user.")
@@ -2688,9 +2683,7 @@ class Controller:
     def save_config_as(self, export_path=None) -> Path | None:
         """Write the current pipeline to a new pipeline file and switch active file."""
         if export_path is None:
-            _, export_path = self._prompt_pipeline_path(
-                "Please enter a name for this pipeline"
-            )
+            _, export_path = self._prompt_pipeline_path("Save the pipeline file as")
             if export_path is None:
                 logger.warning("Save pipeline cancelled by user.")
                 return None

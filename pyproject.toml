@@ -63,9 +63,7 @@ docs = [
     "sphinx",
     "pydata-sphinx-theme",
 ]
-plugins = [
-    "mne-nodes_mne-functions @ git+https://github.com/marsipu/mne-nodes_mne-functions.git",
-]
+
 
 [project.urls]
 Homepage = "https://github.com/marsipu/mne-nodes"
