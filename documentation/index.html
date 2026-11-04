@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Documentation &#8212; mne-nodes 0.2.0.dev45+g1ecd1549a documentation</title>
+    <title>Documentation &#8212; mne-nodes 0.2.0.dev46+gd487b7b62 documentation</title>
   
   
   
@@ -37,7 +37,7 @@
   <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
 <link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
-    <script src="../_static/documentation_options.js?v=ed946a00"></script>
+    <script src="../_static/documentation_options.js?v=8bd8a18c"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'documentation/index';</script>
@@ -117,7 +117,7 @@
   
   
   
-    <p class="title logo__title">mne-nodes 0.2.0.dev45+g1ecd1549a documentation</p>
+    <p class="title logo__title">mne-nodes 0.2.0.dev46+gd487b7b62 documentation</p>
   
 </a></div>
     
@@ -445,6 +445,23 @@
 <li class="toctree-l1"><a class="reference internal" href="settings.html">Settings</a></li>
 </ul>
 </div>
+<section id="exporting-pipelines">
+<h2>Exporting pipelines<a class="headerlink" href="#exporting-pipelines" title="Link to this heading">#</a></h2>
+<p>The <strong>File</strong> menu can export a Python script, a Jupyter notebook (<code class="docutils literal notranslate"><span class="pre">.ipynb</span></code>),
+or a complete project ZIP archive.</p>
+<p>New pipeline files, <strong>Save As</strong>, and exports use a single <strong>Save As</strong> dialog:
+enter a filename and choose its folder in the same dialog. The appropriate
+extension (<code class="docutils literal notranslate"><span class="pre">.json</span></code>, <code class="docutils literal notranslate"><span class="pre">.py</span></code>, <code class="docutils literal notranslate"><span class="pre">.ipynb</span></code>, or <code class="docutils literal notranslate"><span class="pre">.zip</span></code>) is added if omitted.
+New pipelines take their initial name from the filename; saving an existing
+pipeline under another filename keeps its pipeline name.</p>
+<p>Each export asks whether to include rich-formatted progress output. <strong>Plain
+output</strong> is selected by default and omits the progress-formatting imports,
+frames, and timing wrappers while retaining output from the pipeline functions.
+Choose <strong>Rich output</strong> to include recording and function frames, load/save
+announcements, and execution timings. Canceling this choice writes no export.
+The choice also applies to the script inside a complete-project archive.
+Pipeline runs inside the application continue to use rich-formatted output.</p>
+</section>
 <section id="error-reporting">
 <h2>Error reporting<a class="headerlink" href="#error-reporting" title="Link to this heading">#</a></h2>
 <p>The error dialog offers <strong>Copy traceback</strong> to copy the original, unredacted
@@ -511,6 +528,7 @@ Cancelling the preview does not open a browser or change the clipboard.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exporting-pipelines">Exporting pipelines</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#error-reporting">Error reporting</a></li>
 </ul>
   </nav></div>
@@ -540,7 +558,7 @@ Cancelling the preview does not open a browser or change the clipboard.</p>
 
   <p class="copyright">
     
-      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-03 23:44 UTC.
+      © Copyright 2019-2026, Martin G. Schulz, Last updated 2026-11-04 00:02 UTC.
       <br/>
     
   </p>
