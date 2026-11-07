@@ -60,9 +60,7 @@ test = [
     "ruff",
 ]
 docs = [
-    "sphinx",
-    "pydata-sphinx-theme",
-    "sphinx-design",
+    "zensical>=0.1,<0.2",
 ]
 
 
@@ -90,6 +88,7 @@ include = [
     "/docs",
     "/docker",
     "/pyproject.toml",
+    "/zensical.toml",
     "/README.md",
     "/CONTRIBUTING.md",
     "/LICENSE",

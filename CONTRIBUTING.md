@@ -72,7 +72,7 @@ remain unchanged.
 
 ## Docker
 
-See the [Docker GUI development guide](docs/source/development/docker_gui.rst)
+See the [Docker GUI development guide](docs/source/development/docker_gui.md)
 for the cross-platform container launcher and X server requirements.
 
 ## Publishing releases

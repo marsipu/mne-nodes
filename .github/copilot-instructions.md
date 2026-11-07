@@ -30,7 +30,7 @@ MNE-Python.
 - `src/mne_nodes/gui/`: Qt GUI components, including node and parameter widgets.
 - `src/mne_nodes/backend/`: pipeline execution, I/O, code generation, and control.
 - `tests/`: pytest and pytest-qt tests.
-- `docs/source/`: Sphinx documentation.
+- `docs/source/`: Markdown documentation built with Zensical.
 - `pyproject.toml`: package metadata, dependencies, and tool configuration.
 
 ## Code Conventions
