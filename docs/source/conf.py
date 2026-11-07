@@ -24,12 +24,7 @@ version = ".".join(release.split(".")[:2])
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
-    "sphinx.ext.napoleon",
-    "sphinx_design",
-]
+extensions = ["sphinx_design"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -37,15 +32,22 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+exclude_patterns = [
+    "api/**",
+    "generated/**",
+    "documentation/class-methods.rst",
+    "documentation/custom_modules.rst",
+    "documentation/functions.rst",
+]
 
 # -- Options for HTML output -------------------------------------------------
+
+html_title = project
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
 html_theme = "pydata_sphinx_theme"
-switcher_version_match = "dev" if ".dev" in version else version
 html_theme_options = {
     "icon_links": [
         {
@@ -55,16 +57,11 @@ html_theme_options = {
         }
     ],
     "icon_links_label": "External Links",
-    "navbar_end": ["theme-switcher", "version-switcher", "navbar-icon-links"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "navbar_align": "left",
     "navbar_persistent": ["search-button"],
     "footer_start": ["copyright"],
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
-    # Todo: Insert versions url from webpage
-    # "switcher": {
-    #     "json_url": "<version-url>/versions.json",
-    #     "version_match": switcher_version_match,
-    # },
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

@@ -1,3 +1,5 @@
+:orphan:
+
 CI screenshot demo
 ==================
 
@@ -12,11 +14,14 @@ fonts and Qt's platform integration can still differ between runners.
 Connected pipeline
 ------------------
 
-The EEG output of the input node is connected to ``example_filter``.
-The filter's high-pass and low-pass parameters are visible inside its node.
+The workflow filters EEG, creates epochs, and branches into averaging,
+covariance, and a spherical forward model before estimating sources.
+Its console shows the completed run. The synthetic sensor positions and model
+are illustrative, not a validated source analysis. For the main guides, see
+:doc:`pipelines`, :doc:`function_importer`, and :doc:`coregistration`.
 
 .. figure:: /_static/screenshots/linux/pipeline.png
-   :alt: EEG input connected to example_filter with its parameters.
+   :alt: Branched source-analysis workflow with a completed console.
 
    Connected pipeline.
 

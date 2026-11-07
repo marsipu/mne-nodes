@@ -1,38 +1,46 @@
 :html_theme.sidebar_secondary.remove:
 
-.. title:: mne-nodes
+mne-nodes
+=========
 
-.. The page title must be in rST for it to show in next/prev page buttons.
-   Therefore we add a special style rule to only this page that hides h1 tags
+Build MEG and EEG workflows visually with MNE-Python.
+Connect processing nodes, adjust their parameters, and follow the flow of data
+from recordings to results. Processing functions live in extensible plugins.
 
-.. raw:: html
+.. warning::
 
-    <style type="text/css">h1 {display:none;}</style>
+   mne-nodes is in early development and is **not production-ready for analysis**.
+   Inspect and validate your workflow and results before using them scientifically.
 
-Welcome to mne-nodes's documentation!
-===========================================
+.. figure:: /_static/screenshots/linux/pipeline.png
+   :alt: Branched EEG workflow ending in a source estimate, with the console open.
+   :target: _static/screenshots/linux/pipeline.png
 
-See the :doc:`CI screenshot demo <documentation/screenshot_demo>` for
-automatically captured views of the app on Ubuntu.
+.. grid:: 1 1 3 3
+   :gutter: 3
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   .. grid-item-card:: Install
+      :link: install/index
+      :link-type: doc
 
+      Set up your environment and launch the application.
 
+   .. grid-item-card:: Usage
+      :link: documentation/index
+      :link-type: doc
 
+      Build pipelines, import functions, share plugins, and coregister recordings.
 
-Indices and tables
-==================
+   .. grid-item-card:: Developers
+      :link: development/index
+      :link-type: doc
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+      Understand state, widgets, execution, and contributor standards.
 
 .. toctree::
    :hidden:
+   :maxdepth: 2
 
    Install <install/index>
-   Documentation <documentation/index>
-   API Reference <api/index>
-   Development <development/index>
+   Usage <documentation/index>
+   Developers <development/index>

@@ -21,6 +21,11 @@ All analysis logic should be implemented in separate, importable Python modules/
 
 ## Project layout and testing
 
+The [Developer guides](https://marsipu.github.io/mne-nodes/development/index.html)
+cover core modules, pipeline configuration versus Settings, model-backed widget
+references, plugin structure, and screenshot generation. Keep guides focused on
+one task or concept and update them alongside behavior changes.
+
 - `src/mne_nodes/gui/`: Qt UI components.
 - `src/mne_nodes/backend/`: workflow control, execution, I/O and code generation.
 - `src/mne_nodes/resources/`: packaged icons, images and welcome-tour examples.

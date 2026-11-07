@@ -1118,6 +1118,13 @@ class Controller:
             f
             for f in BIDSPath(**bp_kwargs).match(ignore_json=True)
             if f.acquisition not in ["calibration", "crosstalk"]
+            and (
+                data_type not in self.raw_types
+                or (
+                    f.datatype == data_type
+                    and f.extension in ALLOWED_DATATYPE_EXTENSIONS[data_type]
+                )
+            )
         ]
 
     def get_datatype_items(self, data_type: str) -> list[str]:

@@ -4,7 +4,9 @@ Documentation screenshots
 The ``Render Documentation`` workflow captures the application on
 ``ubuntu-latest`` before building Sphinx. The runner uploads a
 ``docs-screenshots-linux`` artifact, which the documentation job embeds in the
-:doc:`demo page </documentation/screenshot_demo>`.
+landing page and the Usage guides. The README links to the same published
+``_static/screenshots/linux/pipeline.png`` image: a successful deployment updates
+both views without committing PNGs or rewriting the README.
 
 On a pull request, download and extract the ``html-docs`` artifact from the
 workflow run, then open ``index.html`` to preview the site. No Pages deployment
@@ -39,8 +41,20 @@ development environment. For example, on Linux:
        python -m pytest tests/test_documentation_screenshots.py
 
 The test can also capture on other systems by setting
-``MNENODES_SCREENSHOT_DIR`` to another platform directory. In PowerShell, set
-``$env:MNENODES_SCREENSHOT_DIR`` before invoking pytest. Linux needs a display;
+``MNENODES_SCREENSHOT_DIR`` to another platform directory. To preview the complete
+site with local Windows captures, use the ``linux`` directory consumed by Sphinx
+(the name is the canonical CI artifact location, not a capture restriction):
+
+.. code-block:: powershell
+
+   $env:MNENODES_SCREENSHOT_DIR = "docs\source\_static\screenshots\linux"
+   $env:QT_SCALE_FACTOR = "1"
+   conda run -n mnedev python -m pytest tests\test_documentation_screenshots.py
+   conda run -n mnedev python -m sphinx -b html -W --keep-going docs\source docs\build\html
+   Remove-Item Env:MNENODES_SCREENSHOT_DIR
+   Remove-Item Env:QT_SCALE_FACTOR
+
+Run both commands from the repository root. Linux needs a display;
 on a headless machine use ``xvfb-run -a`` before ``python -m pytest``. The CI
 uses the same headless-display setup as the regular GUI tests.
 
@@ -50,7 +64,7 @@ from the same workflow run and extract its ``linux`` directory into
 
 .. code-block:: bash
 
-   python -m sphinx -b html docs/source docs/build/html
+   python -m sphinx -b html -W --keep-going docs/source docs/build/html
 
 A local capture updates only the current platform. Sphinx reports missing
 images if the Linux artifact has not been downloaded.
@@ -61,17 +75,44 @@ Adding a scenario
 -----------------
 
 Add a scenario to ``tests/test_documentation_screenshots.py`` and a figure to
-the demo page.
+the relevant Usage page.
 
 The fixture isolates settings and pipeline files in pytest temporary
-directories and loads only the packaged example plugin and tiny BIDS fixture.
+directories and uses the packaged example plugin and tiny BIDS fixture.
 No sample-data downloads, external plugins, or user recordings are needed.
 Assert the expected application state and wait for widgets to be exposed
 before capturing; do not rely on fixed sleeps. The capture checks PNG saving
 and reloading and normalizes HiDPI images to the widget's logical size.
 Qt widget captures include application content, not desktop window frames or
-the cursor. The pipeline is fixed at 1000 by 600 logical pixels and the picker
-at 900 by 550. Tests assert these exact output dimensions.
+the cursor. Tests assert these exact logical pixel dimensions:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Scenario
+     - Size
+     - State
+   * - ``pipeline``
+     - 1800 x 900
+     - Executed EEG workflow branching into covariance and a spherical forward
+       model, ending in a source estimate, with its process console open
+   * - ``node-picker``
+     - 900 x 550
+     - ``example_filter`` selected
+   * - ``function-importer``
+     - 1200 x 650
+     - Bundled filter's code and input/output/parameter definitions
+   * - ``coregistration``
+     - 1000 x 650
+     - Synthetic digitization group with two recordings and one identity transform
+
+The pipeline fixture creates a disposable plugin package with explicit metadata,
+without Git initialization or installation. It runs the generated pipeline in a
+child process and waits for successful completion and rendered console output.
+The sensor positions, spherical model, and covariance are for illustration,
+not a scientifically validated source analysis. The coregistration capture populates
+the real manager with synthetic metadata; it does not run fitting, discovery,
+or MNE's 3D viewer and does not demonstrate a valid anatomical alignment.
 
 These scenarios check that the documented state can be constructed, not
 that every pixel matches a baseline. A failed scenario or missing screenshot

@@ -79,8 +79,7 @@ jobs:
         path: docs/source/_static/screenshots/
     - name: Build docs
       run: |
-          cd ./docs
-          make html
+          python -m sphinx -b html -W --keep-going docs/source docs/build/html
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       with:
