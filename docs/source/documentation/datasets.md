@@ -68,7 +68,7 @@ including FreeSurfer selections, coregistration subject mappings and custom
 groups. The derivative and optional plot settings are reset. Files in the
 previous dataset are not moved or deleted. See [settings](settings.md) for details.
 
-- [sample data](sample_data.md)
-- [data selection](data_selection.md)
-- [derivatives](derivatives.md)
-- [subjects](subjects.md)
+- [Try the sample dataset](sample_data.md)
+- [Select recordings and associated data](data_selection.md)
+- [Save processing results](derivatives.md)
+- [FreeSurfer subjects](subjects.md)

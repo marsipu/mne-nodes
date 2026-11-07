@@ -2,13 +2,13 @@
 
 Start with a small pipeline, then add the tools your workflow needs.
 
-- [pipelines](pipelines.md)
-- [function importer](function_importer.md)
-- [plugins](plugins.md)
-- [plugin distribution](plugin_distribution.md)
-- [sharing](sharing.md)
-- [datasets](datasets.md)
-- [coregistration](coregistration.md)
-- [freesurfer](freesurfer.md)
-- [settings](settings.md)
-- [errors](errors.md)
+- [Build and run a pipeline](pipelines.md)
+- [Create a plugin with FunctionImporter](function_importer.md)
+- [Load and manage plugins](plugins.md)
+- [Build and distribute a plugin](plugin_distribution.md)
+- [Share plugins and pipelines](sharing.md)
+- [BIDS dataset requirements](datasets.md)
+- [Head-to-MRI coregistration](coregistration.md)
+- [Use FreeSurfer](freesurfer.md)
+- [Settings](settings.md)
+- [Report a problem](errors.md)
