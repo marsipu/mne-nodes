@@ -12,17 +12,11 @@ import re
 import sys
 import time
 from functools import wraps
+from html import escape
+from threading import Event
 
-from qtpy.QtCore import (
-    QMutex,
-    QObject,
-    QProcess,
-    QRunnable,
-    Qt,
-    QThreadPool,
-    QWaitCondition,
-    Signal,
-)
+from ansi2html import Ansi2HTMLConverter
+from qtpy.QtCore import QObject, QProcess, QRunnable, Qt, QThreadPool, Signal
 from qtpy.QtGui import QFont, QTextCursor
 from qtpy.QtWidgets import (
     QDockWidget,
@@ -34,10 +28,12 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from rich.ansi import AnsiDecoder
 
 from mne_nodes.backend.execution import Process
+from mne_nodes.backend.settings import Settings
 from mne_nodes.backend.streams import init_streams
-from mne_nodes.gui.user_interaction import ask_user
+from mne_nodes.gui.dialogs.user_interaction import ask_user
 from mne_nodes.logger import logger
 
 
@@ -54,17 +50,19 @@ class StreamWorker(QRunnable):
     lines.
 
     Rules:
-    - Carriage return ('\r') indicates an in-place progress update. All
-      intermediate progress updates are emitted to provide smooth progress
-      rendering.
+    - Carriage return ('\r') indicates an in-place progress update. Intermediate
+      updates are coalesced at the flush interval.
     - If a segment contains newlines, the first line is progress, remaining
       lines are normal output (emitted AFTER progress update).
-    - Progress is considered finished if pattern N/N or 100% is detected.
+    - A newline finishes the current progress line.
     - Queue size is limited to prevent memory issues on massive output bursts.
     """
 
-    _RE_FRAC = re.compile(r"(\d+)\s*/\s*(\d+)")
-    _RE_PERCENT = re.compile(r"(\d{1,3})\s*%")
+    _RE_CONTROL = re.compile(
+        r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"
+        r"|\x1b\[(?![\d;:]*m)[0-?]*[ -/]*[@-~]"
+    )
+    _RE_INCOMPLETE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*|\][^\x07\x1b]*\x1b?)?$")
 
     def __init__(self, flush_interval_ms: int = 50, max_chunk_size: int = 5000):
         super().__init__()
@@ -72,73 +70,105 @@ class StreamWorker(QRunnable):
         self.flush_s = flush_interval_ms / 1000.0
         self.max_chunk_size = max_chunk_size
         self.signals = StreamWorkerSignals()
-        self._mutex = QMutex()
-        self._cond = QWaitCondition()
+        self._render_ready = Event()
+        self._render_ready.set()
         # Queue with max size to prevent memory overload and lag
         self.queue = queue.Queue(1000)
         self._dropped_count = 0  # Track dropped items due to queue overflow
         self.chunk: str = ""
         self.chunk_len: int = 0
-        self._ignore_next_newline = False
-        self._finished = False
-        self._console_busy = False
-        self.debug_list = []
+        self._pending_progress = None
+        self._progress_mode = False
+        self._progress_html = ""
+        self._progress_kind = None
         self.last_emitted: float = time.monotonic()
         self._stopping = False
-        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._decoders = {
+            kind: codecs.getincrementaldecoder("utf-8")(errors="replace")
+            for kind in ("stdout", "stderr")
+        }
+        self._ansi_decoders = {kind: AnsiDecoder() for kind in self._decoders}
+        self._incomplete = dict.fromkeys(self._decoders, "")
+        self._carriage_return = dict.fromkeys(self._decoders, "")
+        self._converter = Ansi2HTMLConverter(inline=True)
         QThreadPool.globalInstance().start(self)
 
     # Public API ---------------------------------------------------------
     def push(self, data, kind: str):
-        self.debug_list.append(data)
-        try:
-            self.queue.put_nowait((data, kind))
-        except queue.Full:
-            # Drop oldest item
-            self.queue.get_nowait()
-            self._dropped_count += 1
-            # Log warning periodically (every 10th drop)
-            if self._dropped_count % 10 == 1:
-                logger.warning(
-                    f"Console queue full, dropped {self._dropped_count} items total"
-                )
-            self.queue.put_nowait((data, kind))
+        for start in range(0, len(data), self.max_chunk_size):
+            item = (data[start : start + self.max_chunk_size], kind)
+            while True:
+                try:
+                    self.queue.put_nowait(item)
+                    break
+                except queue.Full:
+                    try:
+                        self.queue.get_nowait()
+                    except queue.Empty:
+                        continue
+                    self._dropped_count += 1
 
     def stop(self):
         self._stopping = True
+        self._render_ready.set()
 
     # Internal helpers ---------------------------------------------------
-    def _detect_finished(self, line: str) -> bool:
-        m = self._RE_FRAC.search(line)
-        if m and m.group(1) == m.group(2) and m.group(1) != "0":
-            return True
-        m2 = self._RE_PERCENT.search(line)
-        return bool(m2 and m2.group(1) == "100")
-
     def _emit_chunk(self, force: bool = False):
         # Emit chunk if too large or flush interval passed
         now = time.monotonic()
         t_enough = now - self.last_emitted >= self.flush_s
-        if (
-            (force or self.chunk_len >= self.max_chunk_size or t_enough)
-            and len(self.chunk) > 0
-            and not self._console_busy
-        ):
+        if self.chunk and (force or self.chunk_len >= self.max_chunk_size or t_enough):
+            self._wait_for_render()
             # Reset chunk
             chunk = self.chunk
             self.chunk = ""
             self.chunk_len = 0
+            self._render_ready.clear()
             self.signals.text_ready.emit(chunk)
             self.last_emitted = now
+
+    def _wait_for_render(self):
+        while not self._render_ready.wait(self.flush_s):
+            if self._stopping:
+                break
+
+    def _emit_progress(self, force: bool = False):
+        if self._pending_progress is not None and (
+            force or time.monotonic() - self.last_emitted >= self.flush_s
+        ):
+            self._emit_chunk(force=True)
+            self._wait_for_render()
+            line, finished = self._pending_progress
+            self._render_ready.clear()
+            self.signals.progress_ready.emit(line, finished)
+            self._pending_progress = None
+            self.last_emitted = time.monotonic()
+
+    def _to_html(self, data: str, kind: str) -> str:
+        decoder = self._ansi_decoders[kind]
+        styled_output = "\x1b" in data or bool(decoder.style)
+        if styled_output:
+            # ansi2html converts fragments independently; Rich retains SGR state
+            # between fragments without keeping the entire output history.
+            styled = decoder.style.render(data, color_system="truecolor")
+            for _ in decoder.decode(data):
+                pass
+            text = self._converter.convert(styled, full=False)
+        else:
+            text = escape(data)
+        color = "color:red;" if kind == "stderr" and not styled_output else ""
+        return f'<span style="{color}white-space:pre-wrap;">{text}</span>'
 
     # QRunnable run ------------------------------------------------------
     def run(self):
         while True:
+            self._wait_for_render()
             try:
-                data, kind = self.queue.get(block=True, timeout=self.flush_s / 1000.0)
+                data, kind = self.queue.get(block=True, timeout=self.flush_s)
             except queue.Empty:
                 # Emit chunk if any
                 self._emit_chunk(force=True)
+                self._emit_progress(force=True)
                 # Stop if necessary
                 if self._stopping and self.queue.empty():
                     break
@@ -146,39 +176,37 @@ class StreamWorker(QRunnable):
                     continue
             # Convert bytes data
             if isinstance(data, (bytes, bytearray)):
-                data = self._decoder.decode(data, final=True)
-            # Convert to html
-            data = data.replace("<", "&lt;")
-            data = data.replace(">", "&gt;")
-            data = data.replace("\n", "<br>")
-            # ToDo: Convert ANSI codes to HTML maybe with .ansi2html
-            data = data.replace("\x1b[A", "")
-            data = data.replace("\x1b[0m", "")
-
-            # Ignore empty lines
-            if len(data) == 0:
-                continue
-            # Carriage return: progress update
-            if data[:1] == "\r":
-                data = data[1:]
-                data = f"<span style='color:green;'>{data}</span>"
-                now = time.monotonic()
-                t_enough = now - self.last_emitted >= self.flush_s / 1000.0
-                finished = self._detect_finished(data)
-                # Avoid to print the final progress line twice
-                if finished and self._finished:
+                data = self._decoders[kind].decode(data)
+            data = self._incomplete[kind] + data
+            self._incomplete[kind] = ""
+            if match := self._RE_INCOMPLETE.search(data):
+                self._incomplete[kind] = match.group()
+                data = data[: match.start()]
+            data = self._carriage_return[kind] + self._RE_CONTROL.sub("", data)
+            self._carriage_return[kind] = "\r" if data.endswith("\r") else ""
+            if self._carriage_return[kind]:
+                data = data[:-1]
+            data = data.replace("\r\n", "\n")
+            for index, part in enumerate(data.split("\r")):
+                if index:
+                    self._progress_mode = True
+                    self._progress_html = ""
+                    self._progress_kind = kind
+                if not part:
                     continue
-                else:
-                    self._finished = finished
-                if t_enough or self._finished and not self._console_busy:
-                    self.signals.progress_ready.emit(data, finished)
-                    self.last_emitted = now
-                continue
-            elif kind == "stderr":
-                data = f"<span style='color:red;'>{data}</span>"
-            self.chunk += data
-            self.chunk_len += len(data)
-            self._emit_chunk()
+                if self._progress_mode and kind == self._progress_kind:
+                    line, newline, part = part.partition("\n")
+                    self._progress_html += self._to_html(line, kind)
+                    self._pending_progress = (self._progress_html, bool(newline))
+                    self._emit_progress(force=bool(newline))
+                    if not newline:
+                        continue
+                    self._progress_mode = False
+                if part:
+                    self._emit_progress(force=True)
+                    self.chunk += self._to_html(part, kind)
+                    self.chunk_len += len(part)
+                    self._emit_chunk()
 
 
 # ---------------------------------------------------------------------------
@@ -187,11 +215,10 @@ class StreamWorker(QRunnable):
 def busy_state(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        self.stream_worker._console_busy = True
         try:
             return func(self, *args, **kwargs)
         finally:
-            self.stream_worker._console_busy = False
+            self.stream_worker._render_ready.set()
 
     return wrapper
 
@@ -203,7 +230,7 @@ class ConsoleWidget(QPlainTextEdit):
     def __init__(self):
         super().__init__()
         self.setReadOnly(True)
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.set_word_wrap(Settings().get("console_word_wrap"))
         self.setFont(QFont("Consolas", 12))
         self._progress_line: str | None = None
         self.autoscroll = True
@@ -214,6 +241,11 @@ class ConsoleWidget(QPlainTextEdit):
         self.destroyed.connect(lambda _=None: self.stop_streams())
 
     # Streams ------------------------------------------------------------
+    def set_word_wrap(self, enabled: bool) -> None:
+        """Wrap long lines at the widget width or scroll horizontally."""
+        mode = QPlainTextEdit.LineWrapMode
+        self.setLineWrapMode(mode.WidgetWidth if enabled else mode.NoWrap)
+
     def push_stdout(self, text):
         self.stream_worker.push(text, "stdout")
 
@@ -233,7 +265,10 @@ class ConsoleWidget(QPlainTextEdit):
     def _remove_last_line(self):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor
+        )
         selected = cursor.selectedText()
         if selected:
             cursor.removeSelectedText()  # self.setTextCursor(cursor)
@@ -250,14 +285,10 @@ class ConsoleWidget(QPlainTextEdit):
 
     @busy_state
     def _on_progress(self, line: str, finished: bool):
-        if self._progress_line is not None:
-            self._remove_last_line()
+        self._remove_last_line()
         self.add_text(line)
         if finished:
-            # # finalize by adding newline so subsequent output starts on next line
-            # cursor = self.textCursor()
-            # cursor.movePosition(QTextCursor.MoveOperation.End)
-            # cursor.insertText("<br>")
+            self.textCursor().insertBlock()
             self._progress_active = False
             self._progress_line = None
         else:
@@ -397,6 +428,7 @@ class ConsoleDock(QDockWidget):
         process.started.connect(self.process_started)
         # Start process
         process.start(program, arguments)
+        return process
 
     def _close_process(self, process_idx):
         process = self.processes[process_idx]

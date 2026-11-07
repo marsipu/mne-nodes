@@ -24,7 +24,7 @@ from qtpy.QtWidgets import (
 from mne_nodes.backend.exception_handling import get_exception_tuple
 from mne_nodes.backend.settings import Settings
 from mne_nodes.gui.dialogs import ErrorDialog
-from mne_nodes.gui.user_interaction import get_user_input
+from mne_nodes.gui.dialogs.user_interaction import get_user_input
 from mne_nodes.gui.widget_models.pandas_models import BasePandasModel, EditPandasModel
 from mne_nodes.gui.widgets.base import Base
 from mne_nodes.logger import logger

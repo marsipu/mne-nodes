@@ -1,8 +1,4 @@
-"""
-Authors: Martin Schulz <dev@mgschulz.de>
-License: BSD 3-Clause
-GitHub: https://github.com/marsipu/mne-nodes
-"""
+"""Shared GUI and terminal user-interaction helpers."""
 
 import os
 import sys
@@ -11,7 +7,7 @@ from urllib.parse import urlsplit
 
 from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
-from mne_nodes import gui_mode
+import mne_nodes
 from mne_nodes.logger import logger
 
 
@@ -79,7 +75,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     parent : QWidget | None, optional
         Set the parent of the modal widget.
     """
-    if gui_mode:
+    if mne_nodes.gui_mode:
         ans, cancel = question_yes_no(
             prompt, cancel_allowed=cancel_allowed, parent=parent
         )
@@ -106,7 +102,7 @@ def ask_user(prompt, cancel_allowed=True, close_on_cancel=False, parent=None):
     else:
         message = None
     if message is not None:
-        if gui_mode:
+        if mne_nodes.gui_mode:
             warning_message(message, parent=parent)
         else:
             logger.warning(message)
@@ -158,7 +154,7 @@ def ask_user_custom(
     first_label = button_labels[0]
     second_label = button_labels[1]
 
-    if gui_mode:
+    if mne_nodes.gui_mode:
         msg_box = QMessageBox(parent)
         msg_box.setWindowTitle("Question")
         msg_box.setText(prompt)
@@ -225,7 +221,7 @@ def ask_user_custom(
     else:
         message = None
     if message is not None:
-        if gui_mode:
+        if mne_nodes.gui_mode:
             warning_message(message, parent=parent)
         else:
             logger.warning(message)
@@ -279,12 +275,14 @@ def _get_open_file(prompt, parent=None, file_filter=None):
     return (selected[0] if selected else ""), True
 
 
-def _get_save_file(prompt, parent=None, file_filter=None):
+def _get_save_file(prompt, parent=None, file_filter=None, default_suffix=None):
     dialog = QFileDialog(parent, prompt)
     dialog.setFileMode(QFileDialog.FileMode.AnyFile)
     dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
     if file_filter:
         dialog.setNameFilter(file_filter)
+    if default_suffix:
+        dialog.setDefaultSuffix(default_suffix)
 
     ok = dialog.exec() == QDialog.DialogCode.Accepted
     if not ok:
@@ -301,6 +299,7 @@ def get_user_input(
     cancel_allowed=True,
     exit_on_cancel=False,
     parent=None,
+    default_suffix=None,
 ) -> str | os.PathLike | None:
     """Get user input either via GUI or terminal, supporting string and path
     input.
@@ -320,6 +319,8 @@ def get_user_input(
         If True, the app exits after cancel. Defaults to False.
     parent : QWidget | None, optional
         Set the parent of the modal widget.
+    default_suffix : str | None, optional
+        Extension to append when a new filename has no suffix, e.g. "json".
 
     Returns
     -------
@@ -334,7 +335,7 @@ def get_user_input(
         If `input_type` is not a supported input type.
     """
     type_error_message = f"input_type must be 'string', 'url', 'folder', 'file', 'file_new', not '{input_type}'"
-    if gui_mode:
+    if mne_nodes.gui_mode:
         if input_type in ("string", "url"):
             user_input, ok = _get_text_input(prompt, parent=parent)
         elif input_type == "folder":
@@ -345,7 +346,10 @@ def get_user_input(
             )
         elif input_type == "file_new":
             user_input, ok = _get_save_file(
-                prompt, parent=parent, file_filter=file_filter
+                prompt,
+                parent=parent,
+                file_filter=file_filter,
+                default_suffix=default_suffix,
             )
         else:
             raise ValueError(type_error_message)
@@ -405,18 +409,21 @@ def get_user_input(
             cancel_allowed=cancel_allowed,
             exit_on_cancel=exit_on_cancel,
             parent=parent,
+            default_suffix=default_suffix,
         )
 
     # Convert path-strings to Path-objects
     if input_type in ["folder", "file", "file_new"] and user_input is not None:
         user_input = Path(user_input)
+        if input_type == "file_new" and default_suffix and not user_input.suffix:
+            user_input = user_input.with_suffix(f".{default_suffix.lstrip('.')}")
 
     return user_input
 
 
 def raise_user_attention(message, message_type="warning", parent=None):
     """Raise a message to the user, either as a warning or an error."""
-    if gui_mode:
+    if mne_nodes.gui_mode:
         if message_type == "warning":
             warning_message(message, parent=parent)
         elif message_type == "error":

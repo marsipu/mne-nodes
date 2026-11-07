@@ -28,12 +28,20 @@ from mne_nodes.gui.parameter import DualTupleGui
 # and mne_io_functions plugins, which live in their own sibling repositories
 # checked out next to this one (mne-nodes).
 REPOS_DIR = Path(__file__).resolve().parents[2]
-MNE_FUNCTIONS_PKG = REPOS_DIR / "mne-nodes_mne-functions" / "mne_nodes_mne_functions"
+MNE_FUNCTIONS_PKG = (
+    REPOS_DIR / "mne-nodes_mne-functions" / "src" / "mne_nodes_mne_functions"
+)
 MNE_IO_FUNCTIONS_PKG = (
-    REPOS_DIR / "mne-nodes_mne-io-functions" / "mne_nodes_mne_io_functions"
+    REPOS_DIR / "mne-nodes_mne-io-functions" / "src" / "mne_nodes_mne_io_functions"
 )
 
 group_functions = {"mne.grand_average"}
+
+# These parameter names are always node inputs, regardless of documented type.
+always_input_names = {"event_id", "subject"}
+
+# Alternative port names not captured by the class aliases. List both directions.
+hard_aliases = {"surfs": ["surfaces"], "surfaces": ["surfs"]}
 
 # Populated from _collect_object_aliases() once `objects` has been built below.
 class_alias = {}
@@ -122,9 +130,9 @@ def _docutils_html_to_qt_html(html):
 
 
 def _accepted_aliases(name):
-    """Return accepted port names for a class or output name."""
+    """Return class-derived and hardcoded aliases, keeping the port name first."""
     key = name.lower()
-    return _accepted_names(key, *class_alias.get(key, []))
+    return _accepted_names(key, *class_alias.get(key, []), *hard_aliases.get(key, []))
 
 
 def _accepted_names_from_types(types):
@@ -416,6 +424,7 @@ for rst_path in sorted(Path(mnedev_api_path).glob("*.rst")):
 
 
 def get_param_config(param, sig, obj_config):
+    """Classify a parameter, honoring always_input_names before type heuristics."""
     # Skip parameters that don't have a valid name (e.g. *args, **kwargs)
     if not param.arg_name[0].isalpha():  # type: ignore
         return
@@ -435,17 +444,21 @@ def get_param_config(param, sig, obj_config):
     none_select = parsed["none_select"] or default is None
     # Non-primitive types (object references) are treated as node inputs.
     non_primitive = [t for t in types if t not in default_type_guis]
-    # A name matching a known class/io alias only forces a param into being an
+    # A name matching a known class/io/hard alias only forces a param into being an
     # input when its type isn't already a clean, GUI-backed primitive (e.g.
     # "DataFrame") or is a container commonly used for pipeline data (e.g.
     # array-typed "events"); this avoids sweeping in unrelated params that
     # merely share a name with an alias (e.g. Epochs' "proj" bool vs.
     # Projection's "proj"/"projs", or "metadata" vs. the DataFrame class).
     container_types = ("array", "dict", "list", "tuple")
-    force_input = False
-    if not types or non_primitive or any(t in container_types for t in types):
-        force_input = _is_class_alias(param.arg_name) or _is_known_io_name(
-            param.arg_name
+    force_input = param.arg_name in always_input_names
+    if not force_input and (
+        not types or non_primitive or any(t in container_types for t in types)
+    ):
+        force_input = (
+            _is_class_alias(param.arg_name)
+            or _is_known_io_name(param.arg_name)
+            or param.arg_name.lower() in hard_aliases
         )
     if force_input or len(types) == 0 or len(non_primitive) > 0:
         # Report only genuinely unrecognized types, not known object classes.
@@ -454,7 +467,9 @@ def get_param_config(param, sig, obj_config):
                 missing_types[t].add(param.arg_name)  # type: ignore
         input_config = {  # type: ignore
             "accepted_ports": _accepted_names(
-                param.arg_name, *_accepted_names_from_types(types)
+                param.arg_name,
+                *hard_aliases.get(param.arg_name.lower(), []),
+                *_accepted_names_from_types(types),
             ),
             "optional": default is not inspect.Parameter.empty,
         }

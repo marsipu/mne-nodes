@@ -34,6 +34,32 @@ repository root. Pytest discovers only `tests/` and uses importlib import mode;
 it does not add `src/` to the import path. Configuration lives in `pyproject.toml`.
 CI tests a non-editable installation to catch missing modules and resources.
 
+Console output uses Rich for logging and progress, and ansi2html for GUI
+rendering. ANSI conversion runs in the stream worker; the GUI receives bounded
+batches rather than an update for every write.
+
+To try the error dialog and its reporting flow, run
+`conda run -n mnedev python -m development.error_dialog_tester` (or
+`python -m development.error_dialog_tester` in your development environment).
+The helper raises an intentional error without reading any data. Try copying
+the traceback, optionally including real system diagnostics, and opening the
+editable, redacted report preview with **Open GitHub issue…**. No pipeline is
+loaded, so plugin and dataset summaries are unavailable. Diagnostics are collected
+in a worker dialog so the interface stays responsive while system info is gathered.
+**Copy report and open GitHub** opens a real issue draft in your browser; it does
+not submit an issue.
+Cancel the preview to avoid opening the browser, and do not submit demo reports.
+
+Tests default to `mne_nodes.gui_mode = False`, including during collection and
+controller setup, so backend tests do not open JSON/plugin-loading progress
+dialogs. This does not prevent `pytest-qt` tests from constructing and exercising
+widgets directly. Tests needing application-level GUI routing (dialogs,
+notifications or welcome-tour initialization) can request the `gui_mode` fixture
+or use `@pytest.mark.gui_mode`. The marker enables GUI mode before any fixture
+setup and also works on classes or modules; the fixture enables it when that
+fixture runs. Mode changes are restored after each test. Prefer opting in only
+for tests that need these GUI code paths, and mock unrelated prompts as usual.
+
 The module path has changed from `mne_nodes.pipeline` to `mne_nodes.backend`.
 Update external plugins and scripts that import this module. The
 `mne_nodes.gui` module path, package name and `mne_nodes` launch command

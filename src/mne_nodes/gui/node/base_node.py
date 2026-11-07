@@ -107,6 +107,7 @@ class BaseNode(QGraphicsItem):
         self._border_color = defaults["nodes"]["border_color"]
         self._selected_border_color = defaults["nodes"]["selected_border_color"]
         self._text_color = defaults["nodes"]["text_color"]
+        self._dirty = False
 
         self._title_item = NodeTextItem(self._name, self)
         self._inputs = OrderedDict()
@@ -149,8 +150,8 @@ class BaseNode(QGraphicsItem):
         des, _ = self.get_description()
         return (
             f"{des['name']} ({des['class']}), "
-            f"inputs: {len(des['inputs'])} ({[p for p in des['inputs']]}), "
-            f"outputs: {len(des['outputs'])} ({[p for p in des['outputs']]}), "
+            f"inputs: {len(des['inputs'])} ({[*des['inputs']]}), "
+            f"outputs: {len(des['outputs'])} ({[*des['outputs']]}), "
         )
 
     @property
@@ -187,6 +188,16 @@ class BaseNode(QGraphicsItem):
     @color.setter
     def color(self, color):
         self._color = format_color(color)
+        self.update()
+
+    @property
+    def dirty(self):
+        """Whether this node needs to be rerun."""
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, dirty):
+        self._dirty = bool(dirty)
         self.update()
 
     @property
@@ -652,8 +663,7 @@ class BaseNode(QGraphicsItem):
 
     def start_clicked(self):
         if self.viewer is not None:
-            node_sequence = self.viewer.get_node_sequence(self)
-            self.ct.start(node_sequence)
+            self.viewer.start_nodes([self])
 
     def add_widget(self, widget):
         """Add widget to the node."""
@@ -792,6 +802,9 @@ class BaseNode(QGraphicsItem):
         if self.isSelected():
             border_width = 1.2
             border_color = QColor(*self.selected_border_color)
+        elif self.dirty:
+            border_width = 2.0
+            border_color = QColor(*defaults["nodes"]["dirty_border_color"])
         else:
             border_width = 0.8
             border_color = QColor(*self.border_color)

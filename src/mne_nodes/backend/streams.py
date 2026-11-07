@@ -38,6 +38,10 @@ class StdoutStderrStream(io.TextIOBase):
         except OSError:
             pass
 
+    def isatty(self) -> bool:
+        """Enable ANSI styling in the GUI's redirected streams."""
+        return True
+
 
 def init_streams() -> None:
     # Redirect stdout and stderr to capture it later in GUI

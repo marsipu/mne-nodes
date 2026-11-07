@@ -7,11 +7,59 @@ GitHub: https://github.com/marsipu/mne-nodes
 import sys
 from inspect import signature
 from os.path import isdir
+from pathlib import Path
 
-from qtpy.QtCore import QObject, QProcess, QRunnable, QThreadPool, Signal, Slot
+from qtpy.QtCore import (
+    QObject,
+    QProcess,
+    QProcessEnvironment,
+    QRunnable,
+    QThreadPool,
+    Signal,
+    Slot,
+)
 
 from mne_nodes.backend.exception_handling import get_exception_tuple
+from mne_nodes.backend.process_log import BOLD, GRAY, GREEN, RED, style
 from mne_nodes.logger import logger
+
+
+def build_command(metadata: dict, values: dict) -> list[str]:
+    """Build argv from configured flags, omitting None and false switches.
+
+    A null flag denotes positional/extra arguments. Lists repeat a named flag
+    for each value; boolean values enable/disable a standalone flag.
+    """
+    command = metadata["command"]
+    if (
+        not isinstance(command, list)
+        or not command
+        or not all(isinstance(part, str) and part for part in command)
+    ):
+        raise ValueError("command must be a nonempty list of strings.")
+    arguments = metadata.get("command_args", {})
+    unknown = values.keys() - arguments.keys()
+    if unknown:
+        raise ValueError(f"No command argument mapping for: {sorted(unknown)}")
+    argv = list(command)
+    for name, flag in arguments.items():
+        if flag is not None and (not isinstance(flag, str) or not flag):
+            raise ValueError(f"Invalid command flag for {name}: {flag!r}")
+        value = values.get(name)
+        if value is None or value is False:
+            continue
+        if value is True:
+            if flag is None:
+                raise ValueError(f"Boolean argument {name} requires a named flag.")
+            argv.append(flag)
+            continue
+        for item in value if isinstance(value, (list, tuple)) else [value]:
+            if not isinstance(item, (str, int, float, Path)):
+                raise TypeError(f"Unsupported command argument {name}: {type(item)}")
+            if flag is not None:
+                argv.append(flag)
+            argv.append(str(item))
+    return argv
 
 
 class WorkerSignals(QObject):
@@ -125,18 +173,33 @@ class Process(QProcess):
         if working_directory is not None and isdir(working_directory):
             self.setWorkingDirectory(str(working_directory))
         self.self_destruct = self_destruct
+        environment = QProcessEnvironment.systemEnvironment()
+        # Unbuffered output makes print() reach the console immediately.
+        environment.insert("PYTHONUNBUFFERED", "1")
+        environment.insert("PYTHONIOENCODING", "utf-8")
+        environment.insert("FORCE_COLOR", "1")
+        environment.insert(
+            "MNE_NODES_GUI_CONSOLE", "1" if self.console is not None else "0"
+        )
+        self.setProcessEnvironment(environment)
         self.readyReadStandardOutput.connect(self.handle_stdout)
         self.readyReadStandardError.connect(self.handle_stderr)
         self.stateChanged.connect(
             lambda state: self._write_stdout(
-                f"Process {self.proc_id} state changed to {state.value}"
+                style(f"Process {self.proc_id}: {state.name}\n", GRAY)
             )
         )
         self.finished.connect(self.handle_finished)
 
     def handle_finished(self, code, status):
+        ok = code == 0 and status == QProcess.ExitStatus.NormalExit
         self._write_stdout(
-            f"Process {self.proc_id} finished with exit code {code} and status {status.value}."
+            style(
+                f"Process {self.proc_id} finished with exit code {code} "
+                f"({status.name}).\n",
+                BOLD,
+                GREEN if ok else RED,
+            )
         )
         # Start next process if necessary
         if len(self.commands) > 0:

@@ -24,6 +24,7 @@ dependencies = [
     "mne-bids",
     "mne-qt-browser",
     "mne-connectivity",
+    "traitlets",
     # MNE related
     "vtk", # needed for CIs
     "nibabel", # needed for CIs
@@ -42,12 +43,17 @@ dependencies = [
     "tqdm",
     "filelock",
     "rich",
+    "ansi2html>=1.9.5",
     "docstring_parser",
     "ijson",
+    "packaging>=24.2",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
 test = [
+    "build",
+    "hatchling>=1.27",
+    "editables",
     "pytest",
     "pytest-qt",
     "pre-commit",
@@ -58,9 +64,7 @@ docs = [
     "pydata-sphinx-theme",
     "sphinx-design",
 ]
-plugins = [
-    "mne-nodes_mne-functions @ git+https://github.com/marsipu/mne-nodes_mne-functions.git",
-]
+
 
 [project.urls]
 Homepage = "https://github.com/marsipu/mne-nodes"

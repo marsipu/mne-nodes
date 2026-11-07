@@ -1,15 +1,57 @@
+import importlib.metadata
+import json
 import re
+import textwrap
+import zipfile
+from copy import deepcopy
+from pathlib import Path
+from urllib.parse import urlsplit
 
 from mne_nodes.backend.function_parser import suffix_for_ports
+from mne_nodes.backend.io import TypedJSONEncoder
 from mne_nodes.logger import logger
 
 
 class CodeGenerator:
-    def __init__(self, controller, node_sequence):
+    """Generate pipeline code with optional framed progress output.
+
+    Formatting defaults to enabled for application runs. Exports pass the
+    user's choice explicitly.
+    """
+
+    def __init__(
+        self, controller, node_sequence, portable=False, *, rich_output: bool = True
+    ):
         self.ct = controller
         self.node_sequence = node_sequence
+        self.portable = portable
+        self.rich_output = rich_output
 
         self.code = self.generate_code()
+
+    @property
+    def jupyter_script(self):
+        """Return the generated code with Jupyter cell markers."""
+        code = re.sub(r"(?m)^(# (?:Target|Selection-Type):)", r"# %%\n\1", self.code)
+        return f"# %%\n{code}"
+
+    @property
+    def jupyter_notebook(self):
+        """Return the generated code as a structured Jupyter notebook."""
+        notebook = {
+            "cells": self._notebook_cells,
+            "metadata": {
+                "kernelspec": {
+                    "display_name": "Python 3",
+                    "language": "python",
+                    "name": "python3",
+                },
+                "language_info": {"name": "python"},
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+        return json.dumps(notebook, indent=2)
 
     @staticmethod
     def tab(num_tabs=1, tab_size=4):
@@ -98,7 +140,11 @@ class CodeGenerator:
         suffix_meta = output_meta.get("suffix")
         accepted_ports = output_meta.get("accepted_ports") or []
         connected_ports = node_info.get("output_ports", {}).get(output_name) or []
-        input_types = [v for v in func_inputs.values() if isinstance(v, str)]
+        input_types = [
+            "raw" if value in ("_recording_raw", "raw_er") else value
+            for value in func_inputs.values()
+            if isinstance(value, str)
+        ]
 
         candidates = (
             [output_name] + input_types + connected_ports
@@ -119,6 +165,19 @@ class CodeGenerator:
         suffix = suffix or suffix_for_ports([write_port, output_name]) or output_name
         return write_func, suffix
 
+    def _logged_call(self, kind, name, code, source=None):
+        """Optionally wrap code in a framed progress block."""
+        if not self.rich_output:
+            return code.rstrip("\n") + "\n"
+        args = repr(name)
+        if source is not None:
+            args += f", {source}"
+        return f"with _log.{kind}({args}):\n{self._indent(code)}"
+
+    def _timed_call(self, name, func_line):
+        """Optionally frame a node function call."""
+        return self._logged_call("function", name, func_line)
+
     def _indent(self, code, num_tabs=1):
         """Indent a code string by a given number of tabs."""
         indent_str = self.tab(num_tabs)
@@ -130,15 +189,60 @@ class CodeGenerator:
         return indented_code
 
     def _build_header(self, function_names):
+        if self.portable:
+            config_setup = (
+                "import os\n"
+                "from pathlib import Path\n"
+                "project_root = Path(__file__).resolve().parent\n"
+                "os.chdir(project_root)\n"
+                "os.environ['MNENODES_SETTINGS_DIR'] = str(\n"
+                "    project_root / '.mne-nodes'\n"
+                ")\n"
+                "settings = Settings()\n"
+            )
+            config_path = "project_root / 'pipeline.json'"
+            settings_import = "from mne_nodes.backend.settings import Settings\n"
+            controller_setup = ", settings=settings"
+            project_paths = (
+                "\n"
+                "# Configure project-local data and output paths\n"
+                "# Set MNENODES_BIDS_ROOT to use a dataset outside this project\n"
+                "bids_root = Path(os.environ.get(\n"
+                "    'MNENODES_BIDS_ROOT', project_root / 'data'\n"
+                ")).expanduser().resolve()\n"
+                "bids_root.mkdir(parents=True, exist_ok=True)\n"
+                "settings.set('bids_root', bids_root)\n"
+                "for key, folder in (\n"
+                "    ('deriv_root', project_root / 'derivatives'),\n"
+                "    ('plot_root', project_root / 'plots'),\n"
+                "):\n"
+                "    folder.mkdir(parents=True, exist_ok=True)\n"
+                "    settings.set(key, folder)\n"
+                "settings.set('plot_root_is_config_specific', True)\n"
+            )
+        else:
+            config_setup = ""
+            config_path = (
+                f"'{self.ct.ensure_config_path(interactive=False).as_posix()}'"
+            )
+            settings_import = ""
+            controller_setup = ""
+            project_paths = ""
         code = (
             "# This code was generated by mne-nodes\n\n"
             "import mne_nodes\n"
             "from mne_bids import get_bids_path_from_fname\n"
-            "from mne_nodes.backend.controller import Controller\n\n"
+            "from mne_nodes.backend.controller import Controller\n"
+            "from mne_nodes.backend.pipeline_utils import init_plotting\n\n"
+            f"{settings_import}"
+            f"{config_setup}"
             "# Disable gui-mode\n"
             "mne_nodes.gui_mode = False\n\n"
+            "# Show plots without blocking the pipeline\n"
+            "init_plotting()\n\n"
             "# Load controller\n"
-            f"ct = Controller(config_path='{self.ct.ensure_config_path(interactive=False).as_posix()}')\n\n"
+            f"ct = Controller(config_path={config_path}{controller_setup})\n"
+            f"{project_paths}\n"
             "# Inject plugins into global namespace\n"
             "# Load plugin namespaces\n"
         )
@@ -172,83 +276,234 @@ class CodeGenerator:
         the generated script header.
         """
         func_meta = self.ct.get_function_meta(func_name)
+        callable_name = func_meta.get("callable_name", func_name)
         if func_meta.get("class_name") is None:
             function_names.add(func_name)
             plugin_name = self.ct.get_plugin_from_function(func_name)
-            return f"{self._plugin_namespace(plugin_name)}.{func_name}"
-        return func_name
+            return f"{self._plugin_namespace(plugin_name)}.{callable_name}"
+        return callable_name
 
     def generate_code(self):
         """Convert a list of instructions to a Python code string."""
+        self.ct.discard_legacy_segmentation_checks()
+        notebook_cells = [
+            {
+                "cell_type": "markdown",
+                "id": "cell-0",
+                "metadata": {},
+                "source": [
+                    "# MNE-Nodes pipeline\n",
+                    "\n",
+                    (
+                        "Run the code cells from top to bottom. Each function has "
+                        "its own cell and runs over the selected inputs.\n"
+                    ),
+                ],
+            }
+        ]
+
+        def add_notebook_cell(cell_type, source):
+            notebook_cells.append(
+                {
+                    "cell_type": cell_type,
+                    "id": f"cell-{len(notebook_cells)}",
+                    "metadata": {},
+                    "source": source.splitlines(keepends=True),
+                    **(
+                        {"execution_count": None, "outputs": []}
+                        if cell_type == "code"
+                        else {}
+                    ),
+                }
+            )
+
         # Get available datatypes
         data_types = self.ct.get_datatypes()
         import_function_names = set()
-        body = ""
+        body = "from copy import deepcopy\n\n"
+        if self.rich_output:
+            body += "from mne_nodes.backend import process_log as _log\n\n"
+        body += "_subject_cache = {}\n"
+        if self.rich_output:
+            body += f"_pipeline_start = _log.pipeline_start({self.ct.name!r})\n"
+        body += "\n"
+        notebook_prelude = body
         # Iterate nodes
         for target, nodes in self.node_sequence.items():
             if len(nodes) == 0:
                 continue
             body += f"# Target: {target}\n"
+            add_notebook_cell("markdown", f"## Target: {target}\n")
             for selection_type in [
                 key
                 for key, items in self.ct.get("selected_inputs").items()
-                if len(items) > 0
+                if len(items) > 0 and key not in self.ct.non_selectable_datatypes
             ]:
                 if (selection_type in self.ct.scopes and target == "file") or (
-                    selection_type in data_types and target == "group"
+                    selection_type in data_types
+                    and selection_type not in self.ct.scopes
+                    and target == "group"
                 ):
                     continue
                 loaded_data = set()
+                subject_data = set()
                 body += f"# Selection-Type: {selection_type}\n"
                 if target == "group":
                     body += f"group = ct.get_group_by('{selection_type}')\n"
-                body += f"for item in ct.get('selected_inputs')['{selection_type}']:\n"
+                body += f"_items = ct.get('selected_inputs')['{selection_type}']\n"
+                add_notebook_cell("markdown", f"### Selection: {selection_type}\n")
+                if target == "group":
+                    add_notebook_cell(
+                        "code", f"group = ct.get_group_by({selection_type!r})\n"
+                    )
+                notebook_node_codes = []
+                if self.rich_output:
+                    body += "for _index, item in enumerate(_items, 1):\n"
+                    body += self._indent(
+                        f"_log.item_start({selection_type!r}, item, _index, len(_items))\n"
+                    )
+                else:
+                    body += "for item in _items:\n"
                 # Prepare bids-paths
                 if target == "file" and selection_type in data_types:
                     body += self._indent("bp = get_bids_path_from_fname(item)\n", 1)
-                else:
+                elif target == "group":
                     # For group-data, load member bids-paths as a list
                     body += self._indent("members = group[item]\n", 1)
                 for n in nodes:
+                    node_start = len(body)
                     name = n["name"]
                     func_meta = n["function_meta"]
                     base_name = self.base_func_name(name)
+                    source = "bp" if target == "file" else "members"
                     # Only add functions that are not methods of a class
-                    if func_meta["class_name"] is None:
+                    external = "command" in func_meta or func_meta.get(
+                        "uses_freesurfer"
+                    )
+                    if func_meta["class_name"] is None and not external:
                         import_function_names.add(base_name)
                     # Check which inputs are already satisfied (incl. via accepted_ports)
                     # before deciding what still needs to be loaded from disk.
                     func_inputs, loading_needed = self.ct.func_inputs(name, loaded_data)
+                    dataset_inputs = {
+                        param
+                        for param, sources in n.get("inputs", {}).items()
+                        if sources
+                        and all(
+                            isinstance(source, str) and source.startswith("Input-")
+                            for source in sources
+                        )
+                    }
+                    empty_room_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if "raw_er" in ports
+                    } & dataset_inputs
+                    anatomy_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if "anat" in ports
+                    } & dataset_inputs
+                    recording_inputs = {
+                        param
+                        for param, ports in n.get("input_ports", {}).items()
+                        if any(port in self.ct.raw_types for port in ports)
+                    } & dataset_inputs
+                    for param in empty_room_inputs | recording_inputs:
+                        func_inputs.pop(param, None)
+                        if param not in loading_needed:
+                            loading_needed.append(param)
                     # Only load inputs that are actually connected to something.
                     # Unconnected (optional) inputs are simply omitted from the call.
                     # A connected-but-unloaded input means the pipeline is being
                     # started from a subsequent node, so it must be read from disk.
                     inputs = [ip for ip in loading_needed if n["inputs"].get(ip)]
                     # Bids-path(s) to pass to the controller loading-methods
-                    source = "bp" if target == "file" else "members"
                     for ip in inputs:
+                        if ip == "raw_er" or ip in empty_room_inputs:
+                            if "raw_er" not in loaded_data:
+                                body += self._indent(
+                                    self._logged_call(
+                                        "loading",
+                                        "empty-room raw",
+                                        f"raw_er = ct.load_raw_er({source})",
+                                    ),
+                                    1,
+                                )
+                                loaded_data.add("raw_er")
+                            func_inputs[ip] = "raw_er"
+                            continue
+                        if ip in recording_inputs:
+                            if "_recording_raw" not in loaded_data:
+                                body += self._indent(
+                                    self._logged_call(
+                                        "loading",
+                                        "raw",
+                                        f"_recording_raw, event_id = ct.load_raw({source})",
+                                    ),
+                                    1,
+                                )
+                                loaded_data.update({"_recording_raw", "event_id"})
+                            func_inputs[ip] = "_recording_raw"
+                            continue
+                        if ip in loaded_data:
+                            func_inputs[ip] = ip
+                            continue
                         # Load selected data-types (if not already loaded)
-                        if ip == "raw":
+                        if ip in ("raw", "event_id"):
                             body += self._indent(
-                                f"raw, event_id = ct.load_raw({source})\n", 1
+                                self._logged_call(
+                                    "loading",
+                                    "raw",
+                                    f"raw, event_id = ct.load_raw({source})",
+                                ),
+                                1,
                             )
+                            body += self._indent("_recording_raw = raw\n", 1)
+                            loaded_data.add("_recording_raw")
                             loaded_data.update({"raw", "event_id"})
+                        elif ip == "anat" or ip in anatomy_inputs:
+                            body += self._indent(
+                                self._logged_call(
+                                    "loading", "anat", f"anat = ct.load_anat({source})"
+                                ),
+                                1,
+                            )
+                            loaded_data.add("anat")
+                            subject_data.add("anat")
+                            func_inputs[ip] = "anat"
                         elif ip == "info":
                             raw_arg = "raw" if "raw" in loaded_data else "None"
                             body += self._indent(
-                                f"info = ct.load_info({source}, raw={raw_arg})\n", 1
+                                self._logged_call(
+                                    "loading",
+                                    "info",
+                                    f"info = ct.load_info({source}, raw={raw_arg})",
+                                ),
+                                1,
                             )
                             loaded_data.add("info")
                         elif ip == "subject":
-                            # Load (freesurfer) subject if available
-                            subject_source = "bp" if target == "file" else "members[0]"
                             body += self._indent(
-                                f"subject = ct.load_subject({subject_source}.subject)\n",
+                                self._logged_call(
+                                    "loading",
+                                    "subject",
+                                    f"subject = ct.load_recording_subject({source})",
+                                ),
                                 1,
                             )
-                            body += self._indent("if not subject:\n", 1)
-                            body += self._indent("continue", 2)
                             loaded_data.add("subject")
+                            subject_data.add("subject")
+                        elif ip == "trans":
+                            body += self._indent(
+                                self._logged_call(
+                                    "loading",
+                                    "trans",
+                                    f"trans = ct.load_trans({source})",
+                                ),
+                                1,
+                            )
+                            loaded_data.add("trans")
                         else:
                             # Load data from derivatives
                             read_func, suffix, load_name = self._resolve_read(
@@ -274,12 +529,23 @@ class CodeGenerator:
                                 )
                                 # This assumes, that the file-path is always the first argument in a load-function
                                 body += self._indent(
-                                    f"{load_name} = {read_call}(data_path, **read_kwargs)\n",
+                                    self._logged_call(
+                                        "loading",
+                                        load_name,
+                                        f"{load_name} = {read_call}(data_path, **read_kwargs)",
+                                        source="data_path",
+                                    ),
                                     1,
                                 )
                             else:
                                 body += self._indent(
-                                    f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]]\n",
+                                    f"data_path = [bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath for bp in members]\n"
+                                    + self._logged_call(
+                                        "loading",
+                                        load_name,
+                                        f"{load_name} = [{read_call}(dp, **read_kwargs) for dp in data_path]",
+                                        source="data_path",
+                                    ),
                                     1,
                                 )
                             loaded_data.add(load_name)
@@ -288,23 +554,32 @@ class CodeGenerator:
                         if ip in loaded_data:
                             func_inputs[ip] = ip
                     body += self._indent(f"# Execute function {name}\n", 1)
-                    outputs = ", ".join([op for op in n["outputs"]])
+                    outputs = ", ".join([*n["outputs"]])
                     func_line = ""
+                    supplied_values = set(func_inputs.values())
                     if len(outputs) > 0:
                         func_line += f"{outputs} = "
                     # Inject (lowercase) class-name if the function is a method of a class
                     # This assumes, that instance references of a class always have the same name as the class but lowercase
-                    if func_meta["class_name"] is not None:
+                    if external:
+                        func_name = "ct.execute_external"
+                    elif func_meta["class_name"] is not None:
                         lower_class = func_meta["class_name"].lower()
-                        func_line += f"{lower_class}."
-                        func_name = base_name.split(".")[-1]
+                        method_receiver = func_inputs.get(lower_class, lower_class)
+                        supplied_values.add(method_receiver)
+                        func_line += f"{method_receiver}."
+                        func_name = func_meta.get("callable_name", base_name).split(
+                            "."
+                        )[-1]
                         func_inputs.pop(lower_class, None)
                     else:
-                        func_name = base_name
+                        func_name = func_meta.get("callable_name", base_name)
                         plugin_name = self.ct.get_plugin_from_function(name)
                         import_function_names.add(name)
                         func_name = f"{self._plugin_namespace(plugin_name)}.{func_name}"
                     func_line += f"{func_name}("
+                    if external:
+                        func_line += f"{name!r}, "
                     if len(func_inputs) > 0:
                         inputs = ", ".join(
                             f"{param}={var}" for param, var in func_inputs.items()
@@ -312,7 +587,51 @@ class CodeGenerator:
                         func_line += f"{inputs}, **ct.func_parameters('{name}'))"
                     else:
                         func_line += f"**ct.func_parameters('{name}'))"
-                    body += self._indent(func_line, 1)
+                    subject_only = (
+                        (bool(n["outputs"]) or external)
+                        and func_meta["class_name"] is None
+                        and bool(func_inputs)
+                        and all(value in subject_data for value in func_inputs.values())
+                    )
+                    if subject_only:
+                        cached_values = ", ".join(
+                            dict.fromkeys([*n["outputs"], *sorted(subject_data)])
+                        )
+                        subject_key = f"_subject_key = ({target!r}, {name!r})\n"
+                        if "subject" in subject_data:
+                            subject_key += "_subject_key += (subject,)\n"
+                        if "anat" in subject_data:
+                            subject_key += (
+                                "_subject_key += "
+                                "(tuple(anat) if isinstance(anat, list) else anat,)\n"
+                            )
+                        subject_key += "if _subject_key not in _subject_cache:\n"
+                        body += self._indent(subject_key, 1)
+                        body += self._indent(self._timed_call(name, func_line), 2)
+                        body += self._indent(
+                            f"_subject_cache[_subject_key] = "
+                            f"deepcopy(({cached_values},))\n",
+                            2,
+                        )
+                        cached_log = (
+                            f"    _log.function_cached({name!r})\n"
+                            if self.rich_output
+                            else ""
+                        )
+                        body += self._indent(
+                            "else:\n"
+                            f"{cached_log}"
+                            f"    {cached_values}, = "
+                            "deepcopy(_subject_cache[_subject_key])\n",
+                            1,
+                        )
+                        subject_data.update(n["outputs"])
+                    else:
+                        body += self._indent(self._timed_call(name, func_line), 1)
+                        # Other live values may alias inputs mutated by this call.
+                        if supplied_values & (subject_data - {"subject"}):
+                            subject_data.intersection_update({"subject"})
+                        subject_data.difference_update(n["outputs"])
                     # Save outputs (if enabled)
                     if n["checked"]:
                         for op in n["outputs"]:
@@ -329,6 +648,11 @@ class CodeGenerator:
                                     f"data_path = bp.copy().update(suffix='{suffix}', root=ct.deriv_root, check=False).fpath\n",
                                     1,
                                 )
+                                body += self._indent(
+                                    "data_path.parent.mkdir(parents=True, "
+                                    "exist_ok=True)\n",
+                                    1,
+                                )
                             else:
                                 body += self._indent(
                                     f"data_path = members[0].copy().update(subject=item, suffix='{suffix}', root=ct.deriv_root, check=False)\n"
@@ -340,6 +664,8 @@ class CodeGenerator:
                                 f"write_kwargs = {{k: v for k, v in ct.func_parameters('{write_func}').items() if k != 'fname'}}\n",
                                 1,
                             )
+                            if self.rich_output:
+                                body += self._indent(f"_log.save({op!r}, data_path)\n")
                             write_func_meta = self.ct.get_function_meta(write_func)
                             if write_func_meta["class_name"] is not None:
                                 # Called on the produced instance directly.
@@ -358,8 +684,138 @@ class CodeGenerator:
                                     1,
                                 )
                     loaded_data.update(n["outputs"])
+                    node_code = body[node_start:]
+                    if node_code:
+                        notebook_node_codes.append((name, node_code))
 
+                selected_items = self.ct.get("selected_inputs")[selection_type]
+                for item_index, item in enumerate(selected_items, 1):
+                    add_notebook_cell("markdown", f"#### Item {item_index}: `{item}`\n")
+                    item_setup = f"item = {item!r}\n"
+                    if self.rich_output:
+                        item_setup += (
+                            f"_log.item_start({selection_type!r}, item, "
+                            f"{item_index}, {len(selected_items)})\n"
+                        )
+                    if target == "file" and selection_type in data_types:
+                        item_setup += "bp = get_bids_path_from_fname(item)\n"
+                    elif target == "group":
+                        item_setup += "members = group[item]\n"
+                    add_notebook_cell("code", item_setup)
+
+                    for name, node_code in notebook_node_codes:
+                        add_notebook_cell("markdown", f"##### `{name}`\n")
+                        add_notebook_cell("code", textwrap.dedent(node_code))
+
+        if self.rich_output:
+            body += "\n_log.pipeline_finished(_pipeline_start)\n"
         # Create header with function bindings resolved from loaded plugins.
         header = self._build_header(import_function_names)
+        footer = (
+            "\nprint('Pipeline finished.', flush=True)\n"
+            "# Keep plot windows open until closed (if enabled in settings)\n"
+            "ct.wait_for_plots()\n"
+        )
 
-        return header + body
+        setup = header + notebook_prelude
+        notebook_cells.insert(
+            1,
+            {
+                "cell_type": "code",
+                "id": "cell-1",
+                "metadata": {},
+                "execution_count": None,
+                "outputs": [],
+                "source": setup.splitlines(keepends=True),
+            },
+        )
+        if self.rich_output:
+            add_notebook_cell("code", "_log.pipeline_finished(_pipeline_start)\n")
+        add_notebook_cell("code", footer)
+        for index, cell in enumerate(notebook_cells):
+            cell["id"] = f"cell-{index}"
+        self._notebook_cells = notebook_cells
+
+        return header + body + footer
+
+
+def export_project(
+    controller, node_sequence, archive_path, node_config, *, rich_output: bool = False
+):
+    """Write a portable project, optionally including framed progress output."""
+    archive_path = Path(archive_path)
+    project_config = deepcopy(controller._config)
+    project_config["node_config"] = node_config
+    requirements = {"mne-nodes"}
+    plugin_files = []
+
+    for plugin_name, metadata in project_config.get("plugin_meta", {}).items():
+        plugin_type = metadata.get("plugin_type")
+        if plugin_type == "path":
+            if not plugin_name.isidentifier():
+                raise ValueError(f"Invalid plugin name '{plugin_name}'.")
+            config_path = Path(metadata["config_path"]).expanduser().resolve()
+            script_path = Path(metadata["script_path"]).expanduser().resolve()
+            plugin_root = config_path.parent
+            if not config_path.is_file() or not script_path.is_file():
+                raise FileNotFoundError(
+                    f"Plugin files for '{plugin_name}' could not be found."
+                )
+            for plugin_file in plugin_root.rglob("*"):
+                relative_path = plugin_file.relative_to(plugin_root)
+                if (
+                    plugin_file.is_file()
+                    and not plugin_file.is_symlink()
+                    and "__pycache__" not in plugin_file.parts
+                    and plugin_file.suffix != ".pyc"
+                    and not any(part.startswith(".") for part in relative_path.parts)
+                    and plugin_file.resolve() != archive_path.resolve()
+                ):
+                    archive_name = Path("plugins", plugin_name, relative_path)
+                    plugin_files.append((plugin_file, archive_name))
+            metadata["config_path"] = Path(
+                "plugins", plugin_name, config_path.relative_to(plugin_root)
+            ).as_posix()
+            metadata["script_path"] = Path(
+                "plugins", plugin_name, script_path.relative_to(plugin_root)
+            ).as_posix()
+        elif plugin_type == "github":
+            repository = metadata.get("plugin_github")
+            if repository:
+                if not isinstance(repository, str):
+                    raise ValueError(f"Invalid GitHub plugin URL '{repository}'.")
+                repository = repository.strip()
+                git_url = (
+                    repository if repository.startswith("git+") else f"git+{repository}"
+                )
+                parsed_url = urlsplit(git_url.removeprefix("git+"))
+                if (
+                    "\n" in repository
+                    or "\r" in repository
+                    or parsed_url.scheme not in {"http", "https"}
+                    or not parsed_url.netloc
+                ):
+                    raise ValueError(f"Invalid GitHub plugin URL '{repository}'.")
+                requirements.add(git_url)
+        elif plugin_type == "module":
+            module_name = plugin_name.split(".", maxsplit=1)[0]
+            distributions = importlib.metadata.packages_distributions().get(
+                module_name, []
+            )
+            requirement = distributions[0] if distributions else module_name
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", requirement):
+                raise ValueError(f"Invalid plugin requirement '{requirement}'.")
+            requirements.add(requirement)
+
+    script = CodeGenerator(
+        controller, node_sequence, portable=True, rich_output=rich_output
+    ).code
+    config_json = json.dumps(project_config, indent=4, cls=TypedJSONEncoder)
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("pipeline.py", script)
+        archive.writestr("pipeline.json", config_json)
+        archive.writestr("requirements.txt", "\n".join(sorted(requirements)) + "\n")
+        for plugin_file, archive_name in plugin_files:
+            archive.write(plugin_file, archive_name.as_posix())
+    return archive_path

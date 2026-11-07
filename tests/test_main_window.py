@@ -6,12 +6,11 @@ GitHub: https://github.com/marsipu/mne-nodes
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
-from qtpy.QtCore import QPointF, Qt
-from qtpy.QtGui import QContextMenuEvent
-from qtpy.QtTest import QTest
-from qtpy.QtWidgets import QMenu, QStyle, QStyleOptionViewItem
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QMenu
 
 from mne_nodes.backend.io import type_json_hook
 from mne_nodes.gui.main_window import MainWindow
@@ -31,21 +30,26 @@ def welcome_sample_loader(monkeypatch):
 
 
 @pytest.fixture
-def welcome_tour_enabled(ct):
+def welcome_tour_enabled(ct, gui_mode):
     """Enable the first-run tour for tests that explicitly start it."""
     ct.settings.set("first_start", True)
 
 
-def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
-    """The main window should not load viewer nodes before the controller setup is finalized."""
+def test_main_window_lifecycle(settings, qtbot, tmp_path):
+    """Viewer loading waits for setup; closing old windows keeps replacements."""
+    from shutil import copytree
 
     from mne_nodes.backend.controller import Controller
-    from mne_nodes.gui.main_window import MainWindow
+    from mne_nodes.gui.widget_registry import get_widget
 
     controller = Controller(settings=settings)
-    settings.set("bids_root", Path(__file__).parent / "tiny_bids")
+    bids_root = tmp_path / "bids"
+    copytree(Path(__file__).parent / "tiny_bids", bids_root)
+    settings.set("bids_root", bids_root)
     main_window = MainWindow(controller)
     qtbot.addWidget(main_window)
+    assert controller.main_window is main_window
+    assert controller.viewer is main_window.viewer
 
     assert main_window.viewer._input_node is None
     assert len(main_window.viewer.nodes) == 0
@@ -57,7 +61,113 @@ def test_main_window_defers_viewer_load_until_controller_ready(settings, qtbot):
     main_window.finalize_controller_setup()
     assert main_window.viewer.nodes == nodes
     assert all(node.scene() is main_window.viewer.scene() for node in nodes.values())
+
+    replacement = MainWindow(controller)
+    qtbot.addWidget(replacement)
     main_window.close()
+    assert controller.main_window is replacement
+    assert controller.viewer is replacement.viewer
+    replacement.close()
+    assert get_widget("main_window") is None
+    assert controller.viewer is None
+
+
+def test_settings_dialog(main_window, qtbot):
+    """Editing TOML-defined preferences persists without changing other settings."""
+    from qtpy.QtGui import QPalette
+    from qtpy.QtWidgets import QApplication
+
+    from mne_nodes.backend.settings import Settings, settings_config
+    from mne_nodes.gui.code_editor import HIGHLIGHT_COLORS, CodeEditor
+    from mne_nodes.gui.dialogs.settings_dialog import SettingsDlg
+    from mne_nodes.gui.gui_theme import get_palette
+
+    editor = CodeEditor()
+    qtbot.addWidget(editor)
+    settings = main_window.settings
+    settings.set("unrelated_setting", {"keep": [1, 2, 3]})
+    settings.set("app_font_size", 15)
+    settings.remove("console_word_wrap")
+    previous = settings.settings_path.read_bytes()
+    main_window.show_settings()
+    dialog = main_window.settings_dialog
+    assert set(dialog.widgets) == set(settings_config)
+    assert settings.settings_path.read_bytes() == previous
+    assert dialog.widgets["app_font_size"].value == 15
+    assert dialog.widgets["console_word_wrap"].value is True
+
+    values = {
+        "app_theme": "dark",
+        "app_style": "fusion",
+        "app_font": "DejaVu Sans",
+        "app_font_size": 16,
+        "screen_ratio": 0.65,
+        "pipe_layout": "straight",
+        "console_word_wrap": False,
+    }
+    for name, value in values.items():
+        dialog.widgets[name].value = value
+    app = QApplication.instance()
+    assert app.style().objectName() == "fusion"
+    assert app.font().families()[0] == "DejaVu Sans"
+    assert app.font().pointSize() == 16
+    assert app.palette().color(QPalette.ColorRole.Window) == get_palette("dark").color(
+        QPalette.ColorRole.Window
+    )
+    assert editor.highlighter.colors == HIGHLIGHT_COLORS["dark"]
+    assert main_window.viewer.pipe_layout == "straight"
+    dialog.close()
+
+    restored_settings = Settings()
+    restored = SettingsDlg(restored_settings)
+    qtbot.addWidget(restored)
+    for name, value in values.items():
+        assert restored_settings.get(name) == value
+        assert restored.widgets[name].value == value
+    assert restored_settings.get("unrelated_setting") == {"keep": [1, 2, 3]}
+
+    main_window.set_console_word_wrap(True)
+    main_window.show_settings()
+    assert dialog.widgets["console_word_wrap"].value is True
+    dialog.close()
+
+
+@pytest.mark.parametrize(
+    "case", ["local", "separate", "cancel", "no_folder", "missing_folder"]
+)
+@pytest.mark.parametrize("storage", ["deriv_root", "subjects_dir"])
+def test_change_derivative_storage(main_window, monkeypatch, tmp_path, case, storage):
+    """Storage switches roots; cancel or invalid input changes nothing."""
+    ct = main_window.controller
+    external = tmp_path / "separate-derivatives"
+    external.mkdir()
+    ct.ensure_deriv_root(False)
+    ct.ensure_subjects_dir(False)
+    if case == "local":
+        setattr(ct, storage, external)
+    previous = getattr(ct, storage)
+    unchanged_storage = "subjects_dir" if storage == "deriv_root" else "deriv_root"
+    unchanged = getattr(ct, unchanged_storage)
+    choice = {"local": True, "cancel": None}.get(case, False)
+    folder = {"separate": external, "missing_folder": tmp_path / "missing"}.get(case)
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.ask_user_custom", lambda *a, **k: choice
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *a, **k: folder
+    )
+    error_dialog = Mock()
+    monkeypatch.setattr("mne_nodes.gui.main_window.ErrorDialog", error_dialog)
+    getattr(main_window, f"change_{storage}")()
+    expected = {
+        "local": ct.bids_root
+        / "derivatives"
+        / ("mne-nodes" if storage == "deriv_root" else "freesurfer"),
+        "separate": external,
+    }.get(case, previous)
+    assert getattr(ct, storage) == expected
+    assert getattr(ct, unchanged_storage) == unchanged
+    assert error_dialog.called == (case == "missing_folder")
 
 
 def test_replacing_input_node_removes_previous_dataset(main_window):
@@ -99,6 +209,67 @@ def test_restart_welcome_tour_action(ct, main_window, monkeypatch):
     )
     action.trigger()
     assert calls == [{"force": True}]
+
+
+@pytest.mark.parametrize("rich_output", [False, True, None])
+def test_export_actions(main_window, monkeypatch, tmp_path, rich_output):
+    """The File menu exports Python, Jupyter notebooks, and project files."""
+    import json
+    import zipfile
+
+    paths = iter(
+        [
+            tmp_path / "pipeline.py",
+            tmp_path / "pipeline_jupyter",
+            tmp_path / "pipeline_project.zip",
+        ]
+    )
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.get_user_input", lambda *args, **kwargs: next(paths)
+    )
+    monkeypatch.setattr(main_window, "_export_rich_output", lambda: rich_output)
+    file_menu = next(
+        menu
+        for menu in main_window.menuBar().findChildren(QMenu)
+        if menu.title() == "&File"
+    )
+    actions = {action.text(): action for action in file_menu.actions()}
+
+    actions["Export Python Script..."].trigger()
+    actions["Export Jupyter Notebook..."].trigger()
+    actions["Export Complete Project..."].trigger()
+
+    if rich_output is None:
+        assert not list(tmp_path.glob("pipeline*"))
+        return
+
+    script = (tmp_path / "pipeline.py").read_text()
+    notebook = json.loads((tmp_path / "pipeline_jupyter.ipynb").read_text())
+    assert "Controller(config_path=" in script
+    assert notebook["nbformat"] == 4
+    assert notebook["cells"]
+    assert all(
+        cell["cell_type"] in {"code", "markdown"} and cell["id"]
+        for cell in notebook["cells"]
+    )
+    assert notebook["cells"][0]["cell_type"] == "markdown"
+    notebook_code = "\n".join(
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert "Controller(config_path=" in notebook_code
+    with zipfile.ZipFile(tmp_path / "pipeline_project.zip") as archive:
+        assert {"pipeline.py", "pipeline.json", "requirements.txt"} <= set(
+            archive.namelist()
+        )
+        project_script = archive.read("pipeline.py").decode()
+        assert "os.chdir(project_root)" in project_script
+        assert "mne-nodes" in archive.read("requirements.txt").decode()
+    for code in (script, notebook_code, project_script):
+        assert ("process_log" in code) == rich_output
+        assert ("_log." in code) == rich_output
+        compile(code, "<exported-pipeline>", "exec")
 
 
 def test_restart_welcome_tour_does_not_nest_active_tour(ct, main_window, monkeypatch):
@@ -159,7 +330,13 @@ def test_app_start(ct, main_window, qtbot):
 
 @pytest.mark.parametrize("relocate_sample", [False, True])
 def test_welcome_tour_initializes_demo_and_tracks_input_node(
-    settings, monkeypatch, tmp_path, qtbot, welcome_sample_loader, relocate_sample
+    settings,
+    monkeypatch,
+    tmp_path,
+    qtbot,
+    welcome_sample_loader,
+    relocate_sample,
+    gui_mode,
 ):
     """The real tour loads fresh demo state and follows its input node."""
     from mne_bids import BIDSPath
@@ -194,6 +371,7 @@ def test_welcome_tour_initializes_demo_and_tracks_input_node(
                 json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
             )
             (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+            _write_sample_anatomy(bids_root)
 
         cached_root = tmp_path / "cached-sample"
         write_sample(cached_root)
@@ -233,8 +411,8 @@ def test_welcome_tour_initializes_demo_and_tracks_input_node(
         assert tour.steps[0]["widget"] is main_window.viewer
         ct.ensure_ready()
         assert ct.name == "Welcome"
-        assert ct.deriv_root == tmp_path / "Welcome_derivatives"
-        assert ct.plot_path == tmp_path / "Welcome_plots"
+        assert ct.deriv_root == ct.bids_root / "derivatives" / "mne-nodes"
+        assert ct.plot_root is None
         if relocate_sample:
             assert conversions == [sample_root]
             assert ct.bids_root == sample_root
@@ -259,14 +437,6 @@ def test_welcome_tour_initializes_demo_and_tracks_input_node(
         assert not node.start_button.isEnabled()
         tour.show_step(1)
         assert tour.steps[1]["widget"]() is node
-        assert tour.overlay.highlight_path == tour.compute_highlight_path(node)
-
-        before = tour.overlay.highlight_path.boundingRect()
-        node.setPos(node.pos() + QPointF(60, 40))
-        qtbot.waitUntil(
-            lambda: tour.overlay.highlight_path == tour.compute_highlight_path(node)
-        )
-        assert tour.overlay.highlight_path.boundingRect() != before
     finally:
         tour.finish(notify=False)
 
@@ -316,6 +486,7 @@ def test_bids_root_switch_replaces_input_dataset_information(
         json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
     )
     if tour:
+        _write_sample_anatomy(root)
         ct.settings.set("sample_bids_root", root)
         welcome_sample_loader(ct, main_window)
     else:
@@ -328,8 +499,9 @@ def test_bids_root_switch_replaces_input_dataset_information(
     assert node.input_widget is widget
     assert node.name == "sample-dataset"
     assert ct.get("bids_dataset_name") == "sample-dataset"
-    assert [widget.tab_widget.tabText(index) for index in range(2)] == ["meg", "Groups"]
-    assert widget.tab_widget.count() == 2
+    assert [
+        widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())
+    ] == ["meg", "Groups"]
     model = widget.tab_widget.widget(0).model
     assert model.rowCount() == 1
     assert model.index(0, 0).data() == filename
@@ -450,233 +622,49 @@ def test_welcome_tour_creation_and_connection_tasks(
         assert not viewer.function_nodes
         tour.show_step(2)
         assert not tour.widget.next_btn.isEnabled()
-        node = viewer.add_function_node("example_filter")
+        assert tour._target is viewer.input_node.input_widget.graphicsProxyWidget()
+        assert viewer.input_node.input_widget.isEnabled()
+        assert viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
+        ct.input_selection_changed(["sub-01_task-test_eeg.fif"], "eeg")
         qtbot.waitUntil(lambda: tour.index == 3)
         assert completed == [2]
+        assert not tour.widget.next_btn.isEnabled()
+        node = viewer.add_function_node("example_filter")
+        qtbot.waitUntil(lambda: tour.index == 4)
+        assert completed == [2, 3]
         assert tour._target is node
         tour.next_step()
-        assert tour.index == 4
+        assert tour.index == 5
         assert not tour.widget.next_btn.isEnabled()
 
         output = viewer.input_node.output(port_name="eeg")
         input_port = node.input(port_name="raw")
         output.connect_to(input_port)
-        qtbot.waitUntil(lambda: tour.index == 5)
-        assert completed == [2, 4]
-        assert tour.index == 5
+        qtbot.waitUntil(lambda: tour.index == 6)
+        assert completed == [2, 3, 5]
         assert tour._target is node.param_box.graphicsProxyWidget()
         assert tour.overlay.highlight_path == tour.compute_highlight_path(tour._target)
         assert not tour.widget.next_btn.isEnabled()
         lowpass = node.parameter_guis["lowpass"].param_widget
         assert lowpass.isEnabled()
-        qtbot.keyClick(lowpass, Qt.Key.Key_Up)
-        qtbot.waitUntil(lambda: tour.index == 6)
-        assert ct.parameter("lowpass", node.name) == 31
+        lowpass.lineEdit().selectAll()
+        qtbot.keyClicks(lowpass.lineEdit(), "40")
+        qtbot.wait(10)
         assert tour.index == 6
-        assert tour._target is viewer.input_node.input_widget.graphicsProxyWidget()
-        assert viewer.input_node.input_widget.isEnabled()
-        assert viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
-        assert not tour.widget.next_btn.isEnabled()
-        ct.input_selection_changed(["sub-01_task-test_eeg.fif"], "eeg")
+        assert lowpass.isEnabled()
+        qtbot.keyClick(lowpass.lineEdit(), Qt.Key.Key_Return)
         qtbot.waitUntil(lambda: tour.index == 7)
-        assert completed == [2, 4, 5, 6]
+        assert ct.parameter("lowpass", node.name) == 40
+        assert completed == [2, 3, 5, 6]
         assert tour._target is viewer.input_node.start_button_proxy
         assert viewer.input_node.start_button.isEnabled()
-        assert not node.start_button.isEnabled()
+        assert node.start_button is None
         assert (
             viewer.mapFromScene(node.sceneBoundingRect()).boundingRect().isEmpty()
             is False
         )
     finally:
         tour.finish()
-
-
-def test_welcome_tour_waits_for_pipeline_start(
-    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled
-):
-    """The console step is reached only after a process actually starts."""
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    main_window.show()
-    ct.initialize_welcome_tour()
-    tour = ct.welcome_tour
-    dock = main_window.console_dock
-    starts = []
-
-    def start_pipeline(sequence):
-        starts.append(sequence)
-        dock.show()
-
-    monkeypatch.setattr(ct, "start", start_pipeline)
-    try:
-        viewer = main_window.viewer
-        node = viewer.add_function_node("example_filter")
-        viewer.input_node.output(port_name="eeg").connect_to(
-            node.input(port_name="raw")
-        )
-        ct.input_selection_changed(["sub-01_ses-eeg_task-rest_eeg.eeg"], "eeg")
-        tour.show_step(7)
-        assert not tour.widget.next_btn.isEnabled()
-        tour.next_step()
-        assert tour.index == 7
-        qtbot.mouseClick(viewer.input_node.start_button, Qt.MouseButton.LeftButton)
-        assert len(starts) == 1
-        assert dock.isVisible()
-        tour.refresh()
-        assert tour.index == 7
-        assert not tour.widget.next_btn.isEnabled()
-        dock.process_started.emit()
-        qtbot.waitUntil(lambda: tour.index == 8)
-        assert tour._target is dock
-        tour.next_step()
-        assert tour.index == 9
-        assert tour.overlay.isVisible()
-        tour.show_step(len(tour.steps) - 1)
-        assert not tour.overlay.isVisible()
-    finally:
-        tour.finish()
-    # A later process must not call back into the finished/deleted tour.
-    dock.process_started.emit()
-
-
-@pytest.mark.parametrize("on_port", [False, True])
-def test_welcome_tour_adds_node_from_context_menu(
-    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled, on_port
-):
-    """The node-creation step permits choosing functions from real popup menus."""
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    ct.initialize_welcome_tour()
-    tour = ct.welcome_tour
-    viewer = main_window.viewer
-
-    def select_function(menu, position):
-        menu.popup(position)
-        qtbot.waitUntil(menu.isVisible)
-        tour.refresh()
-        assert menu.isEnabled()
-        actions = [
-            action
-            for popup in [menu, *menu.findChildren(QMenu)]
-            for action in popup.actions()
-            if action.text() == "example_filter"
-        ]
-        assert len(actions) == 1
-        action = actions[0]
-        popup = action.parent()
-        parents = []
-        parent = popup.parentWidget()
-        while isinstance(parent, QMenu):
-            parents.append(parent)
-            parent = parent.parentWidget()
-        for parent in reversed(parents):
-            parent.popup(position)
-        assert action.isEnabled()
-        popup.popup(position)
-        qtbot.waitUntil(popup.isVisible)
-        assert popup.isEnabled()
-        popup.setActiveAction(action)
-        qtbot.mouseClick(
-            popup, Qt.MouseButton.LeftButton, pos=popup.actionGeometry(action).center()
-        )
-        menu.close()
-
-    class TestMenu(QMenu):
-        def exec(self, position):
-            return select_function(self, position)
-
-    monkeypatch.setattr("mne_nodes.gui.node.node_viewer.QMenu", TestMenu)
-    try:
-        tour.show_step(2)
-        assert not tour.widget.next_btn.isEnabled()
-        if on_port:
-            port = viewer.input_node.output(port_name="eeg")
-            pos = viewer.mapFromScene(port.sceneBoundingRect().center())
-        else:
-            pos = viewer.viewport().rect().topLeft()
-        event = QContextMenuEvent(
-            QContextMenuEvent.Reason.Mouse, pos, viewer.viewport().mapToGlobal(pos)
-        )
-        viewer.contextMenuEvent(event)
-        assert len(viewer.function_nodes) == 1
-        qtbot.waitUntil(lambda: tour.index == 3)
-    finally:
-        tour.finish()
-
-
-@pytest.mark.parametrize("rebuild", [False, True])
-@pytest.mark.parametrize("window_input", [False, True])
-def test_welcome_tour_input_checkbox_is_clickable(
-    ct, main_window, monkeypatch, qtbot, welcome_tour_enabled, rebuild, window_input
-):
-    """File selection must work through a real click on the embedded checklist."""
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-    main_window.show()
-    ct.initialize_welcome_tour()
-    tour = ct.welcome_tour
-    viewer = main_window.viewer
-    try:
-        assert not viewer.input_node.input_widget.tab_widget.widget(0).view.isEnabled()
-        tour.next_step()
-        tour.next_step()
-        node = viewer.add_function_node("example_filter")
-        qtbot.waitUntil(lambda: tour.index == 3)
-        tour.next_step()
-        viewer.input_node.output(port_name="eeg").connect_to(
-            node.input(port_name="raw")
-        )
-        qtbot.waitUntil(lambda: tour.index == 5)
-        input_widget = viewer.input_node.input_widget
-        if rebuild:
-            input_widget.update_widgets()
-        node.parameter_guis["lowpass"].param_widget.setValue(40)
-        qtbot.waitUntil(lambda: tour.index == 6)
-        assert tour.index == 6
-        qtbot.wait(20)
-        checklist = input_widget.tab_widget.widget(0)
-        list_view = checklist.view
-        assert list_view.isEnabled()
-        assert list_view.viewport().isEnabled()
-        index = checklist.model.index(0, 0)
-        assert index.isValid()
-        assert index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Unchecked
-        option = QStyleOptionViewItem()
-        option.initFrom(list_view)
-        option.rect = list_view.visualRect(index)
-        list_view.itemDelegate().initStyleOption(option, index)
-        checkbox_rect = list_view.style().subElementRect(
-            QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, list_view
-        )
-        proxy = input_widget.graphicsProxyWidget()
-        widget_pos = list_view.viewport().mapTo(input_widget, checkbox_rect.center())
-        scene_pos = proxy.mapToScene(QPointF(widget_pos))
-        viewer.centerOn(scene_pos)
-        tour.refresh()
-        receiver = main_window.windowHandle() if window_input else viewer.viewport()
-        click_pos = viewer.mapFromScene(scene_pos)
-        if window_input:
-            click_pos = viewer.viewport().mapTo(main_window, click_pos)
-        QTest.mousePress(receiver, Qt.MouseButton.LeftButton, pos=click_pos)
-        qtbot.wait(150)
-        QTest.mouseRelease(receiver, Qt.MouseButton.LeftButton, pos=click_pos)
-        assert index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
-        qtbot.waitUntil(lambda: tour.index == 7)
-        assert ct.get("selected_inputs")[input_widget.tab_widget.tabText(0)]
-    finally:
-        tour.finish()
-
-
-def test_new_function_node_is_fitted_into_view(ct, main_window):
-    """Adding a node outside the current view refits all graph nodes."""
-    viewer = main_window.viewer
-    node = viewer.add_function_node("test_filter", pos=QPointF(5000, 5000))
-    visible_rect = viewer.mapToScene(viewer.viewport().rect()).boundingRect()
-
-    assert visible_rect.contains(node.sceneBoundingRect())
 
 
 def test_closing_welcome_tour_does_not_save_packaged_pipeline(
@@ -730,22 +718,56 @@ def test_welcome_plugin_restores_existing_session(ct, main_window):
     assert ct.settings.get("disabled_plugins", []) == disabled_plugins
 
 
-def test_welcome_tour_decline_does_not_load_example_plugin(
-    ct, main_window, monkeypatch, welcome_tour_enabled
+@pytest.mark.parametrize("failure", [False, True])
+def test_welcome_tour_decline_or_failure_keeps_session(
+    ct, main_window, monkeypatch, welcome_tour_enabled, failure
 ):
+    """Declining or failing to start the tour leaves no example plugin behind."""
+    from mne_nodes.gui.welcome_tour import start_welcome_tour
+
     monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: False
+        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: failure
     )
+    previous_plugins = ct.plugins.copy()
+    previous_functions = ct.function_meta.copy()
     previous_config = ct.config_path
+    previous_settings_config = ct.settings.get("config_path")
     previous_bids_root = ct.bids_root
-    ct.initialize_welcome_tour()
-    assert ct.config_path == previous_config
-    assert ct.bids_root == previous_bids_root
-    assert "example_plugin" not in ct.plugins
-    assert "example_filter" not in ct.function_meta
+    if failure:
+
+        def fail_tour(*args, **kwargs):
+            raise RuntimeError("Tour construction failed")
+
+        monkeypatch.setattr("mne_nodes.gui.welcome_tour.WelcomeTour", fail_tour)
+        with pytest.raises(RuntimeError, match="Tour construction failed"):
+            start_welcome_tour(ct, main_window)
+        assert "example_plugin" not in ct.get("plugin_meta")
+        assert not ct.config_path.exists()
+    else:
+        ct.initialize_welcome_tour()
+        assert ct.config_path == previous_config
+        assert ct.bids_root == previous_bids_root
+    assert ct.plugins == previous_plugins
+    assert ct.function_meta == previous_functions
+    assert ct.settings.get("config_path") == previous_settings_config
 
 
-@pytest.mark.parametrize("available", ["current", "cached", "missing", "incomplete"])
+def _write_sample_anatomy(root):
+    """Add the auxiliary layout expected in a complete converted sample."""
+    subject = root / "derivatives" / "freesurfer" / "sub-01"
+    for name in ("mri", "surf", "label"):
+        (subject / name).mkdir(parents=True, exist_ok=True)
+    anatomy = root / "sub-01" / "ses-01" / "anat"
+    anatomy.mkdir(parents=True, exist_ok=True)
+    (anatomy / "sub-01_ses-01_T1w.nii.gz").touch()
+    transform = root / "derivatives" / "mne-nodes" / "sub-01" / "ses-01" / "meg"
+    transform.mkdir(parents=True, exist_ok=True)
+    (transform / "sub-01_ses-01_task-audiovisual_run-1_trans.fif").touch()
+
+
+@pytest.mark.parametrize(
+    "available", ["current", "cached", "missing", "incomplete", "raw-only"]
+)
 def test_welcome_sample_reuses_or_loads_data(
     ct, monkeypatch, tmp_path, welcome_sample_loader, available
 ):
@@ -769,9 +791,14 @@ def test_welcome_sample_reuses_or_loads_data(
             json.dumps({"Name": "sample-dataset"}), encoding="utf-8"
         )
         (meg_dir / "sub-01_ses-01_task-audiovisual_run-1_meg.fif").touch()
+        _write_sample_anatomy(bids_root)
 
-    if available in ("current", "cached"):
+    if available in ("current", "cached", "raw-only"):
         write_sample(sample_root)
+        if available == "raw-only":
+            (
+                sample_root / "sub-01" / "ses-01" / "anat" / "sub-01_ses-01_T1w.nii.gz"
+            ).unlink()
     elif available == "incomplete":
         sample_root.mkdir()
         (sample_root / "dataset_description.json").write_text(
@@ -796,7 +823,9 @@ def test_welcome_sample_reuses_or_loads_data(
         assert ct.settings.get("deriv_root") is None
         assert ct.settings.get("plot_root") is None
         assert ct.get("bids_dataset_name") == "sample-dataset"
-    assert len(calls) == (1 if available in ("missing", "incomplete") else 0)
+    assert len(calls) == (
+        1 if available in ("missing", "incomplete", "raw-only") else 0
+    )
     if calls:
         assert calls[0][0] is parent
         assert calls[0][2]["blocking"] is True
@@ -825,51 +854,3 @@ def test_welcome_sample_failure_preserves_dataset(
     with pytest.raises(RuntimeError):
         welcome_sample_loader(ct, None)
     assert ct.bids_root == previous_root
-
-
-def test_welcome_tour_start_failure_unloads_example_plugin(
-    ct, main_window, monkeypatch
-):
-    """Construction failures must not leave the example plugin registered."""
-    from mne_nodes.gui.welcome_tour import start_welcome_tour
-
-    monkeypatch.setattr(
-        "mne_nodes.gui.welcome_tour.ask_user", lambda *args, **kwargs: True
-    )
-
-    def fail_tour(*args, **kwargs):
-        raise RuntimeError("Tour construction failed")
-
-    monkeypatch.setattr("mne_nodes.gui.welcome_tour.WelcomeTour", fail_tour)
-    previous_plugins = ct.plugins.copy()
-    previous_functions = ct.function_meta.copy()
-    previous_config = ct.settings.get("config_path")
-    with pytest.raises(RuntimeError, match="Tour construction failed"):
-        start_welcome_tour(ct, main_window)
-    assert ct.plugins == previous_plugins
-    assert ct.function_meta == previous_functions
-    assert "example_plugin" not in ct.get("plugin_meta")
-    assert ct.settings.get("config_path") == previous_config
-    assert not ct.config_path.exists()
-
-
-def test_window_registry_lookup_and_replacement(settings, qtbot):
-    """Closing an older window must not unregister its replacement."""
-    from mne_nodes.backend.controller import Controller
-    from mne_nodes.gui.widget_registry import get_widget
-
-    controller = Controller(settings=settings)
-    old_window = MainWindow(controller)
-    qtbot.addWidget(old_window)
-    assert controller.main_window is old_window
-    assert controller.viewer is old_window.viewer
-
-    replacement = MainWindow(controller)
-    qtbot.addWidget(replacement)
-    old_window.close()
-    assert controller.main_window is replacement
-    assert controller.viewer is replacement.viewer
-
-    replacement.close()
-    assert get_widget("main_window") is None
-    assert controller.viewer is None

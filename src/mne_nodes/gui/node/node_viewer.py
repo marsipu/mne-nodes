@@ -10,11 +10,23 @@ from collections import OrderedDict
 from typing import TypeGuard
 
 import qtpy
-from qtpy.QtCore import QMimeData, QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
+from qtpy.QtCore import (
+    QMimeData,
+    QPoint,
+    QPointF,
+    QProcess,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
 from qtpy.QtGui import QAction, QColor, QPainter, QPainterPath
 from qtpy.QtWidgets import (
     QApplication,
     QGraphicsPathItem,
+    QGraphicsProxyWidget,
     QGraphicsTextItem,
     QGraphicsView,
     QMenu,
@@ -22,17 +34,34 @@ from qtpy.QtWidgets import (
 )
 
 from mne_nodes import debug_mode
+from mne_nodes.gui.dialogs.user_interaction import raise_user_attention
 from mne_nodes.gui.gui_utils import invert_rgb_color, is_function_import_mime
 from mne_nodes.gui.node.base_node import BaseNode
-from mne_nodes.gui.node.function_node import FunctionNode
+from mne_nodes.gui.node.function_node import CommandNode, FunctionNode
 from mne_nodes.gui.node.input_node import InputNode
+from mne_nodes.gui.node.layout import LayoutEdge, LayoutNode, layered_layout
 from mne_nodes.gui.node.node_defaults import defaults
 from mne_nodes.gui.node.node_scene import NodeScene
 from mne_nodes.gui.node.pipes import LivePipeItem, Pipe, SlicerPipeItem
 from mne_nodes.gui.node.ports import Port
-from mne_nodes.gui.user_interaction import raise_user_attention
+from mne_nodes.gui.node.routing import separate_overlaps
 from mne_nodes.gui.widget_registry import widget_registry
 from mne_nodes.logger import logger
+
+# Available pipe layouts with their display names.
+PIPE_LAYOUTS = {
+    "curved": "Curved",
+    "straight": "Straight",
+    "angle": "Angled",
+    "routed": "Routed Around Nodes",
+}
+# Viewport panning direction for each arrow key.
+ARROW_KEY_DIRECTIONS = {
+    Qt.Key.Key_Left: (-1, 0),
+    Qt.Key.Key_Right: (1, 0),
+    Qt.Key.Key_Up: (0, -1),
+    Qt.Key.Key_Down: (0, 1),
+}
 
 
 class NodeViewer(QGraphicsView):
@@ -53,7 +82,7 @@ class NodeViewer(QGraphicsView):
     PortDisconnected = Signal(Port, Port)
     DataDropped = Signal(QMimeData, QPointF)
 
-    MovedNodes = Signal(dict)
+    MovedNodes = Signal(object)
     ConnectionChanged = Signal(list, list)
     InsertNode = Signal(object, str, dict)
     NodeNameChanged = Signal(str, str)
@@ -71,8 +100,16 @@ class NodeViewer(QGraphicsView):
         self._nodes: OrderedDict[object, BaseNode] = OrderedDict()
         self._input_node: InputNode | None = None
         self._function_nodes: dict[str, FunctionNode] = {}
+        self._dirty_revisions: dict[FunctionNode, int] = {}
         self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
+        self._pipe_redraw_pending = False
+        self._nodes_moving = False
+        settings = getattr(ct, "settings", None)
+        if settings is not None:
+            layout = settings.get("pipe_layout", self._pipe_layout)
+            if layout in PIPE_LAYOUTS:
+                self._pipe_layout = layout
         self._last_size = self.size()
         self._detached_port: Port | None = None
         self._start_port: Port | None = None
@@ -238,25 +275,81 @@ class NodeViewer(QGraphicsView):
         Returns
         -------
         str
-            Pipe layout mode (either 'straight', 'curved', or 'angle').
+            Pipe layout mode (one of ``PIPE_LAYOUTS``).
         """
         return self._pipe_layout
 
     @pipe_layout.setter
     def pipe_layout(self, layout):
-        """Set the pipe layout mode.
+        """Set the pipe layout mode and redraw all pipes.
 
         Parameters
         ----------
         layout : str
-            Pipe layout mode (either 'straight', 'curved', or 'angle').
+            Pipe layout mode (one of ``PIPE_LAYOUTS``).
         """
-        if layout not in ["straight", "curved", "angle"]:
+        if layout not in PIPE_LAYOUTS:
             logger.warning(
                 f"{layout} is not a valid pipe layout, defaulting to 'curved'."
             )
             layout = "curved"
         self._pipe_layout = layout
+        self.redraw_pipes()
+
+    @property
+    def nodes_moving(self):
+        """Return True while nodes are dragged with the mouse."""
+        return self._nodes_moving
+
+    def redraw_pipes(self):
+        """Redraw completed connections, excluding the cursor-driven live pipe.
+
+        Routed pipes are routed together, so that overlapping parallel
+        segments can be spread apart by ``defaults["pipes"]["padding"]``.
+        """
+        self._pipe_redraw_pending = False
+        pipes = [
+            pipe
+            for pipe in self.all_pipes()
+            if pipe is not self._LIVE_PIPE
+            and pipe.input_port is not None
+            and pipe.output_port is not None
+        ]
+        if self._pipe_layout != "routed" or self._nodes_moving:
+            for pipe in pipes:
+                pipe.draw_path(pipe.input_port, pipe.output_port)
+            return
+        routed, routes = [], []
+        for pipe in pipes:
+            route = pipe.compute_route() if pipe.isVisible() else None
+            if route is None:
+                pipe.draw_path(pipe.input_port, pipe.output_port)
+            else:
+                routed.append(pipe)
+                routes.append(route)
+        routes = separate_overlaps(
+            routes,
+            defaults["pipes"]["padding"],
+            max_offset=defaults["pipes"]["route_margin"] * 0.8,
+        )
+        for pipe, route in zip(routed, routes, strict=True):
+            pipe.set_route(route)
+
+    def schedule_pipe_redraw(self):
+        """Redraw all pipes once control returns to the event loop.
+
+        Routed pipes depend on the position of all nodes, not only on
+        the nodes they connect. While nodes are dragged, re-routing is
+        postponed until the mouse is released.
+        """
+        if (
+            self._pipe_layout != "routed"
+            or self._pipe_redraw_pending
+            or self._nodes_moving
+        ):
+            return
+        self._pipe_redraw_pending = True
+        QTimer.singleShot(0, self.redraw_pipes)
 
     ####################################################################################
     # Backend
@@ -316,21 +409,40 @@ class NodeViewer(QGraphicsView):
         self._nodes[node.id] = node
         # draw node after being added to the scene
         node.draw_node()
-        if pos is not None:
-            node.setPos(pos)
+        connections: list[tuple[Port, Port]] = []
+        for port_config in (connected or {}).values():
+            target_port = port_config["port_to"]
+            port_from = node.port(
+                port_type=port_config["type"],
+                port_name=target_port.name,
+                include_accepted=True,
+                accepted_ports=target_port.accepted_ports,
+            )
+            if port_from is not None:
+                connections.append((port_from, target_port))
+        if pos is None:
+            pos = (
+                self.mapToScene(self.viewport().rect().center())
+                - node.boundingRect().center()
+            )
+            if connections:
+                port_from, target_port = connections[0]
+                target_rect = target_port.node.sceneBoundingRect()
+                rect = node.boundingRect()
+                if target_port.port_type == "in":
+                    x = target_rect.left() - self.default_x_distance - rect.right()
+                else:
+                    x = target_rect.right() + self.default_x_distance - rect.left()
+                y = (
+                    target_port.sceneBoundingRect().center().y()
+                    - port_from.mapToParent(port_from.boundingRect().center()).y()
+                )
+                pos = QPointF(x, y)
+        node.setPos(pos)
         # Adjust position to avoid overlapping with other nodes
         self._adjust_node(node, direction="y")
-        if connected is not None:
-            for port_config in connected.values():
-                target_port = port_config["port_to"]
-                port_from = node.port(
-                    port_type=port_config["type"],
-                    port_name=target_port.name,
-                    include_accepted=True,
-                    accepted_ports=target_port.accepted_ports,
-                )
-                if port_from is not None:
-                    port_from.connect_to(target_port)
+        for port_from, target_port in connections:
+            port_from.connect_to(target_port)
 
         return node
 
@@ -400,14 +512,18 @@ class NodeViewer(QGraphicsView):
                 logger.info(
                     f"Function node '{function_name}' already exists. Creating another instance called {function_name}."
                 )
-            node = FunctionNode(self.ct, name=function_name, **kwargs or {})
+            node_class = (
+                CommandNode
+                if "command" in self.ct.get_function_meta(function_name)
+                else FunctionNode
+            )
+            node = node_class(self.ct, name=function_name, **kwargs or {})
         else:
             function_name = node.name
         if function_name is None:
             raise ValueError("Function node name cannot be None.")
         self.function_nodes[function_name] = node
         self.add_node(node, pos=pos, connected=connected)
-        self.zoom_to_nodes(nodes=list(self.nodes.values()))
 
         return node
 
@@ -443,6 +559,7 @@ class NodeViewer(QGraphicsView):
             function_name = node.name
             if function_name in self.function_nodes:
                 del self.function_nodes[function_name]
+            self._dirty_revisions.pop(node, None)
         elif isinstance(node, InputNode):
             self._input_node = None
         # Ensure all node internals are explicitly torn down.
@@ -514,6 +631,56 @@ class NodeViewer(QGraphicsView):
         if len(func_nodes) == 0:
             raise KeyError(f"Function '{name}' not found in project.")
         return func_nodes
+
+    def refresh_function_nodes(self, old_functions: dict[str, dict]) -> None:
+        """Refresh function nodes after their plugin metadata was reloaded.
+
+        Nodes of functions that no longer exist are removed. Nodes whose
+        metadata changed are rebuilt in place, keeping position, checked state
+        and every connection that is still compatible with the new ports.
+
+        Parameters
+        ----------
+        old_functions : dict
+            Function metadata before the reload, keyed by function name.
+        """
+
+        for name, node in list(self.function_nodes.items()):
+            base_name = name
+            if base_name not in old_functions:
+                match = re.fullmatch(r"(.+)-\d+", name)
+                if match is None or match.group(1) not in old_functions:
+                    continue
+                base_name = match.group(1)
+            new_meta = self.ct.function_meta.get(base_name)
+            if new_meta is None:
+                self.remove_node(node, force=True)
+                continue
+            if new_meta == old_functions[base_name]:
+                continue
+            node_class = CommandNode if "command" in new_meta else FunctionNode
+            new_node = node_class(self.ct, name=name)
+            connections = [
+                (port.port_type, port.name, connected_port)
+                for port in node.ports
+                for connected_port in port.connected_ports
+            ]
+            pos, checked = node.pos(), node.isChecked()
+            self.remove_node(node, force=True)
+            self.add_function_node(node=new_node, pos=pos)
+            new_node.setPos(pos)
+            new_node.setChecked(checked)
+            for port_type, port_name, connected_port in connections:
+                port = new_node.port(
+                    port_type=port_type, port_name=port_name, ignore_warnings=True
+                )
+                if port is not None and port.compatible(connected_port, False):
+                    port.connect_to(connected_port)
+                else:
+                    logger.info(
+                        f"Removed invalid connection {name}/{port_name} -> "
+                        f"{connected_port.node.name}/{connected_port.name}."
+                    )
 
     def enable_start_buttons(self, enable=True):
         """Enable or disable the start buttons of all nodes in the node graph.
@@ -593,7 +760,11 @@ class NodeViewer(QGraphicsView):
         self.clear()
         # Create nodes
         for node_info in viewer_dict["nodes"].values():
-            node_classes = {"InputNode": InputNode, "FunctionNode": FunctionNode}
+            node_classes = {
+                "InputNode": InputNode,
+                "FunctionNode": FunctionNode,
+                "CommandNode": CommandNode,
+            }
             node_class = node_classes.get(node_info["class"])
             if node_class is None:
                 logger.warning(
@@ -608,9 +779,9 @@ class NodeViewer(QGraphicsView):
                 )
                 continue
             if node_info["class"] == "InputNode":
-                self.add_input_node(node=node)
-            elif node_info["class"] == "FunctionNode":
-                self.add_function_node(node=node)
+                self.add_input_node(node=node, pos=node.pos())
+            elif node_info["class"] in ("FunctionNode", "CommandNode"):
+                self.add_function_node(node=node, pos=node.pos())
             else:
                 raise RuntimeError(f"Unknown node type '{node_class}'.")
         # Initialize connections
@@ -689,66 +860,234 @@ class NodeViewer(QGraphicsView):
         new_model = FunctionPickerModel(self.ct.function_meta)
         self.node_picker.functions_view.setModel(new_model)
 
-    def _iterate_node_sequence(self, node_sequence, node_dict, visited=None):
-        if visited is None:
-            visited = set()
-        for port_id, port_info in node_dict.items():
-            port = self.port(port_id=port_id)
-            if not isinstance(port, Port):
-                continue
-            # If the port has no connected ports, skip it
-            if len(port.connected_ports) == 0:
-                continue
-            previous_node = port.node
-            for node_id, node_info in port_info.items():
-                if node_id in visited:
+    @staticmethod
+    def _neighbor_nodes(node, direction):
+        """Return unique connected nodes upstream ("in") or downstream ("out").
+
+        Neighbors are returned in port order (and connection order within a
+        port) so that the resulting execution order is deterministic.
+        """
+        ports = node.inputs if direction == "in" else node.outputs
+        neighbors = []
+        seen = set()
+        for port in ports:
+            for cp in port.connected_ports:
+                if cp.node is node or cp.node.id in seen:
                     continue
-                visited.add(node_id)
-                node = self.node(node_id=node_id)
-                if node is None:
-                    continue
-                if len(node.inputs) > 1:
-                    # If the node has multiple inputs, we need to ensure
-                    # that all inputs are processed before this node.
-                    other_ports = [
-                        p for p in node.inputs if p not in port.connected_ports
-                    ]
-                    for oport in other_ports:
-                        reverse_exec_order = {"file": [], "group": []}
-                        up_nodes = node.upstream_node_dict(port_id=oport.id)
-                        self._iterate_node_sequence(
-                            reverse_exec_order, up_nodes, visited
+                seen.add(cp.node.id)
+                neighbors.append(cp.node)
+        return neighbors
+
+    def _collect_nodes(self, start_nodes, direction, include_start=True):
+        """Collect all nodes reachable from start_nodes in discovery order."""
+        collected = OrderedDict()
+        stack = list(reversed(start_nodes))
+        while stack:
+            node = stack.pop()
+            if node.id in collected:
+                continue
+            collected[node.id] = node
+            # Reverse so that the first neighbor is visited first (DFS order).
+            stack.extend(reversed(self._neighbor_nodes(node, direction)))
+        if not include_start:
+            for node in start_nodes:
+                collected.pop(node.id, None)
+        return collected
+
+    def resolve_execution_order(self, node):
+        """Resolve the nodes to execute when starting from ``node``.
+
+        The selection includes ``node`` itself, every node downstream of it
+        and every upstream dependency of those downstream nodes, which is
+        not already an upstream dependency of ``node`` (data from those is
+        loaded from disk, as it is for ``node`` itself).
+
+        The selected nodes are ordered topologically, which guarantees that
+        a node is only executed after all of its connected (and selected)
+        upstream nodes. Among independent branches, the order follows the
+        depth-first discovery order downstream from ``node``, with nodes
+        without output ports preferred so side-effect-only branches run first.
+
+        Parameters
+        ----------
+        node : BaseNode
+            The node to start the execution from.
+
+        Returns
+        -------
+        list of BaseNode
+            The nodes in execution order (including nodes without a
+            function target, like the input node).
+
+        Raises
+        ------
+        RuntimeError
+            If the connections between the selected nodes contain a cycle.
+        """
+        return self._resolve_execution_order([node])
+
+    def _resolve_execution_order(self, start_nodes):
+        downstream = self._collect_nodes(start_nodes, "out")
+        start_ancestors = self._collect_nodes(start_nodes, "in", include_start=False)
+        dependencies = self._collect_nodes(list(downstream.values()), "in")
+        selected = OrderedDict(downstream)
+        for node_id, dep_node in dependencies.items():
+            if node_id not in selected and node_id not in start_ancestors:
+                selected[node_id] = dep_node
+
+        # Depth-first topological sort (upstream nodes first) with cycle check.
+        order = []
+        state = {}  # node_id -> "visiting" | "done"
+        roots = sorted(selected.values(), key=lambda candidate: bool(candidate.outputs))
+        for root in roots:
+            if root.id in state:
+                continue
+            stack = [(root, iter(self._neighbor_nodes(root, "in")))]
+            state[root.id] = "visiting"
+            while stack:
+                current, upstream_iter = stack[-1]
+                for up_node in upstream_iter:
+                    if up_node.id not in selected:
+                        continue
+                    up_state = state.get(up_node.id)
+                    if up_state == "visiting":
+                        raise RuntimeError(
+                            "The node connections contain a cycle involving "
+                            f"'{up_node.name}' and '{current.name}', "
+                            "the execution order can not be resolved."
                         )
-                        for key, sequence in reverse_exec_order.items():
-                            sequence.reverse()
-                            node_sequence[key].extend(sequence)
-                description, target = node.get_description()
-                _, previous_target = previous_node.get_description()
-                if previous_target == "group":
-                    target = "group"
-                if target:
-                    node_sequence[target].append(description)
-                self._iterate_node_sequence(node_sequence, node_info, visited)
+                    if up_state is None:
+                        state[up_node.id] = "visiting"
+                        stack.append(
+                            (up_node, iter(self._neighbor_nodes(up_node, "in")))
+                        )
+                        break
+                else:
+                    state[current.id] = "done"
+                    order.append(current)
+                    stack.pop()
+
+        return order
 
     def get_node_sequence(self, node):
         """Start from a node and create an execution order.
 
-        The execution goes downstream from the selected node. Multiple
-        output paths are executed sequentially. If downstream there are
-        multiple inputs, the upstream nodes are executed first. Handling
-        of different node types and activated/deactivated nodes should
-        be done in Controller.
+        See :meth:`resolve_execution_order` for which nodes are executed in
+        which order. The nodes are split by their target ("file" or
+        "group"). A node gets the "group" target if its own target is
+        "group" or if any of its upstream nodes is executed on group-level.
+        Since group-level nodes can only depend on file-level nodes (and
+        not vice versa), all file-level nodes can be executed before the
+        group-level nodes. Handling of different node types and
+        activated/deactivated nodes should be done in Controller.
         """
+        return self._get_node_sequence(self.resolve_execution_order(node))
+
+    def _get_node_sequence(self, execution_order):
         node_sequence = {"file": [], "group": []}
-        visited = set()
-        # Add the starting node
-        description, target = node.get_description()
-        if target:
-            node_sequence[target].append(description)
-        visited.add(node.id)
-        self._iterate_node_sequence(node_sequence, node.downstream_node_dict(), visited)
+        effective_targets = {}
+        for exec_node in execution_order:
+            description, target = exec_node.get_description()
+            upstream_group = any(
+                effective_targets.get(up_node.id) == "group"
+                or up_node.get_description()[1] == "group"
+                for up_node in self._neighbor_nodes(exec_node, "in")
+            )
+            if target and upstream_group:
+                target = "group"
+            effective_targets[exec_node.id] = target
+            if target:
+                node_sequence[target].append(description)
 
         return node_sequence
+
+    def get_selected_node_sequence(self, nodes=None):
+        """Build a combined execution sequence for selected nodes and descendants."""
+        nodes = list(nodes if nodes is not None else self.selected_nodes())
+        self._resolve_execution_order(nodes)
+        selected = set(nodes)
+        roots = []
+        for node in nodes:
+            pending = [
+                upstream
+                for connected in node.connected_input_nodes().values()
+                for upstream in connected
+            ]
+            visited = set()
+            has_selected_ancestor = False
+            while pending:
+                upstream = pending.pop()
+                if upstream in visited:
+                    continue
+                visited.add(upstream)
+                if upstream in selected:
+                    has_selected_ancestor = True
+                    break
+                pending.extend(
+                    ancestor
+                    for connected in upstream.connected_input_nodes().values()
+                    for ancestor in connected
+                )
+            if not has_selected_ancestor:
+                roots.append(node)
+
+        execution_order = self._resolve_execution_order(roots)
+        return self._get_node_sequence(execution_order)
+
+    def mark_dirty(self, node):
+        """Mark a node and all of its downstream function nodes for rerun."""
+        pending = [node]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            if isinstance(current, FunctionNode):
+                current.dirty = True
+                self._dirty_revisions[current] = (
+                    self._dirty_revisions.get(current, 0) + 1
+                )
+            pending.extend(
+                downstream
+                for connected in current.connected_output_nodes().values()
+                for downstream in connected
+            )
+
+    def start_nodes(self, nodes):
+        """Run the selected nodes and their downstream nodes."""
+        node_sequence = self.get_selected_node_sequence(nodes)
+        executed_nodes = {
+            self.function_nodes[description["name"]]
+            for descriptions in node_sequence.values()
+            for description in descriptions
+        }
+        node_revisions = {
+            node: self._dirty_revisions.get(node, 0) for node in executed_nodes
+        }
+        process = self.ct.start(node_sequence)
+        if process is not None and hasattr(process, "allFinished"):
+            process.allFinished.connect(
+                lambda exit_code, exit_status: (
+                    self._mark_sequence_clean(node_revisions)
+                    if exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
+                    else None
+                )
+            )
+        return node_sequence
+
+    def _mark_sequence_clean(self, node_revisions):
+        """Clear rerun indicators for nodes that completed successfully."""
+        for node, revision in node_revisions.items():
+            if (
+                self.nodes.get(node.id) is not node
+                or self._dirty_revisions.get(node, 0) != revision
+            ):
+                continue
+            node.dirty = False
+            if isinstance(node, FunctionNode):
+                for parameter_name in node.parameter_frames:
+                    node.set_parameter_dirty(parameter_name, False)
 
     ####################################################################################
     # Frontend
@@ -921,6 +1260,20 @@ class NodeViewer(QGraphicsView):
         self.RMB_state = False
 
         menu = QMenu(self)
+        if self.selected_nodes():
+            menu.addSeparator()
+            start_action = QAction("Start selected nodes", menu)
+            start_action.setEnabled(
+                any(
+                    values
+                    for datatype, values in self.ct.get("selected_inputs").items()
+                    if datatype not in self.ct.non_selectable_datatypes
+                )
+            )
+            start_action.triggered.connect(
+                lambda: self.start_nodes(self.selected_nodes())
+            )
+            menu.addAction(start_action)
         for category, cat_dict in self.ct.get_functions_categorized().items():
             category_menu = menu.addMenu(category)
             for sub_category, func_list in cat_dict.items():
@@ -937,10 +1290,16 @@ class NodeViewer(QGraphicsView):
                     )
                     sub_category_menu.addAction(func_action)
 
-        if menu.isEmpty():
-            raise_user_attention("No plugins loaded.", message_type="info")
-        else:
-            menu.exec(event.globalPos())
+        if not menu.isEmpty():
+            menu.addSeparator()
+        autolayout_action = QAction(
+            "&Auto-Layout Nodes",
+            parent=menu,
+            statusTip="Automatically arrange all nodes in the viewer.",
+        )
+        autolayout_action.triggered.connect(self.auto_layout_nodes)
+        menu.addAction(autolayout_action)
+        menu.exec(event.globalPos())
         event.accept()
 
     def _port_at_view_pos(self, pos: QPoint, tolerance: int = 8) -> Port | None:
@@ -954,6 +1313,12 @@ class NodeViewer(QGraphicsView):
 
     def _show_port_context_menu(self, port: Port, event) -> None:
         """Show context menu with actions specific to a single port."""
+        if not port.isEnabled():
+            raise_user_attention(
+                port.toolTip() or "This output is unavailable.", message_type="info"
+            )
+            event.accept()
+            return
         menu = QMenu(self)
         menus = {}
 
@@ -970,7 +1335,6 @@ class NodeViewer(QGraphicsView):
             if port.port_type == "out"
             else {port.name: {"type": "out", "port_to": port}}
         )
-        scene_pos = self.mapToScene(event.pos()) + QPointF(self.default_x_distance, 0)
         # Sort funcs alphabetically
         funcs = sorted(funcs)
         for func_name in funcs:
@@ -986,10 +1350,8 @@ class NodeViewer(QGraphicsView):
                 sub_menu = menu
             func_action = QAction(func_name, sub_menu)
             func_action.triggered.connect(
-                lambda checked=False, fn=func_name, pos=scene_pos: (
-                    self.add_function_node(
-                        function_name=fn, pos=pos, connected=connected
-                    )
+                lambda checked=False, fn=func_name: self.add_function_node(
+                    function_name=fn, connected=connected
                 )
             )
             sub_menu.addAction(func_action)
@@ -1042,6 +1404,12 @@ class NodeViewer(QGraphicsView):
 
         if len(nodes) > 0:
             self.MMB_state = False
+            if self.LMB_state:
+                # Pipes are re-routed once the drag ends (see mouseReleaseEvent).
+                self._nodes_moving = True
+                self._press_node_positions = {
+                    node: node.pos() for node in self.nodes.values()
+                }
 
         # update the recorded node positions.
         selection = set()
@@ -1059,9 +1427,19 @@ class NodeViewer(QGraphicsView):
 
         super().mousePressEvent(event)
 
+    def _finish_node_move(self):
+        """Re-route pipes after nodes were dragged."""
+        if not self._nodes_moving:
+            return
+        self._nodes_moving = False
+        positions, self._press_node_positions = self._press_node_positions, {}
+        if any(node.pos() != pos for node, pos in positions.items()):
+            self.schedule_pipe_redraw()
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.LMB_state = False
+            self._finish_node_move()
         elif event.button() == Qt.MouseButton.RightButton:
             self.RMB_state = False
         elif event.button() == Qt.MouseButton.MiddleButton:
@@ -1120,6 +1498,8 @@ class NodeViewer(QGraphicsView):
         self.LMB_state = bool(buttons & Qt.MouseButton.LeftButton)
         self.RMB_state = bool(buttons & Qt.MouseButton.RightButton)
         self.MMB_state = bool(buttons & Qt.MouseButton.MiddleButton)
+        if not self.LMB_state:
+            self._finish_node_move()
 
         alt_modifier = event.modifiers() == Qt.KeyboardModifier.AltModifier
         origin_pos = self._origin_pos or event.pos()
@@ -1229,16 +1609,12 @@ class NodeViewer(QGraphicsView):
             fname = text[len("mne-nodes/function:") :]
             if not fname:
                 return
-            node = self.add_function_node(fname)
-            node.xy_pos = (pos.x(), pos.y())
+            self.add_function_node(fname, pos=pos)
         elif text.startswith("mne-nodes/input:"):
-            node = self.add_input_node()
-            node.xy_pos = (pos.x(), pos.y())
+            self.add_input_node(pos=pos)
         else:
             event.accept()
             return
-        self.zoom_to_nodes()
-
         event.accept()
 
     def _on_viewer_drop(self, mime, pos):
@@ -1269,7 +1645,40 @@ class NodeViewer(QGraphicsView):
     def dragLeaveEvent(self, event):
         event.ignore()
 
+    def embedded_focus_widget(self):
+        """Return the enabled widget focused inside a node, if any."""
+        scene = self.scene()
+        item = scene.focusItem() if scene is not None else None
+        if not isinstance(item, QGraphicsProxyWidget) or item.widget() is None:
+            return None
+        widget = item.widget().focusWidget()
+        if widget is not None and widget.isEnabled() and widget.hasFocus():
+            return widget
+        return None
+
+    def pan_with_key(self, key, modifiers) -> bool:
+        """Pan with an arrow key; Shift pans further. Return whether it panned."""
+        direction = ARROW_KEY_DIRECTIONS.get(key)
+        modifiers &= ~Qt.KeyboardModifier.KeypadModifier
+        if direction is None or modifiers not in (
+            Qt.KeyboardModifier.NoModifier,
+            Qt.KeyboardModifier.ShiftModifier,
+        ):
+            return False
+        step = 200 if modifiers == Qt.KeyboardModifier.ShiftModifier else 50
+        self.pan_view(direction[0] * step, direction[1] * step)
+        return True
+
     def keyPressEvent(self, event):
+        # Editors embedded in nodes need Backspace, Delete and arrow keys.
+        if self.embedded_focus_widget() is not None:
+            super().keyPressEvent(event)
+            return
+
+        if self.pan_with_key(event.key(), event.modifiers()):
+            event.accept()
+            return
+
         if event.key() in [Qt.Key.Key_Delete, Qt.Key.Key_Backspace]:
             # delete selected nodes and pipes
             for node in self.selected_nodes():
@@ -1389,7 +1798,11 @@ class NodeViewer(QGraphicsView):
                 break
 
         if port:
-            if event.button() == Qt.MouseButton.RightButton:
+            # Right-click opens the port menu and the middle button pans.
+            if event.button() in (
+                Qt.MouseButton.RightButton,
+                Qt.MouseButton.MiddleButton,
+            ):
                 return
             if not port.multi_connection and len(port.connected_ports) > 0:
                 # ToDo: Might cause problems with multi-connections
@@ -1532,14 +1945,16 @@ class NodeViewer(QGraphicsView):
         selected_port : Port
             The port to start the connection from.
         """
-        if not selected_port:
+        if not selected_port or not selected_port.isEnabled():
             return
         start_port = selected_port
         self._start_port = start_port
-        if start_port.port_type == "in":
-            self._LIVE_PIPE.input_port = start_port
-        elif start_port.port_type == "out":
-            self._LIVE_PIPE.output_port = start_port
+        self._LIVE_PIPE.input_port = (
+            start_port if start_port.port_type == "in" else None
+        )
+        self._LIVE_PIPE.output_port = (
+            start_port if start_port.port_type == "out" else None
+        )
         self._LIVE_PIPE.setVisible(True)
         self._set_live_connection_port_highlights(start_port)
         origin_pos = self._origin_pos or self._previous_pos
@@ -1559,9 +1974,11 @@ class NodeViewer(QGraphicsView):
 
         Notes
         -----
-        This hides the pipe item used for drawing the live connection.
+        This hides the live pipe and clears its temporary port references.
         """
         self._clear_live_connection_port_highlights()
+        self._LIVE_PIPE.input_port = None
+        self._LIVE_PIPE.output_port = None
         self._LIVE_PIPE.reset_path()
         self._LIVE_PIPE.setVisible(False)
         self._LIVE_PIPE.shift_selected = False
@@ -1570,6 +1987,8 @@ class NodeViewer(QGraphicsView):
     def _ports_can_connect(
         self, start_port: Port, end_port: Port, verbose=False
     ) -> bool:
+        if not start_port.isEnabled() or not end_port.isEnabled():
+            return False
         if start_port is end_port:
             return False
         if start_port.node is end_port.node:
@@ -1818,6 +2237,46 @@ class NodeViewer(QGraphicsView):
         value = value - zoom
         self._set_viewer_zoom(value, 0.0)
 
+    def pan_view(self, dx: float, dy: float) -> None:
+        """Pan the view by a distance in viewport pixels."""
+        scale = self.transform().m11() or 1.0
+        self._set_viewer_pan(dx / scale, dy / scale)
+
+    def ensure_visible(self, rect: QRectF, margin: int = 30) -> None:
+        """Pan, and zoom out if required, until a scene rectangle is visible.
+
+        Parameters
+        ----------
+        rect : QRectF
+            Scene rectangle which should be fully visible.
+        margin : int, optional
+            Free space in viewport pixels kept around ``rect``, by default 30.
+        """
+        visible = self.mapToScene(self.viewport().rect()).boundingRect()
+        if visible.isEmpty() or rect.isEmpty():
+            return
+        scene_margin = margin / (self.transform().m11() or 1.0)
+        target = rect.adjusted(-scene_margin, -scene_margin, scene_margin, scene_margin)
+        if visible.contains(target):
+            return
+        factor = max(
+            target.width() / visible.width(), target.height() / visible.height()
+        )
+        if factor > 1.0:
+            self.scale(1 / factor, 1 / factor, target.center())
+            visible = self.mapToScene(self.viewport().rect()).boundingRect()
+        dx = dy = 0.0
+        if target.width() > visible.width() or target.left() < visible.left():
+            dx = target.left() - visible.left()
+        elif target.right() > visible.right():
+            dx = target.right() - visible.right()
+        if target.height() > visible.height() or target.top() < visible.top():
+            dy = target.top() - visible.top()
+        elif target.bottom() > visible.bottom():
+            dy = target.bottom() - visible.bottom()
+        if dx or dy:
+            self._set_viewer_pan(dx, dy)
+
     def zoom_to_nodes(self, nodes=None):
         """Zoom to fit the specified nodes.
 
@@ -1973,114 +2432,81 @@ class NodeViewer(QGraphicsView):
     # AutoLayout
     # --------------------------------------------------------------------------------------
 
-    @staticmethod
-    def _update_node_rank(node, nodes_rank, down_stream=True):
-        """Update the ranking of a node and its connected nodes.
-
-        Parameters
-        ----------
-        node : BaseNode
-            The node to update ranking for.
-        nodes_rank : dict
-            Node ranking object to be updated.
-        down_stream : bool, optional
-            True to rank downstream nodes, by default True.
-        """
-        if down_stream:
-            node_values = node.connected_output_nodes().values()
-        else:
-            node_values = node.connected_input_nodes().values()
-
-        connected_nodes = set()
-        for nds in node_values:
-            connected_nodes.update(nds)
-
-        rank = nodes_rank[node] + 1
-        for n in connected_nodes:
-            if n in nodes_rank:
-                nodes_rank[n] = max(nodes_rank[n], rank)
-            else:
-                nodes_rank[n] = rank
-            NodeViewer._update_node_rank(n, nodes_rank, down_stream)
-
-    @staticmethod
-    def _compute_node_rank(nodes, down_stream=True):
-        """Compute the ranking of nodes.
-
-        Parameters
-        ----------
-        nodes : list of BaseNode
-            Nodes to start ranking from.
-        down_stream : bool, optional
-            True to compute downstream ranking, by default True.
-
-        Returns
-        -------
-        dict
-            Mapping of BaseNode to node_rank.
-        """
-        nodes_rank = {}
-        for node in nodes:
-            nodes_rank[node] = 0
-            NodeViewer._update_node_rank(node, nodes_rank, down_stream)
-        return nodes_rank
-
     def auto_layout_nodes(self, nodes=None, down_stream=True, start_nodes=None):
-        """Auto layout the nodes in the node graph.
+        """Lay out nodes in left-to-right layers with short, straight pipes.
+
+        Layers are chosen to keep the horizontal span of pipes small. Pipes
+        spanning several layers reserve a channel through the layers in
+        between. Within each layer, nodes are ordered to reduce crossings and
+        placed vertically to minimize the (squared) vertical pipe distances.
+        The graph center and the current view are preserved.
 
         Parameters
         ----------
         nodes : list of BaseNode, optional
-            List of nodes to auto layout. If None, all nodes are laid out.
+            List of nodes to auto layout, by default all nodes.
         down_stream : bool, optional
-            False to layout upstream, by default True.
+            False to rank the layers starting from the last nodes.
         start_nodes : list of BaseNode, optional
-            List of nodes to start the auto layout from..
+            Nodes placed first (top) within their layer.
         """
-        nodes = nodes or list(self.nodes.values())
-
-        start_nodes = start_nodes or []
-        if down_stream:
-            start_nodes += [
-                n for n in nodes if not any(n.connected_input_nodes().values())
-            ]
-        else:
-            start_nodes += [
-                n for n in nodes if not any(n.connected_output_nodes().values())
-            ]
-
-        if not start_nodes:
+        nodes = list(nodes or self.nodes.values())
+        if not nodes:
             return
-
+        preferred = [node for node in (start_nodes or []) if node in nodes]
+        nodes = list(dict.fromkeys([*preferred, *nodes]))
         nodes_center_0 = self.nodes_rect_center(nodes)
 
-        nodes_rank = NodeViewer._compute_node_rank(start_nodes, down_stream)
+        layout_nodes = {}
+        for index, node in enumerate(nodes):
+            rect = node.sceneBoundingRect()
+            # Preferred nodes sort first in the initial order.
+            y = rect.top() if node not in preferred else -1e9 + index
+            layout_nodes[node] = LayoutNode(
+                key=node, width=rect.width(), height=rect.height(), y=y
+            )
+        edges = []
+        for pipe in self.all_pipes():
+            source, target = pipe.output_port, pipe.input_port
+            if source is None or target is None:
+                continue
+            if source.node not in layout_nodes or target.node not in layout_nodes:
+                continue
+            source_node, target_node = (
+                layout_nodes[source.node],
+                layout_nodes[target.node],
+            )
+            edges.append(
+                LayoutEdge(
+                    source_node,
+                    target_node,
+                    source.sceneBoundingRect().center().y()
+                    - source.node.sceneBoundingRect().top(),
+                    target.sceneBoundingRect().center().y()
+                    - target.node.sceneBoundingRect().top(),
+                )
+            )
+        # Restore real positions after using them to encode the start nodes.
+        for node in preferred:
+            layout_nodes[node].y = node.sceneBoundingRect().top()
 
-        rank_map = {}
-        for node, rank in nodes_rank.items():
-            if rank in rank_map:
-                rank_map[rank].append(node)
-            else:
-                rank_map[rank] = [node]
-
-        current_x = 0
-        node_height = 120
-        # Iterate over actual rank keys to handle non-contiguous ranks correctly
-        for rank in sorted(rank_map.keys(), reverse=not down_stream):
-            ranked_nodes = rank_map[rank]
-            max_width = max([node.width for node in ranked_nodes])
-            current_y = 0
-            for idx, node in enumerate(ranked_nodes):
-                dy = max(node_height, node.height)
-                node.setPos(current_x, current_y)
-                current_y += dy + self.default_y_distance
-
-            current_x += max_width + self.default_x_distance
+        positions = layered_layout(
+            list(layout_nodes.values()),
+            edges,
+            self.default_x_distance,
+            self.default_y_distance,
+            down_stream=down_stream,
+        )
+        for node, (left, top) in positions.items():
+            rect = node.sceneBoundingRect()
+            node.setPos(node.x() + left - rect.left(), node.y() + top - rect.top())
 
         nodes_center_1 = self.nodes_rect_center(nodes)
         dx = nodes_center_0[0] - nodes_center_1[0]
         dy = nodes_center_0[1] - nodes_center_1[1]
-        [n.setPos(n.x() + dx, n.y() + dy) for n in nodes]
+        for node in nodes:
+            node.setPos(node.x() + dx, node.y() + dy)
+        self.schedule_pipe_redraw()
 
     def _update_coord_axes(self):
         """Update the debug coordinate system (grid + axes) in the scene."""
