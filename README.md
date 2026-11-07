@@ -70,7 +70,9 @@ Have a look at the [contributing guidelines](CONTRIBUTING.md) for more informati
 - The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](https://github.com/5yutan5/PyQtDarkTheme).
 
 ## Usage of AI
-The development was supported by Code Completion and Coding Agents
+AI coding assistants, including GitHub Copilot and its coding agents, are used
+to help develop features, fix bugs, write documentation, and review or create
+pull requests.
 
 ## License
 The `mne-nodes` project is licensed under the [BSD\-3\-Clause license](LICENSE). It uses PySide6, which is licensed under the LGPL. When using [`qtpy`](https://github.com/spyder-ide/qtpy) with alternative Qt backends (e.g. PyQt6), the applicable licensing obligations are determined by the chosen backend.
