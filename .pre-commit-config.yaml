@@ -22,19 +22,6 @@ repos:
       - id: ruff-check
       - id: ruff-format
 
-  # docformatter (disabled until fixed for Python 3.14)
-#  - repo: https://github.com/PyCQA/docformatter
-#    rev: v1.7.7
-#    hooks:
-#      - id: docformatter
-#        additional_dependencies: [ tomli ]
-
-  # doc8
-  - repo: https://github.com/PyCQA/doc8
-    rev: v2.0.0
-    hooks:
-      - id: doc8
-
 ci:
   autofix_commit_msg: |
     [pre-commit.ci] auto fixes from pre-commit.com hooks
