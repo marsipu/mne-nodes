@@ -9,7 +9,22 @@ The ``Render Documentation`` workflow captures the application on
 On a pull request, download and extract the ``html-docs`` artifact from the
 workflow run, then open ``index.html`` to preview the site. No Pages deployment
 is made from pull requests. Pushes to ``main`` also publish the site.
-The workflow can also be started manually from the Actions tab.
+The workflow can also be started manually from the Actions tab; only runs on
+``main`` deploy to Pages.
+
+GitHub Pages deployment
+-----------------------
+
+The workflow uploads the built site as a ``github-pages`` artifact and deploys
+it directly using GitHub Actions. It does not commit generated HTML to a branch.
+The separate deployment job uses the ``github-pages`` environment and serializes
+deployments without interrupting an in-progress deployment.
+
+To migrate an existing branch-based Pages site, open the repository's
+**Settings > Pages** and set **Build and deployment > Source** to
+**GitHub Actions**. Merge the updated workflow into ``main`` and confirm that
+the deployment succeeds and the site loads. The old ``gh-pages`` branch can
+then be deleted; the workflow no longer creates or updates it.
 
 Generating images locally
 -------------------------

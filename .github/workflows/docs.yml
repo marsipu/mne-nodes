@@ -53,7 +53,7 @@ jobs:
       run:
         shell: bash
     permissions:
-      contents: write
+      contents: read
     steps:
     - uses: actions/checkout@v7
       with:
@@ -86,10 +86,27 @@ jobs:
       with:
         name: html-docs
         path: docs/build/html/
-    - name: Deploy
-      uses: peaceiris/actions-gh-pages@v4
-      if: github.ref == 'refs/heads/main'
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       with:
-        publish_branch: gh-pages
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: docs/build/html
+        path: docs/build/html/
+
+  deploy:
+    name: Deploy documentation to GitHub Pages
+    needs: build_docs
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
