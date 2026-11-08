@@ -47,12 +47,11 @@ def test_console_stream(qtbot):
     """Bytes and text reach the console; massive output does not crash it."""
 
     with create_console(qtbot, main_std=False) as console:
-        wait_time = console.stream_worker.flush_s * 1000 * 2
         console.push_stdout(b"Hello from bytes\n")
         console.push_stdout("and text\n")
         console.push_stderr(b"and Error from bytes\n")
         console.push_stderr("and Error text!\n")
-        qtbot.wait(wait_time)
+        qtbot.waitUntil(lambda: "and Error text!" in console.toPlainText())
         text = console.toPlainText()
         assert "Hello from bytes" in text
         assert "and text" in text
