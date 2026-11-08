@@ -19,41 +19,45 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    # MNE
+    # MNE processing, BIDS data organization, and coregistration.
     "mne",
     "mne-bids",
-    "mne-qt-browser",
-    "mne-connectivity",
     "traitlets",
-    # MNE related
-    "vtk", # needed for CIs
-    "nibabel", # needed for CIs
-    "pyvistaqt", # needed for CIs
-    "autoreject",
+    # MRI data and interactive MNE visualization.
+    "mne-qt-browser",
+    "nibabel",
+    "pyvistaqt",
+    "vtk",
+    # Tabular data support.
     "pandas",
-    # Qt
-    "qtpy",
+    # Qt GUI toolkit, theme detection, icons, and macOS integration.
     "darkdetect",
-    "qtawesome",
     "pyobjc-framework-Cocoa; sys_platform == 'Darwin'",
-    # Other
-    "psutil",
-    "tqdm",
+    "qtawesome",
+    "qtpy",
+    # File locking, process inspection, and streaming JSON.
     "filelock",
+    "ijson",
+    "psutil",
+    # Logging and GUI console rendering.
     "rich",
     "ansi2html>=1.9.5",
+    # Function documentation and plugin/package metadata.
     "docstring_parser",
-    "ijson",
     "packaging>=24.2",
 ]
 dynamic = ["version"]
 [project.optional-dependencies]
 test = [
+    # Build and install test packages.
     "build",
-    "hatchling>=1.27",
     "editables",
+    "hatchling>=1.27",
+    # Test runner, Qt integration, and progress output used in tests.
     "pytest",
     "pytest-qt",
+    "tqdm",
+    # Code quality tools.
     "pre-commit",
     "ruff",
 ]
