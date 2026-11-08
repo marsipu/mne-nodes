@@ -1,7 +1,8 @@
 [project]
 site_name = "mne-nodes"
 site_description = "Visual MEG and EEG workflows with MNE-Python"
-copyright = "Copyright &copy; <year> <name>"
+# The documentation build workflow replaces {year} with the current year.
+copyright = "Copyright &copy; {year} authors of mne-nodes"
 site_url = "https://marsipu.github.io/mne-nodes/"
 repo_url = "https://github.com/marsipu/mne-nodes"
 edit_uri = "edit/main/docs/source/"

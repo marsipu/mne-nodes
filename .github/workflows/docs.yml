@@ -71,6 +71,8 @@ jobs:
       with:
         name: docs-screenshots-linux
         path: docs/source/_static/screenshots/
+    - name: Set copyright year
+      run: sed -i "s/{year}/$(date +%Y)/g" zensical.toml
     - name: Build docs
       run: |
           for image in pipeline connect-ports function-importer coregistration; do
