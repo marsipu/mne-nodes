@@ -30,8 +30,6 @@ dependencies = [
     "nibabel", # needed for CIs
     "pyvistaqt", # needed for CIs
     "autoreject",
-    "h5io",
-    "h5netcdf",
     "pandas",
     # Qt
     "qtpy",
