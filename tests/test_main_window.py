@@ -13,7 +13,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QMenu
 
 from mne_nodes.backend.io import type_json_hook
-from mne_nodes.gui.main_window import MainWindow
+from mne_nodes.gui.main_window import DOCUMENTATION_URL, MainWindow
 from mne_nodes.gui.welcome_tour import WELCOME_CONFIG_PATH
 
 
@@ -70,6 +70,28 @@ def test_main_window_lifecycle(settings, qtbot, tmp_path):
     replacement.close()
     assert get_widget("main_window") is None
     assert controller.viewer is None
+
+
+def test_documentation_action_opens_online_docs(main_window, monkeypatch):
+    """The Help menu opens the online documentation in the default browser."""
+    opened_urls = []
+    monkeypatch.setattr(
+        "mne_nodes.gui.main_window.QDesktopServices.openUrl",
+        lambda url: opened_urls.append(url) or True,
+    )
+    help_menu_action = next(
+        action for action in main_window.menuBar().actions() if action.text() == "&Help"
+    )
+    documentation_action = next(
+        action
+        for action in help_menu_action.menu().actions()
+        if action.text() == "&Documentation"
+    )
+
+    documentation_action.trigger()
+
+    assert len(opened_urls) == 1
+    assert opened_urls[0].toString() == DOCUMENTATION_URL
 
 
 def test_settings_dialog(main_window, qtbot):

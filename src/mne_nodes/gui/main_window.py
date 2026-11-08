@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 import mne
-from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, Signal
-from qtpy.QtGui import QAction, QActionGroup, QKeySequence
+from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, QUrl, Signal
+from qtpy.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from qtpy.QtWidgets import QApplication, QDialog, QMainWindow, QMessageBox
 
 from mne_nodes import iswin
@@ -44,6 +44,8 @@ from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.widget_registry import widget_registry
+
+DOCUMENTATION_URL = "https://marsipu.github.io/mne-nodes/"
 
 
 class MainWindow(QMainWindow):
@@ -283,6 +285,13 @@ class MainWindow(QMainWindow):
         welcome_tour_action.triggered.connect(self.restart_welcome_tour)
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction(welcome_tour_action)
+        documentation_action = QAction(
+            "&Documentation",
+            parent=self,
+            statusTip="Open the mne-nodes online documentation.",
+        )
+        documentation_action.triggered.connect(self.open_documentation)
+        help_menu.addAction(documentation_action)
 
         # Pipeline Menu
         self.menuBar().addAction(exit_action)
@@ -323,6 +332,15 @@ class MainWindow(QMainWindow):
         dialog = DataOverviewDialog(self.controller, self)
         dialog.open()
         dialog.update_widgets()
+
+    def open_documentation(self) -> None:
+        """Open the online mne-nodes documentation in the default browser."""
+        if not QDesktopServices.openUrl(QUrl(DOCUMENTATION_URL)):
+            QMessageBox.warning(
+                self,
+                "Could not open documentation",
+                f"Open {DOCUMENTATION_URL} in a browser to read the documentation.",
+            )
 
     def change_deriv_root(self) -> None:
         """Choose dataset-local or separate storage for processing derivatives."""
