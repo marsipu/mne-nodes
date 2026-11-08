@@ -17,7 +17,7 @@ python -m pip install --upgrade --pre mne-nodes
 ```
 
 Processing functions are provided by plugins; see
-[plugins](../documentation/plugins.md) to load them.
+[plugins](documentation/plugins.md) to load them.
 
 ## Launch
 
@@ -31,7 +31,7 @@ python -m mne_nodes
 On first launch, create or choose a pipeline file and select a BIDS dataset.
 The welcome tour can prepare sample data; this may download a large MNE dataset.
 You can restart it with **Help > Restart Welcome Tour**.
-Continue with [pipelines](../documentation/pipelines.md).
+Continue with [pipelines](documentation/pipelines.md).
 
 ## Update or develop
 
@@ -42,4 +42,4 @@ To install the development version:
 python -m pip install git+https://github.com/marsipu/mne-nodes.git@main
 ```
 
-For an editable checkout, follow [contributing](../development/contributing.md).
+For an editable checkout, follow [contributing](development/contributing.md).
