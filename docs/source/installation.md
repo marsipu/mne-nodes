@@ -1,4 +1,4 @@
-# Install and launch
+# Installation
 
 Use Python 3.11 or newer in an environment with a working graphical
 MNE-Python installation. Follow the [MNE installation guide](https://mne.tools/stable/install/index.html) first, then activate that

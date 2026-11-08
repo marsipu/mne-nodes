@@ -1,65 +1,55 @@
 [project]
 site_name = "mne-nodes"
 site_description = "Visual MEG and EEG workflows with MNE-Python"
+copyright = "Copyright &copy; <year> <name>"
 site_url = "https://marsipu.github.io/mne-nodes/"
 repo_url = "https://github.com/marsipu/mne-nodes"
 edit_uri = "edit/main/docs/source/"
 docs_dir = "docs/source"
 site_dir = "docs/build/zensical"
 use_directory_urls = false
-nav = [
-  { "Home" = "index.md" },
-  { "Install" = "install/index.md" },
-  { "Usage" = [
-    { "Overview" = "documentation/index.md" },
-    { "Build and run pipelines" = "documentation/pipelines.md" },
-    { "Create a plugin" = "documentation/function_importer.md" },
-    { "Load and manage plugins" = "documentation/plugins.md" },
-    { "Distribute plugins" = "documentation/plugin_distribution.md" },
-    { "Share plugins and pipelines" = "documentation/sharing.md" },
-    { "BIDS datasets" = [
-      "documentation/datasets.md",
-      "documentation/sample_data.md",
-      "documentation/data_selection.md",
-      "documentation/derivatives.md",
-      "documentation/subjects.md",
-    ] },
-    { "Coregistration" = "documentation/coregistration.md" },
-    { "FreeSurfer" = "documentation/freesurfer.md" },
-    { "Settings" = "documentation/settings.md" },
-    { "Errors" = "documentation/errors.md" },
-  ] },
-  { "Developers" = [
-    { "Overview" = "development/index.md" },
-    { "Core modules" = "development/architecture.md" },
-    { "Configuration and settings" = "development/configuration.md" },
-    { "Widgets" = "development/widgets.md" },
-    { "Plugin structure" = "development/plugin_format.md" },
-    { "FreeSurfer execution" = "development/freesurfer.md" },
-    { "Contributor standards" = "development/contributing.md" },
-    { "Documentation screenshots" = "development/screenshots.md" },
-    { "Internals" = "development/internals.md" },
-    { "Docker GUI" = "development/docker_gui.md" },
-  ] },
-]
-exclude_docs = """
-api/
-generated/
-*.rst
-conf.py
-"""
+[project.plugins.awesome-nav]
 
-[project.plugins.offline]
 
 [project.theme]
-features = ["navigation.tabs", "content.code.copy"]
+language = "en"
+logo = "_static/mne-nodes-logo.png"
+features = [
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.sections",
+  "navigation.path",
+  "navigation.instant",
+  "navigation.instant.progress",
+  "navigation.footer",
+  "navigation.top",
+  "content.code.copy",
+  "toc.follow",
+]
+font.text = "Open Sans"
+font.code = "JetBrains Mono"
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+# Light/Dark Mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "System"
 
 [[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
 scheme = "default"
 toggle.icon = "lucide/sun"
-toggle.name = "Switch to dark mode"
+toggle.name = "Light Mode"
+primary = "deep orange"
+accent = "light blue"
 
 [[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "lucide/moon"
-toggle.name = "Switch to light mode"
+toggle.name = "Dark Mode"
+primary = "deep orange"
+accent = "light blue"
