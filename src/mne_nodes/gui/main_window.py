@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 import mne
-from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, Signal
-from qtpy.QtGui import QAction, QActionGroup, QKeySequence
+from qtpy.QtCore import QMimeData, QProcess, QSignalBlocker, Qt, QUrl, Signal
+from qtpy.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from qtpy.QtWidgets import QApplication, QDialog, QMainWindow, QMessageBox
 
 from mne_nodes import iswin
@@ -28,7 +28,6 @@ from mne_nodes.gui.dialogs.freesurfer_dialogs import (
     FreeSurferImportDialog,
     FreeSurferSetupDialog,
 )
-from mne_nodes.gui.dialogs.node_picker import NodePicker
 from mne_nodes.gui.dialogs.plugin_package import LocalPluginInstallDialog
 from mne_nodes.gui.dialogs.run_dialogs import ProcessDialog, WorkerDialog
 from mne_nodes.gui.dialogs.settings_dialog import SettingsDlg
@@ -44,6 +43,8 @@ from mne_nodes.gui.gui_theme import set_app_font_size, set_app_theme
 from mne_nodes.gui.gui_utils import center, is_function_import_mime, set_ratio_geometry
 from mne_nodes.gui.node.node_viewer import PIPE_LAYOUTS, NodeViewer
 from mne_nodes.gui.widget_registry import widget_registry
+
+DOCUMENTATION_URL = "https://marsipu.github.io/mne-nodes/"
 
 
 class MainWindow(QMainWindow):
@@ -63,7 +64,6 @@ class MainWindow(QMainWindow):
         widget_registry().register("main_window", self, retain=True)
         self._controller = controller
         self.settings = controller.settings
-        self.node_picker = None
         self.settings_dialog = None
         self.setAcceptDrops(True)
 
@@ -241,12 +241,7 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
-        node_picker_action = QAction(
-            "&Node Picker", parent=self, statusTip="Open the categorized node picker."
-        )
-        node_picker_action.triggered.connect(self.show_node_picker)
         view_menu = self.menuBar().addMenu("&View")
-        view_menu.addAction(node_picker_action)
         view_menu.addAction(autolayout_action)
         pipe_style_menu = view_menu.addMenu("&Pipe Style")
         self.pipe_style_group = QActionGroup(self)
@@ -283,6 +278,13 @@ class MainWindow(QMainWindow):
         welcome_tour_action.triggered.connect(self.restart_welcome_tour)
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction(welcome_tour_action)
+        documentation_action = QAction(
+            "&Documentation",
+            parent=self,
+            statusTip="Open the mne-nodes online documentation.",
+        )
+        documentation_action.triggered.connect(self.open_documentation)
+        help_menu.addAction(documentation_action)
 
         # Pipeline Menu
         self.menuBar().addAction(exit_action)
@@ -323,6 +325,15 @@ class MainWindow(QMainWindow):
         dialog = DataOverviewDialog(self.controller, self)
         dialog.open()
         dialog.update_widgets()
+
+    def open_documentation(self) -> None:
+        """Open the online mne-nodes documentation in the default browser."""
+        if not QDesktopServices.openUrl(QUrl(DOCUMENTATION_URL)):
+            QMessageBox.warning(
+                self,
+                "Could not open documentation",
+                f"Open {DOCUMENTATION_URL} in a browser to read the documentation.",
+            )
 
     def change_deriv_root(self) -> None:
         """Choose dataset-local or separate storage for processing derivatives."""
@@ -465,15 +476,6 @@ class MainWindow(QMainWindow):
             for widget in QApplication.allWidgets():
                 if isinstance(widget, ConsoleWidget):
                     widget.set_word_wrap(enabled)
-
-    def show_node_picker(self):
-        """Show the categorized node picker dialog."""
-        if self.node_picker is None:
-            self.node_picker = NodePicker(self.controller, self)
-            self.viewer.node_picker = self.node_picker
-        self.node_picker.show()
-        self.node_picker.raise_()
-        self.node_picker.activateWindow()
 
     def new_pipeline(self):
         config_path = self.controller.new_config()
@@ -644,7 +646,6 @@ class MainWindow(QMainWindow):
                 get_exception_tuple(), self, "Could not load the local plugin."
             ).open()
             return
-        self.viewer.refresh_node_picker()
         self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
     def import_functions(
@@ -668,7 +669,6 @@ class MainWindow(QMainWindow):
 
     def _load_saved_plugin(self, config_path: Path) -> None:
         self.controller.load_plugin_path(config_path)
-        self.viewer.refresh_node_picker()
         self.statusBar().showMessage(f"Plugin saved and loaded from {config_path}.")
 
     def import_function_mime(self, mime: QMimeData) -> None:

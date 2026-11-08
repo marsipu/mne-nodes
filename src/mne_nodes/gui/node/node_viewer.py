@@ -101,7 +101,6 @@ class NodeViewer(QGraphicsView):
         self._input_node: InputNode | None = None
         self._function_nodes: dict[str, FunctionNode] = {}
         self._dirty_revisions: dict[FunctionNode, int] = {}
-        self.node_picker = None  # Set by MainWindow when NodePicker is created
         self._pipe_layout = defaults["viewer"]["pipe_layout"]
         self._pipe_redraw_pending = False
         self._nodes_moving = False
@@ -844,22 +843,6 @@ class NodeViewer(QGraphicsView):
         for node in list(self.nodes.values()):
             self.remove_node(node, force=True)
 
-    def refresh_node_picker(self):
-        """Rebuild the function list in the node picker.
-
-        Called after plugins are loaded or unloaded so that the picker
-        reflects the current state of :attr:`~Controller.function_meta`.
-        Does nothing if no node picker has been registered on this viewer.
-        """
-        if self.node_picker is None:
-            return
-        from mne_nodes.gui.widget_models.function_picker_model import (
-            FunctionPickerModel,
-        )
-
-        new_model = FunctionPickerModel(self.ct.function_meta)
-        self.node_picker.functions_view.setModel(new_model)
-
     @staticmethod
     def _neighbor_nodes(node, direction):
         """Return unique connected nodes upstream ("in") or downstream ("out").
@@ -1599,38 +1582,10 @@ class NodeViewer(QGraphicsView):
         event.setDropAction(Qt.DropAction.CopyAction)
         mime = event.mimeData()
         self.DataDropped.emit(mime, QPointF(pos.x(), pos.y()))
-
-        # Handle drop from NodePicker
-        text = mime.text() if hasattr(mime, "text") else ""
-        if text is None:
-            logger.debug("No text payload in drop event, ignoring.")
-            return
-        if text.startswith("mne-nodes/function:"):
-            fname = text[len("mne-nodes/function:") :]
-            if not fname:
-                return
-            self.add_function_node(fname, pos=pos)
-        elif text.startswith("mne-nodes/input:"):
-            self.add_input_node(pos=pos)
-        else:
-            event.accept()
-            return
         event.accept()
 
-    def _on_viewer_drop(self, mime, pos):
-        """Create nodes on drop from NodePicker.
-
-        Expected mime text payloads:
-        - "mne-nodes/function:<function_name>"
-        - "mne-nodes/input:<data_type>:<group>"
-        """
-
     def _check_drag_event(self, event):
-        mime = event.mimeData()
-        is_acceptable = is_function_import_mime(mime) or (
-            not mime.hasUrls() and mime.text().startswith("mne-nodes/")
-        )
-        if is_acceptable:
+        if is_function_import_mime(event.mimeData()):
             event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
         else:

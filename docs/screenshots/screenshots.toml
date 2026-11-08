@@ -1,0 +1,98 @@
+# Documentation screenshots, generated with:
+#   python -m development.screenshots --output docs/source/_static/screenshots/linux
+# The format is described in docs/source/development/screenshots.md.
+
+# Every screenshot starts from a fresh copy of this project.
+[project]
+name = "Documentation demo"
+dataset = "../../tests/tiny_bids"
+theme = "light"
+font_size = 12
+window_size = [1800, 900]
+plugins = ["resource:example_plugin_config.json"]
+inputs = { eeg = ["*.vhdr"] }
+connections = [
+    "input.eeg -> prepare_eeg.raw",
+    "prepare_eeg.raw -> example_filter.raw",
+    "example_filter.raw -> create_epochs.raw",
+    "create_epochs.epochs -> average_epochs.epochs",
+    "create_epochs.epochs -> noise_covariance.epochs",
+    "prepare_eeg.raw -> spherical_forward.raw",
+    "average_epochs.evoked -> estimate_sources.evoked",
+    "noise_covariance.cov -> estimate_sources.cov",
+    "spherical_forward.forward -> estimate_sources.forward",
+]
+
+[[project.imports]]
+file = "documentation_processing.py"
+plugin_name = "documentation_processing"
+description = "Disposable documentation workflow"
+
+[[project.nodes]]
+function = "example_filter"
+parameters = { highpass = 5 }
+
+[[project.nodes]]
+function = "prepare_eeg"
+
+[[project.nodes]]
+function = "create_epochs"
+
+[[project.nodes]]
+function = "average_epochs"
+
+[[project.nodes]]
+function = "noise_covariance"
+
+[[project.nodes]]
+function = "spherical_forward"
+
+[[project.nodes]]
+function = "estimate_sources"
+
+[[screenshots]]
+name = "pipeline"
+size = [1800, 900]
+steps = [
+    { run = ["input"], timeout = 120 },
+    { resize = "window.console_dock", width = 480 },
+    { call = "viewer.zoom_to_nodes" },
+]
+
+[[screenshots]]
+name = "connect-ports"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { call = "output:prepare_eeg.raw.disconnect_from", args = ["@input:example_filter.raw"] },
+    { call = "viewer.zoom_to_nodes", args = [["@node:prepare_eeg", "@node:example_filter"]] },
+    { drag = "output:prepare_eeg.raw", to = "input:example_filter.raw", offset = [-40, 0], release = false },
+]
+
+[[screenshots.highlights]]
+target = "output:prepare_eeg.raw"
+text = "Drag from an output port"
+position = "top"
+
+[[screenshots.highlights]]
+target = "input:example_filter.raw"
+text = "Release on a compatible input"
+color = "#1e88e5"
+position = "top"
+
+[[screenshots]]
+name = "function-importer"
+capture = "importer"
+size = [1200, 650]
+steps = [
+    { create = "mne_nodes.gui.function_widgets.FunctionImporter", kwargs = { file_path = "resource:example_plugin.py", parent = "@window" }, store = "importer" },
+]
+
+[[screenshots]]
+name = "coregistration"
+capture = "coreg"
+size = [1000, 650]
+steps = [
+    { create = "mne_nodes.gui.dialogs.coreg_dialog.CoregDialog", args = ["@controller", "@window"], store = "coreg" },
+    { recipe = "synthetic_coregistration", kwargs = { dialog = "@coreg" } },
+]

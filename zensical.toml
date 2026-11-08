@@ -1,0 +1,56 @@
+[project]
+site_name = "mne-nodes"
+site_description = "Visual MEG and EEG workflows with MNE-Python"
+# The documentation build workflow replaces {year} with the current year.
+copyright = "Copyright &copy; {year} authors of mne-nodes"
+site_url = "https://marsipu.github.io/mne-nodes/"
+repo_url = "https://github.com/marsipu/mne-nodes"
+edit_uri = "edit/main/docs/source/"
+docs_dir = "docs/source"
+site_dir = "docs/build/zensical"
+use_directory_urls = false
+[project.plugins.awesome-nav]
+
+
+[project.theme]
+language = "en"
+logo = "_static/mne-nodes-logo.png"
+features = [
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.sections",
+  "navigation.path",
+  "navigation.instant",
+  "navigation.instant.progress",
+  "navigation.footer",
+  "navigation.top",
+  "content.code.copy",
+  "toc.follow",
+]
+font.text = "Open Sans"
+font.code = "JetBrains Mono"
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+# Light/Dark Mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "System"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Light Mode"
+primary = "deep orange"
+accent = "light blue"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Dark Mode"
+primary = "deep orange"
+accent = "light blue"

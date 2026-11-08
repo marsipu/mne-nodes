@@ -5,7 +5,17 @@
 > **Important notice:** This application is still in early
 > development and is **NOT** production-ready for analysis.
 
-![Overview](https://raw.githubusercontent.com/marsipu/mne-nodes/main/src/mne_nodes/resources/wip_overview.png "Overview of the mne-nodes GUI")
+![Overview](https://marsipu.github.io/mne-nodes/_static/screenshots/linux/pipeline.png "Generated example workflow in mne-nodes")
+
+## Documentation
+
+Read the [Usage guides](https://marsipu.github.io/mne-nodes/documentation/index.html)
+for pipelines, FunctionImporter, plugins, and coregistration, or the
+[Developer guides](https://marsipu.github.io/mne-nodes/development/index.html)
+for architecture and contributor standards.
+The overview above is generated from real widgets and refreshed by successful
+documentation deployments. Viewing the hosted image requires internet access;
+installing the package does not install the documentation site.
 
 ## A Node-GUI for [mne-python](https://mne.tools/stable/index.html)
 This is a GUI to facilitate offline neurophysiological data processing with mne-python by visualizing the data-flow with nodes.
@@ -58,7 +68,11 @@ Have a look at the [contributing guidelines](CONTRIBUTING.md) for more informati
 - [mne-bids-pipeline](https://mne.tools/mne-bids-pipeline/) served as inspiration for the processing steps and their implementation of bids-derivatives.
 - Code from [NodeGraphQt](https://github.com/jchanvfx/NodeGraphQt) was used to implement the node-gui.
 - The colorpalettes for light and dark theme are inspired from [PyQtDarkTheme](https://github.com/5yutan5/PyQtDarkTheme).
-- The development was supported by Code Completion and Coding Agents (e.g. refactoring, documentation, bug-fixing, boilerplate code, writing tests)
+
+## Usage of AI
+AI coding assistants, including GitHub Copilot and its coding agents, are used
+to help develop features, fix bugs, write documentation, and review or create
+pull requests.
 
 ## License
 The `mne-nodes` project is licensed under the [BSD\-3\-Clause license](LICENSE). It uses PySide6, which is licensed under the LGPL. When using [`qtpy`](https://github.com/spyder-ide/qtpy) with alternative Qt backends (e.g. PyQt6), the applicable licensing obligations are determined by the chosen backend.

@@ -21,6 +21,10 @@ from mne_nodes.backend.pipeline_utils import change_file_section
 
 
 def test_datatype_items(ct, monkeypatch):
+    eeg_items = ct.get_datatype_items("eeg")
+    assert len(eeg_items) == 1
+    assert eeg_items[0].endswith("_eeg.vhdr")
+
     class FakeBIDSPath:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -38,6 +42,7 @@ def test_datatype_items(ct, monkeypatch):
             self.acquisition = None
             self.empty_room = empty_room
             self.datatype = "meg" if "meg" in basename else "eeg"
+            self.extension = Path(basename).suffix
             self.subject = "emptyroom" if "emptyroom" in basename else "01"
             self.task = "noise" if "emptyroom" in basename else "test"
 

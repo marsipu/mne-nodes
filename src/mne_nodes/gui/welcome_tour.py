@@ -1359,8 +1359,6 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
         ct.plugins.update(previous_plugins)
         ct.function_meta.update(previous_functions)
         ct.set("plugin_meta", previous_meta)
-        if viewer is not None:
-            viewer.refresh_node_picker()
 
     try:
         ct.plugins.clear()
@@ -1378,8 +1376,6 @@ def _load_welcome_plugin(ct: "Controller") -> Callable[[], None]:
                 "plugin_type": "path",
             },
         )
-        if ct.viewer is not None:
-            ct.viewer.refresh_node_picker()
     except Exception:
         cleanup()
         raise
