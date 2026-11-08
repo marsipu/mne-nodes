@@ -16,5 +16,5 @@ the interface; it is not a validated analysis.
 ## Get started
 
 - [Installation](installation.md)
-- [Build pipelines, create plugins, and coregister recordings](documentation/index.md)
-- [Explore the developer guides](development/index.md)
+- [Documentation](documentation/_overview.md)
+- [Development](development/_overview.md)
