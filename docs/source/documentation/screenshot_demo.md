@@ -21,11 +21,10 @@ are illustrative, not a validated source analysis. For the main guides, see
 
 Connected pipeline.
 
-## Choosing a function
+## Connecting ports
 
-Open **View > Node Picker** to browse the available functions.
-Here, the bundled example plugin is loaded and `example_filter` is selected.
+Drag from an output port to a compatible input port to connect two nodes.
 
-![Node Picker with example_filter selected.](../_static/screenshots/linux/node-picker.png)
+![Dragging a connection from an output port to a compatible input port.](../_static/screenshots/linux/connect-ports.png)
 
-Node Picker.
+Connecting ports.

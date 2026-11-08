@@ -28,7 +28,6 @@ from mne_nodes.gui.dialogs.freesurfer_dialogs import (
     FreeSurferImportDialog,
     FreeSurferSetupDialog,
 )
-from mne_nodes.gui.dialogs.node_picker import NodePicker
 from mne_nodes.gui.dialogs.plugin_package import LocalPluginInstallDialog
 from mne_nodes.gui.dialogs.run_dialogs import ProcessDialog, WorkerDialog
 from mne_nodes.gui.dialogs.settings_dialog import SettingsDlg
@@ -65,7 +64,6 @@ class MainWindow(QMainWindow):
         widget_registry().register("main_window", self, retain=True)
         self._controller = controller
         self.settings = controller.settings
-        self.node_picker = None
         self.settings_dialog = None
         self.setAcceptDrops(True)
 
@@ -243,12 +241,7 @@ class MainWindow(QMainWindow):
         )
         autolayout_action.triggered.connect(self.viewer.auto_layout_nodes)
 
-        node_picker_action = QAction(
-            "&Node Picker", parent=self, statusTip="Open the categorized node picker."
-        )
-        node_picker_action.triggered.connect(self.show_node_picker)
         view_menu = self.menuBar().addMenu("&View")
-        view_menu.addAction(node_picker_action)
         view_menu.addAction(autolayout_action)
         pipe_style_menu = view_menu.addMenu("&Pipe Style")
         self.pipe_style_group = QActionGroup(self)
@@ -484,15 +477,6 @@ class MainWindow(QMainWindow):
                 if isinstance(widget, ConsoleWidget):
                     widget.set_word_wrap(enabled)
 
-    def show_node_picker(self):
-        """Show the categorized node picker dialog."""
-        if self.node_picker is None:
-            self.node_picker = NodePicker(self.controller, self)
-            self.viewer.node_picker = self.node_picker
-        self.node_picker.show()
-        self.node_picker.raise_()
-        self.node_picker.activateWindow()
-
     def new_pipeline(self):
         config_path = self.controller.new_config()
         if config_path is None:
@@ -662,7 +646,6 @@ class MainWindow(QMainWindow):
                 get_exception_tuple(), self, "Could not load the local plugin."
             ).open()
             return
-        self.viewer.refresh_node_picker()
         self.statusBar().showMessage(f"Plugin loaded from {plugin_path}.")
 
     def import_functions(
@@ -686,7 +669,6 @@ class MainWindow(QMainWindow):
 
     def _load_saved_plugin(self, config_path: Path) -> None:
         self.controller.load_plugin_path(config_path)
-        self.viewer.refresh_node_picker()
         self.statusBar().showMessage(f"Plugin saved and loaded from {config_path}.")
 
     def import_function_mime(self, mime: QMimeData) -> None:

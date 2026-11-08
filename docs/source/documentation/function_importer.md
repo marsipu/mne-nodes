@@ -50,7 +50,7 @@ version, description, author, license, and additional Python dependencies.
 Choose a project-root folder for the new package. Save creates an installable
 project, including source, configuration, package metadata, README, and license,
 then loads the plugin. It refuses to overwrite existing package files.
-Open **View > Node Picker** to add the new nodes.
+Right-click the canvas to add the new nodes.
 
 Git initialization is optional and creates no commits, remotes, or uploads.
 **Install package after saving** is also optional; editable installation links

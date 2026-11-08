@@ -5,7 +5,6 @@ GitHub: https://github.com/marsipu/mne-nodes
 """
 
 from .dict_models import BaseDictModel, EditDictModel
-from .function_picker_model import FunctionPickerModel
 from .list_models import (
     BaseListModel,
     CheckDictEditModel,
@@ -28,7 +27,6 @@ __all__ = [
     "EditDictModel",
     "EditListModel",
     "EditPandasModel",
-    "FunctionPickerModel",
     "ShallowTreeModel",
     "TreeItem",
     "TreeModel",

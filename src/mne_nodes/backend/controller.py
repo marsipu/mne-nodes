@@ -2275,7 +2275,6 @@ class Controller:
             if "error" in record
             and record.get("plugin_name") in self.get("plugin_meta", {})
         }
-        changed = False
         for entry in get_plugin_entry_points():
             if entry.dist is None:
                 continue
@@ -2341,20 +2340,16 @@ class Controller:
                             )
                         else:
                             self.load_plugin_module(plugin, source=source)
-                            changed = True
                 record["plugin_name"] = name
                 if name not in self.plugins and name not in self.settings.get(
                     "disabled_plugins", []
                 ):
                     self.load_recent_plugins(name)
-                    changed = True
             except Exception as error:  # noqa: BLE001
                 # The manager displays this error alongside the failed registration.
                 record["error"] = f"{type(error).__name__}: {error}"
                 logger.exception("Could not discover plugin %s", identity)
         self.installed_plugins = installed
-        if changed and self.viewer is not None:
-            self.viewer.refresh_node_picker()
 
     def plugin_node_count(self, plugin_name: str) -> int:
         """Read a plugin's node count even while it is disabled."""
@@ -2411,16 +2406,14 @@ class Controller:
             self.function_meta.pop(fn, None)
 
         # Remove matching nodes from the viewer if it is available
-        if self.viewer is not None:
-            if remove_nodes:
-                nodes_to_remove = [
-                    node
-                    for node in list(self.viewer.nodes.values())
-                    if getattr(node, "name", None) in functions_to_remove
-                ]
-                for node in nodes_to_remove:
-                    self.viewer.remove_node(node, force=True)
-            self.viewer.refresh_node_picker()
+        if self.viewer is not None and remove_nodes:
+            nodes_to_remove = [
+                node
+                for node in list(self.viewer.nodes.values())
+                if getattr(node, "name", None) in functions_to_remove
+            ]
+            for node in nodes_to_remove:
+                self.viewer.remove_node(node, force=True)
 
         return functions_to_remove
 
@@ -2445,9 +2438,7 @@ class Controller:
         """Re-enable a previously disabled plugin in device settings and reload it.
 
         Removes the plugin from the disabled list, loads it immediately in the
-        current session via :meth:`load_recent_plugins`, and then tells the
-        node-viewer to refresh the node picker so the newly available functions
-        show up right away.
+        current session via :meth:`load_recent_plugins`.
 
         Parameters
         ----------
@@ -2464,9 +2455,6 @@ class Controller:
             disabled.add(plugin_name)
             self.settings.set("disabled_plugins", list(disabled))
             raise
-        # Refresh the node picker in the viewer if available
-        if self.viewer is not None:
-            self.viewer.refresh_node_picker()
 
     def remove_plugin(self, plugin_name: str) -> None:
         """Unload a plugin and remove its registration from the project.

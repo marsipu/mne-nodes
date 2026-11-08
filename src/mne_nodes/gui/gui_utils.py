@@ -19,7 +19,7 @@ def is_function_import_mime(mime: QMimeData) -> bool:
             url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() == ".py"
             for url in mime.urls()
         )
-    return bool(mime.text().strip()) and not mime.text().startswith("mne-nodes/")
+    return bool(mime.text().strip())
 
 
 def center(widget):

@@ -3,8 +3,7 @@
 import json
 
 import pytest
-from qtpy.QtCore import QMimeData, QPointF, Qt, QUrl
-from qtpy.QtGui import QDropEvent
+from qtpy.QtCore import QMimeData, Qt, QUrl
 
 from mne_nodes.backend.plugin_package import PluginPackageMetadata
 from mne_nodes.gui.function_widgets import FunctionImporter, ParameterConfiguration
@@ -143,24 +142,6 @@ def test_non_python_urls_are_not_code(url):
     mime.setUrls([QUrl(url)])
     mime.setText(url)
     assert not is_function_import_mime(mime)
-
-
-def test_picker_drop_is_not_imported(main_window):
-    mime = QMimeData()
-    mime.setText("mne-nodes/function:test_filter")
-    assert not is_function_import_mime(mime)
-    count = len(main_window.viewer.nodes)
-    event = QDropEvent(
-        QPointF(20, 20),
-        Qt.DropAction.CopyAction,
-        mime,
-        Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.NoModifier,
-    )
-    main_window.viewer.dropEvent(event)
-    assert event.isAccepted()
-    assert len(main_window.viewer.nodes) == count + 1
-    assert not _importers(main_window)
 
 
 def test_text_plugin_save_preserves_module(qtbot, importer_input, tmp_path):
@@ -314,8 +295,6 @@ def test_unsaved_new_plugin_writes_nothing(
 def test_saved_plugin_is_loaded_and_reloaded(
     main_window, importer_input, tmp_path, source
 ):
-    main_window.show_node_picker()
-    old_model = main_window.node_picker.functions_view.model()
     if source == "file":
         path = tmp_path / "saved_file_plugin.py"
         path.write_text(CODE, encoding="utf-8")
@@ -324,7 +303,6 @@ def test_saved_plugin_is_loaded_and_reloaded(
         main_window.import_functions(code="import math\n\n" + CODE)
     (importer,) = _importers(main_window)
     assert importer.save()
-    assert main_window.node_picker.functions_view.model() is not old_model
     assert "transform" in main_window.controller.function_meta
     node = main_window.viewer.add_function_node("transform")
     assert node.input(port_name="raw") is not None

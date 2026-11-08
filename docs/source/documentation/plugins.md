@@ -32,7 +32,7 @@ offers optional installation; leave it unchecked to load from source directly.
   entry points. Newly discovered installed plugins are enabled automatically;
   plugins you disable stay disabled. Use **Manage Plugins > Refresh** to rescan.
 
-Open **View > Node Picker** to inspect loaded functions.
+Right-click the canvas to browse loaded functions by category.
 Duplicate function names trigger conflict resolution; review the offered
 choices before changing the definitions used by an existing pipeline.
 

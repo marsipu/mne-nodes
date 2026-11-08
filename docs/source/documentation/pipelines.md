@@ -13,15 +13,14 @@
 ## Add and connect nodes
 
 1. [Load a plugin](plugins.md) to make its functions available.
-2. Open **View > Node Picker** and drag a function into the canvas.
-   Alternatively, right-click the canvas and choose a categorized function.
+2. Right-click the canvas and choose a function from its category menu.
+   Right-clicking a port lists only functions compatible with that port.
 3. Drag an output port to a compatible input port. The port represents data
    passed between functions, not a filename you have to enter manually.
+
+   ![Dragging a connection from an output port to a compatible input port.](../_static/screenshots/linux/connect-ports.png)
+
 4. Set parameters inside each node. Use **Auto-Layout Nodes** to arrange the graph.
-
-![Node Picker listing the bundled example_filter function.](../_static/screenshots/linux/node-picker.png)
-
-The picker groups available functions by their plugin categories.
 
 ## Run and save
 
