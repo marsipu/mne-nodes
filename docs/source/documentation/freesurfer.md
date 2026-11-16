@@ -1,26 +1,47 @@
-# Use FreeSurfer
+# FreeSurfer
 
-Install FreeSurfer and the separate `mne-nodes_freesurfer` plugin to use
-FreeSurfer nodes. Open **BIDS > FreeSurfer setup...** to check your setup and
-see installation guidance. See [plugins](plugins.md) for loading plugins.
+MRI-based steps such as BEM models and
+[coregistration](coregistration.md) need a FreeSurfer reconstruction of the
+participant, called a subject.
 
-On Windows, install FreeSurfer in WSL using the
-[WSL](https://learn.microsoft.com/windows/wsl/install) and
-[FreeSurfer](https://surfer.nmr.mgh.harvard.edu/fswiki/DownloadAndInstall)
-instructions. Configure your FreeSurfer license and shell environment. Python
-operations also need MNE installed inside WSL. The setup dialog lets you choose
-a WSL distribution if needed.
+## Use existing reconstructions
 
-## Use nodes
+mne-nodes looks for subjects in `<BIDS-root>/derivatives/freesurfer`, or in
+its `subjects` folder if there is one.
 
-Select a recording and connect the input node's `subject` output to operate
-on its matching reconstruction. For a new reconstruction, connect `anat` to
-`recon-all`; its `subject` output can feed subsequent nodes such as
-`make_watershed_bem`.
+| Your reconstructions are | Do this |
+| --- | --- |
+| In another folder you want to keep using | **BIDS > FreeSurfer subjects directory...** |
+| To be copied into the dataset | **BIDS > Import FreeSurfer subjects...** |
 
-`recon-all` can take hours and modifies its subject directory. Ensure you have
-sufficient disk space and review the inputs before starting.
+The import copies the checked subjects. It never overwrites existing subjects
+and never changes the originals.
 
-When importing your own function that needs FreeSurfer, enable
-**Run in FreeSurfer environment** in [function importer](function_importer.md). Graphical
-viewers opened there need a working display in that environment.
+![The import dialog with two checked subjects](../_static/screenshots/linux/freesurfer-import.png)
+
+## Run FreeSurfer from mne-nodes
+
+You need:
+
+* FreeSurfer with a license. On Windows, install it inside
+  [WSL](https://learn.microsoft.com/windows/wsl/install), together with MNE.
+* The `mne-nodes_freesurfer` [plugin](plugins.md).
+
+**BIDS > FreeSurfer setup...** explains the installation, and **Discover**
+checks whether everything is found.
+
+![The FreeSurfer setup dialog](../_static/screenshots/linux/freesurfer-setup.png)
+
+Then connect the input node to the FreeSurfer nodes:
+
+| To | Connect |
+| --- | --- |
+| Use an existing reconstruction | The `subject` output to the node |
+| Create a reconstruction | The `anat` output to `recon-all`, whose `subject` output feeds nodes such as `make_watershed_bem` |
+
+!!! warning
+    `recon-all` can take hours and needs a lot of disk space. Check the inputs
+    before you start it.
+
+For your own functions that need FreeSurfer, enable **Run in FreeSurfer
+environment** in the [function importer](function_importer.md).

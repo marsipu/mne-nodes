@@ -1,21 +1,27 @@
 # Settings
 
-Open **Settings** to change the theme, style, font, startup window size, node
-pipe style, and console wrapping. Appearance and startup size changes require a
-restart; pipe style and wrapping apply immediately.
+Click **Settings** in the menu bar. Changes are saved and applied immediately;
+only the window size needs a restart.
 
-Under **Settings > Keep Plots Open**, choose whether plot windows remain open
-after a pipeline finishes.
+![The settings dialog](../_static/screenshots/linux/settings.png)
 
-## Dataset and output folders
+| Tab | Options |
+| --- | --- |
+| **Appearance** | Theme, style, font, font size, and window size at startup |
+| **Node Editor** | Style of the connections between nodes |
+| **Console** | Word wrap |
+| **Plots** | Keep plot windows open or close them immediately |
 
-* **BIDS > Set BIDS root...** selects the dataset. Changing datasets clears
-  selections, groups, subject mappings, and output-folder settings; it does not
-  move or delete files.
-* **BIDS > Derivative storage...** selects where processing results are saved.
-  See [derivatives](derivatives.md).
-* **BIDS > FreeSurfer subjects directory...** selects the location of
-  reconstructions. See [subjects](subjects.md).
+The connection style and word wrap are also in the **View** menu.
 
-When opening another pipeline, choose whether to keep the current BIDS root.
-Check the selected output location before running the pipeline.
+## Folders
+
+Settings and folders belong to this device, not to the pipeline file.
+
+| Menu entry | Sets |
+| --- | --- |
+| **BIDS > Set BIDS root...** | The [dataset](data.md) |
+| **BIDS > Derivative storage...** | The folder for [results](derivatives.md) |
+| **BIDS > FreeSurfer subjects directory...** | The folder with [reconstructions](freesurfer.md) |
+
+When you open another pipeline, you choose whether to keep the current dataset.

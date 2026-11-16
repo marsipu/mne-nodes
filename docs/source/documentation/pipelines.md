@@ -1,42 +1,65 @@
 # Build and run a pipeline
 
-## Choose data
+A pipeline is a graph. Recordings enter at the input node on the left and flow
+through the function nodes you connect to it.
 
-1. Use **File > New Pipeline** to create a JSON pipeline file, or
-   **File > Load Pipeline** to reopen one.
-2. Use **Set BIDS Root** on the input node to select the folder containing
-   `dataset_description.json`. See [datasets](datasets.md) for required metadata.
-3. Check recordings in a datatype tab, or select recording groups in **Groups**.
-   Dimmed output ports are unavailable for the current selection; hover over
-   them for the reason.
+## 1. Select recordings
 
-## Add and connect nodes
+Create a pipeline file with **File > New Pipeline**. On the input node, click
+**Set BIDS Root**, choose your BIDS dataset, and check the recordings to process.
 
-1. [Load a plugin](plugins.md) to make its functions available.
-2. Right-click the canvas and choose a function from its category menu.
-   Right-clicking a port lists only functions compatible with that port.
-3. Drag an output port to a compatible input port. The port represents data
-   passed between functions, not a filename you have to enter manually.
+![The input node with the dataset button and the list of recordings](../_static/screenshots/linux/select-recordings.png)
 
-   ![Dragging a connection from an output port to a compatible input port.](../_static/screenshots/linux/connect-ports.png)
+No data at hand? **BIDS > Add Sample BIDS Data** downloads an example.
+See [Datasets and recordings](data.md) for details.
 
-4. Set parameters inside each node. Use **Auto-Layout Nodes** to arrange the graph.
+## 2. Add nodes
 
-## Run and save
+Right-click the canvas and pick a function. The functions come from
+[plugins](plugins.md).
 
-Click the input node's start button to run its downstream workflow for the
-selected recordings. Starting a function node runs that node and its downstream
-nodes. Inputs from upstream nodes outside that run must be readable from
-saved derivatives, with a reader supplied by the plugin.
+![The canvas menu listing the functions of each plugin](../_static/screenshots/linux/add-node.png)
 
-Follow progress and errors in the console. A successful run clears rerun
-indicators for nodes whose configuration has not changed during execution.
-Changing parameters marks affected nodes for another run.
+## 3. Connect nodes
 
-An output-saving checkbox appears when a plugin supplies a writer. Enable it
-to save that node's results; otherwise results are passed along in memory.
-Use **File > Save Pipeline** (`Ctrl+S`) to persist the graph and parameters.
-Saving a pipeline does not save recording data or execute its nodes.
+Drag from an output port to an input port. Compatible ports are highlighted
+while you drag.
 
-Next: [function importer](function_importer.md) to create your own nodes, or [sharing](sharing.md)
-to export a pipeline.
+![A connection being dragged between two ports](../_static/screenshots/linux/connect-ports.png)
+
+Faster: right-click a port to add a compatible function that is connected
+right away.
+
+![The menu of an output port listing compatible functions](../_static/screenshots/linux/port-menu.png)
+
+## 4. Set parameters
+
+Edit parameters directly in the node. A changed parameter gets an orange frame,
+and the node and everything after it are outlined until they have run again.
+
+![A changed parameter with an orange frame](../_static/screenshots/linux/parameters.png)
+
+## 5. Run
+
+Click the start button of the input node. The console shows progress and
+errors; press `C` to show or hide it.
+
+![The start button and the console after a finished run](../_static/screenshots/linux/run-pipeline.png)
+
+To run only a part, select nodes, right-click the canvas, and choose
+**Start selected nodes**. These nodes and everything after them run. Results
+they need from earlier nodes must have been [saved](derivatives.md).
+
+![The canvas menu with Start selected nodes](../_static/screenshots/linux/start-selected.png)
+
+## 6. Save
+
+**File > Save Pipeline** (`Ctrl+S`) stores the graph and its parameters. It
+does not store data: results are written only for nodes with **Save** checked,
+see [Save results](derivatives.md).
+
+!!! tip
+    **View > Auto-Layout Nodes** (`Ctrl+L`) arranges the graph for you.
+
+Next: [create your own nodes](function_importer.md) or
+[share the pipeline](sharing.md).

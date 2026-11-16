@@ -1,16 +1,10 @@
-# Create a plugin with FunctionImporter
+# Create your own nodes
 
-The FunctionImporter turns top-level Python functions into node definitions.
-It generates configuration, not processing code: you supply the Python function.
+The function importer turns Python functions into nodes. You write the
+function; the importer creates the node definition and packages both as a
+plugin.
 
-## Load code
-
-1. Save your functions in a Python file with a valid module name, such as
-   `my_processing.py`. Keep imports and helper code in that file.
-2. Open **Plugins > Import Functions...** and click **Load File**.
-3. Select a function's editor tab to review its configuration.
-
-This minimal example receives a Raw object and exposes two parameters:
+## 1. Write a function
 
 ```python
 def example_filter(raw, highpass=1, lowpass=30):
@@ -19,51 +13,58 @@ def example_filter(raw, highpass=1, lowpass=30):
     return raw
 ```
 
-![FunctionImporter showing example_filter, its raw input and output, and filter parameters.](../_static/screenshots/linux/function-importer.png)
+| In the function | Becomes |
+| --- | --- |
+| Arguments without a default (`raw`) | Input ports |
+| Arguments with a default (`highpass=1`) | Parameters |
+| Returned variables (`return raw`) | Output ports |
+| The docstring | The description of the node |
 
-Required arguments become inputs; arguments with defaults become parameters.
+Return plain variable names, such as `return raw` or `return epochs, evoked`.
+Keep imports and helper functions in the same file.
 
-## Review the definition
+## 2. Import it
 
-* **Inputs / Parameters:** use the exchange button to move an argument between
-  the two roles. Use the gear button to configure it.
-* **Inputs / Outputs:** check accepted connections and whether inputs are
-  optional. Readers, writers, and BIDS suffixes are needed for derivative I/O,
-  but not for simply passing an object between nodes.
-* **Parameters:** choose the widget, default value, and allowed options.
-  Literal defaults and docstrings help infer widgets; review unresolved values.
-* **target:** `file` executes for individual selected files; `group` executes
-  for selected groups, with grouped recording inputs.
-* **Change Function Description:** edit the text presented to users.
-* **Run in FreeSurfer environment:** leave disabled for normal Python functions;
-  see [freesurfer](freesurfer.md) for the separate execution environment.
+Choose **Plugins > Import Functions...** and click **Load File**. You can also
+drop a `.py` file onto the main window or paste code with `Ctrl+V`.
 
-Prefer explicit return variables, such as `return raw` or
-`return epochs, evoked`. Return expressions and multiple return branches
-cannot be assumed to produce the intended port definitions. Review the outputs
-and warnings rather than treating analysis as validation.
+![The function importer with code on the left and the node definition on the right](../_static/screenshots/linux/function-importer.png)
 
-## Save and use
+| Control | Purpose |
+| --- | --- |
+| Arrows button | Switch an argument between input and parameter |
+| Gear button | Configure an input, output, or parameter |
+| **target** | `file` runs once per recording, `group` once per group |
+| **Run in FreeSurfer environment** | Only for functions that need [FreeSurfer](freesurfer.md) |
+| **Change Function Description** | Edit the text shown to users |
+| **Re-analyze Code** | Update the definition after editing the code |
 
-Click **Save** and complete **Plugin Package Metadata**: distribution name,
-version, description, author, license, and additional Python dependencies.
-Choose a project-root folder for the new package. Save creates an installable
-project, including source, configuration, package metadata, README, and license,
-then loads the plugin. It refuses to overwrite existing package files.
-Right-click the canvas to add the new nodes.
+The gear button of a parameter selects its widget and default value.
 
-Git initialization is optional and creates no commits, remotes, or uploads.
-**Install package after saving** is also optional; editable installation links
-the environment to your source. Loading from a path does not require installation.
+![The parameter configuration dialog](../_static/screenshots/linux/configure-parameter.png)
 
-The original file loaded for import is not overwritten: its edited function
-code is saved into the new package. **Re-analyze Code** updates definitions after
-editor changes; recheck custom widget configuration.
-For an existing local plugin, **Manage Plugins > Edit** opens source,
-configuration, and available package files. Saving there overwrites those local
-files and reloads enabled plugins. Installed non-editable files offer
-**Copy to edit** instead. External changes are checked before overwriting.
+The gear button of an input or output sets the accepted connections. To
+[save results](derivatives.md), also enter the load or save function and the
+BIDS suffix there.
 
-Loading a file normally analyzes its syntax without executing it. Loading the
-saved plugin imports Python code and can execute top-level statements.
-Use only code you trust. See [plugins](plugins.md) and [sharing](sharing.md) for distribution.
+## 3. Save as a plugin
+
+Click **Save**, fill in the package details, and choose a folder.
+
+![The plugin package dialog](../_static/screenshots/linux/plugin-package.png)
+
+This creates an installable Python project and loads it as a plugin. The new
+nodes are in the right-click menu of the canvas.
+
+* Existing files are never overwritten, and your original file stays untouched.
+* Initializing Git and installing the package are optional. Nothing is
+  committed or uploaded.
+
+To change the plugin later, use **Plugins > Manage Plugins > Edit...**. Saving
+there overwrites the local plugin files.
+
+!!! warning
+    Loading a file into the importer only analyzes it. Saving loads the plugin,
+    which runs its code. Only import code you trust.
+
+Next: [share the plugin](sharing.md).

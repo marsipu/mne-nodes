@@ -1,45 +1,33 @@
 # Installation
 
-Use Python 3.11 or newer in an environment with a working graphical
-MNE-Python installation. Follow the [MNE installation guide](https://mne.tools/stable/install/index.html) first, then activate that
-environment in a terminal.
+You need Python 3.11 or newer and a working
+[MNE-Python installation](https://mne.tools/stable/install/index.html).
+Run the commands below in a terminal with that environment activated.
 
-## Install a release
+## Install
 
 ```console
 python -m pip install mne-nodes
 ```
 
-To opt into alpha, beta, or release-candidate versions:
+| To get | Run |
+| --- | --- |
+| The latest pre-release | `python -m pip install --upgrade --pre mne-nodes` |
+| The development version | `python -m pip install git+https://github.com/marsipu/mne-nodes.git@main` |
+| An update of a release | `python -m pip install --upgrade mne-nodes` |
 
-```console
-python -m pip install --upgrade --pre mne-nodes
-```
-
-Processing functions are provided by plugins; see
-[plugins](documentation/plugins.md) to load them.
-
-## Launch
-
-From the same environment, run either command:
+## Start
 
 ```console
 mne_nodes
-python -m mne_nodes
 ```
 
-On first launch, create or choose a pipeline file and select a BIDS dataset.
-The welcome tour can prepare sample data; this may download a large MNE dataset.
-You can restart it with **Help > Restart Welcome Tour**.
-Continue with [pipelines](documentation/pipelines.md).
+`python -m mne_nodes` works as well.
 
-## Update or develop
+On the first start, a welcome tour walks you through a small pipeline. It can
+download the MNE sample data, which is large. Restart it any time with
+**Help > Restart Welcome Tour**.
 
-Update a release with `python -m pip install --upgrade mne-nodes`.
-To install the development version:
-
-```console
-python -m pip install git+https://github.com/marsipu/mne-nodes.git@main
-```
-
-For an editable checkout, follow [contributing](development/contributing.md).
+Next: [Build and run a pipeline](documentation/pipelines.md).
+Processing functions come from [plugins](documentation/plugins.md).
+To work on mne-nodes itself, see [Contributing](development/contributing.md).

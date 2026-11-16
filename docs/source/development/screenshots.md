@@ -1,191 +1,154 @@
 # Documentation screenshots
 
-The `Render Documentation` workflow captures the application on
-`ubuntu-latest` before building Zensical. The runner uploads a
-`docs-screenshots-linux` artifact, which the documentation job embeds in the
-landing page and the Usage guides. The README links to the same published
-`_static/screenshots/linux/pipeline.png` image: a successful deployment updates
-both views without committing PNGs or rewriting the README.
+Every image in this documentation is generated from the running application.
+`development/screenshots.py` reads scenarios from
+`docs/screenshots/screenshots.toml`, performs their steps in a disposable
+project, and saves one PNG per scenario.
 
-On a pull request, download and extract the `html-docs` artifact from the
-workflow run, then open `index.html` to preview the site. Local-file search
-requires an internet connection for Zensical's offline worker shim. No Pages deployment
-is made from pull requests. Pushes to `main` also publish the site.
-The workflow can also be started manually from the Actions tab; only runs on
-`main` deploy to Pages.
+## Generate and preview
 
-## GitHub Pages deployment
-
-The workflow uploads the built site as a `github-pages` artifact and deploys
-it directly using GitHub Actions. It does not commit generated HTML to a branch.
-The separate deployment job uses the `github-pages` environment and serializes
-deployments without interrupting an in-progress deployment.
-
-To migrate an existing branch-based Pages site, open the repository's
-**Settings > Pages** and set **Build and deployment > Source** to
-**GitHub Actions**. Merge the updated workflow into `main` and confirm that
-the deployment succeeds and the site loads. The old `gh-pages` branch can
-then be deleted; the workflow no longer creates or updates it.
-
-## Generating images locally
-
-Install the package and PySide6 in your development environment, then run
-the screenshot tool from the repository root. For example, on Linux:
-
-```bash
-python -m pip install PySide6 -e ".[docs]"
-python -m development.screenshots
+```console
+python -m development.screenshots                 # all screenshots
+python -m development.screenshots add-node groups # only some
+python -m development.screenshots --list          # show the names
+zensical serve                                    # preview the site
 ```
 
-Images are written to `docs/source/_static/screenshots/linux` unless
-`--output` or `MNENODES_SCREENSHOT_DIR` selects another directory. Pass
-screenshot names to capture only some of them, and `--list` to show all names.
-The `linux` directory is the location consumed by the site, not a capture
-restriction. On Windows:
+* Images go to `docs/source/_static/screenshots/linux`, the folder the pages
+  link to on every platform. It is ignored by Git.
+* Set `QT_SCALE_FACTOR=1` on HiDPI screens. Windows open briefly while
+  capturing. A headless Linux machine needs `xvfb-run -a`.
+* The `Render Documentation` workflow captures on `ubuntu-latest`, checks that
+  every configured screenshot exists, and builds with `zensical build --strict`.
+  Pull requests upload the site as the `html-docs` artifact; pushes to `main`
+  deploy it to GitHub Pages (**Settings > Pages > Source: GitHub Actions**).
 
-```powershell
-$env:QT_SCALE_FACTOR = "1"
-conda run -n mnedev python -m development.screenshots pipeline connect-ports
-conda run -n mnedev zensical build --clean --strict
-Remove-Item Env:QT_SCALE_FACTOR
+## Add a screenshot
+
+1. Add a `[[screenshots]]` entry to `docs/screenshots/screenshots.toml`.
+2. Generate it and look at the result.
+3. Reference it in a page:
+   `![Description](../_static/screenshots/linux/<name>.png)`.
+
+This entry produces the image below it:
+
+```toml
+[[screenshots]]
+name = "connect-ports"            # output file: connect-ports.png
+capture = "viewer"                # widget to capture, default "window"
+window_size = [1000, 560]         # size of the main window
+steps = [
+    { call = "output:prepare_eeg.raw.disconnect_from", args = ["@input:example_filter.raw"] },
+    { call = "viewer.zoom_to_nodes", args = [["@node:prepare_eeg", "@node:example_filter"]] },
+    { drag = "output:prepare_eeg.raw", to = "input:example_filter.raw", offset = [-40, 0], release = false },
+]
+
+[[screenshots.highlights]]
+target = "output:prepare_eeg.raw"
+text = "Drag from an output port"
+position = "top"
 ```
 
-Linux needs a display; on a headless machine use `xvfb-run -a` before
-`python -m development.screenshots`. The CI uses the same headless-display
-setup as the regular GUI tests. Captured windows open briefly on the desktop.
+![The generated connect-ports screenshot](../_static/screenshots/linux/connect-ports.png)
 
-For a complete local site, download the `docs-screenshots-linux` artifact
-from the same workflow run and extract its `linux` directory into
-`docs/source/_static/screenshots/`, then run:
+Use `size = [width, height]` instead of `window_size` to fix the size of a
+captured dialog. Unknown keys and targets that cannot be resolved fail the run.
 
-```bash
-zensical build --clean --strict
-```
+## The project
 
-The built site is in `docs/build/zensical/`. To preview it over HTTP with
-working search, run `zensical serve` from the repository root.
-
-A local capture updates only the current platform. The CI checks that all
-Linux screenshots exist before building. Generated PNGs are ignored by Git,
-not committed or compared pixel-for-pixel.
-
-## Configuring screenshots
-
-Screenshots are configured in `docs/screenshots/screenshots.toml` and
-generated by `development/screenshots.py`. Adding or changing a screenshot
-needs no Python code. Add a `[[screenshots]]` entry, add a figure to the relevant
-Usage page, and add its name to the image check in `.github/workflows/docs.yml`.
-
-Each screenshot starts from a fresh copy of the `[project]`. Settings, data, and
-generated plugin files live in a temporary directory. The project uses the
-packaged example plugin, the tiny BIDS test dataset, and the illustrative
-functions in `docs/screenshots/documentation_processing.py`. No sample-data
-downloads, external or installed plugins, or user recordings are needed.
-
-### Project
+Each screenshot starts from a fresh copy of the `[project]` table: the tiny
+BIDS test dataset, the packaged example plugin, and the illustrative functions
+in `docs/screenshots/documentation_processing.py`. Settings, data, and
+generated files live in a temporary folder, and nothing is downloaded.
 
 ```toml
 [project]
-dataset = "../../tests/tiny_bids"           # BIDS dataset, copied per screenshot
-theme = "light"
-font_size = 12
-window_size = [1800, 900]
+dataset = "../../tests/tiny_bids"           # copied for every screenshot
 plugins = ["resource:example_plugin_config.json"]
-inputs = { eeg = ["*.vhdr"] }               # recordings selected per datatype
+inputs = { eeg = ["*.vhdr"] }               # checked recordings per datatype
 connections = ["input.eeg -> prepare_eeg.raw"]
 
-[[project.imports]]                         # Python files saved as a plugin
+[[project.imports]]                         # Python file saved as a plugin
 file = "documentation_processing.py"
 plugin_name = "documentation_processing"
 
 [[project.nodes]]
 function = "example_filter"
 parameters = { highpass = 5 }
-# position = [x, y]; set auto_layout = false in [project] to keep positions
 ```
 
-Paths are relative to the TOML file; `resource:` refers to files bundled in
-`mne_nodes.resources`. Connections are written as
-`node.output_port -> node.input_port`, with `input` naming the input node.
-After setup, nodes are auto-laid out and zoomed to fit.
+Paths are relative to the TOML file; `resource:` points into
+`mne_nodes.resources`. Nodes are laid out automatically unless
+`auto_layout = false` and each node has a `position`.
 
-### Screenshots
+## Steps
 
-```toml
-[[screenshots]]
-name = "connect-ports"            # output file: connect-ports.png
-capture = "viewer"                # widget to capture, default "window"
-window_size = [1000, 560]         # main-window size for this screenshot
-# size = [900, 550]               # fixed size of a captured window
-steps = [
-    { call = "output:prepare_eeg.raw.disconnect_from", args = ["@input:example_filter.raw"] },
-    { drag = "output:prepare_eeg.raw", to = "input:example_filter.raw", release = false },
-]
-
-[[screenshots.highlights]]
-target = "output:prepare_eeg.raw"
-text = "Drag from an output port"
-color = "#e53935"
-position = "top"
-```
-
-Steps run in order. Each step has one action key whose value is its target:
+Each step has one action whose value is its target.
 
 | Action | Options | Effect |
 | --- | --- | --- |
-| `call` | `args`, `kwargs`, `store` | Call a method, optionally storing its result under a name |
-| `create` | `args`, `kwargs`, `store` | Instantiate a class by import path, such as a dialog |
-| `set` | `value` | Set an attribute or Qt property, such as `...parameter_guis.highpass.value` |
-| `click` | `item`, `button`, `double` | Click a widget, a view item or a node-graph item |
+| `click` | `item`, `button`, `double` | Click a widget, a view item, or a graph item |
 | `hover` | `item` | Move the mouse over a target |
-| `drag` | `to` or `by`, `offset`, `button`, `release`, `moves` | Drag with the mouse; `release = false` captures mid-drag |
-| `select` | `item` | Select a view item, combo-box entry, tab or node |
-| `type` | `text` | Type text into a widget |
+| `drag` | `to` or `by`, `offset`, `release`, `moves`, `button` | Drag; `release = false` captures mid-drag |
+| `menu` | `item`, `offset` | Open a menu-bar menu, or the context menu of a widget or graph item |
+| `select` | `item` | Select a view item, combo-box entry, tab, or node |
+| `type` | `text` | Type into a widget |
 | `key` | `target` | Press a key sequence such as `"Ctrl+S"` |
-| `resize` | `size`, `width`, `height` | Fix a widget's size, for example of the console dock |
-| `wait` |  | Wait for the given number of milliseconds |
-| `run` | `timeout` | Run the listed nodes and wait for the pipeline to succeed |
+| `set` | `value` | Set an attribute, Qt property, or dictionary entry |
+| `call` | `args`, `kwargs`, `store` | Call a method and optionally store the result |
+| `create` | `args`, `kwargs`, `store` | Call a class or function by import path, such as a dialog |
+| `resize` | `size`, `width`, `height` | Fix the size of a widget |
+| `run` | `timeout` | Run the listed nodes and wait for success |
+| `wait` | `timeout` | Wait for milliseconds, or until a target path is true |
 | `recipe` | `kwargs` | Call a Python helper registered with `@recipe` |
 
-Targets are dot-separated paths starting at `window`, `viewer`, `controller`,
-`app`, a stored name, or a registered widget. Each segment is resolved as a
-mapping key, attribute, list index, Qt object name, or text of a child widget,
-such as a button label; a trailing `()` calls a method.
-Node-graph items are addressed as `node:example_filter`,
-`output:prepare_eeg.raw`, and `input:example_filter.raw`. In `args`, `kwargs`
-and `value`, strings starting with `@` are resolved as targets, and `resource:`
-or `path:` strings become file paths. Use `@@` for a literal leading `@`.
+Menus stay open for the capture. `item` highlights an entry; separate nested
+entries with ` > `:
 
-Highlights are drawn onto the image after the capture. Each needs a `target`
-(optionally with `item`) or a `rect = [x, y, width, height]` in image pixels.
-Optional keys are `text`, `position` (`bottom`, `top`, `left`, `right`, or
-`inside`), `color`, `text_color`, `fill` (for example a translucent
-`"#40e53935"`), `width`, and `padding`. Labels flip to the opposite side when
-they would leave the image.
+```toml
+steps = [{ menu = "viewer", item = "documentation_processing > create_epochs" }]
+```
 
-Use a recipe only for states that cannot be built from steps, such as the
-synthetic MNE metadata for the coregistration manager. Prefer real interactions
-or public widget methods. Qt drag-and-drop (`QDrag`) runs its own event loop and cannot be
-simulated by `drag`; dragging inside the node graph or a single widget works. Unknown keys and unresolvable targets fail the run with an error.
+![The generated add-node screenshot with an open context menu](../_static/screenshots/linux/add-node.png)
 
-### Current screenshots
+## Targets
 
-| Scenario | Size | State |
-| --- | --- | --- |
-| `pipeline` | 1800 x 900 | Executed EEG workflow branching into covariance and a spherical forward model, ending in a source estimate, with its process console open |
-| `connect-ports` | Node viewer of a 1000 x 560 window | A connection being dragged from `prepare_eeg` to `example_filter`, with highlights |
-| `function-importer` | 1200 x 650 | Bundled filter's code and input/output/parameter definitions |
-| `coregistration` | 1000 x 650 | Synthetic digitization group with two recordings and one identity transform |
+A target is a dot-separated path.
 
-The pipeline scenario creates a disposable plugin package with explicit metadata,
-without Git initialization or installation. It runs the generated pipeline in a
-child process and waits for successful completion and rendered console output.
-The sensor positions, spherical model, and covariance are for illustration,
-not a scientifically validated source analysis. The coregistration capture populates
-the real manager with synthetic metadata; it does not run fitting, discovery,
-or MNE's 3D viewer and does not demonstrate a valid anatomical alignment.
+| Start | Refers to |
+| --- | --- |
+| `window`, `viewer`, `controller`, `app` | The main objects of the application |
+| A stored name | The result of a `call` or `create` step with `store` |
+| `node:example_filter` | A node; `node:input` is the input node |
+| `output:prepare_eeg.raw`, `input:example_filter.raw` | A port |
 
-Captures include application content, not desktop window frames or the cursor.
-HiDPI images are scaled to the widget's logical size, and saved PNGs are
-reloaded to verify them. A failed scenario or missing screenshot blocks the
-documentation build instead of publishing stale images.
+Every further segment is looked up as an attribute, dictionary key, list index,
+Qt object name, or the text of a child widget such as a button or a menu
+(`window.File`, `importer.Load File`). A trailing `()` calls a method.
+
+In `args`, `kwargs`, and `value`, a string starting with `@` is resolved as a
+target, and `resource:` or `path:` strings become paths. Write `@@` for a
+literal `@`.
+
+## Highlights
+
+Highlights are drawn onto the finished image.
+
+| Key | Meaning |
+| --- | --- |
+| `target`, `item` | The widget, layout, view item, or graph item to frame |
+| `rect` | Alternatively `[x, y, width, height]` in image pixels |
+| `text` | Label next to the frame |
+| `position` | `bottom`, `top`, `left`, `right`, or `inside`; flips when it does not fit |
+| `color`, `text_color`, `fill`, `width`, `padding` | Appearance |
+
+## Limits
+
+* Prefer real interactions and public methods. Use a `@recipe` only for states
+  that steps cannot build, such as the synthetic data of the coregistration
+  dialog.
+* Context menus are captured only when mne-nodes creates them.
+* Qt drag-and-drop between widgets (`QDrag`) cannot be simulated; dragging
+  inside the node graph works.
+* The demo analysis and the coregistration example use synthetic data. They
+  illustrate the interface, not a valid analysis.

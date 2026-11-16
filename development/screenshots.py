@@ -28,7 +28,16 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from qtpy.QtCore import QObject, QPoint, QPointF, QRectF, QSizeF, Qt
-from qtpy.QtGui import QColor, QFontMetricsF, QImage, QKeySequence, QPainter, QPen
+from qtpy.QtGui import (
+    QAction,
+    QColor,
+    QContextMenuEvent,
+    QFontMetricsF,
+    QImage,
+    QKeySequence,
+    QPainter,
+    QPen,
+)
 from qtpy.QtTest import QTest
 from qtpy.QtWidgets import (
     QAbstractItemView,
@@ -36,6 +45,8 @@ from qtpy.QtWidgets import (
     QApplication,
     QComboBox,
     QGraphicsItem,
+    QLayout,
+    QMenu,
     QTabWidget,
     QWidget,
 )
@@ -65,10 +76,11 @@ ACTIONS = {
     "hover": {"item"},
     "drag": {"to", "by", "offset", "button", "release", "moves"},
     "select": {"item"},
+    "menu": {"item", "offset"},
     "type": {"text"},
     "key": {"target"},
     "resize": {"size", "width", "height"},
-    "wait": set(),
+    "wait": {"timeout"},
     "run": {"timeout"},
     "recipe": {"kwargs"},
 }
@@ -137,11 +149,20 @@ def item_rect(view: QAbstractItemView, text: str) -> QRectF:
     index = find_item(view, text)
     view.scrollTo(index)
     rect = QRectF(view.visualRect(index))
-    for column in range(view.model().columnCount(index.parent())):
-        sibling = QRectF(view.visualRect(index.siblingAtColumn(column)))
-        if not sibling.isEmpty():
-            rect = rect.united(sibling)
+    column = 1
+    # List models hide columnCount(), so follow the siblings while they exist.
+    while (sibling := index.siblingAtColumn(column)).isValid():
+        rect = rect.united(QRectF(view.visualRect(sibling)))
+        column += 1
     return rect
+
+
+class PopupMenu(QMenu):
+    """A context menu that stays open for the capture instead of blocking."""
+
+    def exec(self, *args):
+        """Show the menu and return without waiting for a selection."""
+        self.popup(*args)
 
 
 class Scenario:
@@ -165,6 +186,8 @@ class Scenario:
         self.base = base
         self.workdir = workdir
         self.aliases: dict[str, Any] = {}
+        self.popups: list[QMenu] = []
+        self.menu_actions: list[QAction] = []
         self.window = None
         self.controller = None
 
@@ -250,6 +273,8 @@ class Scenario:
 
     def close(self) -> None:
         """Close all windows created by the scenario."""
+        for popup in reversed(self.popups):
+            popup.close()
         for value in self.aliases.values():
             if isinstance(value, QWidget) and value.isWindow():
                 value.close()
@@ -301,8 +326,9 @@ class Scenario:
         Paths may start with ``node:<name>``, ``input:<node>.<port>`` or
         ``output:<node>.<port>`` to address node-graph items. Each further
         dot-separated segment is looked up as mapping key, attribute, list
-        index, Qt object name or the text of a child widget. A segment ending
-        with ``()`` calls the resolved method without arguments.
+        index, Qt object name or the text or title of a child widget, such as
+        a button or a menu. A segment ending with ``()`` calls the resolved
+        method without arguments.
         """
         kind, separator, rest = path.partition(":")
         if separator and kind in ("node", "input", "output"):
@@ -346,8 +372,11 @@ class Scenario:
                     for child in (
                         obj.findChildren(QWidget) if isinstance(obj, QWidget) else []
                     )
-                    if callable(getattr(child, "text", None))
-                    and child.text().replace("&", "") == name
+                    if any(
+                        callable(label := getattr(child, attribute, None))
+                        and label().replace("&", "") == name
+                        for attribute in ("text", "title")
+                    )
                 ),
                 None,
             )
@@ -391,7 +420,7 @@ class Scenario:
         return obj, obj.rect().center()
 
     def global_rect(self, obj: Any, item: str | None = None) -> QRectF:
-        """Return the screen rectangle of a widget, view item or graph item."""
+        """Return the screen rectangle of a widget, layout, view or graph item."""
         if isinstance(obj, QGraphicsItem):
             view = obj.scene().views()[0]
             rect = view.mapFromScene(obj.sceneBoundingRect()).boundingRect()
@@ -403,10 +432,18 @@ class Scenario:
             widget = obj.viewport()
         elif isinstance(obj, QWidget):
             rect, widget = obj.rect(), obj
+        elif isinstance(obj, QLayout) and obj.parentWidget() is not None:
+            rect, widget = obj.geometry(), obj.parentWidget()
         else:
             raise ScreenshotError(f"Cannot highlight {obj!r}.")
-        top_left = widget.mapToGlobal(rect.topLeft())
-        return QRectF(QPointF(top_left), QSizeF(rect.size()))
+        proxy = widget.window().graphicsProxyWidget()
+        if proxy is not None:
+            # A widget embedded in a node follows the position and zoom of the node.
+            view = proxy.scene().views()[0]
+            rect.moveTo(widget.mapTo(widget.window(), rect.topLeft()))
+            rect = view.mapFromScene(proxy.mapRectToScene(QRectF(rect))).boundingRect()
+            widget = view.viewport()
+        return QRectF(QPointF(widget.mapToGlobal(rect.topLeft())), QSizeF(rect.size()))
 
     # ------------------------------------------------------------------
     # Steps
@@ -508,6 +545,56 @@ class Scenario:
         else:
             raise ScreenshotError(f"Cannot select in {type(obj).__name__}.")
 
+    def _menu(self, target: str, step: dict) -> None:
+        """Open a menu-bar menu, or the context menu of a widget or graph item."""
+        obj = self.resolve(target)
+        if isinstance(obj, QMenu):
+            menu, bar = obj, self.window.menuBar()
+            bar.setActiveAction(menu.menuAction())
+            if not menu.isVisible():
+                corner = bar.actionGeometry(menu.menuAction()).bottomLeft()
+                menu.popup(bar.mapToGlobal(corner))
+        else:
+            widget, position = self.event_position(obj)
+            position += QPoint(*step.get("offset", [0, 0]))
+            event = QContextMenuEvent(
+                QContextMenuEvent.Reason.Mouse, position, widget.mapToGlobal(position)
+            )
+            # Context menus block in exec(), so the application creates menus
+            # that only pop up while the event is handled.
+            modules = [
+                module
+                for name, module in list(sys.modules.items())
+                if name.startswith("mne_nodes") and getattr(module, "QMenu", 0) is QMenu
+            ]
+            for module in modules:
+                module.QMenu = PopupMenu
+            try:
+                QApplication.sendEvent(widget, event)
+            finally:
+                for module in modules:
+                    module.QMenu = QMenu
+            menu = QApplication.activePopupWidget()
+            if not isinstance(menu, QMenu):
+                raise ScreenshotError(f"'{target}' did not open a context menu.")
+        self.popups.append(menu)
+        # Highlight the item, opening a submenu for every part of "Menu > Item".
+        for text in filter(None, step.get("item", "").split(" > ")):
+            actions = {a.text().replace("&", ""): a for a in menu.actions()}
+            if text not in actions:
+                raise ScreenshotError(f"No menu item '{text}', use {sorted(actions)}.")
+            action = actions[text]
+            menu.setActiveAction(action)
+            submenu = action.menu()
+            if submenu is not None:
+                if not submenu.isVisible():
+                    corner = menu.actionGeometry(action).topRight()
+                    submenu.popup(menu.mapToGlobal(corner))
+                menu = submenu
+                self.popups.append(menu)
+                # The submenu wrapper is only valid while its action is referenced.
+                self.menu_actions.append(action)
+
     def _type(self, target: str, step: dict) -> None:
         widget = self.resolve(target)
         widget.setFocus()
@@ -531,8 +618,14 @@ class Scenario:
         if "height" in step:
             widget.setFixedHeight(step["height"])
 
-    def _wait(self, milliseconds: int, step: dict) -> None:
-        QTest.qWait(milliseconds)
+    def _wait(self, duration: int | str, step: dict) -> None:
+        """Wait for milliseconds, or until a target path resolves to true."""
+        if isinstance(duration, str):
+            timeout = step.get("timeout", 30)
+            message = f"'{duration}' was not true after {timeout} s."
+            wait_until(lambda: bool(self.resolve(duration)), timeout, message)
+        else:
+            QTest.qWait(duration)
 
     def _run(self, nodes: list[str], step: dict) -> None:
         self.controller.ensure_deriv_root(interactive=False)
@@ -586,22 +679,18 @@ class Scenario:
         if "size" in self.shot and size != self.shot["size"]:
             raise ScreenshotError(f"Capture has size {size}, not {self.shot['size']}.")
         widget.repaint()
-        image = widget.grab().toImage()
-        if image.isNull():
-            raise ScreenshotError("Qt returned an empty capture.")
-        image = image.scaled(
-            widget.size(),
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        image.setDevicePixelRatio(1)
-        highlights = self.shot.get("highlights", [])
-        if highlights:
-            painter = QPainter(image)
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            for spec in highlights:
-                draw_highlight(painter, self.highlight_rect(spec, widget), spec)
-            painter.end()
+        image = grab(widget)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Menus are separate windows; draw the open ones where they appear.
+        for popup in self.popups:
+            if not popup.isVisible():
+                painter.end()
+                raise ScreenshotError("A menu closed before the capture.")
+            painter.drawImage(widget.mapFromGlobal(popup.pos()), grab(popup))
+        for spec in self.shot.get("highlights", []):
+            draw_highlight(painter, self.highlight_rect(spec, widget), spec)
+        painter.end()
         return image
 
     def highlight_rect(self, spec: dict, widget: QWidget) -> QRectF:
@@ -616,6 +705,20 @@ class Scenario:
         rect = self.global_rect(self.resolve(spec["target"]), spec.get("item"))
         top_left = widget.mapFromGlobal(rect.topLeft().toPoint())
         return QRectF(QPointF(top_left), rect.size())
+
+
+def grab(widget: QWidget) -> QImage:
+    """Return the rendered widget scaled to its logical size."""
+    image = widget.grab().toImage()
+    if image.isNull():
+        raise ScreenshotError("Qt returned an empty capture.")
+    image = image.scaled(
+        widget.size(),
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    image.setDevicePixelRatio(1)
+    return image
 
 
 def draw_highlight(painter: QPainter, rect: QRectF, spec: dict) -> None:

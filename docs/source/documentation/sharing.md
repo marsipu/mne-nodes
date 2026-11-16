@@ -1,35 +1,48 @@
-# Share plugins and pipelines
+# Share pipelines and plugins
+
+## Share a pipeline
+
+Save or export the pipeline from the **File** menu.
+
+![The File menu with the export entries](../_static/screenshots/linux/file-menu.png)
+
+| Menu entry | Creates | Use it to |
+| --- | --- | --- |
+| **Save Pipeline** / **Save Pipeline As...** | `.json` | Reopen the pipeline in mne-nodes |
+| **Export Python Script...** | `.py` | Run the pipeline without the application |
+| **Export Jupyter Notebook...** | `.ipynb` | Run it step by step in a notebook |
+| **Export Complete Project...** | `.zip` | Pass on code, `pipeline.json`, `requirements.txt`, and local plugins |
+
+Every export asks whether the script prints plain or rich-formatted progress.
+None of these files contain recordings or a Python environment: the recipient
+selects the BIDS dataset and installs the plugins.
+
+!!! warning "Check before you share"
+    Exports can contain local paths and participant identifiers. The ZIP copies
+    local plugin folders completely, so keep private files out of them.
 
 ## Share a plugin
 
-For a plugin created with [function importer](function_importer.md), share the generated project
-folder: `pyproject.toml`, README, license, and the source package under `src`.
-Include helper modules and non-Python resources and review dependencies.
-The recipient can install the project with `python -m pip install .`, or
-select its `_config.json` using **Plugins > Load Plugin from Path**.
+A plugin created with the [function importer](function_importer.md) is an
+ordinary Python project. Share it in one of these ways:
 
-For a simple legacy path plugin, share the Python file and matching
-`_config.json` together, plus its helpers. There is no standalone plugin-export
-button: share the files or build a distribution.
-See [plugin distribution](plugin_distribution.md) for wheel/source exports and
-[plugin format](../development/plugin_format.md) for package structure.
+| Share | The recipient |
+| --- | --- |
+| The project folder | Runs `python -m pip install .` in it, or loads its `_config.json` with **Load Plugin from Path** |
+| A wheel from `dist/` | Runs `python -m pip install <wheel-file>` |
+| A GitHub repository | Enters its URL in **Load Plugin from GitHub** |
 
-## Save a pipeline
+Build the wheel in the project folder:
 
-**File > Save Pipeline** stores the graph, selections, parameters, and plugin
-metadata. **Save Pipeline As...** writes it to another JSON file.
-Neither includes recordings, local settings, nor a standalone installation of
-every plugin. On another device, select the BIDS root and restore dependencies.
+```console
+python -m pip install build twine
+python -m build
+python -m twine check dist/*
+```
 
-## Export executable code
+Before a release, check the name, version, license, and dependencies in
+`pyproject.toml`, and test an installation of the built wheel. Tools such as
+FreeSurfer are not installed by pip and need their own instructions.
 
-The **File** menu exports a Python script, a Jupyter notebook (`.ipynb`), or
-a complete-project ZIP. The ZIP contains `pipeline.py`, `pipeline.json`,
-`requirements.txt`, and local path-plugin files under `plugins`.
-It is not a complete environment or an intentional raw-dataset export.
-Local plugin folders are copied recursively, so keep unrelated data and private
-files out of them and inspect the archive before sharing.
-Exports may also contain local paths and participant identifiers.
-
-Choose **Plain output** for simpler logs, or **Rich output** for formatted
-progress and timings.
+mne-nodes never uploads anything. Publishing to GitHub or PyPI is your own
+step with your own tools.

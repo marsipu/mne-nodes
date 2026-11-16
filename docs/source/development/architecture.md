@@ -18,6 +18,13 @@ from plugin metadata.
 
 ## From graph to execution
 
+```mermaid
+flowchart LR
+    viewer["NodeViewer<br>orders the nodes"] --> generator["CodeGenerator<br>writes a Python script"]
+    generator --> process["Subprocess<br>runs the script"]
+    process --> console["Console<br>shows the output"]
+```
+
 1. The viewer builds an ordered node sequence for the selected start nodes
    and their downstream dependencies.
 2. `backend.code_generation.CodeGenerator` converts that sequence into Python,

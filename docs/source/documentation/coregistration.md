@@ -1,40 +1,34 @@
-# Head-to-MRI coregistration
+# Coregistration
 
-Use **BIDS > Coregistration...** to align EEG, MEG, or iEEG recordings with
-their FreeSurfer MRI reconstructions.
+Coregistration aligns the head position of a recording with the MRI of the
+participant. The result is the transformation behind the `trans` port of the
+input node.
 
-## Before you start
-
-You need a BIDS dataset with digitization and fiducials, plus a matching
-FreeSurfer reconstruction with a suitable head surface and MRI information.
-See [subjects](subjects.md) to select or import reconstructions.
+You need digitized head points with fiducials in the BIDS dataset and a
+[FreeSurfer reconstruction](freesurfer.md) of the participant.
 
 ## Fit and inspect
 
-1. Open **BIDS > Coregistration...** and select a digitization group.
-   Recordings are grouped only when their digitization matches within the
-   same subject and session.
-2. Choose the correct **FreeSurfer subject**. Verify that it belongs to the
-   participant, even if it is selected automatically.
-3. Run **Automatic coregistration**, or open **Manual coregistration / inspect**
-   to fit manually.
-4. Inspect the alignment in the manual window, even after automatic fitting.
-   Adjust it if needed and choose **Save to derivatives**.
+Open **BIDS > Coregistration...**.
 
-![Coregistration manager with two example recordings.](../_static/screenshots/linux/coregistration.png)
+![The coregistration dialog with a digitization group and its recordings](../_static/screenshots/linux/coregistration.png)
 
-Select a digitization group and its matching MRI subject.
+1. Select a group. Recordings of one subject and session with identical
+   digitization share a group.
+2. Choose the **FreeSurfer subject**. Check that it really is this
+   participant, even if it was selected automatically.
+3. Click **Automatic coregistration**, or fit by hand with **Manual
+   coregistration / inspect**.
+4. Always inspect the alignment in the manual window, then choose **Save to
+   derivatives**.
 
-Check marks indicate that transformations exist, **not** that alignment is
-correct. The example uses synthetic metadata, not an anatomical fit.
+!!! warning
+    A check mark means that a transformation exists, not that it is correct.
 
-## Reuse and save
+## Reuse a transformation
 
-To apply an existing transformation to matching recordings, select the
-recording with the transformation and choose **Reuse selected transformation
-for group**. Saving creates recording-specific transformation files in the
-configured [derivative folder](derivatives.md) and asks before replacing
-existing files.
+Select the recording that has a transformation and click **Reuse selected
+transformation for group** to apply it to the other recordings of the group.
 
-If existing transformations are ambiguous, resolve the conflict or save the
-intended transformation in the configured derivatives folder.
+Transformations are saved per recording in the
+[results folder](derivatives.md). You are asked before a file is replaced.

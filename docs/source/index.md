@@ -1,20 +1,22 @@
 # mne-nodes
 
-Build MEG and EEG workflows visually with MNE-Python. Connect processing nodes,
-adjust their parameters, and follow your data from recordings to results.
-Processing functions live in extensible plugins.
+Build MEG and EEG pipelines visually with [MNE-Python](https://mne.tools/stable/).
+Connect processing nodes, set their parameters, and run them on your recordings.
 
 !!! warning "Early development"
-    mne-nodes is **not production-ready for analysis**. Inspect and validate
-    your workflow and results before using them scientifically.
+    mne-nodes is **not production-ready for analysis**. Validate your workflow
+    and results before using them scientifically.
 
-[![A branched EEG workflow ending in a source estimate, with the console open](_static/screenshots/linux/pipeline.png)](_static/screenshots/linux/pipeline.png)
+[![An EEG pipeline ending in a source estimate, with the console open](_static/screenshots/linux/pipeline.png)](_static/screenshots/linux/pipeline.png)
 
-This example uses synthetic sensor positions and a spherical model to illustrate
-the interface; it is not a validated analysis.
+## How it works
 
-## Get started
+1. **Select recordings** from a BIDS dataset.
+2. **Add nodes** from plugins and **connect** them.
+3. **Run** the pipeline and follow it in the console.
 
-- [Installation](installation.md)
-- [Documentation](documentation/_overview.md)
-- [Development](development/_overview.md)
+[Install](installation.md){ .md-button .md-button--primary }
+[Build your first pipeline](documentation/pipelines.md){ .md-button }
+
+All screenshots are generated from the application with a tiny demo dataset.
+The demo analysis illustrates the interface; it is not a validated analysis.

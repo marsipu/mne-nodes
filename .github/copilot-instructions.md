@@ -62,3 +62,13 @@ Keep the test suite small and easy to overview. Write fewer tests, not more.
   dependencies such as PySide or MNE.
 - A bug fix needs at most one regression test, ideally added to an existing
   test. Small or cosmetic changes need no new test.
+
+
+## Documentation
+
+- Keep documentation up to date with code changes.
+- Use Markdown and follow the existing style and structure.
+- Include screenshots where helpful, using the `development/screenshots.py` utility.
+- Link to relevant sections of the documentation for context.
+- Avoid duplicating information that is already covered elsewhere.
+- Keep in mind, that changes in gui-architecture might have an impact on generated screenshots and related documentation, and update them accordingly.
