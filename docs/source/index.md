@@ -9,14 +9,12 @@ Connect processing nodes, set their parameters, and run them on your recordings.
 
 [![An EEG pipeline ending in a source estimate, with the console open](_static/screenshots/linux/pipeline.png)](_static/screenshots/linux/pipeline.png)
 
-## How it works
+## Features
 
-1. **Select recordings** from a BIDS dataset.
-2. **Add nodes** from plugins and **connect** them.
-3. **Run** the pipeline and follow it in the console.
+- a graphical representation of your processing pipeline.
+- simple addition of processing nodes by processing python functions directly.
+- run everything from within the application or
+- export the pipeline as code
 
 [Install](installation.md){ .md-button .md-button--primary }
 [Build your first pipeline](documentation/pipelines.md){ .md-button }
-
-All screenshots are generated from the application with a tiny demo dataset.
-The demo analysis illustrates the interface; it is not a validated analysis.
