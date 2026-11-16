@@ -18,3 +18,8 @@ docs/build/
 docs/generated/
 docs/source/generated
 docs/source/_static/screenshots/
+
+# Claude Code (personal settings) and Quarto preview output
+.claude/settings.local.json
+.claude/*.html
+.claude/*_files/
