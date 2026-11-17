@@ -24,10 +24,14 @@ mne_nodes
 
 `python -m mne_nodes` works as well.
 
+
+## Welcome Tour
 On the first start, a welcome tour walks you through a small pipeline. It can
-download the MNE sample data, which is large. Restart it any time with
+download the MNE sample data, which are about 1.2 GB. Restart it any time with
 **Help > Restart Welcome Tour**.
 
-Next: [Build and run a pipeline](documentation/pipelines.md).
-Processing functions come from [plugins](documentation/plugins.md).
-To work on mne-nodes itself, see [Contributing](development/contributing.md).
+Next: [Build and run a pipeline](user-guide/pipelines.md).
+
+Processing functions come from [plugins](user-guide/plugins.md).
+
+To contribute to mne-nodes itself, see [Contributing](development/contributing.md).

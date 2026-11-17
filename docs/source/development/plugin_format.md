@@ -4,7 +4,7 @@
 
 A path-loaded plugin consists of `my_processing.py` and
 `my_processing_config.json` in the same folder. Configuration maps function
-names to node metadata. [function importer](../documentation/function_importer.md) generates it.
+names to node metadata. [function importer](../user-guide/function_importer.md) generates it.
 
 ```json
 {
@@ -54,5 +54,5 @@ my_processing = "my_processing"
 
 The entry point must load a module, not a function or class.
 Test both the installed package and path loading; an editable checkout can
-hide missing resources. Refer to [plugins](../documentation/plugins.md) for user actions
-and [freesurfer](../documentation/freesurfer.md) for command/FreeSurfer metadata.
+hide missing resources. Refer to [plugins](../user-guide/plugins.md) for user actions
+and [freesurfer](../user-guide/freesurfer.md) for command/FreeSurfer metadata.

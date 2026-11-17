@@ -1,27 +1,11 @@
-append_unmatched: true
+# Pages not listed here are added automatically, in alphabetical order.
 nav:
-  - Overview: index.md
+  - index.md
   - installation.md
   - User guide:
-      - documentation/_overview.md
-      - documentation/pipelines.md
-      - documentation/data.md
-      - documentation/derivatives.md
-      - documentation/plugins.md
-      - documentation/function_importer.md
-      - documentation/sharing.md
-      - documentation/freesurfer.md
-      - documentation/coregistration.md
-      - documentation/settings.md
-      - documentation/errors.md
+      - user-guide/pipelines.md
+      - user-guide/data.md
+      - user-guide/*
   - Development:
-      - development/_overview.md
       - development/contributing.md
-      - development/architecture.md
-      - development/configuration.md
-      - development/widgets.md
-      - development/plugin_format.md
-      - development/freesurfer.md
-      - development/internals.md
-      - development/screenshots.md
-      - development/docker_gui.md
+      - development/*

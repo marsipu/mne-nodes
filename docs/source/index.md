@@ -17,4 +17,4 @@ Connect processing nodes, set their parameters, and run them on your recordings.
 - export the pipeline as code
 
 [Install](installation.md){ .md-button .md-button--primary }
-[Build your first pipeline](documentation/pipelines.md){ .md-button }
+[Build your first pipeline](user-guide/pipelines.md){ .md-button }

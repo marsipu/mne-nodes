@@ -12,10 +12,9 @@
 The [documentation](https://marsipu.github.io/mne-nodes/) shows every step
 with screenshots:
 
-- [Build and run a pipeline](https://marsipu.github.io/mne-nodes/documentation/pipelines.html)
-- [User guide](https://marsipu.github.io/mne-nodes/documentation/_overview.html)
-  for data, plugins, your own nodes, and sharing
-- [Developer guide](https://marsipu.github.io/mne-nodes/development/_overview.html)
+- [User guide](https://marsipu.github.io/mne-nodes/user-guide/pipelines.html)
+  for pipelines, data, plugins, your own nodes, and sharing
+- [Developer guide](https://marsipu.github.io/mne-nodes/development/contributing.html)
   for architecture and contributor standards
 
 The screenshot above is generated from the application whenever the
