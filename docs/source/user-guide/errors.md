@@ -13,6 +13,7 @@ appear in the console.
 Check the box to add anonymized system information, loaded plugins, and a
 dataset summary to the report.
 
-The report is copied to your clipboard and a draft issue opens in your
-browser. Nothing is sent until you submit the issue yourself, so remove any
-private details first.
+Before choosing **Copy report and open GitHub**, remove private details in the
+report preview. This copies the report to your clipboard and opens a draft in
+your browser, potentially sending the report to GitHub in the URL. The issue
+is not published until you submit it.
