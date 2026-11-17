@@ -92,7 +92,7 @@ jobs:
         name: html-docs
         path: docs/build/zensical/
     - name: Upload Pages artifact
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v5
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       with:
         path: docs/build/zensical/
@@ -114,4 +114,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
