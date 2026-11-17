@@ -47,6 +47,12 @@ steps = [
 target = "output:prepare_eeg.raw"
 text = "Drag from an output port"
 position = "top"
+
+[[screenshots.highlights]]
+target = "input:example_filter.raw"
+text = "Release on a compatible input"
+color = "#1e88e5"
+position = "top"
 ```
 
 ![The generated connect-ports screenshot](../_static/screenshots/linux/connect-ports.png)

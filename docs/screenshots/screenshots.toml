@@ -76,7 +76,7 @@ position = "top"
 
 [[screenshots.highlights]]
 target = "input:example_filter.raw"
-text = "Release on a compatible input"
+text = "Release on a compatible input (marked green)"
 color = "#1e88e5"
 position = "top"
 
