@@ -16,12 +16,13 @@ All analysis logic should be implemented in separate, importable Python modules/
    updates from the main-branch: `git remote add upstream https://github.com/marsipu/mne-nodes.git`
 5. Install your forked version including development dependencies with pip: `pip install -e .[test,docs]`
 6. Install the pre-commit hooks with: `pre-commit install`
+7. Start the application with: `python -m mne_nodes`
 
 **Alternative:** You can also use [mne-dev-setup](https://github.com/marsipu/mne-dev-setup) for the setup of a development environment.
 
 ## Project layout and testing
 
-The [Developer guides](https://marsipu.github.io/mne-nodes/development/index.html)
+The [Developer guides](https://marsipu.github.io/mne-nodes/development/architecture.html)
 cover core modules, pipeline configuration versus Settings, model-backed widget
 references, plugin structure, and screenshot generation. Keep guides focused on
 one task or concept and update them alongside behavior changes.
@@ -34,18 +35,26 @@ one task or concept and update them alongside behavior changes.
   repository root, for example `python -m development.param_tester`.
 
 The project uses a `src` layout: install it before importing or testing it.
-Use `python -m pytest` (or `conda run -n mnedev python -m pytest`) from the
-repository root. Pytest discovers only `tests/` and uses importlib import mode;
-it does not add `src/` to the import path. Configuration lives in `pyproject.toml`.
-CI tests a non-editable installation to catch missing modules and resources.
+Use `python -m pytest` from the repository root, so that workers spawned on
+Windows remain importable. Pytest discovers only `tests/` and uses importlib
+import mode; it does not add `src/` to the import path. Configuration lives in
+`pyproject.toml`. CI tests a non-editable installation to catch missing modules
+and resources.
+
+Run the narrowest relevant tests first, for example
+`python -m pytest tests/test_main_window.py`. The full suite can download large
+MNE datasets. Run pre-commit on changed files for formatting and linting.
+
+Tests isolate settings and logs in temporary directories. Subprocesses must
+inherit that isolation or explicitly select their own settings directory.
+Use `monkeypatch.setenv` for test environment overrides.
 
 Console output uses Rich for logging and progress, and ansi2html for GUI
 rendering. ANSI conversion runs in the stream worker; the GUI receives bounded
 batches rather than an update for every write.
 
 To try the error dialog and its reporting flow, run
-`conda run -n mnedev python -m development.error_dialog_tester` (or
-`python -m development.error_dialog_tester` in your development environment).
+`python -m development.error_dialog_tester`.
 The helper raises an intentional error without reading any data. Try copying
 the traceback, optionally including real system diagnostics, and opening the
 editable, redacted report preview with **Open GitHub issue…**. No pipeline is
@@ -70,9 +79,24 @@ Update external plugins and scripts that import this module. The
 `mne_nodes.gui` module path, package name and `mne_nodes` launch command
 remain unchanged.
 
+## Code conventions
+
+* Use double-quoted strings, type hints, f-strings, and `pathlib` paths.
+* Keep lines within 88 characters. Avoid wildcard imports.
+* Document public functions and classes. Comment non-obvious behavior, not
+  each individual operation.
+* Keep processing logic in plugins. Reuse shared widgets, state services,
+  datatype aliases, and semantic colors.
+* Surface errors through the existing logging/dialog mechanisms. Do not
+  swallow broad exceptions unless presenting the captured error to the user.
+* Update the relevant [documentation](https://marsipu.github.io/mne-nodes/)
+  page when behavior changes. The
+  [screenshot guide](https://marsipu.github.io/mne-nodes/development/screenshots.html) explains how to
+  generate images and preview the site with a strict Zensical build.
+
 ## Docker
 
-See the [Docker GUI development guide](docs/source/development/docker_gui.md)
+See the [Docker GUI development guide](https://marsipu.github.io/mne-nodes/development/docker_gui.html)
 for the cross-platform container launcher and X server requirements.
 
 ## Publishing releases
@@ -80,8 +104,9 @@ for the cross-platform container launcher and X server requirements.
 Package versions are derived from Git tags by `hatch-vcs`; do not manually
 set a version in `pyproject.toml`. To publish through GitHub's Releases page:
 
-1. Merge the release changes into `main`, wait for CI to pass, and smoke-test
-   the GUI. Review the readiness notice in the README before entering beta;
+1. Merge the release changes into `main`, wait for CI to pass for the exact
+   commit you intend to tag, and smoke-test the GUI. Review the readiness notice
+   in the README before entering beta;
    retain the warning about production analysis until it is appropriate to
    remove it.
 2. Create a release with a new tag targeting the intended commit on `main`.
@@ -90,10 +115,17 @@ set a version in `pyproject.toml`. To publish through GitHub's Releases page:
 3. Generate and review release notes, including known limitations and
    installation instructions. Check **Set as a pre-release** for alpha, beta
    and release-candidate versions; leave it unchecked for final releases.
-4. Publish the release. The **Upload to PyPi** workflow reruns the shared test
-   suite, checks that the tagged commit belongs to `main`, and verifies that
-   both built distributions match the tag and the pre-release flag before
-   uploading to PyPI. Publishing cannot be triggered manually.
+4. Publish the release. The **Upload to PyPi** workflow uses
+   `hynek/build-and-inspect-python-package` to build the wheel and source
+   distribution and validate wheel contents and PyPI metadata, then uploads
+   them using PyPI trusted publishing. Versions come from the release tag.
+   It does not rerun tests or enforce CI status, branch membership, or version
+   matching; checking CI before releasing is your responsibility.
+   Publishing cannot be triggered manually.
+   A notification job uses `dacbd/create-issue-action` to open an issue mentioning
+   `@marsipu` if building or publishing fails or is skipped. Enable GitHub
+   notifications for mentions to receive the alert. A published GitHub release
+   alone does not mean the package is available on PyPI.
 5. Confirm the workflow succeeded and the version appears on PyPI. Install
    that exact published version in a clean environment, for example
    `pip install mne-nodes==0.1.0b1`, and smoke-test the GUI before announcing it.
@@ -101,8 +133,11 @@ set a version in `pyproject.toml`. To publish through GitHub's Releases page:
 Users can opt into pre-releases with `pip install --upgrade --pre mne-nodes`.
 PyPI versions cannot be overwritten: publish a new version (for example
 `v0.1.0b2`) for fixes instead of moving or reusing an existing release tag.
-If validation fails before upload, fix the issue and rerun the failed workflow;
-do not use a manual untagged publish as a workaround.
+If fixing a failure requires changing the code, merge the fix, wait
+for CI, and create a new release tag. For transient build or upload failures,
+inspect the logs and check PyPI for a partial upload before rerunning; existing
+files cannot be overwritten. Close the failure issue once publishing is resolved.
+Do not use a manual untagged publish as a workaround.
 
 ## Workflow for contributing
 1. Create a branch for changes: `git checkout -b <branch-name>`

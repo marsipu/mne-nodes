@@ -35,5 +35,5 @@ Internal device defaults remain in `backend.settings`.
 
 Dataset switching and pipeline switching have explicit reset rules.
 Do not clear selections or local folders incidentally during a widget refresh.
-See [settings](../documentation/settings.md) for the user-visible rules and
+See [settings](../user-guide/settings.md) for the user-visible rules and
 [widgets](widgets.md) for model reference ownership.

@@ -1,5 +1,0 @@
-append_unmatched: false
-ignore: screenshot_demo.md
-nav:
-  - index.md
-  - "*"

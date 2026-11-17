@@ -9,13 +9,16 @@
 
 ## Documentation
 
-Read the [Usage guides](https://marsipu.github.io/mne-nodes/documentation/index.html)
-for pipelines, FunctionImporter, plugins, and coregistration, or the
-[Developer guides](https://marsipu.github.io/mne-nodes/development/index.html)
-for architecture and contributor standards.
-The overview above is generated from real widgets and refreshed by successful
-documentation deployments. Viewing the hosted image requires internet access;
-installing the package does not install the documentation site.
+The [documentation](https://marsipu.github.io/mne-nodes/) shows every step
+with screenshots:
+
+- [User guide](https://marsipu.github.io/mne-nodes/user-guide/pipelines.html)
+  for pipelines, data, plugins, your own nodes, and sharing
+- [Developer guide](https://marsipu.github.io/mne-nodes/development/contributing.html)
+  for architecture and contributor standards
+
+The screenshot above is generated from the application whenever the
+documentation is deployed.
 
 ## A Node-GUI for [mne-python](https://mne.tools/stable/index.html)
 This is a GUI to facilitate offline neurophysiological data processing with mne-python by visualizing the data-flow with nodes.

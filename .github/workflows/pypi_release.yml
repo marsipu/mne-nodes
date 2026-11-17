@@ -8,98 +8,21 @@ permissions:
   contents: read
 
 jobs:
-  tests:
-    uses: ./.github/workflows/run_tests.yml
-
   build:
-    needs: tests
     runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.build.outputs.artifact-name }}
 
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Verify release commit
-        run: git merge-base --is-ancestor HEAD origin/main
-      - uses: actions/setup-python@v7
+      - name: Build and validate package
+        id: build
+        uses: hynek/build-and-inspect-python-package@v2
         with:
-            python-version: '3.13'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade build twine packaging
-      - name: Build package
-        run: |
-          rm -rf dist build ./*.egg-info
-          python -m build
-          python -m twine check --strict dist/*
-      - name: Verify package versions match release tag
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          IS_PRERELEASE: ${{ github.event.release.prerelease }}
-        run: |
-          python - <<'PY'
-          import os
-          import tarfile
-          import zipfile
-          from email.parser import BytesParser
-          from pathlib import Path
-
-          from packaging.version import Version
-
-          tag = os.environ["RELEASE_TAG"]
-          expected = Version(tag.removeprefix("v"))
-          if expected.is_devrelease or expected.local is not None:
-              raise SystemExit("Development and local versions cannot be published.")
-          if expected.is_prerelease != (os.environ["IS_PRERELEASE"] == "true"):
-              raise SystemExit("The GitHub pre-release flag must match the tag version.")
-
-          wheels = list(Path("dist").glob("*.whl"))
-          sdists = list(Path("dist").glob("*.tar.gz"))
-          if (
-              len(wheels) != 1
-              or len(sdists) != 1
-              or set(Path("dist").iterdir()) != set(wheels + sdists)
-          ):
-              raise SystemExit("Expected only one wheel and one source distribution.")
-
-          with zipfile.ZipFile(wheels[0]) as archive:
-              metadata_files = [
-                  name for name in archive.namelist()
-                  if name.endswith(".dist-info/METADATA")
-              ]
-              if len(metadata_files) != 1:
-                  raise SystemExit("Expected exactly one wheel metadata file.")
-              wheel_metadata = archive.read(metadata_files[0])
-
-          with tarfile.open(sdists[0]) as archive:
-              metadata_files = [
-                  member for member in archive.getmembers()
-                  if member.name.endswith("/PKG-INFO")
-                  and member.name.count("/") == 1
-              ]
-              if len(metadata_files) != 1:
-                  raise SystemExit("Expected exactly one source metadata file.")
-              source = archive.extractfile(metadata_files[0])
-              if source is None:
-                  raise SystemExit("Source distribution metadata is not a file.")
-              with source:
-                  sdist_metadata = source.read()
-
-          for path, metadata in zip(
-              [wheels[0], sdists[0]], [wheel_metadata, sdist_metadata]
-          ):
-              actual = Version(BytesParser().parsebytes(metadata)["Version"])
-              if actual != expected:
-                  raise SystemExit(f"{path}: version {actual} does not match {tag}.")
-              print(f"{path}: verified version {actual}")
-          PY
-      - name: Upload package artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: python-dist
-          path: dist/
+          python-version: '3.13'
 
   publish:
     needs: build
@@ -111,7 +34,32 @@ jobs:
       - name: Download package artifacts
         uses: actions/download-artifact@v8
         with:
-          name: python-dist
+          name: ${{ needs.build.outputs.artifact-name }}
           path: dist/
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  notify-failure:
+    name: Notify on release failure
+    if: ${{ always() && (needs.build.result != 'success' || needs.publish.result != 'success') }}
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Open release failure issue
+        uses: dacbd/create-issue-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "PyPI publication failed: ${{ github.event.release.tag_name }}"
+          body: |
+            @marsipu PyPI publication did not complete successfully.
+
+            GitHub release: ${{ github.event.release.html_url }}
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} (attempt ${{ github.run_attempt }})
+            Build: ${{ needs.build.result }}
+            Publish: ${{ needs.publish.result }}
+
+            Inspect the workflow logs and check PyPI for any partial upload before retrying.
+            The GitHub release is already published.

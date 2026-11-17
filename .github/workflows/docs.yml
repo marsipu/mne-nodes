@@ -73,12 +73,19 @@ jobs:
         path: docs/source/_static/screenshots/
     - name: Set copyright year
       run: sed -i "s/{year}/$(date +%Y)/g" zensical.toml
-    - name: Build docs
+    - name: Check screenshots
+      shell: python
       run: |
-          for image in pipeline connect-ports function-importer coregistration; do
-            test -s "docs/source/_static/screenshots/linux/${image}.png"
-          done
-          zensical build --clean --strict
+          import tomllib
+          from pathlib import Path
+
+          config = Path("docs/screenshots/screenshots.toml").read_text("utf-8")
+          names = [shot["name"] for shot in tomllib.loads(config)["screenshots"]]
+          folder = Path("docs/source/_static/screenshots/linux")
+          missing = [n for n in names if not (folder / f"{n}.png").is_file()]
+          assert not missing, f"Missing screenshots: {missing}"
+    - name: Build docs
+      run: zensical build --clean --strict
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       with:

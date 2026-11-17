@@ -76,7 +76,7 @@ position = "top"
 
 [[screenshots.highlights]]
 target = "input:example_filter.raw"
-text = "Release on a compatible input"
+text = "Release on a compatible input (marked green)"
 color = "#1e88e5"
 position = "top"
 
@@ -88,6 +88,23 @@ steps = [
     { create = "mne_nodes.gui.function_widgets.FunctionImporter", kwargs = { file_path = "resource:example_plugin.py", parent = "@window" }, store = "importer" },
 ]
 
+[[screenshots.highlights]]
+target = "importer.Load File"
+text = "1. Load a Python file"
+position = "inside"
+padding = 2
+
+[[screenshots.highlights]]
+target = "importer.parameter_layout"
+text = "2. Review inputs, outputs and parameters"
+color = "#1e88e5"
+position = "bottom"
+
+[[screenshots.highlights]]
+target = "importer.save_button"
+text = "3. Save as a plugin"
+position = "top"
+
 [[screenshots]]
 name = "coregistration"
 capture = "coreg"
@@ -95,4 +112,234 @@ size = [1000, 650]
 steps = [
     { create = "mne_nodes.gui.dialogs.coreg_dialog.CoregDialog", args = ["@controller", "@window"], store = "coreg" },
     { recipe = "synthetic_coregistration", kwargs = { dialog = "@coreg" } },
+]
+
+[[screenshots.highlights]]
+target = "coreg.group_list.view"
+item = "sub-01 / ses-01 / digitization 1 (2 recordings)"
+text = "1. Select a group"
+position = "bottom"
+
+[[screenshots.highlights]]
+target = "coreg.mri_subject"
+text = "2. Choose its MRI"
+color = "#1e88e5"
+position = "top"
+
+[[screenshots]]
+name = "select-recordings"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { call = "viewer.zoom_to_nodes", args = [["@node:input"]] },
+]
+
+[[screenshots.highlights]]
+target = "node:input.input_widget.root_bt"
+text = "1. Choose the dataset"
+position = "left"
+
+[[screenshots.highlights]]
+target = "node:input.input_widget.tab_widget"
+text = "2. Check recordings"
+color = "#1e88e5"
+position = "left"
+
+[[screenshots.highlights]]
+target = "output:input.anat"
+text = "Dimmed: not available"
+color = "#757575"
+position = "right"
+
+[[screenshots]]
+name = "groups"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { select = "node:input.input_widget.tab_widget", item = "Groups" },
+    { call = "node:input.input_widget.group_tree.view.expandAll" },
+    { call = "viewer.zoom_to_nodes", args = [["@node:input"]] },
+]
+
+[[screenshots]]
+name = "data-overview"
+capture = "overview"
+size = [1100, 320]
+steps = [
+    { create = "mne_nodes.gui.dialogs.data_overview.DataOverviewDialog", args = ["@controller", "@window"], store = "overview" },
+    # Scan directly instead of through the dialog's background worker.
+    { create = "mne_nodes.backend.data_overview.discover_data_overview", args = ["@controller"], store = "scan" },
+    { call = "overview._discovered", args = ["@scan"] },
+]
+
+[[screenshots]]
+name = "add-node"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { call = "viewer.zoom_to_nodes", args = [["@node:input", "@node:prepare_eeg"]] },
+    { menu = "viewer", offset = [40, -30], item = "documentation_processing > create_epochs" },
+]
+
+[[screenshots]]
+name = "port-menu"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { call = "viewer.zoom_to_nodes", args = [["@node:create_epochs", "@node:average_epochs"]] },
+    { menu = "output:create_epochs.epochs", item = "average_epochs" },
+]
+
+[[screenshots]]
+name = "parameters"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { run = ["input"], timeout = 120 },
+    { call = "window.console_dock.hide" },
+    { set = "node:example_filter.parameter_guis.lowpass.value", value = 40 },
+    { call = "viewer.zoom_to_nodes", args = [["@node:example_filter", "@node:create_epochs"]] },
+]
+
+[[screenshots.highlights]]
+target = "node:example_filter.parameter_frames.lowpass"
+text = "Changed since the last run"
+position = "bottom"
+
+[[screenshots]]
+name = "run-pipeline"
+window_size = [1200, 600]
+steps = [
+    { run = ["input"], timeout = 120 },
+    { resize = "window.console_dock", width = 460 },
+    { wait = 200 },
+    { call = "viewer.zoom_to_nodes", args = [["@node:input", "@node:prepare_eeg"]] },
+]
+
+[[screenshots.highlights]]
+target = "node:input.start_button"
+text = "Start"
+position = "top"
+
+[[screenshots.highlights]]
+target = "window.console_dock"
+text = "Progress and errors"
+color = "#1e88e5"
+position = "left"
+padding = -4
+
+[[screenshots]]
+name = "start-selected"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    { select = "node:create_epochs" },
+    { call = "viewer.zoom_to_nodes", args = [["@node:example_filter", "@node:create_epochs"]] },
+    { menu = "viewer", offset = [20, 90], item = "Start selected nodes" },
+]
+
+[[screenshots]]
+name = "save-results"
+capture = "viewer"
+window_size = [1000, 560]
+steps = [
+    # Results can only be saved when the plugin defines a writer for an output.
+    { set = "controller.function_meta.create_epochs.outputs.epochs.write", value = "Epochs.save" },
+    { call = "viewer.to_dict", store = "graph" },
+    { call = "viewer.load_nodes", args = ["@graph"] },
+    { click = "node:create_epochs.checkbox_widget" },
+    { call = "viewer.zoom_to_nodes", args = [["@node:create_epochs", "@node:average_epochs"]] },
+]
+
+[[screenshots.highlights]]
+target = "node:create_epochs.checkbox_widget"
+text = "Save this node's results"
+position = "top"
+
+[[screenshots]]
+name = "file-menu"
+window_size = [1000, 340]
+steps = [
+    { menu = "window.File", item = "Export Python Script..." },
+]
+
+[[screenshots]]
+name = "bids-menu"
+window_size = [1000, 340]
+steps = [
+    { menu = "window.BIDS", item = "Add Sample BIDS Data" },
+]
+
+[[screenshots]]
+name = "plugins-menu"
+window_size = [1000, 340]
+steps = [
+    { menu = "window.Plugins", item = "Load Plugin from Path" },
+]
+
+[[screenshots]]
+name = "plugin-manager"
+capture = "plugins"
+size = [760, 330]
+steps = [
+    { create = "mne_nodes.gui.dialogs.plugin_manager.PluginManagerDlg", args = ["@window", "@controller"], store = "plugins" },
+]
+
+[[screenshots]]
+name = "configure-parameter"
+capture = "parameter"
+size = [600, 400]
+steps = [
+    { create = "mne_nodes.gui.function_widgets.ParameterConfiguration", args = ["highpass", { gui = "IntGui", default = 1 }, "@window"], store = "parameter" },
+]
+
+[[screenshots]]
+name = "plugin-package"
+capture = "package"
+steps = [
+    { create = "mne_nodes.gui.dialogs.plugin_package.PluginPackageDialog", args = ["my_processing", "@window"], store = "package" },
+    { type = "package.description", text = "Filters for my EEG study" },
+    { type = "package.author", text = "Ada Example" },
+    { select = "package.license_choice", item = "BSD-3-Clause" },
+]
+
+[[screenshots]]
+name = "freesurfer-setup"
+capture = "setup"
+size = [760, 520]
+steps = [
+    { create = "mne_nodes.gui.dialogs.freesurfer_dialogs.FreeSurferSetupDialog", args = ["@controller", "@window"], store = "setup" },
+]
+
+[[screenshots.highlights]]
+target = "setup.discover_button"
+text = "Check the installation"
+position = "top"
+
+[[screenshots]]
+name = "freesurfer-import"
+capture = "importer"
+size = [650, 400]
+steps = [
+    { create = "mne_nodes.gui.dialogs.freesurfer_dialogs.FreeSurferImportDialog", args = ["@controller", "@window"], store = "importer" },
+    { call = "importer.checked.extend", args = [["sub-01", "sub-02"]] },
+    { call = "importer.subjects.replace_data", args = [["sub-01", "sub-02", "sub-03"]] },
+    { call = "importer._selection_changed" },
+    { call = "importer.status.setText", args = ["Source: /data/freesurfer/subjects"] },
+]
+
+[[screenshots]]
+name = "settings"
+capture = "settings"
+size = [550, 420]
+steps = [
+    { create = "mne_nodes.gui.dialogs.settings_dialog.SettingsDlg", args = ["@controller.settings", "@window"], store = "settings" },
+]
+
+[[screenshots]]
+name = "error-dialog"
+capture = "error"
+size = [760, 460]
+steps = [
+    { create = "mne_nodes.gui.dialogs.error_dialog.ErrorDialog", args = [["ValueError", "lowpass must be higher than highpass", "Traceback (most recent call last):\n  File \"pipeline.py\", line 42, in <module>\n    raw = example_filter(raw, highpass=40, lowpass=30)\n  File \"example_plugin.py\", line 5, in example_filter\n    raw = raw.filter(highpass, lowpass)\nValueError: lowpass must be higher than highpass"], "@window"], store = "error" },
 ]

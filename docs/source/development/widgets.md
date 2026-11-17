@@ -60,4 +60,4 @@ the main window or viewer.
 
 Parent widgets where appropriate and keep workers/manual windows alive until
 their operations finish. Do not restore the former package-global widget map.
-See [contributing](contributing.md) for isolated GUI tests.
+See [Contributing](contributing.md) for isolated GUI tests.

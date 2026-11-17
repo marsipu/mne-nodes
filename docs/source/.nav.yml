@@ -1,6 +1,11 @@
-append_unmatched: true
+# Pages not listed here are added automatically, in alphabetical order.
 nav:
-  - Overview: index.md
+  - index.md
   - installation.md
-  - documentation
-  - development
+  - User guide:
+      - user-guide/pipelines.md
+      - user-guide/data.md
+      - user-guide/*
+  - Development:
+      - development/contributing.md
+      - development/*
